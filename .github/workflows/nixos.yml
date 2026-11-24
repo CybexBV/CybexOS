@@ -15,7 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ inputs.source_ref || github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
@@ -37,7 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ inputs.source_ref || github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
@@ -59,7 +67,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ inputs.source_ref || github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
@@ -75,7 +87,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ inputs.source_ref || github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |

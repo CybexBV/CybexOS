@@ -69,7 +69,7 @@ if ((dry_run)); then
     echo "Would publish $tag at $revision to $REPO for $channel (${kind[*]}) with ${#assets[@]} asset(s)."
     exit 0
 fi
-git tag --annotate "$tag" --message "Cybex OS $version"
+git tag --annotate "$tag" --message "Cybex OS $version" "$revision"
 git push --quiet origin "refs/tags/$tag"
 gh release create "$tag" --repo "$REPO" --verify-tag --title "Cybex OS $version" \
     --notes-file release/notes.md "${kind[@]}" "${assets[@]}"
