@@ -1208,55 +1208,45 @@ TEXT
     vm.command("python3 - <<'QA'\n" + code.replace('TEXT', action) + '\nQA')
 
 
-def qualify_kernel_update(vm, encrypted):
-    """Stage a real LTS-to-latest kernel change, confirm it and roll it back."""
-    latest = vm.command('uname -r').strip()
-    edit_import(vm, 'qualification-kernel.nix',
-                '{ pkgs, ... }: { boot.kernelPackages = pkgs.linuxPackages; }')
-    baseline = stage(vm)
-    apply(vm, baseline)
-    authenticated_boot(vm, encrypted)
-    confirm(vm)
-    previous = vm.command('uname -r').strip()
-    if previous == latest:
-        raise RuntimeError('Kernel update qualification requires distinct LTS and latest kernels')
+def qualify_boot_update(vm, encrypted):
+    """Stage a boot change, confirm it in a trial boot and roll it back.
 
-    # Remove only our own temporary override to exercise the vendor default.
-    edit_import(vm, 'qualification-kernel.nix')
+    Cybex OS allows only the stock `linuxPackages_latest` kernel
+    (nix/modules/prebuilt.nix), so no other kernel package can be staged
+    here. A kernel parameter changes the same boot identity the updater
+    trial-boots (kernel, initrd and parameters, lifecycle/cybexos/engine.py).
+    """
+    marker = 'cybexos.qualification=boot'
+    def parameters():
+        return vm.command('cat /proc/cmdline').split()
+    if marker in parameters():
+        raise RuntimeError('The installed system already boots with the qualification parameter')
+    edit_import(vm, 'qualification-boot.nix',
+                '{ ... }: { boot.kernelParams = [ "' + marker + '" ]; }')
     candidate = stage(vm)
-    if 'kernel' not in [row['id'] for row in candidate['highlights']['components']]:
-        raise RuntimeError('The update review omits the changed kernel')
     apply(vm, candidate)
     authenticated_boot(vm, encrypted)
     confirm(vm)
-    if vm.command('uname -r').strip() != latest:
-        raise RuntimeError('Confirmed kernel update did not boot the latest kernel')
+    if marker not in parameters():
+        raise RuntimeError('Confirmed boot update did not boot its kernel parameters')
 
     vm.command('cybex update rollback ' + candidate['transaction'])
     wait_state(vm, ('rolled-back',), timeout=180)
     vm.reboot(encrypted)
     vm.login_desktop()
-    if vm.command('uname -r').strip() != previous:
-        raise RuntimeError('Kernel rollback did not boot the previous kernel')
+    if marker in parameters():
+        raise RuntimeError('Boot rollback did not boot the previous kernel parameters')
 
-    # Deliberate rollback quarantines this exact system too. Inspecting the
-    # observed kernel above establishes the expected recovery; explicitly
-    # authorize retry before restoring our known-good latest candidate.
+    # Deliberate rollback quarantines this exact system too. Authorize a
+    # retry explicitly, as a person recovering from it would. Rollback also
+    # restored the configuration without our module.
     retry = json.loads(vm.command('cybex update retry-failed ' + candidate['transaction']).strip())
     if retry.get('retryAuthorized') != candidate['transaction']:
-        raise RuntimeError('Kernel qualification did not authorize the deliberate retry')
-    # Rollback restored our baseline module. Leave subsequent tests on latest.
-    edit_import(vm, 'qualification-kernel.nix')
-    restored = stage(vm)
-    apply(vm, restored)
-    authenticated_boot(vm, encrypted)
-    confirm(vm)
-    if vm.command('uname -r').strip() != latest:
-        raise RuntimeError('Kernel qualification did not restore the latest kernel')
-    return {'result': 'passed', 'previous': previous, 'latest': latest,
+        raise RuntimeError('Boot qualification did not authorize the deliberate retry')
+    return {'result': 'passed', 'parameter': marker,
             'transaction': candidate['transaction'], 'checks': [
-                'staged kernel review', 'trial boot', 'desktop confirmation',
-                'rollback booted previous kernel', 'latest kernel restored']}
+                'staged boot change', 'trial boot', 'desktop confirmation',
+                'rollback booted previous parameters', 'deliberate retry authorized']}
 
 
 def qualify_lifecycle(vm, encrypted, checks=None):
@@ -1328,7 +1318,7 @@ QA
         'upstreamChanged': before['nixpkgs'] != upstream['inputs']['nixpkgs'], 'applied': False, 'held': held,
         'scope': ('actual independent discovery and the updater holding a Nixpkgs it cannot install yet; nothing built or applied'
                   if held else 'actual independent discovery and complete upstream worker build/validation; candidate remains unapplied; unchanged identity is not changed-package update qualification')}
-    checks['kernelUpdateAndRollback'] = qualify_kernel_update(vm, encrypted)
+    checks['bootUpdateAndRollback'] = qualify_boot_update(vm, encrypted)
     edit_import(vm, 'qualification.nix', PERSONAL_MODULE)
     vm.command('''python3 - <<'QA'
 from pathlib import Path
