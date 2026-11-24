@@ -1547,7 +1547,9 @@ function migrateMods(raw, sourceVersion, context) {
             && !modelUsagePresent) {
         migrated.right.unshift({
             id: "modelusage",
-            on: true,
+            // A file without a version is no shell's (legacyDefaultLayout):
+            // optional widgets stay off there.
+            on: typeof sourceVersion === "number",
             detail: "auto"
         });
     }
@@ -1616,15 +1618,18 @@ function migrateMods(raw, sourceVersion, context) {
         });
         next.right.push(control || { id: "control", on: true, detail: "auto" });
     }
-    // Before schema 35 a layout without a Model Usage entry showed it: the
-    // entry came in at its default, which was on. It still does for those
-    // files; an entry they hold, on or off, stays as it is.
-    var usageListed = ["left", "center", "right"].some(function(col) {
-        return migrated[col].some(function(entry) {
-            return entry && entry.id === "modelusage";
+    // Before schema 35 a layout without a Model Usage entry, or with one that
+    // has no on/off, showed it: the entry took its default, which was on. It
+    // still does for those files; an entry they hold on or off stays so.
+    var usage = null;
+    ["left", "center", "right"].forEach(function(col) {
+        migrated[col].forEach(function(entry) {
+            if (entry && entry.id === "modelusage")
+                usage = entry;
         });
     });
-    if ((typeof sourceVersion !== "number" || sourceVersion < 35) && !usageListed) {
+    if (typeof sourceVersion === "number" && sourceVersion < 35
+            && (!usage || typeof usage.on !== "boolean")) {
         ["left", "center", "right"].forEach(function(col) {
             next[col].forEach(function(entry) {
                 if (entry.id === "modelusage")

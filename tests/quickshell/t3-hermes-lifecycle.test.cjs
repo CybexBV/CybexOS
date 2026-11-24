@@ -102,9 +102,12 @@ test("the Hermes bridge starts with its widget, once, and is never stopped by it
     const connect = blockAfter(connection, "function connect() {");
     const guard = connect.indexOf("if (!enabled)");
     const sockets = connect.indexOf("if (websocketsMissing)");
+    const loaded = connect.indexOf("if (socketLoader.status !== Loader.Ready)");
     const start = connect.indexOf("if (localBridge && !bridgeStarted) {");
-    assert.ok(guard !== -1 && sockets > guard && start > sockets,
-        "the bridge starts only past the enabled and socket guards");
+    assert.ok(guard !== -1 && sockets > guard && loaded > sockets && start > loaded,
+        "the bridge starts only past the enabled, socket and loader guards");
+    // Reconnecting asks for it again, so a refused start is retried.
+    assert.match(blockAfter(connection, "function reconnect() {"), /bridgeStarted = false;/);
     assert.match(blockAfter(connect, "if (localBridge && !bridgeStarted) {"),
         /bridgeStarted = true;\s*Quickshell\.execDetached\(\["systemctl", "--user", "start", "--no-block",/);
     // Turning off lets the next turn-on start it again; nothing stops it

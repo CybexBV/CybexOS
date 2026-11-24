@@ -76,21 +76,21 @@ Singleton {
             state = "offline";
             return;
         }
-        // Nothing starts the bridge at login (nix/modules/desktop.nix): the
-        // widget does, once each time it turns on, and the reconnect backoff
-        // covers the moment it takes to listen. Retries leave systemd's own
-        // restart backoff alone. It runs until logout once started; stopping
-        // it would end a Hermes task it owns.
-        if (localBridge && !bridgeStarted) {
-            bridgeStarted = true;
-            Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
-                "hermes-menubar-bridge.service"]);
-        }
         if (socketLoader.status !== Loader.Ready) {
             state = "offline";
             if (!retryTimer.running)
                 scheduleRetry(false);
             return;
+        }
+        // Nothing starts the bridge at login (nix/modules/desktop.nix): the
+        // widget does, once each time it turns on or the person reconnects,
+        // and the reconnect backoff covers the moment it takes to listen.
+        // Retries leave systemd's own restart backoff alone. It runs until
+        // logout once started; stopping it would end a Hermes task it owns.
+        if (localBridge && !bridgeStarted) {
+            bridgeStarted = true;
+            Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
+                "hermes-menubar-bridge.service"]);
         }
         if (state === "connected" || state === "connecting")
             return;
@@ -124,6 +124,8 @@ Singleton {
 
     function reconnect() {
         disconnect();
+        // Asked again: a bridge whose start failed gets another one.
+        bridgeStarted = false;
         retrySecs = 2;
         connectionError = "";
         if (enabled)
