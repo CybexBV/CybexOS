@@ -26,7 +26,8 @@
       "when": ["tests/*.py", "tests/nixos-native"],
       "unless": ["tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/model-usage-popup.py", "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
-        "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py"],
+        "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py",
+        "tests/settings-runtime.py", "tests/omarchy-runtime.py"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
     },
     {
