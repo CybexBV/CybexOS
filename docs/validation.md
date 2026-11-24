@@ -1,9 +1,12 @@
 # Validation status and release blockers
 
-The NixOS implementation is unreleased and incomplete. There is no qualified
-production release, authenticated public NixOS channel or completed physical
-hardware/security qualification. This record describes development work on
-2026-10-22; results on earlier source snapshots do not qualify later edits.
+Cybex OS publishes beta and stable releases ([release operations](releasing.md)).
+Every release needs a passing full check on its exact commit
+([the full check](releasing.md#the-full-check)): fixture suites, NixOS VM
+tests and installations of the commit's own ISO in disposable VMs. Physical
+hardware and security qualification remain limited. The tables below record
+development evidence from 2026-10-22 onwards; each result belongs to the
+source snapshot it ran on and does not qualify later edits.
 
 The [2026-10-30–31 VM audit](measurements/release-vm-audit-2026-10-30.md)
 records later fixes and exact-source ISO/runtime evidence for beta.31. The
@@ -120,7 +123,9 @@ sentinels for personal packages, VPNs, services, widget code/placement/preferenc
 plugin state and service data, and check them after updates and rollback.
 Hardware/security checks require representative physical machines.
 
-No workflow gates a release; the owner decides how far a release is qualified
-before publishing it ([release operations](releasing.md)). Record what was
+`release/publish` and `release/promote` refuse a commit without a passing full
+check on exactly that commit ([release operations](releasing.md#the-full-check)).
+That check is VM and fixture evidence, not physical hardware qualification;
+the owner decides what more a release needs. Record what was
 actually exercised on the exact released revision, and do not promote the
 development evidence in this document to a production-readiness claim.

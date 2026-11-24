@@ -357,10 +357,11 @@ Settings → Appearance → Pointer ([Settings](settings.md#pointer)) applies to
 desktop from the next login on. The login screen keeps Bibata.
 
 The ISO retains its tested flake input sources. A fresh machine's first lock
-starts with that exact Nixpkgs revision and content hash, retaining
-nixos-unstable as its upstream update source. Installation never resolves a newer
-branch head implicitly. Later upstream-only updates advance this machine-owned
-input independently of Cybex OS. This does not make installation fully offline:
+starts with that exact Nixpkgs revision and content hash, on the branch the
+medium's lock follows (nixos-unstable today). Installation never resolves a newer
+branch head implicitly. Later updates move this machine-owned input only to the
+revision a Cybex OS release pins ([updates](updates.md#nixpkgs-comes-with-the-release)).
+This does not make installation fully offline:
 packages not bundled on the medium require internet.
 
 Use a backed-up target disk of at least 64 GiB. Installation erases only the
