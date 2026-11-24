@@ -24,14 +24,16 @@ other special workspaces are not shown.
   on **New workspace** moves it to the lowest unused workspace number. You
   stay where you are.
 - Click an empty part of a tile to switch to that workspace.
+- With no windows open, the overview says so and offers **Open an app**
+  (`Enter`); the filter is hidden and **New workspace** is a small tile.
 - `Esc` clears the filter, then closes. `Super+Tab` or a click on the
   background closes at once.
 
 The overview draws the wallpaper behind the tiles instead of a blurred
 desktop, because a blur behind live captures would be recomputed every frame.
 Thumbnails capture only while the overview is open. When it closes, the view
-and every capture are released. Reduce motion (Settings → Appearance) turns its
-fade and scale into a cut.
+and every capture are released. Reduce motion (Settings → Appearance) keeps a
+short fade and drops the scale.
 
 ## Dock
 

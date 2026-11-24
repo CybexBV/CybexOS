@@ -127,7 +127,10 @@ FocusScope {
                 }
                 Row {
                     spacing: Theme.scaled(12)
+                    // The icon appears once: here only while a screenshot
+                    // is the art, else the art on the right is the icon.
                     AppIcon {
+                        visible: slide.shot !== ""
                         anchors.verticalCenter: parent.verticalCenter
                         app: slide.modelData
                         size: Theme.scaled(44)
@@ -163,14 +166,18 @@ FocusScope {
                 anchors.bottomMargin: Theme.scaled(34)
                 spacing: Theme.scaled(8)
                 // The slide's main action is solid in its ink, so it stands
-                // out on any brand colour (an accent fill can be blue on blue).
+                // out on any brand colour: an accent fill can be blue on blue
+                // (2026-11-24 review, round 2). It steps back to an outline
+                // while the queue bar's Install is the screen's primary.
                 AppAction {
                     id: heroAction
+                    readonly property bool leads: (heroAction.mode === "install" || heroAction.mode === "open")
+                        && Software.queue.length === 0 && !Software.flowActive
                     objectName: slide.active ? "softwareHeroInstall" : ""
                     app: slide.modelData
                     big: true
                     foreground: slide.ink
-                    solidFill: heroAction.mode === "install" || heroAction.mode === "open" ? slide.ink : "transparent"
+                    solidFill: leads ? slide.ink : "transparent"
                     solidInk: slide.darkText ? "#f7f5f0" : "#1d1b26"
                 }
                 SoftwareButton {
@@ -220,12 +227,13 @@ FocusScope {
         }
     }
 
+    // The keyboard ring, for keyboard modality only.
     Rectangle {
         anchors.fill: parent
-        visible: root.activeFocus
+        visible: border.width > 0
         color: "transparent"
         radius: Theme.chipRadius + 7
-        border.width: 2
-        border.color: Theme.accentText
+        border.width: Theme.focusWidth(root.activeFocus)
+        border.color: Theme.focusRing
     }
 }

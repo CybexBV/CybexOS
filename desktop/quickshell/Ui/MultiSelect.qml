@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // Searchable multi-select dropdown. Trigger shape matches Dropdown /
 // SearchableDropdown; the popup shows a search field, an optional refresh
@@ -500,7 +501,7 @@ Item {
                   font.pixelSize: Style.font.control
 
                   RotationAnimator on rotation {
-                    running: root.loadingOptions && refreshButton.visible
+                    running: root.loadingOptions && refreshButton.visible && !Host.Theme.reducedMotion
                     from: 0; to: 360
                     duration: 800
                     loops: Animation.Infinite

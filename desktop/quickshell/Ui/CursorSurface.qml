@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // Shared visual chrome for keyboard-and-mouse-navigable items inside a panel.
 // Contract: items must NOT read `containsMouse` for color/border. Mouse
@@ -38,6 +39,7 @@ BorderSurface {
         : Border.none()))
 
   Behavior on color {
-    ColorAnimation { duration: 60 }
+    // Half a hover fade: the cursor has to keep up with held arrow keys.
+    ColorAnimation { duration: Host.Theme.chipFadeDuration / 2 }
   }
 }

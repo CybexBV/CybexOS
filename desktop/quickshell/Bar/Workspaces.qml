@@ -188,7 +188,7 @@ Rectangle {
             }
 
             Behavior on color {
-                ColorAnimation { duration: Theme.reducedMotion ? 0 : 200 }
+                ColorAnimation { duration: Theme.chipFadeDuration }
             }
         }
 
@@ -249,7 +249,7 @@ Rectangle {
                     border.color: slot.focused ? Theme.barWsCurrentFg : Theme.barWsEmpty
 
                     Behavior on color {
-                        ColorAnimation { duration: Theme.reducedMotion ? 0 : 200 }
+                        ColorAnimation { duration: Theme.chipFadeDuration }
                     }
                 }
 
@@ -286,7 +286,7 @@ Rectangle {
                     z: 3
 
                     Behavior on color {
-                        ColorAnimation { duration: Theme.reducedMotion ? 0 : 200 }
+                        ColorAnimation { duration: Theme.chipFadeDuration }
                     }
                 }
 

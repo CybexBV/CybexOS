@@ -250,7 +250,7 @@ SettingsGroup {
         label: I18n.tr("Command")
         value: root.command
         placeholder: "kitty -e nvim ~/notes.md" // i18n: untranslated (command)
-        hint: I18n.tr("Runs as one line through Hyprland, as a terminal would.")
+        hint: I18n.tr("Runs as one line, as a terminal would.")
         onEdited: text => root.command = text
     }
     DraftFieldRow {

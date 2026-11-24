@@ -355,7 +355,8 @@ def main():
                               '-M', 'logo', '-k', 'l', '-m', 'logo', '-s', '1500',
                               '-k', 'Return', '-s', '800',
                               '-M', 'logo', '-k', 'm', '-m', 'logo', '-s', '4000',
-                              '-k', 'Return', '-s', '300'], 'keyboard.log')
+                              # A taken key focuses "Record again"; Tab reaches "Use it instead".
+                              '-k', 'Tab', '-s', '200', '-k', 'Return', '-s', '300'], 'keyboard.log')
             refused = wait(lambda: (r := recorder()).get('reserved') and r, 'unmodified key refused', 10)
             assert refused['reserved'] == 'modifier' and refused['listening'], refused
             blocked = wait(lambda: (r := recorder()).get('kind') == 'blocked' and r, 'protected key blocked', 10)

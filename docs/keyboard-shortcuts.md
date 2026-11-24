@@ -3,7 +3,9 @@
 Press `Super+K`, or use **Keyboard shortcuts** in the Control Center, to open
 the shortcut sheet. It lists the keybindings Hyprland actually has, read with
 `hyprctl binds -j` each time the sheet opens. There is no separate list to
-fall out of date, and a failed read is shown as an error.
+fall out of date. A failed read says "Couldn't read your shortcuts right
+now.", with the command's reason (such as `hyprctl exited with status 1`) in a
+smaller line under it and **Try again** below.
 
 A binding appears in the sheet when it has a description. Descriptions use
 the form `Group: Label`, for example `Apps: Terminal`. Cybex OS's own groups
@@ -63,10 +65,16 @@ Each row shows its keys and three actions:
 - **Change** (the pencil, or `Enter` on a focused row) records new keys. Press
   the combination you want; it appears as you press it. `Escape` cancels and
   `Backspace` or `Delete` clears what you pressed. A row with keys offers
-  **Replace current keys** or **Add as another key** (up to four).
+  **Replace current keys** or **Add as another key** (up to four). The
+  recorder dims the whole Settings window and keeps its buttons in view
+  below its scrolling body, even at the window's smallest size.
 - **Reset** is the row's undo arrow, shown while you point at a changed row
   or move to it with `Tab`.
 - **Disable** (or `Delete` on a focused row) removes all of the action's keys.
+
+Pointing at the pencil or the minus, or moving to it with `Tab`, names it:
+**Change shortcut** and **Disable shortcut** (**Edit shortcut** and **Remove
+shortcut** on your own shortcuts).
 
 While the recorder listens it asks Hyprland to pass every key through,
 including ones that would normally lock the screen or switch workspaces. That
@@ -79,21 +87,25 @@ sleep keys; and `Ctrl+Alt+F1`–`F12`, `Ctrl+Alt+Delete`, `Ctrl+Alt+Backspace`
 and `SysRq`, which stay with the system. It then checks what else uses the
 keys:
 
-- **Protected shortcuts** — lock screen, exit, Settings and the shortcut sheet
-  — always keep their default keys, and nothing else can take them. You can
-  give them more keys: their defaults show as dimmed, locked keycaps in the
-  list, in the recorder and on the keyboard map, and **Replace added keys**
-  replaces only the keys you added. They cannot be disabled. Keys you added
-  to a protected shortcut are ordinary keys that another shortcut may take
-  with **Replace**.
+- **Protected shortcuts** — lock screen, log out, Settings and the shortcut
+  sheet — always keep their default keys, and nothing else can take them. You
+  can give them more keys: their defaults show as dimmed keycaps with a lock
+  in the list, in the recorder and on the keyboard map, and a note under the
+  group says once what the lock means. **Replace added keys** replaces only
+  the keys you added. They cannot be disabled. Keys you added to a protected
+  shortcut are ordinary keys that another shortcut may take with **Use it
+  instead**.
 - A combination that `user.lua` binds cannot be taken here: `user.lua` loads
   after these settings and wins. Change it in that file.
 - A hardware key (volume, brightness, media) that already uses the keys
   cannot be taken either; the recorder names it ("Used by a hardware key
   (Hardware keys: Mute audio). Choose another key.") and offers only
   **Record again**.
-- Any other shortcut using the keys is named, and **Replace** takes the keys
-  from it.
+- Any other shortcut using the keys is named in a question that names both
+  shortcuts ("Super + M is used by Slack. Use it for Browser instead? Slack
+  will lose it."). **Use it instead** takes the keys from it. Because that
+  changes another shortcut, it is never the default: focus starts on
+  **Record again**, so `Enter` records again rather than taking the keys.
 - When your keyboard layout cannot be read, a `Shift` combination is stored
   by its key code and the recorder cannot be sure which shortcuts share it.
   It then says the keys **may conflict** with the shortcuts it names. **Use
@@ -113,8 +125,11 @@ for the sheet and record its keys. Your own shortcuts can be edited and
 removed from their rows.
 
 Changes collect until you choose **Apply** in the bar at the foot of the page,
-or **Discard**. Applying reloads Hyprland; if the reload fails the previous
-file is restored and the error appears on the page. **Reset all…**, at the
+or **Discard**. While the Add form is open the bar steps back, so the form's
+own **Add shortcut** is the one main button; finish or cancel the form first.
+Applying reloads Hyprland's configuration: your shortcuts change and open
+windows stay as they are. If the reload fails the previous file is restored
+and the error appears on the page. **Reset all…**, at the
 foot of the page (under the banner while `keybindings.json` is unreadable), asks before
 it returns every shortcut to its default and removes your own; that too waits
 for Apply. Nothing in Settings writes `user.lua`. `Escape` closes an open Add

@@ -8,9 +8,11 @@ import "NotifHelpers.js" as Helpers
 // meta line with the app and its time · the title on its own line, two lines
 // at most · the body, which gives up a line once the card carries buttons ·
 // up to two action buttons, the rest under More (NotifActions). Toasts show
-// × in place of the time while hovered; the drawer keeps 24 px expand and
-// dismiss targets beside it. A nested centre row (showApp false) folds its
-// title into the meta line, under a header that already names the app.
+// × in place of the time while hovered; the drawer keeps its 24 px expand
+// and dismiss buttons beside it, each answering to a 32 px target. A nested
+// centre row (showApp false) folds its title into the meta line, under a
+// header that already names the app. A card standing for a folded group
+// (groupCount above 1) shows the count and says so to assistive technology.
 //
 // Surface chrome stays with the caller. This is a Rectangle, so `color`,
 // `border` and `radius` are set at the call site the ordinary way, and extra
@@ -81,6 +83,7 @@ Rectangle {
     Accessible.description: (entry.displayBody || "")
         + ((entry.occurrences || 1) > 1
             ? " · " + I18n.format("Repeated %1 times", [entry.occurrences]) : "")
+        + (groupCount > 1 ? " · " + I18n.format("%1 notifications", [groupCount]) : "")
     Accessible.onPressAction: {
         if (card.actionable)
             card.activated();
@@ -236,20 +239,36 @@ Rectangle {
                     height: target
 
                     // Collapsed-group count. The toast never groups, so this
-                    // never renders there.
+                    // never renders there. Outlined, with a chevron, so a
+                    // folded card reads as one that opens (2026-11-24 review,
+                    // round 2: a bare number did not say so).
                     Rectangle {
                         id: countPill
                         visible: card.groupCount > 1
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        width: countText.implicitWidth + 12
+                        width: countText.implicitWidth + countChevron.width + 14
                         height: Theme.chipInnerHeight
                         radius: Theme.chipRadius
                         color: "transparent"
+                        border.width: 1
+                        border.color: Theme.stroke
+
+                        Sym {
+                            id: countChevron
+                            anchors.right: parent.right
+                            anchors.rightMargin: 5
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "expand_more"
+                            size: card.style.pill
+                            color: Theme.textDim
+                        }
 
                         Text {
                             id: countText
-                            anchors.centerIn: parent
+                            anchors.left: parent.left
+                            anchors.leftMargin: 7
+                            anchors.verticalCenter: parent.verticalCenter
                             text: card.groupCount
                             font.family: card.style.face
                             font.pixelSize: card.style.pill
@@ -362,7 +381,12 @@ Rectangle {
                         border.width: Theme.focusWidth(activeFocus)
                         border.color: Theme.focusRing
                         Accessible.role: Accessible.Button
-                        Accessible.name: card.entry.displayAppName
+                        Accessible.name: card.groupCount > 1
+                            ? (card.entry.displayAppName
+                                ? I18n.format("Dismiss %1 notifications from %2",
+                                    [card.groupCount, card.entry.displayAppName])
+                                : I18n.format("Dismiss %1 notifications", [card.groupCount]))
+                            : card.entry.displayAppName
                             ? I18n.format("Dismiss notification from %1", [card.entry.displayAppName])
                             : I18n.tr("Dismiss notification from this app")
                         Accessible.onPressAction: card.closeRequested()

@@ -11,6 +11,11 @@ import "../Common"
 // over the scrolling content — a preview kept in view at the top, an Apply
 // bar at the bottom — and `topInset`/`bottomInset` keep the content clear
 // of them.
+//
+// A page laid inside another page's scroll (a widget's options in the Bar
+// page's sheet) sets `embedded`: it grows to its content and leaves scrolling,
+// clipping, the scroll gutter and the edge fades to the page around it, so
+// the sheet reads as one page with one right-hand edge (2026-11-24 review).
 Flickable {
     id: root
     default property alias content: contentRoot.data
@@ -20,6 +25,10 @@ Flickable {
     property real topInset: 0
     property real bottomInset: 0
     property bool pageReset: false
+    property bool embedded: false
+    // The surface under the page, which the edge fades blend into: a page in
+    // a sheet sits on the sheet's colour, not the window's.
+    property color edgeColor: Theme.panelSurface
     property string resetSection: Settings.page
     property string resetText: "Reset " + Settings.pageInfo(resetSection).label + " to defaults"
     readonly property bool resetShown: pageReset && Settings.revision >= 0
@@ -27,7 +36,7 @@ Flickable {
     readonly property bool scrollbarVisible: contentHeight > height - topInset - bottomInset + 1
     // Always reserved: tying the gutter to scrollbarVisible loops, because
     // the narrower content re-wraps taller, which flips scrollbarVisible.
-    readonly property int scrollGutter: 8
+    readonly property int scrollGutter: embedded ? 0 : 8
     readonly property alias columnWidth: contentRoot.width
     // Below ~560 px of column a page reflows rather than elides: Home moves
     // its update state under the identity, pairs its readings two by two and
@@ -41,8 +50,8 @@ Flickable {
     topMargin: topInset
     bottomMargin: bottomInset
     boundsBehavior: Flickable.StopAtBounds
-    interactive: contentHeight > height - topInset - bottomInset
-    clip: true
+    interactive: !embedded && contentHeight > height - topInset - bottomInset
+    clip: !embedded
     flickDeceleration: 3000
 
     // A search jump lands on a preference row or a non-preference
@@ -98,7 +107,8 @@ Flickable {
     }
 
     function revealFocus(item) {
-        if (!item)
+        // The scrolling page around an embedded one brings focus into view.
+        if (!item || root.embedded)
             return;
         // Window focus also moves to navigation and search outside this page.
         let ancestor = item;
@@ -184,5 +194,7 @@ Flickable {
         anchors.fill: parent
         z: 3
         target: root
+        visible: overflow && !root.embedded
+        edgeColor: root.edgeColor
     }
 }

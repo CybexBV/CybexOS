@@ -34,6 +34,13 @@ export global Store {
     in-out property <string> power-message;
     in-out property <int> tick;                  // a 1 Hz activity counter while something runs
     in-out property <string> version;
+    // The last input was a key (true) or a pointer press (false). Focus rings
+    // show only after keys, like the desktop's FocusModality: a click focuses
+    // a control without drawing a ring, and the next key shows where it is.
+    in-out property <bool> keyboard-modality;
+    // The menu's Reduce motion switch, or QS_REDUCED_MOTION (src/motion.rs):
+    // Wiz holds still and the activity marks stop blinking.
+    in-out property <bool> reduced-motion;
 
     // Welcome.
     in-out property <[Check]> checks;
@@ -220,6 +227,7 @@ export global Store {
     callback wifi-connect(int, string, string);
     callback network-refresh();
     callback tool(string);
+    callback toggle-reduced-motion();
     callback request-details();
     callback usb-save(string);
     callback start-over();

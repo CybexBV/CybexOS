@@ -9,7 +9,8 @@
 //! installer on tty1 instead.
 //!
 //! Environment: CYBEXOS_INSTALLER_SOCKET, CYBEXOS_INSTALLER_ZOOM (number or
-//! "auto"), CYBEXOS_INSTALLER_RESOLUTION (WIDTHxHEIGHT), XKB_DEFAULT_LAYOUT.
+//! "auto"), CYBEXOS_INSTALLER_RESOLUTION (WIDTHxHEIGHT), XKB_DEFAULT_LAYOUT,
+//! QS_REDUCED_MOTION and XDG_RUNTIME_DIR (src/motion.rs).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -17,7 +18,7 @@ use std::time::Duration;
 
 use cybexos_installer::client::{Client, Event};
 use cybexos_installer::ui::{App, Shared};
-use cybexos_installer::{zoom, InstallerWindow};
+use cybexos_installer::{motion, zoom, InstallerWindow};
 use slint::ComponentHandle;
 
 const NO_DISPLAY: i32 = 75;
@@ -118,6 +119,10 @@ fn main() {
         });
     });
     let app = App::new(&window, client);
+    app.borrow_mut().init_motion(
+        motion::session_file(std::env::var_os("XDG_RUNTIME_DIR").as_deref()),
+        std::env::var(motion::ENV).ok().as_deref(),
+    );
     APP.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&app)));
     // Each pass of the event loop fires due timers, then draws. A timer started
     // by the first pass's timer fires in the second, after the first frame.

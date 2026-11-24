@@ -64,7 +64,7 @@ PanelWindow {
   onRightValueChanged: expandScale(rightValue)
 
   Behavior on fullScale {
-    NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Theme.expandDuration; easing.type: Easing.OutCubic }
   }
 
   // The scrim below is a fixed near-black regardless of theme, so text and
@@ -182,7 +182,7 @@ PanelWindow {
           onClicked: root.runAgainRequested()
 
           Behavior on opacity {
-            NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Theme.panelFadeDuration; easing.type: Easing.OutCubic }
           }
         }
 
@@ -240,20 +240,29 @@ PanelWindow {
     opacity: engaged ? 1 : 0.5
 
     Behavior on opacity {
-      NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Theme.panelFadeDuration; easing.type: Easing.OutCubic }
     }
 
     // Live readings land once a second; glide between them rather than snap.
+    // The glide is paced by the readings, not a UI response, so it keeps its
+    // own length; reduced motion jumps to each reading instead.
     Behavior on shown {
       enabled: !ignition.running
-      NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Theme.reducedMotion ? 0 : 600; easing.type: Easing.OutCubic }
     }
 
     onValueChanged: {
       if (!ignition.running) shown = value
     }
 
+    // The sweep is a flourish, so reduced motion skips it and shows the
+    // reading straight away.
     function ignite() {
+      if (Theme.reducedMotion) {
+        ignition.stop()
+        dial.shown = dial.value
+        return
+      }
       ignition.restart()
     }
 

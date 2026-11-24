@@ -699,7 +699,8 @@ class Audit:
             self.wait('shell.auditRow("", "surfaceBorderOpacity").disabledReason === ""')
             row=next(row for row in self.evaluate('shell.auditRows()') if row['key']=='surfaceBorderOpacity')
             self.scalar('appearance',row)
-            self.action('Save current as theme…')
+            # Saving is the theme gallery's last tile (no separate button).
+            self.evaluate('shell.auditItems().find(item => item.Accessible?.name === "Save current as theme…").Accessible.pressAction()')
             self.edit('Settings audit theme',label='Theme name')
             self.action('Save')
             self.wait('!Themes.busy && Themes.entries.some(e => e.name === "Settings audit theme")')
@@ -1035,7 +1036,7 @@ class Audit:
         self.wait('Maintenance.snapshot.space.total > 0 && !Maintenance.busy')
         for key, values in [('automatic',[True,False]),('keepConfirmed',[5,10,20,50,100]),('keepDays',[30,60,90,180,365])]:
             for value in values:
-                labels={'automatic':'Automatic weekly cleanup','keepConfirmed':'Confirmed deployments to keep','keepDays':'Days of recovery history'}
+                labels={'automatic':'Automatic weekly cleanup','keepConfirmed':'Recovery points to keep','keepDays':'Days of recovery history'}
                 self.evaluate('shell.auditEdit(I18n.tr('+json.dumps(labels[key])+'),"",'+json.dumps(value)+')')
                 actual=self.evaluate('shell.auditPage().draft.'+key)
                 assert actual==value,(key,value,actual)

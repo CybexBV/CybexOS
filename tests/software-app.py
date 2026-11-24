@@ -642,26 +642,32 @@ def main():
             wait(lambda: state().get('download') == 'Download ≈ 182 MB · ready to use', 'exact download')
             assert session.calls()[-1] == ['software', 'check', 'gimp'], session.calls()
             assert state()['counts']['screenshots'] == 3, state()
-            assert state()['appPrimary'] == {'text': 'Add to queue', 'enabled': True}, state()
+            # Nothing queued: an app's own page installs in one step.
+            assert state()['appPrimary'] == {'text': 'Install', 'enabled': True}, state()
             session.themed(shots, 'software-app', settle=3.0)
             # Escape goes back one page, to the category.
             session.key('-k', 'Escape')
             wait(lambda: state().get('view') == 'category', 'Escape goes back')
-            session.call('software-test', 'app', 'gimp')
-            wait(lambda: state().get('appName') == 'GIMP', 'GIMP page again')
 
             # ---- the queue -------------------------------------------------
-            assert session.press('softwareAppPrimary')
-            wait(lambda: state().get('queue') == ['gimp:install'] and state().get('appPrimary', {}).get('text') == 'In queue', 'GIMP queued')
-            wait(lambda: 'ready to use' in (state().get('detail') or ''), 'queue bar summary')
-            # A package from the full search, checked before Install is offered.
+            # A package from the full search, checked before it can be queued.
             session.call('software-test', 'search', 'hello')
             wait(lambda: state().get('view') == 'search' and state()['counts']['packages'] == 1, 'more packages')
             assert session.press('softwarePackageAction')
             wait(lambda: state()['checks'].get('hello') == 'prebuilt', 'hello checked')
             assert session.press('softwarePackageAction')
-            wait(lambda: state().get('queue') == ['gimp:install', 'hello:install'], 'hello added')
+            wait(lambda: state().get('queue') == ['hello:install'], 'hello added')
             session.themed(shots, 'software-search')
+            # With something queued, an app's own page joins the queue too.
+            session.call('software-test', 'app', 'gimp')
+            wait(lambda: state().get('appName') == 'GIMP'
+                 and (state().get('appPrimary') or {}).get('text') == 'Add to queue', 'GIMP page with a queue')
+            assert session.press('softwareAppPrimary')
+            wait(lambda: state().get('queue') == ['hello:install', 'gimp:install']
+                 and state().get('appPrimary', {}).get('text') == 'In queue', 'GIMP queued')
+            wait(lambda: 'ready to use' in (state().get('detail') or ''), 'queue bar summary')
+            session.call('software-test', 'back')
+            wait(lambda: state().get('view') == 'search', 'back to the search')
             # Typing anywhere searches; Escape clears the search.
             session.key('-k', 'Escape')
             wait(lambda: state().get('view') == 'explore' and state().get('query') == '', 'Escape leaves search')
@@ -682,7 +688,7 @@ def main():
             session.fixture(cancelStage=True)
             assert session.press('softwareQueuePrimary')
             wait(lambda: 'cancelled' in (state().get('detail') or '') and state().get('phase') == 'idle', 'cancelled authorization')
-            assert state()['queue'] == ['gimp:install', 'hello:install'], state()
+            assert state()['queue'] == ['hello:install', 'gimp:install'], state()
             assert session.calls()[-2][:2] == ['software', 'check'] and sorted(session.calls()[-2][2:]) == ['gimp', 'hello'], session.calls()
 
             # Another system change in progress blocks a new one.
@@ -705,7 +711,7 @@ def main():
                            reviewToken='b' * 64, changes='gimp: ∅ → 3.0.6', packageChanges=[], software=software_change,
                            phase='Built and checked; review changes before applying')
             wait(lambda: state().get('phase') == 'ready' and state().get('primary', {}).get('text') == 'Install now', 'ready to install')
-            assert state()['title'] == 'Ready to install GIMP, hello', state()
+            assert state()['title'] == 'Ready to install hello, GIMP', state()
             session.themed(shots, 'software-ready')
             # A cancelled authorization keeps the prepared change.
             session.fixture(cancelUpdate=True)
@@ -717,7 +723,7 @@ def main():
             wait(lambda: state().get('phase') == 'done', 'installed', timeout=40)
             assert ['update', 'apply', 'a' * 32, 'b' * 64] in session.calls(), session.calls()
             wait(lambda: state().get('primary', {}).get('text') == 'Open GIMP', 'open the installed app')
-            assert state()['title'] == 'GIMP, hello installed', state()
+            assert state()['title'] == 'hello, GIMP installed', state()
             session.themed(shots, 'software-installed-bar')
             assert session.press('softwareQueuePrimary')
             wait(lambda: (session.home / 'launched.jsonl').exists(), 'GIMP opened through its desktop entry')
@@ -759,12 +765,17 @@ def main():
             session.call('software-test', 'tab', 'explore')
             session.call('software-test', 'app', 'krita')
             wait(lambda: state()['checks'].get('krita') == 'prebuilt', 'krita checked')
+            # Nothing else queued: Install on the page checks and prepares at once.
+            assert state()['appPrimary'] == {'text': 'Install', 'enabled': True}, state()
             assert session.press('softwareAppPrimary')
-            assert session.press('softwareQueuePrimary')
-            wait(lambda: state().get('phase') == 'preparing', 'preparing krita')
+            wait(lambda: state().get('phase') == 'preparing', 'preparing krita in one step')
+            stage = next(call for call in reversed(session.calls()) if call[:2] == ['software', 'stage'])
+            assert 'krita' in stage[2]['packages'], stage
             session.status(state='failed', changeKind='software', requestId='c' * 32, transaction='a' * 32,
                            error='Nix could not download krita. Check your connection.')
-            wait(lambda: state().get('phase') == 'failed' and 'could not download' in (state().get('detail') or ''), 'failure shown')
+            # Plain words with the app's own name; the message stays behind Details.
+            wait(lambda: state().get('phase') == 'failed' and state().get('title') == "Couldn't download Krita", 'failure shown')
+            assert 'internet connection' in state()['detail'] and 'Nix' not in state()['detail'], state()
             assert state()['primary']['text'] == 'Try again', state()
             session.shot(shots, 'software-failed-dark.png')
             assert session.press('softwareQueueDismiss')

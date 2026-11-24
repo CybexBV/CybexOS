@@ -11,9 +11,13 @@ Item {
     property int current: 0
     readonly property var region: SystemSettings.region.snapshot
     readonly property var layouts: (SystemSettings.input.snapshot.keyboard || {}).layouts || []
+    // Offline only when NetworkManager says so, the same rule as Connect's
+    // sign-ins (2026-11-24 review, round 2): an unanswered check is "Network".
+    readonly property bool offline: NetworkStatus.known && !EthernetState.connected && !WifiState.connected
+        && !NetworkStatus.online
     readonly property string network: EthernetState.connected ? I18n.tr("Ethernet")
-        : WifiState.connected ? WifiState.name : NetworkStatus.online ? I18n.tr("Online") : I18n.tr("Offline")
-    readonly property bool offline: !EthernetState.connected && !WifiState.connected && !NetworkStatus.online
+        : WifiState.connected ? WifiState.name : NetworkStatus.online ? I18n.tr("Online")
+        : offline ? I18n.tr("Offline") : I18n.tr("Network")
     height: Kiosk.px(72)
     Claim { active: root.visible; onClaimed: SystemSettings.region.acquire(); onReleased: SystemSettings.region.release() }
     Claim { active: root.visible; onClaimed: SystemSettings.input.acquire(); onReleased: SystemSettings.input.release() }

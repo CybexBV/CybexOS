@@ -5,6 +5,10 @@ import "../Common"
 
 // One virtualized grid for local files and Wallhaven results. Enter selects;
 // the containing picker decides whether to preview or immediately apply it.
+//
+// Marks (2026-11-24 review): the previewed picture wears the selected tile's
+// 2 px accent border, the wallpaper in use an accent check, and keyboard
+// focus only the shared ring, inside the border with a concentric corner.
 GridView {
     id: root
     property var items: []
@@ -45,6 +49,7 @@ GridView {
         readonly property string resolution: modelData.width > 0
             ? modelData.width + " × " + modelData.height : modelData.label
         readonly property bool chosen: root.selectedKey === key
+        readonly property bool inUse: (modelData.fileName || "") !== "" && modelData.fileName === Settings.wall
         readonly property bool downloading: root.online && OnlineWallpapers.downloadingId === modelData.id
         width: root.cellWidth
         height: root.cellHeight
@@ -52,6 +57,7 @@ GridView {
         Accessible.role: Accessible.Button
         Accessible.name: I18n.format("Select wallpaper %1", [modelData.label || modelData.fileName])
         Accessible.selected: chosen
+        Accessible.description: inUse ? I18n.tr("In use") : ""
         Accessible.onPressAction: activate()
         function activate() {
             root.currentIndex = index;
@@ -75,14 +81,13 @@ GridView {
         // Qt's rectangle clipping also draws in the software renderer used
         // by isolated real-engine checks; native rounded clipping does not.
         Rectangle {
+            id: tile
             anchors.fill: parent
             anchors.rightMargin: 8
             anchors.bottomMargin: 8
             radius: Theme.chipRadius
             color: Theme.cardFill
             clip: true
-            border.width: cell.chosen || cell.activeFocus ? 2 : 0
-            border.color: cell.activeFocus ? Theme.textHi : Theme.accent
             Image {
                 anchors.fill: parent
                 anchors.margins: 2
@@ -113,8 +118,9 @@ GridView {
                     color: "#ffffff"
                 }
             }
+            // The wallpaper in use, wherever the preview is.
             Rectangle {
-                visible: cell.chosen
+                visible: cell.inUse
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 6
@@ -129,6 +135,27 @@ GridView {
                 height: 4
                 width: parent.width * OnlineWallpapers.downloadProgress / 100
                 color: Theme.accent
+            }
+            // The previewed picture: drawn over the image, which fills the
+            // tile to its 2 px margin.
+            Rectangle {
+                anchors.fill: parent
+                radius: tile.radius
+                color: "transparent"
+                visible: cell.chosen
+                border.width: Theme.selectedBorderWidth
+                border.color: Theme.selectedMark
+            }
+            Rectangle {
+                id: focusRing
+                readonly property int inset: cell.chosen ? Theme.selectedBorderWidth + 1 : 0
+                anchors.fill: parent
+                anchors.margins: inset
+                radius: Theme.concentricRadius(tile.radius, inset)
+                color: "transparent"
+                visible: border.width > 0
+                border.width: Theme.focusWidth(cell.activeFocus)
+                border.color: Theme.focusRing
             }
             MouseArea {
                 anchors.fill: parent

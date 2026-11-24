@@ -9,6 +9,10 @@ import "../Common/ShortcutEditor.js" as Helpers
 // records, Delete disables, and Tab reaches this row's own actions.
 // Read-only rows (mouse drags, user.lua) show their keys and say why. A
 // protected row's reserved defaults are locked caps: they always stay bound.
+// The lock on those caps is the row's one lock, and the group says once what
+// it means (ShortcutsPage); a second, dimmed lock in the Disable column and
+// the same sentence under every protected row repeated it (2026-11-24
+// review). The icon actions name themselves in a tip and to assistive tech.
 // While keybindings.json is rejected (Keybindings.readOnly) nothing here edits.
 ValueRow {
     id: root
@@ -32,18 +36,19 @@ ValueRow {
     // The row's reset chip is its Reset, as on every settings row.
     dirty: canReset
     resetLabel: I18n.actionLabel(entry.label)
-    hint: entry.userBind ? I18n.tr("Set in user.lua. Change it there.")
-        : entry.source === "user" ? I18n.tr("Changed in user.lua, which loads last and wins.")
+    hint: entry.userBind ? I18n.tr("Hand-written in your user.lua. Change it there.")
+        : entry.source === "user" ? I18n.tr("Changed by hand in your user.lua, which wins over Settings.")
         : !entry.editable ? I18n.tr("Mouse and hardware keys cannot be changed here.")
         : entry.conflict ? I18n.tr("Shares a key with another shortcut.")
         : entry.keys.length === 0 ? I18n.tr("Disabled")
-        : entry.custom ? root.runText(entry.run)
-        : entry.protected ? I18n.tr("Protected: its default keys always work. You can add others.") : ""
+        : entry.custom ? root.runText(entry.run) : ""
     hintTone: entry.conflict ? "warning" : "info"
     activeFocusOnTab: current
     Accessible.role: Accessible.ListItem
     Accessible.name: I18n.format("%1: %2", [I18n.actionLabel(entry.label), caps.Accessible.name])
-    Accessible.description: hint
+    // The group's lock note, for whoever cannot see the lock.
+    Accessible.description: hint !== "" ? hint
+        : entry.protected && !entry.readOnly ? I18n.tr("Protected: its default keys always work. You can add others.") : ""
     Accessible.onPressAction: if (canEdit) editRequested()
     onActiveFocusChanged: if (activeFocus) focused()
 
@@ -90,25 +95,25 @@ ValueRow {
         lockedKeys: Helpers.lockedKeys(root.entry)
         emptyText: I18n.tr("Not bound")
     }
+    // Compact actions answer to a 32 px target (SettingsAction's hit inset).
     SettingsAction {
         visible: !root.entry.readOnly
         enabled: root.canEdit
         compact: true
         glyph: "edit"
         text: I18n.format("Change %1", [I18n.actionLabel(root.entry.label)])
-        tooltip: root.entry.custom ? I18n.tr("Edit") : I18n.tr("Record new keys")
+        tooltip: root.entry.custom ? I18n.tr("Edit shortcut") : I18n.tr("Change shortcut")
         Accessible.role: Accessible.Button
         Accessible.name: text
         activeFocusOnTab: root.current && visible && enabled
         onTriggered: root.editRequested()
     }
-    // Protected rows keep the column: a dimmed lock where Disable would be.
-    SettingsAction {
+    // Protected rows keep the column empty where Disable would be, so the
+    // pencils still line up; the lock sits on the caps it protects.
+    Item {
         visible: !root.entry.readOnly && root.entry.protected
-        enabled: false
-        compact: true
-        glyph: "lock"
-        text: I18n.tr("Protected")
+        width: Theme.chipHeight
+        height: Theme.chipHeight
     }
     SettingsAction {
         visible: !root.entry.readOnly && !root.entry.protected
@@ -118,7 +123,7 @@ ValueRow {
         glyph: root.entry.custom ? "delete" : "do_not_disturb_on"
         text: root.entry.custom ? I18n.format("Remove %1", [I18n.actionLabel(root.entry.label)])
             : I18n.format("Disable %1", [I18n.actionLabel(root.entry.label)])
-        tooltip: root.entry.custom ? I18n.tr("Remove") : I18n.tr("Disable")
+        tooltip: root.entry.custom ? I18n.tr("Remove shortcut") : I18n.tr("Disable shortcut")
         Accessible.role: Accessible.Button
         Accessible.name: text
         activeFocusOnTab: root.current && visible && enabled

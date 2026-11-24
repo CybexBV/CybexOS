@@ -331,6 +331,22 @@ function progress(deployment) {
         building: count(builds.active) > 0 };
 }
 
+// What kind of failure a worker's message describes, so the queue bar can
+// say it in plain words and keep the message itself behind Details
+// (2026-11-24 review): "download" for a network or substituter failure,
+// "space" for a full disk, "cancelled" for authorization that was refused,
+// else "" (an unknown failure, said as such).
+function failureKind(message) {
+    const text = String(message || "");
+    if (/no space left|disk (is )?full|not enough (free )?(disk )?space/i.test(text))
+        return "space";
+    if (/cancel|dismissed|not authori[sz]ed|authentication (failed|was)/i.test(text))
+        return "cancelled";
+    if (/download|resolve host|internet connection|connection (refused|reset|closed|timed out)|could(n't| not) connect|network|unreachable|substituter|HTTP error|SSL|TLS/i.test(text))
+        return "download";
+    return "";
+}
+
 // ---- updates ---------------------------------------------------------------
 
 // Installed apps whose version changes in a prepared system update.
@@ -644,7 +660,7 @@ function entryIds(ids) {
 if (typeof module !== "undefined") module.exports = {
     list, index, byPopularity, popular, inCategory, featured, editorsChoice, similar, profileApps, collection,
     terms, searchApps, morePackages, installedGroups, selectedPackage, queued, toggle, withAll, installs, removals, prune,
-    change, queueState, verdict, PREPARING, FINISHED, FAILED, owns, phase, blocked, changed, progress, appUpdates,
+    change, queueState, verdict, PREPARING, FINISHED, FAILED, owns, phase, blocked, changed, progress, failureKind, appUpdates,
     size, parseHex, luminance, darkInk, mix, brand, paragraphs, license, host, screenshots, GLYPH_FALLBACKS, glyph,
     columns, entryIds, FLATHUB_ID, flathubId, flathubMedia, flathubHits, flatpak, flathubTask, flathubRunning,
     flathubMode, flathubInstalledRows, PERMISSIONS, permissions, ROLE_GLYPHS, roleDesktops, roleOption, roleChoices,

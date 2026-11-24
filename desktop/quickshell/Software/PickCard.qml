@@ -76,15 +76,20 @@ Item {
         anchors.bottom: parent.bottom
         anchors.margins: Theme.scaled(14)
         height: Theme.scaled(40)
+        // The icon appears once: beside the name only while a screenshot is
+        // the artwork; otherwise the large icon above is it (2026-11-24
+        // review).
         AppIcon {
             id: icon
+            visible: root.shot !== ""
+            width: visible ? implicitWidth : 0
             anchors.verticalCenter: parent.verticalCenter
             app: root.app
             size: Theme.scaled(38)
         }
         Column {
             anchors.left: icon.right
-            anchors.leftMargin: Theme.scaled(10)
+            anchors.leftMargin: icon.visible ? Theme.scaled(10) : 0
             anchors.right: action.left
             anchors.rightMargin: Theme.scaled(10)
             anchors.verticalCenter: parent.verticalCenter
@@ -118,12 +123,13 @@ Item {
         }
     }
 
+    // The keyboard ring, for keyboard modality only.
     Rectangle {
         anchors.fill: parent
-        visible: root.activeFocus
+        visible: border.width > 0
         color: "transparent"
         radius: root.corner
-        border.width: 2
-        border.color: Theme.accentText
+        border.width: Theme.focusWidth(root.activeFocus)
+        border.color: Theme.focusRing
     }
 }

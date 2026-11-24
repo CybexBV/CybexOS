@@ -341,3 +341,14 @@ test("1Password notes only show while proprietary apps are on", () => {
     assert.deepEqual(H.perks(browserRole.options[2], false), [{ key: "webapps", yes: false }]);
     assert.deepEqual(Object.keys(H.ROLE_GLYPHS), ["browser", "terminal", "editor", "files", "mail", "music", "video", "pdf", "image"]);
 });
+
+test("a worker failure is classed for plain words; anything unknown stays unknown", () => {
+    assert.equal(H.failureKind("Nix could not download krita. Check your connection."), "download");
+    assert.equal(H.failureKind("error: unable to download 'https://cache.nixos.org/x.narinfo': Couldn't resolve host name"), "download");
+    assert.equal(H.failureKind("cannot connect: Connection refused"), "download");
+    assert.equal(H.failureKind("error: writing to file: No space left on device"), "space");
+    assert.equal(H.failureKind("Authentication cancelled"), "cancelled");
+    assert.equal(H.failureKind("builder for '/nix/store/abc-gimp.drv' failed with exit code 1"), "");
+    assert.equal(H.failureKind(""), "");
+    assert.equal(H.failureKind(undefined), "");
+});

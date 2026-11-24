@@ -50,7 +50,7 @@ PopoutPanel {
     property bool justSaved: false
     readonly property bool statusShown: Settings.undoAvailable
         || Settings.persistenceError || Settings.newerSchema
-        || ((Settings.savePending || justSaved) && !changesChip.shown)
+        || ((Settings.savePending || justSaved) && !changesChip.pending)
     Connections {
         target: Settings
         function onSavePendingChanged() {
@@ -98,7 +98,16 @@ PopoutPanel {
             closeModuleSubPage();
             return true;
         }
-        return Settings.goBack();
+        // Back hides on the first page of the trail; a keyboard press that
+        // got there would leave focus on nothing, so it moves to the rail.
+        const fromBack = backAction.activeFocus;
+        const moved = Settings.goBack();
+        if (fromBack && !root.canGoBack) {
+            const item = root.navDelegate(Settings.page);
+            if (item)
+                item.forceActiveFocus();
+        }
+        return moved;
     }
 
     Connections {
@@ -793,14 +802,18 @@ PopoutPanel {
             onPressed: root.moveRequested()
         }
 
+        // Shown only while the trail has somewhere to go: a dimmed arrow on
+        // the first page opened read as a way back to nowhere (2026-11-24
+        // review). Its slot stays, so the title never shifts sideways.
         SettingsAction {
             id: backAction
+            objectName: "settingsBack"
             x: root.gutter / 2
             anchors.verticalCenter: parent.verticalCenter
+            visible: root.canGoBack
             compact: true
             glyph: "arrow_back"
             text: I18n.tr("Back")
-            enabled: root.canGoBack
             Accessible.name: I18n.tr("Back to the previous page")
             onTriggered: root.goBack()
         }
@@ -909,10 +922,14 @@ PopoutPanel {
                 onTriggered: Settings.retrySave()
             }
 
+            // Home lists the same waiting changes under Needs attention, with
+            // their action: one way to review them at a time (2026-11-24
+            // review), so the chip steps back there.
             ChangesChip {
                 id: changesChip
                 anchors.verticalCenter: parent.verticalCenter
                 compact: root.compactNav
+                hidden: Settings.page === "home"
                 onReviewRequested: root.openChanges()
             }
 

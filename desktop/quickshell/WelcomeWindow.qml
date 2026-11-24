@@ -205,7 +205,9 @@ Scope {
             property: "opacity"
             from: 1
             to: 0
-            duration: 450
+            // The flight runs only with motion (handOver), so this is never
+            // a reduced-motion fade.
+            duration: Theme.surfaceDuration
             easing.type: Easing.OutCubic
         }
         onFinished: root.touchDown()
@@ -237,7 +239,8 @@ Scope {
                 anchors.fill: parent
                 color: Guide.Kiosk.bg
                 opacity: view.peeking ? 0 : 1
-                Behavior on opacity { NumberAnimation { duration: 140 } }
+                // With the page (WelcomeView), so the peek fades as one.
+                Behavior on opacity { NumberAnimation { duration: Theme.popoutFadeInDuration } }
             }
             Guide.WelcomeView {
                 id: view
@@ -258,6 +261,9 @@ Scope {
                 pose: root.flightPose
             }
         }
+        // Pointer vs keyboard modality for the guide's focus rings
+        // (Common/FocusModality, Welcome/KioskFocusRing.qml).
+        FocusModalityObserver {}
     }
 
     PanelWindow {

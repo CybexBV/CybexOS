@@ -56,13 +56,15 @@ Rectangle {
         color: Theme.stroke
     }
 
-    // The trial's clock, drawn as the line along the bar's top edge.
+    // The trial's clock, drawn as the line along the bar's top edge. Each
+    // tick eases over the shared expand time; under reduced motion the line
+    // steps, and the seconds in the copy carry the same count.
     Rectangle {
         visible: root.trial
         width: parent.width * Format.clamp01(root.remaining)
         height: 2
         color: Theme.accent
-        Behavior on width { NumberAnimation { duration: 450 } }
+        Behavior on width { NumberAnimation { duration: Theme.expandDuration } }
     }
 
     Column {

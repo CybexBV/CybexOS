@@ -20,7 +20,7 @@ PanelWindow {
     id: root
 
     // Opacity of the whole view; the surface stays mapped until it reaches 0
-    // so the closing fade is visible. Reduced motion makes it a cut.
+    // so the closing fade is visible. Reduced motion keeps a short fade.
     property real presence: Overview.open ? 1 : 0
 
     Behavior on presence {
@@ -122,4 +122,7 @@ PanelWindow {
             opacity: root.presence
         }
     }
+
+    // Pointer vs keyboard modality for focus rings (Common/FocusModality).
+    FocusModalityObserver {}
 }

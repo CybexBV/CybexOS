@@ -726,3 +726,181 @@ fn review_back_and_change_return_to_the_software_step() {
     store.invoke_change("account".into());
     assert_eq!(sent.take(), [serde_json::json!({"action": "back"}), serde_json::json!({"action": "draft", "values": {"screen": "account"}})]);
 }
+
+// ── screen readers, focus rings and reduced motion (2026-11-24 review) ─────
+
+use i_slint_core::accessibility::{AccessibilityAction, AccessibleStringProperty as Said};
+use i_slint_core::item_tree::ItemRc;
+use i_slint_core::items::AccessibleRole;
+
+/// One control as Slint's accessibility bridges describe it.
+struct Node(ItemRc);
+
+impl Node {
+    fn said(&self, what: Said) -> String {
+        self.0.accessible_string_property(what).map(|s| s.to_string()).unwrap_or_default()
+    }
+    fn label(&self) -> String {
+        self.said(Said::Label)
+    }
+    fn checked(&self) -> bool {
+        self.said(Said::Checkable) == "true" && self.said(Said::Checked) == "true"
+    }
+    fn activate(&self) {
+        self.0.accessible_action(&AccessibilityAction::Default);
+    }
+    /// Its top-left corner on the canvas.
+    fn origin(&self) -> (f32, f32) {
+        let at = self.0.map_to_window(self.0.geometry().origin);
+        (at.x, at.y)
+    }
+}
+
+/// Every visible element with this role, in the tree's order.
+fn nodes(ui: &InstallerWindow, role: AccessibleRole) -> Vec<Node> {
+    let root = ItemRc::new_root(i_slint_core::window::WindowInner::from_pub(ui.window()).component());
+    let mut found = Vec::new();
+    root.visit_descendants(|item| {
+        if item.is_visible() && item.accessible_role() == role {
+            found.push(Node(item.clone()));
+        }
+        std::ops::ControlFlow::<()>::Continue(())
+    });
+    found
+}
+
+fn node(ui: &InstallerWindow, role: AccessibleRole, label: &str) -> Node {
+    let all = nodes(ui, role);
+    let labels: Vec<String> = all.iter().map(Node::label).collect();
+    all.into_iter().find(|n| n.label() == label).unwrap_or_else(|| panic!("no {role:?} {label:?} among {labels:?}"))
+}
+
+/// The disk step with two disks, the first chosen and encrypted.
+fn disk_setup() -> (InstallerWindow, cybexos_installer::ui::Shared, Rc<MinimalSoftwareWindow>, cybexos_installer::client::Recorder) {
+    let (ui, app, surface, sent) = software_setup(serde_json::json!({}), true);
+    app.borrow_mut().apply_state(state_from(serde_json::json!({"type": "state", "schema": "cybexos.installer-state.v1",
+        "phase": "setup", "network": {"connected": true},
+        "draft": {"screen": "disk", "disk": "/dev/vda", "encrypted": true, "profiles": ["development"]},
+        "software": {"profiles": ["development"], "online": true},
+        "disks": [{"path": "/dev/vda", "model": "Alpha", "size": 85899345920u64, "available": true, "bus": "NVMe", "filesystems": ["ntfs"]},
+                  {"path": "/dev/vdb", "model": "Beta", "size": 500107862016u64, "available": true, "bus": "SATA"}]})));
+    draw(&surface);
+    sent.take();
+    (ui, app, surface, sent)
+}
+
+#[test]
+fn screen_readers_hear_every_control_and_its_state() {
+    let (ui, app, surface, sent) = disk_setup();
+    let store = ui.global::<Store>();
+    // Which disk is chosen: radio buttons named by model and size.
+    let disks = nodes(&ui, AccessibleRole::RadioButton);
+    assert_eq!(disks.iter().map(Node::label).collect::<Vec<_>>(), ["Alpha, 86 GB", "Beta, 500 GB"]);
+    assert_eq!(disks.iter().map(Node::checked).collect::<Vec<_>>(), [true, false]);
+    assert_eq!(disks[0].said(Said::Description), "/dev/vda · NVMe · has Windows (NTFS)");
+    disks[1].activate();
+    assert_eq!(sent.take(), [serde_json::json!({"action": "draft", "values": {"disk": "/dev/vdb"}})]);
+    // Whether encryption is on: a named switch.
+    let encryption = node(&ui, AccessibleRole::Switch, "Encrypt the disk");
+    assert!(encryption.checked());
+    encryption.activate();
+    assert_eq!(sent.take(), [serde_json::json!({"action": "draft", "values": {"encrypted": false}})]);
+    let more = node(&ui, AccessibleRole::Button, "More options · serial numbers");
+    assert_eq!(more.said(Said::Expanded), "false");
+    // The top bar's chips say what they are, not just "US".
+    node(&ui, AccessibleRole::Button, "Network: Ethernet");
+    node(&ui, AccessibleRole::Button, "Keyboard layout: US");
+    node(&ui, AccessibleRole::Button, "Language: English");
+
+    // Software profiles are checkboxes.
+    store.set_screen("software".into());
+    draw(&surface);
+    let development = node(&ui, AccessibleRole::Checkbox, "Software Development");
+    assert!(development.checked());
+    assert!(development.said(Said::Description).contains("Recommended"));
+    let office = node(&ui, AccessibleRole::Checkbox, "Office & Productivity");
+    assert!(!office.checked());
+    office.activate();
+    assert_eq!(sent.take(), [serde_json::json!({"action": "draft", "values": {"profiles": ["development", "office"]}})]);
+
+    // Sheet lists: the chosen language is the selected item.
+    store.invoke_open_sheet("language".into());
+    draw(&surface);
+    let english = node(&ui, AccessibleRole::ListItem, "English");
+    assert_eq!(english.said(Said::ItemSelected), "true");
+    english.activate();
+    assert_eq!(sent.take(), [serde_json::json!({"action": "draft", "values": {"locale": "en_US.UTF-8"}})]);
+
+    // The ⋯ chip opens the menu, whose Reduce motion switch says its state.
+    store.invoke_close_sheet();
+    draw(&surface);
+    node(&ui, AccessibleRole::Button, "Installer menu").activate();
+    assert_eq!(store.get_sheet(), "tools");
+    draw(&surface);
+    let motion = node(&ui, AccessibleRole::Switch, "Reduce motion");
+    assert!(!motion.checked());
+    motion.activate();
+    assert!(store.get_reduced_motion() && motion.checked());
+    assert_eq!(store.get_sheet(), "tools", "the menu closed under the switch");
+    let _ = app;
+}
+
+#[test]
+fn focus_rings_show_after_keys_and_hide_after_clicks() {
+    let (ui, _app, surface, sent) = disk_setup();
+    let store = ui.global::<Store>();
+    let frame = || {
+        surface.request_redraw();
+        let mut pixels = vec![slint::Rgb8Pixel::default(); 1280 * 800];
+        surface.draw_if_needed(|renderer| {
+            renderer.render(&mut pixels, 1280);
+        });
+        pixels
+    };
+    // The accent ring stands 2 to 4 px clear of a control's left edge.
+    let ring = |pixels: &[slint::Rgb8Pixel], (x, y): (f32, f32), height: f32| {
+        let p = pixels[(y + height / 2.0) as usize * 1280 + x as usize - 3];
+        p.b > 200 && p.r < 140
+    };
+    let switch = node(&ui, AccessibleRole::Switch, "Encrypt the disk").origin();
+    let second = node(&ui, AccessibleRole::RadioButton, "Beta, 500 GB").origin();
+    // A click focuses and flips the switch without drawing a ring.
+    click(&ui, &surface, switch.0 + 24.0, switch.1 + 14.0);
+    assert_eq!(sent.take(), [serde_json::json!({"action": "draft", "values": {"encrypted": false}})]);
+    assert!(!store.get_keyboard_modality());
+    assert!(!ring(&frame(), switch, 28.0), "a click drew a keyboard focus ring");
+    // Any key shows where focus is.
+    key(&ui, &surface, Key::Shift);
+    assert!(store.get_keyboard_modality());
+    assert!(ring(&frame(), switch, 28.0), "a key did not show the focused switch");
+    // A click on another control moves focus there, still without a ring.
+    click(&ui, &surface, second.0 + 300.0, second.1 + 48.0);
+    assert_eq!(sent.take(), [serde_json::json!({"action": "draft", "values": {"disk": "/dev/vdb"}})]);
+    let pixels = frame();
+    assert!(!store.get_keyboard_modality());
+    assert!(!ring(&pixels, switch, 28.0) && !ring(&pixels, second, 96.0));
+    // Tab always shows where it went.
+    key(&ui, &surface, Key::Tab);
+    assert!(store.get_keyboard_modality());
+}
+
+#[test]
+fn reduced_motion_holds_wiz_still_and_keeps_progress_readable() {
+    let (ui, app, surface) = setup();
+    let store = ui.global::<Store>();
+    app.borrow_mut().apply_state(State { phase: "loading".into(), ..State::default() });
+    draw(&surface);
+    assert!(frames_over(&surface, 1000) >= 20, "thinking should loop");
+    store.invoke_toggle_reduced_motion();
+    assert!(store.get_reduced_motion());
+    draw(&surface);
+    // Only the once-a-second status may repaint.
+    assert!(frames_over(&surface, 3000) <= 3, "Wiz moved with reduced motion on");
+    app.borrow_mut().apply_state(State { phase: "installing".into(), stage: 2, ..State::default() });
+    draw(&surface);
+    assert!(frames_over(&surface, 3000) <= 4, "the spell moved with reduced motion on");
+    assert_eq!(store.get_install_pose(), "working", "the pose still says what happens");
+    store.invoke_toggle_reduced_motion();
+    draw(&surface);
+    assert!(frames_over(&surface, 1000) >= 20, "working should loop again");
+}

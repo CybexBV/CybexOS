@@ -11,6 +11,14 @@ BarModule {
 
     moduleId: "notifications"
 
+    // Focus has one mark on the menubar (Bar.focusOnClockSide). When the
+    // clock-side Focus action shows it, the bell stays a plain bell. When it
+    // falls to the bell, it is a calm one: the slashed glyph in the accent,
+    // not an accent fill, which would read as a pressed button rather than
+    // a state.
+    readonly property bool showsFocus: Notifs.dnd
+        && !(root.host !== null && root.host.focusOnClockSide)
+
     BarIcon {
         id: chip
 
@@ -18,12 +26,12 @@ BarModule {
         panelName: "notifications"
         isle: root.isle
         anchorItem: root.groupAnchor ?? chip
-        glyph: Notifs.dnd ? "notifications_off" : "notifications"
+        glyph: root.showsFocus ? "notifications_off" : "notifications"
         glyphSize: Theme.barIconSize
         glyphWeight: 550
         // Critical history stays visible even while Focus suppresses its toast.
         alert: Notifs.hasUrgent
-        active: Notifs.dnd && !Notifs.hasUrgent
+        idleColor: root.showsFocus ? Theme.barAccent : Theme.barIcon
         // Focus is the one name for Do Not Disturb (2026-11).
         tooltip: Notifs.dnd
             ? I18n.format("Notifications · Focus · %1", [Notifs.count])

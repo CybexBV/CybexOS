@@ -182,7 +182,9 @@ off), a legacy BIOS boot, a medium whose bundled source does not match it or a
 missing network. A
 failure after the disk was changed says so and opens the log. The menu (⋯) has
 the installation log, a recovery shell on tty2 (Alt+F1 returns), the text
-installer, restart into firmware settings, restart and power off.
+installer, restart into firmware settings, **Reduce motion** for this session
+(Wiz holds still; also on when the boot sets `QS_REDUCED_MOTION=1`), restart
+and power off.
 
 If the installation target cannot be unmounted, the worker retains its workspace
 and reports the target path in Installation details and on stderr. Unmount it

@@ -3,18 +3,32 @@ import "../Common"
 import "../Common/SoftwareHelpers.js" as Helpers
 import "../Common/TablerGlyphs.js" as Tabler
 
-// One of the eight categories: its tinted glyph, name and what it holds.
+// One of the eight categories: its tinted glyph, name and what it holds, in
+// up to two lines; every tile is as tall as two, so a row stays even.
 Rectangle {
     id: root
 
     property var category: ({})
     readonly property color tint: Helpers.parseHex(category.color) ? category.color : Theme.accent
 
-    implicitHeight: Theme.scaled(62)
+    FontMetrics {
+        id: nameMetrics
+        font.family: Theme.fontMenu
+        font.pixelSize: Theme.typography.primary
+    }
+    FontMetrics {
+        id: summaryMetrics
+        font.family: Theme.fontMenu
+        font.pixelSize: Theme.typography.metadata
+    }
+
+    implicitHeight: Math.max(Theme.scaled(62),
+        Math.ceil(nameMetrics.height + summaryMetrics.height * 2) + Theme.scaled(1) + Theme.scaled(16))
     radius: Theme.chipRadius + 4
     color: Theme.cardFill
-    border.width: activeFocus ? 2 : 1
-    border.color: activeFocus ? Theme.accentText : Theme.hairlineSoft
+    // The keyboard ring replaces the resting hairline while it shows.
+    border.width: Theme.focusWidth(activeFocus) || 1
+    border.color: Theme.focusWidth(activeFocus) > 0 ? Theme.focusRing : Theme.hairlineSoft
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: Software.label(category.name || "")
@@ -79,6 +93,8 @@ Rectangle {
             color: Theme.textDim
             font.family: Theme.fontMenu
             font.pixelSize: Theme.typography.metadata
+            wrapMode: Text.Wrap
+            maximumLineCount: 2
             elide: Text.ElideRight
             textFormat: Text.PlainText
         }

@@ -210,20 +210,24 @@ Scope {
                 onContentHeightChanged: root.syncListHeight()
                 Component.onCompleted: root.syncListHeight()
 
+                // A toast arrives and leaves like a bar popout: a short
+                // slide in from the screen edge with a fade, and the stack
+                // closing up behind it. Reduced motion keeps only the fade,
+                // with no sideways travel at all.
                 add: Transition {
                     ParallelAnimation {
                         NumberAnimation {
                             property: "opacity"
                             from: 0
                             to: 1
-                            duration: Theme.reducedMotion ? 0 : 160
+                            duration: Theme.popoutFadeInDuration
                             easing.type: Easing.OutCubic
                         }
                         NumberAnimation {
                             property: "x"
-                            from: root.onLeft ? -18 : 18
+                            from: Theme.reducedMotion ? 0 : root.onLeft ? -18 : 18
                             to: 0
-                            duration: Theme.reducedMotion ? 0 : 220
+                            duration: Theme.popoutOpenDuration
                             easing.type: Easing.BezierSpline
                             easing.bezierCurve: Theme.easeOutCurve
                         }
@@ -233,7 +237,7 @@ Scope {
                 addDisplaced: Transition {
                     NumberAnimation {
                         property: "y"
-                        duration: Theme.reducedMotion ? 0 : 240
+                        duration: Theme.expandDuration
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: Theme.springCurve
                     }
@@ -244,13 +248,13 @@ Scope {
                         NumberAnimation {
                             property: "opacity"
                             to: 0
-                            duration: Theme.reducedMotion ? 0 : 120
+                            duration: Theme.popoutFadeOutDuration
                             easing.type: Easing.InCubic
                         }
                         NumberAnimation {
                             property: "x"
-                            to: root.onLeft ? -18 : 18
-                            duration: Theme.reducedMotion ? 0 : 165
+                            to: Theme.reducedMotion ? 0 : root.onLeft ? -18 : 18
+                            duration: Theme.popoutCloseDuration
                             easing.type: Easing.BezierSpline
                             easing.bezierCurve: Theme.easeInCurve
                         }
@@ -260,7 +264,7 @@ Scope {
                 removeDisplaced: Transition {
                     NumberAnimation {
                         property: "y"
-                        duration: Theme.reducedMotion ? 0 : 240
+                        duration: Theme.expandDuration
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: Theme.springCurve
                     }

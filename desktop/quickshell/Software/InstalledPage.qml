@@ -111,8 +111,8 @@ PageScroll {
         height: Theme.scaled(44)
         radius: Theme.chipRadius + 3
         color: otherMouse.containsMouse ? Theme.hoverFill : "transparent"
-        border.width: activeFocus ? 2 : 1
-        border.color: activeFocus ? Theme.accentText : Theme.hairlineSoft
+        border.width: Theme.focusWidth(activeFocus) || 1
+        border.color: Theme.focusWidth(activeFocus) > 0 ? Theme.focusRing : Theme.hairlineSoft
         activeFocusOnTab: true
         Accessible.role: Accessible.Button
         Accessible.name: I18n.tr("Other packages")

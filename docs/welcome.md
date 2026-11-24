@@ -24,7 +24,9 @@ Settings. The pills in the top bar show the network, keyboard layout and
 language, and the last one closes the guide.
 
 **Connect** offers up to three optional sign-ins, each on its own card, side
-by side. Each opens windows, so the guide steps aside while you use them:
+by side. Their buttons are secondary: **Continue** is the step's one primary
+button, and a **Recommended** badge on the card's top edge marks the
+assistant. Each opens windows, so the guide steps aside while you use them:
 
 - **1Password** comes first, when it is installed, so it can fill in the
   passwords that follow in the browser. Its extension in Google Chrome
@@ -49,7 +51,9 @@ by side. Each opens windows, so the guide steps aside while you use them:
   reads as signed out. Chrome saves that file some seconds after the sign-in,
   so the tick can follow a moment later.
 - **The AI assistant** (recommended) signs in to Claude Code or Codex with that
-  agent's own sign-in, in your browser; no terminal opens. The guide comes
+  agent's own sign-in, in your browser; no terminal opens. The card names
+  only the agents this computer has (both when neither is installed, with a
+  pointer to Software). The guide comes
   back by itself once the agent reports you are signed in, and
   **Cancel sign-in** stops a sign-in you abandoned. Your sign-in stays with
   the agent; Cybex OS never stores it. Wiz stands in the card's corner:
@@ -63,21 +67,28 @@ sign-in's browser window. A window you opened yourself stays,
 and so does a sign-in you have not finished. Closing the guide from its pill
 leaves everything open, since you are using it.
 
-Without a network the step says so and links to the network settings. When
-none of 1Password, Chrome and the assistant is installed, the guide leaves
-Connect out.
+Without a network the step says so and links to the network settings, and
+the sign-in buttons are off, each card saying **Signing in needs the
+internet**; choosing an agent that is already signed in still works. This
+follows NetworkManager's answer: while the shell cannot tell (no answer
+yet), nothing is turned off. When none of 1Password, Chrome and the
+assistant is installed, the guide leaves Connect out.
 
 **Wallpaper** opens on Wallhaven, with your own
 pictures one click away. Choosing a tile applies it straight away. A card
 shows it on a miniature of your desktop, with the colours Cybex OS reads from
-it. Wallhaven lists wallpapers automatically on a known unmetered connection;
-on metered or unknown connections it asks first. A fresh installation shows
-a plain background until you pick an image.
+it; with no wallpaper yet it says **Pick a wallpaper to take its colours**
+instead. Wallhaven lists wallpapers automatically on a known unmetered
+connection; on metered or unknown connections it asks first, with a
+secondary **Load wallpapers** button. A fresh installation shows a plain
+background until you pick an image.
 
 **Style** chooses dark or light, where the accent comes from (your
 wallpaper, a Cybex OS theme or one colour of your own), the text size and
-glass. A preview beside the choices is drawn with your real settings. The
-guide itself keeps the installer's colours.
+glass. Each is a single choice and reads as one: a radio dot, and a tinted
+card for the chosen look. The glass switch has the installer's off edge,
+which keeps 3:1 against the page. A preview beside the choices is drawn with
+your real settings. The guide itself keeps the installer's colours.
 
 **Shortcuts** shows the Super keys as a keyboard. Lit keys do something
 and name it; free keys are plain, with a dashed outline. A lock marks a
@@ -93,23 +104,34 @@ applies; **Keep editing** or Escape returns to the step. Your bindings come
 from the same data as Settings, including changes made there or in
 `user.lua`; an action you disabled shows **Not bound**.
 
-**Ready** sums up your choices and shows what the [system check](system-check.md)
+**Ready** sums up your choices, in one card each for Wallpaper, Style and
+Shortcuts, and shows what the [system check](system-check.md)
 found. It runs `cybex doctor` while you go through the guide: drivers,
 services, sound, Secure Boot, firmware updates, storage, battery, the clock
-and the desktop. Nothing leaves the computer for that. Wiz sits on the check:
-thinking while it runs, sorry when it could not run, happy when it found
-nothing and waiting for you when there is something to look at. With the assistant
-signed in, **Ask the assistant** hands the check to it: the guide steps
-aside, and the assistant explains what it found and proposes fixes, which
-change nothing until you agree. Without it, **Connect the assistant** goes
-back to Connect.
+and the desktop. Nothing leaves the computer for that. Wiz stands in the
+check's card: thinking while it runs, sorry when it could not run, happy
+when it found nothing and waiting for you when there is something to look
+at. Each finding is listed (two and a count when there are more than three)
+with the place that fixes it, as on Settings' Home: **Software Update…** for
+firmware updates, and **Disk space…**, **Power…**, **Sound…** or
+**Region…** for storage, the battery, sound and the clock; the guide steps
+aside. Drivers and the rest have no page of their own. With the assistant
+signed in, **Ask Wiz** hands the whole check to it: the guide steps aside,
+and the assistant explains what it found and proposes fixes, which change
+nothing until you agree. Without it, **Connect the assistant** goes back to
+Connect. **Start using Cybex OS** is the screen's one primary button.
 
 Ready also offers optional extras: web apps, fingerprint (when a reader is
 available), security keys, backups and online accounts. Each opens its page in
 Settings; a tick shows what is actually set up.
 
 On Wallpaper and Style, hold Space to look at your desktop; release it to
-return. While you type in the Wallhaven search field, Space types a space.
+return. Both say so under their preview. While you type in the Wallhaven
+search field, Space types a space.
+
+Focus rings show only while you use the keyboard: a click leaves none, and
+the next Tab shows where focus is (`Common/FocusModality`, as in the rest of
+the shell).
 
 The guide covers the screen, so it steps aside when you open Settings, an
 app or a shortcut, and leaves a **Resume** pill at the bottom of the screen.
@@ -214,7 +236,7 @@ with a test-only IPC target. Shortcut state is served by a fake `hyprctl`
   closes meanwhile; Finish asks to close exactly the sign-in's windows,
   1Password's among them, and not one the person opened;
 - Ready's system-check card from a fixture `cybex doctor` report, and
-  **Ask the assistant** sending the system-check question to the service;
+  **Ask Wiz** sending the system-check question to the service;
 - a tour of every step, sheet (including the question about unapplied
   shortcut changes) and the resume pill in English and Dutch at
   1440×900 and 1024×600, saved as `tour-<language>-<size>-<name>.png`.

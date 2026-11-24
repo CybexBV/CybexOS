@@ -2,7 +2,8 @@
 // straight to KMS/DRM. The 1280×800 canvas is zoomed to the panel by the Rust
 // side and centred when the panel's aspect ratio differs. Flat by design: no
 // blur, no shadows, and no animation beyond a 1 Hz activity tick and Wiz
-// (wiz.slint), who moves in small, pre-drawn steps.
+// (wiz.slint), who moves in small, pre-drawn steps; Reduce motion in the menu
+// stops both (Store.reduced-motion).
 
 import "../assets/fonts/SpaceGrotesk-Regular.ttf";
 import "../assets/fonts/SpaceGrotesk-Medium.ttf";
@@ -15,7 +16,7 @@ import "../assets/fonts/JetBrainsMono-Bold.ttf";
 import { Theme } from "theme.slint";
 import { Icons } from "icons.slint";
 import { Store, Check, Choice, DiskRow, ZoneRow, SummaryRow, StageRow, WifiRow, AppTile, ProfileCard, CustomRow, UsbRow, Filtered, WizArt } from "store.slint";
-import { Icon, SlotIcon, Chip, Kicker } from "widgets.slint";
+import { Icon, SlotIcon, Chip, Kicker, PressArea } from "widgets.slint";
 import { WelcomeScreen, DiskScreen, AccountScreen, SoftwareScreen, ReviewScreen, InstallingScreen, DoneScreen, StoppedScreen, FailedScreen } from "screens.slint";
 import { WifiSheet, KeyboardSheet, LanguageSheet, ToolsMenu, LogSheet, AppsSheet, GpuSheet, TimezoneSheet } from "sheets.slint";
 
@@ -82,6 +83,7 @@ component TopBar inherits Rectangle {
         height: 39px;
         source: @image-url("../assets/logo.svg");
         image-fit: contain;
+        accessible-label: "Cybex OS";
     }
     if root.step > 0: Steps {
         x: (parent.width - self.preferred-width) / 2;
@@ -99,6 +101,7 @@ component TopBar inherits Rectangle {
             width: net.width;
             net := Chip {
                 text: Store.net-connected ? (Store.net-kind == "wifi" ? Store.net-name : "Ethernet") : "Offline";
+                name: "Network: " + self.text;
                 icon: Store.net-connected ? (Store.net-kind == "wifi" ? Icons.wifi : Icons.ethernet) : Icons.offline;
                 warn: !Store.net-connected;
                 clicked => { Store.open-sheet("wifi"); }
@@ -108,6 +111,7 @@ component TopBar inherits Rectangle {
             width: kb.width;
             kb := Chip {
                 text: Store.layout-code;
+                name: "Keyboard layout: " + Store.layout-name;
                 icon: Icons.keyboard;
                 enabled: !root.locked;
                 clicked => { Store.open-sheet("keyboard"); }
@@ -117,6 +121,7 @@ component TopBar inherits Rectangle {
             width: lang.width;
             lang := Chip {
                 text: Store.language-code;
+                name: "Language: " + Store.language-name;
                 icon: Icons.globe;
                 enabled: !root.locked;
                 clicked => { Store.open-sheet("language"); }
@@ -126,6 +131,7 @@ component TopBar inherits Rectangle {
             width: tools.width;
             tools := Chip {
                 icon: Icons.dots;
+                name: "Installer menu";
                 clicked => { Store.open-sheet("tools"); }
             }
         }
@@ -148,63 +154,75 @@ export component InstallerWindow inherits Window {
         y: (parent.height - 800px) / 2;
         width: 1280px;
         height: 800px;
-        page-focus := FocusScope {
-            enabled: Store.sheet == "" && Store.connected && !Store.power-busy;
+        // A press on the bare canvas is pointer input too (PressArea).
+        PressArea { }
+        // Every key passes this scope on its way to the focused control, so
+        // any key brings focus rings back (Store.keyboard-modality).
+        FocusScope {
+            focus-on-click: false;
             focus-on-tab-navigation: false;
-            if Store.screen == "welcome": WelcomeScreen { }
-            if Store.screen == "disk": DiskScreen { }
-            if Store.screen == "account": AccountScreen { }
-            if Store.screen == "software": SoftwareScreen { }
-            if Store.screen == "review": ReviewScreen { }
-            if Store.screen == "installing": InstallingScreen { }
-            if Store.screen == "done": DoneScreen { }
-            if Store.screen == "stopped": StoppedScreen { }
-            if Store.screen == "failed": FailedScreen { }
-            TopBar {
-                x: 0;
-                y: 0;
+            capture-key-pressed(event) => {
+                Store.keyboard-modality = true;
+                return reject;
             }
-        }
-        if Store.sheet == "wifi": WifiSheet { }
-        if Store.sheet == "keyboard": KeyboardSheet { }
-        if Store.sheet == "language": LanguageSheet { }
-        if Store.sheet == "tools": ToolsMenu { }
-        if Store.sheet == "log": LogSheet { }
-        if Store.sheet == "apps": AppsSheet { }
-        if Store.sheet == "gpu": GpuSheet { }
-        if Store.sheet == "timezone": TimezoneSheet { }
-        if Store.toast != "" || Store.power-message != "": Rectangle {
-            x: (parent.width - self.width) / 2;
-            y: 688px;
-            width: min(1000px, toast-text.preferred-width + 36px);
-            height: max(42px, toast-text.preferred-height + 24px);
-            border-radius: 12px;
-            background: Theme.ink;
-            toast-text := Text {
-                x: 18px;
-                width: parent.width - 36px;
-                text: Store.power-message != "" ? Store.power-message : Store.toast;
-                wrap: word-wrap;
-                color: Theme.accent-ink;
-                font-size: 15px;
-                font-weight: 500;
+            page-focus := FocusScope {
+                enabled: Store.sheet == "" && Store.connected && !Store.power-busy;
+                focus-on-tab-navigation: false;
+                if Store.screen == "welcome": WelcomeScreen { }
+                if Store.screen == "disk": DiskScreen { }
+                if Store.screen == "account": AccountScreen { }
+                if Store.screen == "software": SoftwareScreen { }
+                if Store.screen == "review": ReviewScreen { }
+                if Store.screen == "installing": InstallingScreen { }
+                if Store.screen == "done": DoneScreen { }
+                if Store.screen == "stopped": StoppedScreen { }
+                if Store.screen == "failed": FailedScreen { }
+                TopBar {
+                    x: 0;
+                    y: 0;
+                }
             }
-        }
-        if !Store.connected: Rectangle {
-            background: Theme.bg;
-            TouchArea { }
-            Image {
-                y: 330px;
-                width: 150px;
-                height: 47px;
-                source: @image-url("../assets/symbol.svg");
-                image-fit: contain;
+            if Store.sheet == "wifi": WifiSheet { }
+            if Store.sheet == "keyboard": KeyboardSheet { }
+            if Store.sheet == "language": LanguageSheet { }
+            if Store.sheet == "tools": ToolsMenu { }
+            if Store.sheet == "log": LogSheet { }
+            if Store.sheet == "apps": AppsSheet { }
+            if Store.sheet == "gpu": GpuSheet { }
+            if Store.sheet == "timezone": TimezoneSheet { }
+            if Store.toast != "" || Store.power-message != "": Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: 688px;
+                width: min(1000px, toast-text.preferred-width + 36px);
+                height: max(42px, toast-text.preferred-height + 24px);
+                border-radius: 12px;
+                background: Theme.ink;
+                toast-text := Text {
+                    x: 18px;
+                    width: parent.width - 36px;
+                    text: Store.power-message != "" ? Store.power-message : Store.toast;
+                    wrap: word-wrap;
+                    color: Theme.accent-ink;
+                    font-size: 15px;
+                    font-weight: 500;
+                }
             }
-            Text {
-                y: 420px;
-                text: "Starting the installer…";
-                color: Theme.fog;
-                font-size: 17px;
+            if !Store.connected: Rectangle {
+                background: Theme.bg;
+                PressArea { }
+                Image {
+                    y: 330px;
+                    width: 150px;
+                    height: 47px;
+                    source: @image-url("../assets/symbol.svg");
+                    image-fit: contain;
+                }
+                Text {
+                    y: 420px;
+                    text: "Starting the installer…";
+                    color: Theme.fog;
+                    font-size: 17px;
+                }
             }
         }
     }

@@ -113,7 +113,7 @@ AssistantSurface {
         id: searchField
         width: parent.width
         height: Theme.scaled(34)
-        radius: Theme.scaled(9)
+        radius: root.innerRadius
         color: Theme.well
         border.width: 1
         border.color: searchInput.activeFocus ? Theme.accent : Theme.hairline
@@ -176,86 +176,111 @@ AssistantSurface {
     }
 
     // ---- the conversations -------------------------------------------------------------
-    Flickable {
-        id: listFlick
+    // A list taller than the room scrolls; its cut edge fades into the box
+    // so a half row never reads as the list's end (2026-11-24 review).
+    Item {
         width: parent.width
-        height: Math.max(Theme.scaled(60), Math.min(list.implicitHeight, root.room - root.chromeHeight))
-        contentWidth: width
-        contentHeight: list.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        interactive: contentHeight > height
+        height: listFlick.height
 
-        Column {
-            id: list
-            width: listFlick.width
+        Flickable {
+            id: listFlick
+            width: parent.width
+            height: Math.max(Theme.scaled(60), Math.min(list.implicitHeight, root.room - root.chromeHeight))
+            contentWidth: width
+            contentHeight: list.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
 
-            Repeater {
-                model: root.groups
+            Column {
+                id: list
+                width: listFlick.width
 
-                delegate: Column {
-                    id: group
-                    required property var modelData
-                    readonly property alias rowItems: rows
-                    width: list.width
+                Repeater {
+                    model: root.groups
 
-                    Text {
-                        width: parent.width
-                        topPadding: Theme.scaled(8)
-                        bottomPadding: Theme.scaled(2)
-                        text: root.groupLabel(group.modelData.group).toUpperCase()
-                        color: Theme.textFaint
-                        font.family: Theme.fontMenu
-                        font.pixelSize: Theme.typography.metadata
-                        font.weight: Theme.weightSemibold
-                        font.letterSpacing: 0.6
-                    }
+                    delegate: Column {
+                        id: group
+                        required property var modelData
+                        readonly property alias rowItems: rows
+                        width: list.width
 
-                    Repeater {
-                        id: rows
-                        model: group.modelData.rows
+                        Text {
+                            width: parent.width
+                            topPadding: Theme.scaled(8)
+                            bottomPadding: Theme.scaled(2)
+                            text: root.groupLabel(group.modelData.group).toUpperCase()
+                            color: Theme.textFaint
+                            font.family: Theme.fontMenu
+                            font.pixelSize: Theme.typography.metadata
+                            font.weight: Theme.weightSemibold
+                            font.letterSpacing: 0.6
+                        }
 
-                        delegate: AssistantConversationRow {
-                            required property var modelData
-                            width: group.width
-                            row: modelData
-                            deletable: true
-                            onOpened: Assistant.openConversation(modelData.id)
-                            onDeleteRequested: Assistant.deleteConversation(modelData.id)
+                        Repeater {
+                            id: rows
+                            model: group.modelData.rows
+
+                            delegate: AssistantConversationRow {
+                                required property var modelData
+                                width: group.width
+                                radius: root.innerRadius
+                                row: modelData
+                                deletable: true
+                                onOpened: Assistant.openConversation(modelData.id)
+                                onDeleteRequested: Assistant.deleteConversation(modelData.id)
+                            }
                         }
                     }
                 }
-            }
 
-            Column {
-                width: parent.width
-                visible: Assistant.historyRows.length === 0
-                topPadding: Theme.scaled(18)
-                bottomPadding: Theme.scaled(14)
-                spacing: Theme.scaled(3)
-
-                Text {
+                Column {
                     width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    text: root.searching ? I18n.format("Nothing matches “%1”.", [Assistant.historyQuery.trim()])
-                        : I18n.tr("No conversations yet.")
-                    wrapMode: Text.Wrap
-                    color: Theme.textLow
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.secondary
-                }
+                    visible: Assistant.historyRows.length === 0
+                    topPadding: Theme.scaled(18)
+                    bottomPadding: Theme.scaled(14)
+                    spacing: Theme.scaled(3)
 
-                Text {
-                    width: parent.width
-                    visible: !root.searching
-                    horizontalAlignment: Text.AlignHCenter
-                    text: I18n.tr("Questions you ask Wiz appear here.")
-                    wrapMode: Text.Wrap
-                    color: Theme.textFaint
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.metadata
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: root.searching ? I18n.format("Nothing matches “%1”.", [Assistant.historyQuery.trim()])
+                            : I18n.tr("No conversations yet.")
+                        wrapMode: Text.Wrap
+                        color: Theme.textLow
+                        font.family: Theme.fontMenu
+                        font.pixelSize: Theme.typography.secondary
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: !root.searching
+                        horizontalAlignment: Text.AlignHCenter
+                        text: I18n.tr("Questions you ask Wiz appear here.")
+                        wrapMode: Text.Wrap
+                        color: Theme.textFaint
+                        font.family: Theme.fontMenu
+                        font.pixelSize: Theme.typography.metadata
+                    }
                 }
             }
+        }
+
+        EdgeFade { anchors.top: parent.top; shown: listFlick.contentY > 1; fromTop: true }
+        EdgeFade { anchors.bottom: parent.bottom; shown: listFlick.contentY + listFlick.height < listFlick.contentHeight - 1 }
+    }
+
+    // The box's own colour over the list's cut edge, opaque at the edge.
+    component EdgeFade: Rectangle {
+        id: fade
+        property bool shown: false
+        property bool fromTop: false
+        width: parent ? parent.width : 0
+        height: Theme.scaled(28)
+        visible: fade.shown
+        gradient: Gradient {
+            GradientStop { position: 0; color: Qt.rgba(Theme.popBg.r, Theme.popBg.g, Theme.popBg.b, fade.fromTop ? 1 : 0) }
+            GradientStop { position: 1; color: Qt.rgba(Theme.popBg.r, Theme.popBg.g, Theme.popBg.b, fade.fromTop ? 0 : 1) }
         }
     }
 
@@ -265,7 +290,7 @@ AssistantSurface {
         width: parent.width
         visible: Assistant.deletedConversation !== null
         height: visible ? Theme.scaled(34) : 0
-        radius: Theme.scaled(9)
+        radius: root.innerRadius
         color: Theme.cardFill
         border.width: 1
         border.color: Theme.hairline
@@ -342,7 +367,7 @@ AssistantSurface {
             width: parent.width
             visible: Assistant.confirmingClear
             implicitHeight: confirmColumn.implicitHeight + Theme.scaled(24)
-            radius: Theme.scaled(12)
+            radius: root.innerRadius
             color: Theme.cardFill
             border.width: 1
             border.color: Theme.hairline

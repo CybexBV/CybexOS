@@ -5,7 +5,8 @@ import "../Common"
 // outlined ones, and "queued" for an app already in the install queue. Over
 // brand artwork a view passes its own `foreground`, and for its main action
 // a `solidFill` with `solidInk`: a solid button that contrasts with any
-// brand colour, where the accent could be blue on blue.
+// brand colour, where the accent could be blue on blue (the 2026-11-24
+// review tried the accent there and found exactly that).
 Rectangle {
     id: root
 
@@ -28,6 +29,10 @@ Rectangle {
         : custom ? foreground : queued ? Theme.accentText : Theme.textHi
     // The pointer target reaches 32 px even where the button is drawn smaller.
     readonly property real hitPad: Math.max(0, (Theme.scaled(32) - height) / 2)
+    // The keyboard ring (Theme.focusWidth: keyboard modality only) replaces
+    // the resting edge while it shows. On the accent fill an accent ring
+    // would vanish, so a primary takes textHi.
+    readonly property int ring: Theme.focusWidth(activeFocus)
 
     implicitWidth: content.implicitWidth + Theme.scaled(big ? 36 : 24)
     implicitHeight: Theme.scaled(big ? 38 : 30)
@@ -36,8 +41,8 @@ Rectangle {
         : custom ? Qt.rgba(foreground.r, foreground.g, foreground.b, quiet ? 0 : 0.14)
         : queued ? Theme.accentAlpha(0.16)
         : quiet ? "transparent" : Theme.hoverFill
-    border.width: activeFocus ? 2 : (queued || quiet) ? 1 : 0
-    border.color: activeFocus ? (solid ? solidInk : primary ? Theme.textHi : Theme.accentText)
+    border.width: ring > 0 ? ring : (queued || quiet || (primary && custom)) ? 1 : 0
+    border.color: ring > 0 ? (solid ? solidInk : primary ? Theme.textHi : Theme.focusRing)
         : custom ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.35)
         : queued ? Theme.accentAlpha(0.5) : Theme.stroke
     opacity: enabled ? 1 : 0.45

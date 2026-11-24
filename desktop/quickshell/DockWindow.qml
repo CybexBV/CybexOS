@@ -488,4 +488,9 @@ PanelWindow {
             }
         }
     }
+
+    // Pointer vs keyboard modality for the menu's focus rings
+    // (Common/FocusModality): a right click opens it without rings, the
+    // first arrow key shows where focus is.
+    FocusModalityObserver {}
 }

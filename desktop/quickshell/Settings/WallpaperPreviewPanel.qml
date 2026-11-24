@@ -15,8 +15,15 @@ Item {
     property string error: ""
     signal useRequested()
     signal moreLikeRequested()
+    // The surface under the panel, which the metadata's edge fades blend
+    // into (Settings' window; a host on another surface passes its own).
+    property color surfaceColor: Theme.panelSurface
     readonly property var info: details || item
-    readonly property bool applied: item !== null && online && Settings.wall === item.fileName
+    // The previewed picture is the wallpaper already showing, from My
+    // pictures or from Wallhaven: its button says "In use" and rests
+    // (2026-11-24 review; it used to offer to apply it again).
+    readonly property bool applied: item !== null && (item.fileName || "") !== ""
+        && Settings.wall === item.fileName
     readonly property bool fits: item && item.width > 0 && OnlineWallpapers.screenSizes.every(screen =>
         item.width >= screen.width && item.height >= screen.height)
     function reveal(action) {
@@ -120,13 +127,15 @@ Item {
                 font.pixelSize: Theme.typography.secondary
                 color: Theme.textMid
             }
+            // Two whole lines at most, the rest elided: the list never runs
+            // on into a line the panel's edge cuts through.
             Text {
                 width: parent.width
                 visible: root.online && root.details && root.details.tags.length > 0
                 text: root.details ? root.details.tags.join(" · ") : ""
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
-                maximumLineCount: 3
+                maximumLineCount: 2
                 elide: Text.ElideRight
                 font.family: Theme.fontMenu
                 font.pixelSize: Theme.typography.secondary
@@ -174,6 +183,13 @@ Item {
             }
         }
     }
+    // More below the button's edge fades out rather than stopping in the
+    // middle of a line of text.
+    ScrollChrome {
+        anchors.fill: scroll
+        target: scroll
+        edgeColor: root.surfaceColor
+    }
     // The full label, or "Apply" where a narrow panel, a long translation or
     // large text would push it past the button's edges.
     SettingsAction {
@@ -184,7 +200,7 @@ Item {
         primary: true
         enabled: root.item !== null && !root.busy && !root.applied
         text: root.busy ? I18n.format("Downloading %1%", [root.progress])
-            : root.applied ? I18n.tr("Applied")
+            : root.applied ? I18n.tr("In use")
             : useLabel.advanceWidth + 24 <= width ? useLabel.text : I18n.tr("Apply")
         Accessible.name: root.busy || root.applied ? text : useLabel.text
         onTriggered: root.useRequested()

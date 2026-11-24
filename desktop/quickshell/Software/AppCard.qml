@@ -12,8 +12,9 @@ Rectangle {
     implicitHeight: Theme.scaled(160)
     radius: Theme.chipRadius + 5
     color: Theme.cardFill
-    border.width: activeFocus ? 2 : 1
-    border.color: activeFocus ? Theme.accentText : Theme.hairlineSoft
+    // The keyboard ring replaces the resting hairline while it shows.
+    border.width: Theme.focusWidth(activeFocus) || 1
+    border.color: Theme.focusWidth(activeFocus) > 0 ? Theme.focusRing : Theme.hairlineSoft
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: root.app.name || ""

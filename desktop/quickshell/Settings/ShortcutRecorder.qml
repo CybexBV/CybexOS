@@ -17,9 +17,20 @@ import "../Common/ShortcutEditor.js" as Helpers
 // The host calls start(); `accepted(combo, mode)` follows once a
 // combination is chosen. Conflicts are checked against Keybindings: a
 // protected action's reserved default, user.lua or a non-editable holder (a
-// hidden hardware key) blocks the key, any other holder is offered as
-// "Replace", which unbinds that key from it in the draft first. A holder that only might share the physical key (`uncertain`) is a
-// warning: "Use anyway" keeps it bound.
+// hidden hardware key) blocks the key, any other holder is named in a
+// question ("Super + M is used by Slack. Use it for Browser instead?") whose
+// "Use it instead" unbinds that key from it in the draft first. That answer
+// takes a key from another shortcut, so it is never the default: focus starts
+// on Record again, the card's primary in that state, and Enter on the capture
+// surface does not accept it (2026-11-24 review). A holder that only might
+// share the physical key (`uncertain`) is a warning: "Use anyway" keeps it
+// bound, and nothing is taken.
+//
+// The scrim and the card are drawn over the whole window — in Settings its
+// header, tabs and rail as well as the page — while the recorder itself
+// stays where its host put it, so hosts and tests find it there. The buttons
+// stay pinned under the card's scrolling body, so a short window cannot push
+// Cancel out of view.
 //
 // Closing the card returns focus to the item that had it when start() ran (the
 // Edit button, the map key, or the window's own focus holder), or to
@@ -27,7 +38,7 @@ import "../Common/ShortcutEditor.js" as Helpers
 // itself does so afterwards and wins.
 //
 // A protected action's reserved defaults (`lockedKeys`) always stay bound.
-// They show as locked caps, and "Replace" replaces only the keys beyond them.
+// They show as locked caps, and replacing replaces only the keys beyond them.
 FocusScope {
     id: root
 
@@ -83,7 +94,7 @@ FocusScope {
     function stop() { listening = false; }
     // Scrolls a part of the card into view when the card has to scroll.
     function reveal(item) {
-        if (!item || !cardScroll.interactive)
+        if (!item || !cardScroll.interactive || !within(item, body))
             return;
         const top = item.mapToItem(cardScroll.contentItem, 0, 0).y;
         const limit = cardScroll.contentHeight - cardScroll.height;
@@ -115,9 +126,10 @@ FocusScope {
                 next.forceActiveFocus();
         });
     }
-    function isAncestorOf(item) {
+    function isAncestorOf(item) { return within(item, root) || within(item, layer); }
+    function within(item, container) {
         for (let at = item; at; at = at.parent) {
-            if (at === root)
+            if (at === container)
                 return true;
         }
         return false;
@@ -139,9 +151,11 @@ FocusScope {
         complete = true;
         verdict = decision;
         Qt.callLater(() => {
-            const next = decision.kind === "blocked" ? againButton : useButton;
+            // Only an answer that takes nothing from another shortcut starts
+            // focused, so Enter cannot move a key by accident.
+            const next = decision.kind === "free" || decision.kind === "maybe" ? useButton : againButton;
             next.forceActiveFocus();
-            reveal(next);
+            reveal(statusHint);
         });
     }
     function accept() {
@@ -165,6 +179,8 @@ FocusScope {
     function owners(list) { return nameList(list.map(row => I18n.actionLabel(row.label))); }
     // "Group: Label" for hardware keys, whose label alone ("Volume up") says little.
     function holders(list) { return nameList(list.map(row => I18n.tr(row.group) + ": " + I18n.actionLabel(row.label))); }
+    readonly property string comboText: combo === "" ? "" : Editor.display(combo).join(" + ")
+    readonly property string targetName: actionLabel === "" ? I18n.tr("this shortcut") : I18n.actionLabel(actionLabel)
     readonly property string status: {
         if (paused)
             return I18n.tr("Recording paused because the window lost focus. Record again to continue.");
@@ -183,12 +199,16 @@ FocusScope {
         if (verdict.kind === "blocked" && verdict.reason === "fixed")
             return I18n.format("%1 cannot be changed. Choose another key.", [owners(verdict.blockers)]);
         if (verdict.kind === "blocked")
-            return I18n.format("Your user.lua binds this key to %1. Change it there; user.lua loads last.", [owners(verdict.blockers)]);
+            return I18n.format("Your hand-written shortcuts (user.lua) give these keys to %1. Change them there.",
+                [owners(verdict.blockers)]);
+        // The question names the keys and both actions, and what answering
+        // it costs the other one.
         if (verdict.kind === "replace" && verdict.maybe.length)
-            return I18n.format("Already used by %1. Replace removes it there. %2 may also use it and keeps its key.",
-                [owners(verdict.replace), owners(verdict.maybe)]);
+            return I18n.format("%1 is used by %2. Use it for %3 instead? %2 will lose it; %4 may share it and will keep it.",
+                [comboText, owners(verdict.replace), targetName, owners(verdict.maybe)]);
         if (verdict.kind === "replace")
-            return I18n.format("Already used by %1. Replace removes it there.", [owners(verdict.replace)]);
+            return I18n.format("%1 is used by %2. Use it for %3 instead? %2 will lose it.",
+                [comboText, owners(verdict.replace), targetName]);
         if (verdict.kind === "maybe")
             return I18n.format("May conflict with %1; the keyboard layout is unknown. They keep their keys.",
                 [owners(verdict.maybe)]);
@@ -200,7 +220,7 @@ FocusScope {
         : verdict.kind === "blocked" ? "error" : verdict.kind === "replace" || verdict.kind === "maybe" ? "warning"
         : verdict.kind === "free" ? "active" : "info"
 
-    // Geometry, not anchors: the welcome guide reparents the recorder to its
+    // Geometry, not anchors: the welcome guide creates the recorder in its
     // window's content item from inside a positioner.
     x: 0
     y: 0
@@ -208,14 +228,6 @@ FocusScope {
     height: parent ? parent.height : 0
     visible: shown
     z: 10
-    // Keys that reach the card (from its buttons) never fall through to the
-    // page behind it; Escape cancels from anywhere inside.
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape)
-            root.cancel();
-        if (event.key !== Qt.Key_Tab && event.key !== Qt.Key_Backtab)
-            event.accepted = true;
-    }
     onVisibleChanged: if (!visible) cancel()
     Component.onDestruction: {
         listening = false;
@@ -250,213 +262,263 @@ FocusScope {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.scrim
-        // Clicking outside the card cancels, like Escape.
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.AllButtons
-            cursorShape: Qt.ArrowCursor
-            onClicked: root.cancel()
+    // Drawn over the whole window (see the note at the top): the window's
+    // content item is its parent, not the page that hosts the recorder.
+    FocusScope {
+        id: layer
+        parent: root.QsWindow.contentItem ?? root
+        x: 0
+        y: 0
+        width: parent ? parent.width : 0
+        height: parent ? parent.height : 0
+        z: 10
+        visible: root.visible
+        // Keys that reach the card (from its buttons) never fall through to
+        // the window behind it; Escape cancels from anywhere inside.
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape)
+                root.cancel();
+            if (event.key !== Qt.Key_Tab && event.key !== Qt.Key_Backtab)
+                event.accepted = true;
         }
-    }
 
-    Rectangle {
-        id: card
-        anchors.centerIn: parent
-        width: Math.min(Theme.scaled(480, Theme.typeScale), root.width - Theme.panelPadding * 2)
-        height: Math.min(body.implicitHeight + Theme.panelPadding * 2, root.height - Theme.scaled(16))
-        radius: Theme.popRadius
-        color: Theme.surfaceMenu
-        border.width: 1
-        border.color: Theme.popBorder
-        Accessible.role: Accessible.Dialog
-        Accessible.name: I18n.format("Change shortcut for %1", [I18n.actionLabel(root.actionLabel)])
-
-        MouseArea { anchors.fill: parent }
-
-        // A host shorter than the card (Settings at its minimum size) scrolls
-        // the card rather than cutting off its title and buttons.
-        Flickable {
-            id: cardScroll
+        Rectangle {
             anchors.fill: parent
-            clip: true
-            contentHeight: body.implicitHeight + Theme.panelPadding * 2
-            interactive: contentHeight > height
-            boundsBehavior: Flickable.StopAtBounds
-            Column {
-                id: body
-                x: Theme.panelPadding
-                y: Theme.panelPadding
-                width: parent.width - Theme.panelPadding * 2
-                spacing: Theme.settingsContentSpacing
+            color: Theme.scrim
+            // Clicking outside the card cancels, like Escape.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                cursorShape: Qt.ArrowCursor
+                onClicked: root.cancel()
+            }
+        }
 
-                Text {
-                    width: parent.width
-                    text: root.actionId === "" ? I18n.tr("Record a shortcut")
-                        : I18n.format("Change shortcut for %1", [I18n.actionLabel(root.actionLabel)])
-                    wrapMode: Text.Wrap
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.title
-                    font.weight: Theme.weightSemibold
-                    color: Theme.textHi
-                }
-                Row {
-                    visible: root.currentKeys.length > 0
-                    spacing: Theme.controlSpacing
+        Rectangle {
+            id: card
+            anchors.centerIn: parent
+            width: Math.min(Theme.scaled(480, Theme.typeScale), layer.width - Theme.panelPadding * 2)
+            height: Math.min(Theme.panelPadding * 2 + body.implicitHeight + Theme.settingsContentSpacing + footer.height,
+                layer.height - Theme.scaled(16))
+            radius: Theme.popRadius
+            color: Theme.surfaceMenu
+            border.width: 1
+            border.color: Theme.popBorder
+            Accessible.role: Accessible.Dialog
+            Accessible.name: I18n.format("Change shortcut for %1", [I18n.actionLabel(root.actionLabel)])
+
+            MouseArea { anchors.fill: parent }
+
+            // A window shorter than the card (Settings at its minimum size)
+            // scrolls the body rather than cutting off its title; the buttons
+            // stay below it.
+            Flickable {
+                id: cardScroll
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: footer.top
+                anchors.bottomMargin: Theme.settingsContentSpacing
+                clip: true
+                contentWidth: width
+                contentHeight: body.implicitHeight + Theme.panelPadding
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    id: body
+                    x: Theme.panelPadding
+                    y: Theme.panelPadding
+                    width: cardScroll.width - Theme.panelPadding * 2
+                    spacing: Theme.settingsContentSpacing
+
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Now")
+                        width: parent.width
+                        text: root.actionId === "" ? I18n.tr("Record a shortcut")
+                            : I18n.format("Change shortcut for %1", [I18n.actionLabel(root.actionLabel)])
+                        wrapMode: Text.Wrap
+                        font.family: Theme.fontMenu
+                        font.pixelSize: Theme.typography.title
+                        font.weight: Theme.weightSemibold
+                        color: Theme.textHi
+                    }
+                    Row {
+                        visible: root.currentKeys.length > 0
+                        spacing: Theme.controlSpacing
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: I18n.tr("Now")
+                            font.family: Theme.fontMenu
+                            font.pixelSize: Theme.typography.secondary
+                            color: Theme.textFaint
+                        }
+                        ShortcutKeycaps { keys: root.currentKeys; lockedKeys: root.lockedKeys }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: root.lockedKeys.length > 0
+                        wrapMode: Text.Wrap
+                        text: I18n.format("%1 always stays as well: a protected shortcut keeps its default keys.",
+                            [root.lockedKeys.map(key => Editor.display(key).join(" + ")).join(", ")])
                         font.family: Theme.fontMenu
                         font.pixelSize: Theme.typography.secondary
                         color: Theme.textFaint
                     }
-                    ShortcutKeycaps { keys: root.currentKeys; lockedKeys: root.lockedKeys }
-                }
-                Text {
-                    width: parent.width
-                    visible: root.lockedKeys.length > 0
-                    wrapMode: Text.Wrap
-                    text: I18n.format("%1 always stays as well: a protected shortcut keeps its default keys.",
-                        [root.lockedKeys.map(key => Editor.display(key).join(" + ")).join(", ")])
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.secondary
-                    color: Theme.textFaint
-                }
 
-                // The capture surface: it holds focus while listening and shows
-                // the combination as it is pressed.
-                Rectangle {
-                    id: capture
-                    objectName: "shortcutCapture"
-                    width: parent.width
-                    height: Theme.settingsControlHeight * 2 + Theme.scaled(24)
-                    radius: Theme.chipRadius
-                    color: Theme.cardFill
-                    border.width: activeFocus || root.listening ? 2 : 1
-                    border.color: root.listening ? Theme.accentText : Theme.stroke
-                    activeFocusOnTab: root.shown
-                    Accessible.role: Accessible.EditableText
-                    Accessible.name: I18n.tr("Shortcut keys")
-                    Accessible.description: root.listening ? I18n.tr("Press the new keys. Escape cancels, Backspace clears.") : root.status
+                    // The capture surface: it holds focus while listening and
+                    // shows the combination as it is pressed.
+                    Rectangle {
+                        id: capture
+                        objectName: "shortcutCapture"
+                        width: parent.width
+                        height: Theme.settingsControlHeight * 2 + Theme.scaled(24)
+                        radius: Theme.chipRadius
+                        color: Theme.cardFill
+                        border.width: activeFocus || root.listening ? 2 : 1
+                        border.color: root.listening ? Theme.accentText : Theme.stroke
+                        activeFocusOnTab: root.shown
+                        Accessible.role: Accessible.EditableText
+                        Accessible.name: I18n.tr("Shortcut keys")
+                        Accessible.description: root.listening ? I18n.tr("Press the new keys. Escape cancels, Backspace clears.") : root.status
 
-                    Keys.onPressed: event => {
-                        event.accepted = true;
-                        if (event.isAutoRepeat)
-                            return;
-                        const command = Helpers.recorderCommand(event, root.complete);
-                        if (command === "cancel") {
-                            root.cancel();
-                        } else if (command === "clear") {
-                            root.listen();
-                        } else if (command === "accept") {
-                            root.accept();
-                        } else if (!root.listening) {
-                            // A finished or paused recording starts over on a
-                            // new key, so the press is not lost.
-                            if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-                                event.accepted = false;
+                        Keys.onPressed: event => {
+                            event.accepted = true;
+                            if (event.isAutoRepeat)
                                 return;
-                            }
-                            root.listen();
-                            root.record(event);
-                        } else {
-                            root.record(event);
-                        }
-                    }
-                    Keys.onReleased: event => {
-                        event.accepted = true;
-                        if (root.listening && !event.isAutoRepeat)
-                            root.combo = Helpers.releaseCombo(event, root.combo);
-                    }
-
-                    Column {
-                        anchors.centerIn: parent
-                        width: parent.width - Theme.controlSpacing * 2
-                        spacing: Theme.iconTextSpacing
-
-                        ShortcutKeycaps {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            visible: root.combo !== ""
-                            large: true
-                            caps: root.combo === "" ? [] : [Helpers.liveCaps(root.combo)]
-                        }
-                        // A lone modifier has no keycap form yet: draw its names.
-                        Text {
-                            width: parent.width
-                            visible: root.combo === ""
-                            horizontalAlignment: Text.AlignHCenter
-                            wrapMode: Text.Wrap
-                            text: root.listening ? I18n.tr("Press the new keys…") : I18n.tr("Press a key to record again")
-                            font.family: Theme.fontMenu
-                            font.pixelSize: Theme.typography.title
-                            color: root.listening ? Theme.textMid : Theme.textFaint
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            capture.forceActiveFocus();
-                            if (!root.listening && !root.complete)
+                            const command = Helpers.recorderCommand(event, root.complete);
+                            if (command === "cancel") {
+                                root.cancel();
+                            } else if (command === "clear") {
                                 root.listen();
+                            } else if (command === "accept") {
+                                // Enter here never takes a key from another
+                                // shortcut: that needs the button.
+                                if (root.verdict.kind !== "replace")
+                                    root.accept();
+                            } else if (!root.listening) {
+                                // A finished or paused recording starts over
+                                // on a new key, so the press is not lost.
+                                if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                                    event.accepted = false;
+                                    return;
+                                }
+                                root.listen();
+                                root.record(event);
+                            } else {
+                                root.record(event);
+                            }
+                        }
+                        Keys.onReleased: event => {
+                            event.accepted = true;
+                            if (root.listening && !event.isAutoRepeat)
+                                root.combo = Helpers.releaseCombo(event, root.combo);
+                        }
+
+                        Column {
+                            anchors.centerIn: parent
+                            width: parent.width - Theme.controlSpacing * 2
+                            spacing: Theme.iconTextSpacing
+
+                            ShortcutKeycaps {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                visible: root.combo !== ""
+                                large: true
+                                caps: root.combo === "" ? [] : [Helpers.liveCaps(root.combo)]
+                            }
+                            // A lone modifier has no keycap form yet: draw its names.
+                            Text {
+                                width: parent.width
+                                visible: root.combo === ""
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.Wrap
+                                text: root.listening ? I18n.tr("Press the new keys…") : I18n.tr("Press a key to record again")
+                                font.family: Theme.fontMenu
+                                font.pixelSize: Theme.typography.title
+                                color: root.listening ? Theme.textMid : Theme.textFaint
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                capture.forceActiveFocus();
+                                if (!root.listening && !root.complete)
+                                    root.listen();
+                            }
                         }
                     }
-                }
 
-                SettingsHint {
-                    width: parent.width
-                    inset: false
-                    text: root.status !== "" ? root.status
-                        : root.listening && root.inhibiting ? I18n.tr("Desktop shortcuts are paused while you record.")
-                        : root.listening ? I18n.tr("Some keys may still reach the desktop while you record.") : ""
-                    tone: root.status !== "" ? root.statusTone : "info"
-                }
-
-                PillRow {
-                    visible: root.allowAdd
-                    width: Math.min(parent.width, naturalWidth)
-                    model: [{ value: "replace", label: root.lockedKeys.length ? I18n.tr("Replace added keys") : I18n.tr("Replace current keys") },
-                        { value: "add", label: I18n.tr("Add as another key") }]
-                    current: root.mode
-                    onPicked: value => root.mode = value
-                }
-
-                Text {
-                    width: parent.width
-                    wrapMode: Text.Wrap
-                    text: I18n.tr("Escape cancels · Backspace clears")
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.metadata
-                    color: Theme.textFaint
-                }
-
-                Row {
-                    anchors.right: parent.right
-                    spacing: Theme.controlSpacing
-
-                    SettingsAction {
-                        text: I18n.tr("Cancel")
-                        onTriggered: root.cancel()
+                    SettingsHint {
+                        id: statusHint
+                        width: parent.width
+                        inset: false
+                        maximumLines: 5
+                        text: root.status !== "" ? root.status
+                            : root.listening && root.inhibiting ? I18n.tr("Desktop shortcuts are paused while you record.")
+                            : root.listening ? I18n.tr("Some keys may still reach the desktop while you record.") : ""
+                        tone: root.status !== "" ? root.statusTone : "info"
                     }
-                    SettingsAction {
-                        id: againButton
-                        visible: root.complete || root.paused
-                        text: I18n.tr("Record again")
-                        glyph: "refresh"
-                        onTriggered: root.listen()
+
+                    PillRow {
+                        visible: root.allowAdd
+                        width: Math.min(parent.width, naturalWidth)
+                        model: [{ value: "replace", label: root.lockedKeys.length ? I18n.tr("Replace added keys") : I18n.tr("Replace current keys") },
+                            { value: "add", label: I18n.tr("Add as another key") }]
+                        current: root.mode
+                        onPicked: value => root.mode = value
                     }
-                    SettingsAction {
-                        id: useButton
-                        objectName: "shortcutUse"
-                        primary: true
-                        visible: root.complete && root.verdict.kind !== "blocked"
-                        text: root.verdict.kind === "replace" ? I18n.tr("Replace")
-                            : root.verdict.kind === "maybe" ? I18n.tr("Use anyway") : I18n.tr("Use shortcut")
-                        onTriggered: root.accept()
+
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.Wrap
+                        text: I18n.tr("Escape cancels · Backspace clears")
+                        font.family: Theme.fontMenu
+                        font.pixelSize: Theme.typography.metadata
+                        color: Theme.textFaint
                     }
+                }
+            }
+
+            // Edge fades and a thumb show that the body scrolls above the
+            // pinned buttons.
+            ScrollChrome {
+                anchors.fill: cardScroll
+                target: cardScroll
+                edgeColor: card.color
+            }
+
+            // One primary at a time: the answer that takes nothing from
+            // another shortcut, or Record again while the key is taken,
+            // blocked or the recording paused.
+            Row {
+                id: footer
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.panelPadding
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Theme.panelPadding
+                spacing: Theme.controlSpacing
+
+                SettingsAction {
+                    text: I18n.tr("Cancel")
+                    onTriggered: root.cancel()
+                }
+                SettingsAction {
+                    id: againButton
+                    visible: root.complete || root.paused
+                    primary: !useButton.visible || root.verdict.kind === "replace"
+                    text: I18n.tr("Record again")
+                    glyph: "refresh"
+                    onTriggered: root.listen()
+                }
+                SettingsAction {
+                    id: useButton
+                    objectName: "shortcutUse"
+                    primary: root.verdict.kind !== "replace"
+                    secondary: root.verdict.kind === "replace"
+                    visible: root.complete && root.verdict.kind !== "blocked"
+                    text: root.verdict.kind === "replace" ? I18n.tr("Use it instead")
+                        : root.verdict.kind === "maybe" ? I18n.tr("Use anyway") : I18n.tr("Use shortcut")
+                    onTriggered: root.accept()
                 }
             }
         }

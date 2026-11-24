@@ -286,7 +286,7 @@ BarModule {
         width: contents.implicitWidth + (actionLabel === "" ? 12 : 16)
         radius: Theme.chipRadius
         color: recording ? Theme.barRed : "transparent"
-        scale: actionMouse.pressed ? 0.92 : 1
+        scale: actionMouse.pressed && !Theme.reducedMotion ? 0.92 : 1
         Accessible.role: Accessible.Button
         Accessible.name: root.tooltipFor(actionId)
         Accessible.onPressAction: root.trigger(actionId, button, Qt.LeftButton)

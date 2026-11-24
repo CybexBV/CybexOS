@@ -17,13 +17,26 @@ import "../Common/AssistantHelpers.js" as AssistantHelpers
 // The assistant's card shows Wiz himself: asleep until the agent is signed
 // in, attentive while it signs in, happy once it has, sorry when its state
 // could not be checked.
+//
+// Continue is the step's one primary button; the cards' buttons are
+// secondary, and "Recommended" marks the assistant (2026-11-24 review: four
+// blue buttons competed). Every sign-in needs the internet, so while the
+// computer is known to be offline they are off and say why. Unknown is not
+// offline: without NetworkManager's answer nothing is blocked.
 Item {
     id: root
     readonly property bool online: EthernetState.connected || WifiState.connected || NetworkStatus.online
+    readonly property bool offline: NetworkStatus.known && !root.online
     // The cards this computer shows, in order.
     readonly property var shown: [Welcome.passwordAvailable ? "password" : "", Welcome.googleAvailable ? "google" : "",
         Assistant.available ? "assistant" : ""].filter(id => id !== "")
     readonly property var installed: AssistantHelpers.AGENT_IDS.filter(id => (Assistant.agents[id] || {}).available === true)
+    // The agents the copy names: the installed ones, or both when neither
+    // is (the card then points to Software).
+    readonly property var agentNames: (root.installed.length > 0 ? root.installed : AssistantHelpers.AGENT_IDS)
+        .map(id => AssistantHelpers.AGENT_LABELS[id] || id)
+    readonly property string agentPhrase: root.agentNames.length > 1
+        ? I18n.format("%1 or %2", [root.agentNames[0], root.agentNames[1]]) : root.agentNames[0] || ""
     readonly property bool signingIn: Assistant.signingIn !== ""
     readonly property bool authUnknown: Assistant.agentInstalled && (Assistant.agents[Assistant.agent] || {}).auth === "unknown"
     readonly property string wizPose: !Assistant.connected || root.installed.length === 0 ? "asleep"
@@ -62,6 +75,7 @@ Item {
         // accent (done), amber (needs something) or fog (waiting).
         property string statusTone: "fog"
         property string statusGlyph: ""
+        property bool recommended: false
         default property alias actions: actionRow.data
         readonly property real contentHeight: texts.implicitHeight + actionRow.height + Kiosk.px(28 * 2 + 24)
         Column {
@@ -128,6 +142,28 @@ Item {
                     tone: card.statusTone === "fog" ? "ink" : card.statusTone
                     wrapMode: Text.WordWrap
                 }
+            }
+        }
+        // On the card's top edge rather than in the kicker, where it wrapped
+        // to a second line and pushed this card's title below the others.
+        Rectangle {
+            visible: card.recommended
+            anchors.right: parent.right
+            anchors.rightMargin: Kiosk.px(24)
+            y: -height / 2
+            width: badgeLabel.implicitWidth + Kiosk.px(20)
+            height: Kiosk.px(24)
+            radius: height / 2
+            color: Kiosk.card
+            border.width: Math.max(1, Kiosk.px(1))
+            border.color: Kiosk.accentLine
+            Rectangle { anchors.fill: parent; radius: parent.radius; color: Kiosk.accentSoft }
+            KioskKicker {
+                id: badgeLabel
+                anchors.centerIn: parent
+                text: I18n.tr("Recommended")
+                size: 11
+                tone: "accent"
             }
         }
         Flow {
@@ -224,8 +260,8 @@ Item {
         anchors.top: heading.bottom
         anchors.topMargin: Kiosk.px(20)
         width: parent.width - Kiosk.px(128)
-        height: root.online ? 0 : Kiosk.px(52)
-        visible: !root.online
+        height: root.offline ? Kiosk.px(52) : 0
+        visible: root.offline
         radius: Kiosk.px(12)
         color: Kiosk.amberTint
         border.width: Math.max(1, Kiosk.px(1))
@@ -262,7 +298,8 @@ Item {
             ? (root.width - Kiosk.px(128) - spacing * (root.shown.length - 1)) / root.shown.length : Kiosk.px(720)
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: offline.bottom
-        anchors.topMargin: Kiosk.px(root.online ? 8 : 24)
+        // Room above for the Recommended badge on the assistant's card.
+        anchors.topMargin: Kiosk.px(root.offline ? 28 : 24)
         spacing: Kiosk.px(24)
 
         ConnectCard {
@@ -278,13 +315,14 @@ Item {
                 ? I18n.tr("If you use 1Password, sign in first. Its extension in Chrome can then fill in your passwords for what follows.")
                 : I18n.tr("If you use 1Password, sign in first. It can then fill in your passwords for what follows, including your AI account.")
             status: Welcome.passwordSignedIn ? I18n.tr("Signed in to 1Password.")
+                : root.offline ? I18n.tr("Signing in needs the internet.")
                 : Welcome.passwordOpened ? I18n.tr("1Password is open. Sign in there, then close its window to come back.") : ""
             statusTone: Welcome.passwordSignedIn ? "accent" : "fog"
-            statusGlyph: Welcome.passwordSignedIn ? "check" : "open_in_new"
+            statusGlyph: Welcome.passwordSignedIn ? "check" : root.offline ? "wifi_off" : "open_in_new"
             KioskButton {
                 objectName: "connectPassword"
-                kind: Welcome.passwordOpened || Welcome.passwordSignedIn ? "ghost" : "primary"
                 text: Welcome.passwordOpened && !Welcome.passwordSignedIn ? I18n.tr("Open 1Password again") : I18n.tr("Open 1Password")
+                enabled: Welcome.passwordSignedIn || !root.offline
                 onClicked: Welcome.openPassword()
             }
         }
@@ -300,14 +338,15 @@ Item {
             body: I18n.tr("Sign in to Chrome with your Google account. Your bookmarks, passwords and history come along and stay in sync.")
             status: Welcome.googleSignedIn ? (Welcome.googleAccount.account !== ""
                     ? I18n.format("Signed in to Chrome as %1.", [Welcome.googleAccount.account]) : I18n.tr("Signed in to Chrome."))
+                : root.offline ? I18n.tr("Signing in needs the internet.")
                 : Welcome.googleOpened ? I18n.tr("Chrome is open. Sign in there, then close its window to come back.") : ""
             statusTone: Welcome.googleSignedIn ? "accent" : "fog"
-            statusGlyph: Welcome.googleSignedIn ? "check" : "open_in_new"
+            statusGlyph: Welcome.googleSignedIn ? "check" : root.offline ? "wifi_off" : "open_in_new"
             KioskButton {
                 objectName: "connectGoogle"
-                kind: Welcome.googleOpened || Welcome.googleSignedIn ? "ghost" : "primary"
                 text: Welcome.googleSignedIn ? I18n.tr("Open Chrome")
                     : Welcome.googleOpened ? I18n.tr("Open Chrome again") : I18n.tr("Sign in to Chrome")
+                enabled: Welcome.googleSignedIn || !root.offline
                 onClicked: Welcome.openGoogle()
             }
         }
@@ -318,21 +357,27 @@ Item {
             width: cards.cardWidth
             height: cards.cardHeight
             character: root.wizPose
-            kicker: root.kicker("assistant", I18n.tr("AI assistant · recommended"))
+            recommended: true
+            kicker: root.kicker("assistant", I18n.tr("AI assistant"))
             title: I18n.tr("Cybex OS Assistant")
-            body: I18n.tr("Sign in with Claude Code or Codex. Your assistant can then check this computer for missing drivers and other problems, and fix what it finds once you agree.")
+            // Names only the agents this computer offers.
+            body: I18n.format("Sign in with %1. Your assistant can then check this computer for missing drivers and other problems, and fix what it finds once you agree.",
+                [root.agentPhrase])
+            readonly property bool waitsForNetwork: root.offline && Assistant.connected && root.installed.length > 0
+                && !Assistant.agentReady && !root.signingIn
             status: !Assistant.connected ? I18n.tr("The assistant service is not running.")
                 : root.installed.length === 0 ? I18n.tr("Claude Code and Codex are not installed. Add one in Software.")
                 : Assistant.agentReady ? I18n.format("Connected with %1.", [Assistant.agentLabel])
                 : root.signingIn ? I18n.tr("Finish signing in in your browser. The guide comes back by itself.")
+                : assistantCard.waitsForNetwork ? I18n.tr("Signing in needs the internet.")
                 : root.authUnknown ? I18n.tr("Sign-in status could not be checked.")
                 : ""
-            statusTone: Assistant.connected && Assistant.agentReady ? "accent" : root.signingIn ? "fog" : "amber"
-            statusGlyph: Assistant.connected && Assistant.agentReady ? "check" : root.signingIn ? "progress_activity" : "warning"
+            statusTone: Assistant.connected && Assistant.agentReady ? "accent" : root.signingIn || assistantCard.waitsForNetwork ? "fog" : "amber"
+            statusGlyph: Assistant.connected && Assistant.agentReady ? "check" : root.signingIn ? "progress_activity"
+                : assistantCard.waitsForNetwork ? "wifi_off" : "warning"
 
             KioskButton {
                 visible: !Assistant.connected
-                kind: "primary"
                 text: I18n.tr("Start the assistant")
                 onClicked: Assistant.fix("service")
             }
@@ -356,8 +401,8 @@ Item {
                     readonly property string label: AssistantHelpers.AGENT_LABELS[modelData] || modelData
                     objectName: "connectAgent-" + modelData
                     visible: !(Assistant.agentReady && Assistant.agent === modelData)
-                    kind: !Assistant.agentReady && index === 0 ? "primary" : "ghost"
-                    enabled: !Assistant.authChecking && !root.signingIn && !Assistant.busy
+                    // Choosing an agent already signed in needs no network.
+                    enabled: !Assistant.authChecking && !root.signingIn && !Assistant.busy && (ready || !root.offline)
                     text: ready ? I18n.format("Use %1", [label]) : I18n.format("Sign in to %1", [label])
                     onClicked: {
                         if (agentButton.ready)
@@ -392,7 +437,8 @@ Item {
         anchors.topMargin: Kiosk.px(16)
         anchors.horizontalCenter: parent.horizontalCenter
         width: cards.width
-        text: Assistant.available ? I18n.tr("Your sign-in stays with Claude Code or Codex; Cybex OS never stores it. A check sends what it finds to your AI provider only when you ask.")
+        text: Assistant.available ? I18n.format("Your sign-in stays with %1; Cybex OS never stores it. A check sends what it finds to your AI provider only when you ask.",
+                [root.agentPhrase])
             : Welcome.passwordAvailable ? I18n.tr("Your passwords stay in 1Password; Cybex OS never sees them.")
             : I18n.tr("Your Google account stays with Chrome; Cybex OS never sees it.")
         size: 14

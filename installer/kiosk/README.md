@@ -22,7 +22,7 @@ libseat backend through logind rather than direct device access as root.
 | `ui/screens.slint` | welcome and system check, disk, account, software, review, installing, done, stop and failure screens |
 | `ui/sheets.slint` | Wi-Fi, keyboard, language, menu, log and USB save, Customize apps, NVIDIA driver, time zone picker |
 | `ui/store.slint` | the `Store` global: every property the screens show and every request they make |
-| `ui/widgets.slint`, `ui/theme.slint` | controls and brand tokens |
+| `ui/widgets.slint`, `ui/theme.slint` | controls and brand tokens; `KeyFocus` and `PressArea` keep focus rings to keyboard use |
 | `ui/wiz.slint`, `src/wiz.rs` | Wiz, the assistant's character, on the welcome, software, installing, done, stop and failure screens; `src/wiz.rs` draws his pictures (`assets/wiz`) once per size |
 | `ui/icons.slint` | generated Tabler icon paths, and `Icons.tabler(name)` for names that arrive as data; the names are in `assets/tabler/icons.json` |
 | `src/ui.rs` | daemon snapshots → `Store`, requests → daemon |
@@ -32,6 +32,7 @@ libseat backend through logind rather than direct device access as root.
 | `src/map.rs` | the dot-matrix world map with day and night shading |
 | `src/protocol.rs`, `src/client.rs` | `cybexos.installer-state.v1` messages and the socket client |
 | `src/zoom.rs`, `src/main.rs` | display zoom, KMS start-up, restarts and the text fallback |
+| `src/motion.rs` | reduced motion: the menu's switch, `QS_REDUCED_MOTION`, and keeping the choice across restarts |
 | `src/preview.rs` | `installer-preview`: headless PNG renders of every screen |
 
 ## Develop
@@ -45,6 +46,11 @@ cargo test
 ../cybexos-installerd --dump-static > /tmp/static.json   # PYTHONPATH=../../lifecycle
 cargo run --features preview --bin installer-preview -- /tmp/static.json /tmp/renders
 ```
+
+Dump the static message from a full checkout: the daemon reads the Software
+step's profiles from `desktop/software/catalogue.json` (or
+`CYBEXOS_INSTALLER_SOFTWARE`). Without it the preview refuses to draw the
+Software renders rather than show an empty step.
 
 Renders use fixture snapshots at a fixed moment (2026-10-23 19:00 UTC), with
 Slint's clock stopped, so Wiz is at rest; the `…-<ms>ms` renders show him that
@@ -63,7 +69,9 @@ renderer cannot rotate or scale and rasterises an SVG on every repaint, so
 second and only while he thinks or works (the runes, the spell), blinks, pulses
 a waiting question or celebrates the finished installation. A loop repaints
 about 3,000 physical pixels a frame at zoom 1. Sheets and the reconnecting
-screen hold him still.
+screen hold him still. With reduced motion he shows each pose's first frame and
+never moves, and the activity marks stop blinking; the stage list, the elapsed
+time and the pose itself still say what is happening.
 
 Icons are Tabler outline paths, the release the desktop's icon font uses.
 `Icon` draws them at Tabler's 1.5-unit line, scaled with the icon size and
@@ -125,9 +133,27 @@ reference's icon table.
   vendored damage-copy module, including padding, 16/32-bit formats and physical
   coordinates after rotation.
 - Sheets disable background keyboard targets; Tab/Shift+Tab stay in the sheet
-  and Escape closes it. Controls show focus rings. Snapshot updates keep list
-  models and delegates, including focused rows and Wi-Fi credentials; a changed
-  network identity clears the Wi-Fi selection instead of transferring a secret.
+  and Escape closes it. Controls show focus rings after keyboard input only,
+  like the desktop's `FocusModality`: a pointer press focuses a control without
+  a ring, and the next key (Tab included) shows where focus is. Text fields
+  always show theirs. Snapshot updates keep list models and delegates,
+  including focused rows and Wi-Fi credentials; a changed network identity
+  clears the Wi-Fi selection instead of transferring a secret.
+- Screen-reader semantics: every control has an `accessible-role`, a name
+  (`accessible-label`), its state (`accessible-checked`, `-item-selected`,
+  `-expanded`, `-value`, `-description` where it helps) and an
+  `accessible-action-default` that does what a click does. Disks are radio
+  buttons, software profiles checkboxes, switches switches, sheet lists lists
+  of selectable items, and the top bar's chips say what they open
+  (`tests/interaction.rs` reads them from the item tree). Slint's KMS backend
+  has no accessibility bridge (AT-SPI) yet, so on the medium they serve the
+  tests and a future bridge; no screen reader hears this screen today.
+- Reduced motion: the menu's Reduce motion switch, for this session. It starts
+  on when `QS_REDUCED_MOTION` is 1, true, yes or on (the desktop's override);
+  `systemd.setenv=QS_REDUCED_MOTION=1` on the kernel command line sets it for
+  the unit. The choice is kept in `$XDG_RUNTIME_DIR`, which the seat session
+  keeps while a keyboard change restarts the screen; without it, it lasts as
+  long as the process.
 - Socket writes run on a background writer and cannot stall the UI. Queued
   requests belong to one connection and are discarded after reconnecting.
   Diagnostics and USB discovery run independently of draft edits; duplicate

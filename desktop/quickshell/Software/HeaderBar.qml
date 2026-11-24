@@ -1,9 +1,12 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import "../Common"
+import "../Settings" as SettingsUi
 
-// Back, search, and the three tabs. Updates carries a count of installed
-// apps a prepared system update changes, or a dot while updates wait.
+// Back, search, the three tabs, Refresh and Close. Updates carries a count
+// of installed apps a prepared system update changes, or a dot while
+// updates wait. Close is Settings' own small header action, so the shell's
+// windows close the same way (2026-11-24 review).
 Rectangle {
     id: root
 
@@ -87,10 +90,11 @@ Rectangle {
         z: root.searchCovering ? 1 : 0
         radius: Theme.chipRadius + 1
         color: Theme.chip
-        // The field shows focus after a click too; the folded button shows
-        // the keyboard ring.
-        border.width: input.activeFocus ? 2 : activeFocus ? Theme.focusWidth(activeFocus) : 1
-        border.color: input.activeFocus ? Theme.accentText : activeFocus ? Theme.focusRing : Theme.hairlineSoft
+        // The field shows focus after a click too (a text field keeps its
+        // ring, docs/shell-states.md); the folded button shows the keyboard
+        // ring only.
+        border.width: input.activeFocus ? Theme.focusRingWidth : Theme.focusWidth(activeFocus) || 1
+        border.color: input.activeFocus || Theme.focusWidth(activeFocus) > 0 ? Theme.focusRing : Theme.hairlineSoft
         activeFocusOnTab: !root.fieldShown
         Accessible.role: root.fieldShown ? Accessible.Grouping : Accessible.Button
         Accessible.name: I18n.tr("Search apps and packages")
@@ -239,10 +243,12 @@ Rectangle {
                     objectName: "softwareTab-" + modelData.id
                     width: label.implicitWidth + (badge > 0 ? badgeChip.width + Theme.scaled(7) : dot ? Theme.scaled(13) : 0) + Theme.scaled(30)
                     height: Theme.scaled(30)
-                    radius: Theme.chipRadius
+                    // Concentric with the track it sits 3 px inside.
+                    radius: Theme.concentricRadius(tabTrack.radius, (tabTrack.height - height) / 2)
                     color: selected ? Theme.segmentSelected : tabMouse.containsMouse ? Theme.hoverFill : "transparent"
-                    border.width: tab.activeFocus ? 2 : selected ? 1 : 0
-                    border.color: tab.activeFocus ? Theme.accentText : Theme.stroke
+                    // The keyboard ring replaces the selected segment's edge.
+                    border.width: Theme.focusWidth(tab.activeFocus) || (selected ? 1 : 0)
+                    border.color: Theme.focusWidth(tab.activeFocus) > 0 ? Theme.focusRing : Theme.stroke
                     activeFocusOnTab: selected
                     Accessible.role: Accessible.PageTab
                     Accessible.name: tab.badge > 0 ? I18n.format("%1, %2 apps with updates", [tab.modelData.label, tab.badge]) : tab.modelData.label
@@ -321,8 +327,8 @@ Rectangle {
     SoftwareButton {
         id: refresh
         objectName: "softwareRefresh"
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.scaled(14)
+        anchors.right: closeAction.left
+        anchors.rightMargin: Theme.scaled(8)
         anchors.verticalCenter: parent.verticalCenter
         width: Theme.scaled(34)
         height: Theme.scaled(34)
@@ -332,5 +338,18 @@ Rectangle {
         enabled: !Software.loading
         accessibleName: I18n.tr("Refresh")
         onTriggered: Software.refresh()
+    }
+
+    // Closing never interrupts a change in flight; the worker owns it.
+    SettingsUi.SettingsAction {
+        id: closeAction
+        objectName: "softwareClose"
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.scaled(10)
+        anchors.verticalCenter: parent.verticalCenter
+        compact: true
+        glyph: "close"
+        text: I18n.tr("Close")
+        onTriggered: Software.close()
     }
 }

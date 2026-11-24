@@ -103,6 +103,19 @@ Item {
     function cancelDrag() { dragMod = null; dropAt = null; dragRow = null; }
     function sectionEntries(section) { return Editor.sectionEntries(entries, section); }
     function status(entry) { return Editor.status(entry, runtimeState); }
+    // Under the sheet's "Show on bar" switch, the status minus what the
+    // switch already says: "Show on bar" over "On your bar" said it twice
+    // (2026-11-24 review). What is left ("needs a location") keeps its line.
+    function switchStatus(entry) {
+        const text = status(entry);
+        if (text === "On your bar")
+            return "";
+        if (text.startsWith("On your bar · ")) {
+            const rest = text.slice("On your bar · ".length);
+            return rest.charAt(0).toUpperCase() + rest.slice(1);
+        }
+        return text;
+    }
     property var pendingMembership: null
     property var undoRemoved: null
     property string notice: ""
@@ -760,8 +773,11 @@ Item {
                     onTriggered: widgetDialog.close()
                 }
             }
+            // The sheet's one scroll: the options inside are embedded
+            // pages that grow to their content (SettingsPage.embedded).
             SettingsPage {
                 id: detailPage
+                edgeColor: Theme.popBg
                 anchors.top: dialogHeader.bottom
                 anchors.topMargin: 16
                 anchors.left: parent.left
@@ -782,7 +798,7 @@ Item {
                         SwitchRow {
                             width: parent.width
                             label: I18n.tr("Show on bar")
-                            description: page.selected ? page.status(page.selected) : ""
+                            description: page.selected ? page.switchStatus(page.selected) : ""
                             checked: page.selected !== null && page.selected.enabled
                             enabled: page.selected !== null && !page.membershipBusy
                             onToggled: value => page.setEnabled(page.selected, value)
@@ -804,7 +820,7 @@ Item {
         ModuleDetailView {
             width: optionsLoader.width
             height: contentHeight
-            interactive: false
+            embedded: true
             inlineMode: true
             moduleId: page.selected ? page.selected.id : "clock"
             moduleName: page.selected ? page.selected.name : ""

@@ -106,13 +106,24 @@ SettingsPage {
         return theme ? theme.name : id;
     }
 
+    // A failed download reads as one plain sentence; the helper's raw Nix
+    // message waits behind the hint's "Details" (2026-11-24 review). The
+    // helper's network failure (scripts/pointer.py) is said in the shell's
+    // own words, so it is translated too; its other sentences are already
+    // plain and name what went wrong, so they stay.
+    readonly property string pointerFailureText: Pointer.failure.indexOf("Check the internet connection") !== -1
+        ? (Pointer.failedTheme !== ""
+            ? I18n.format("Couldn't download %1. Check your connection and try again.", [page.pointerThemeName(Pointer.failedTheme)])
+            : I18n.tr("Couldn't download this pointer. Check your connection and try again."))
+        : Pointer.failure
+
     readonly property string pointerStatus: {
         if (Pointer.downloading !== "")
             return I18n.format("Downloading %1 from the NixOS binary cache…", [pointerThemeName(Pointer.downloading)]);
         if (Pointer.removing !== "")
             return I18n.format("Removing %1…", [pointerThemeName(Pointer.removing)]);
         if (Pointer.failure !== "")
-            return Pointer.failure;
+            return page.pointerFailureText;
         if (Pointer.applyError !== "")
             return I18n.format("The pointer could not be applied: %1", [Pointer.applyError]);
         if (!Pointer.loaded)
@@ -174,22 +185,11 @@ SettingsPage {
                     : page.themeState.label + " · " + I18n.tr("sets mode, colors, bar and font together")
                 hintTone: Themes.error !== "" ? "error" : "info"
                 disabledReason: !Themes.loaded && Themes.busy ? "Loading themes…" : ""
-                controlLeft: saveThemeAction.x
-
-                SettingsAction {
-                    id: saveThemeAction
-                    x: themeRow.contentRight - width
-                    y: (themeRow.lineHeight - height) / 2
-                    opacity: themeRow.controlOpacity
-                    compact: themeRow.narrow
-                    glyph: "save"
-                    text: I18n.tr("Save current as theme…")
-                    onTriggered: {
-                        page.savingTheme = !page.savingTheme;
-                        if (page.savingTheme)
-                            themeNameRow.focusField();
-                    }
-                }
+                // Saving the current look is the gallery's last tile; a second
+                // "Save current as theme…" button here said the same thing
+                // twice (2026-11-24 review). With no control of its own, the
+                // narrow row needs no control line under its label.
+                narrowHeight: Theme.panelRowHeight
             }
             Revealer {
                 id: saveThemeReveal

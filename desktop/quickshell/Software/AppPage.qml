@@ -7,7 +7,9 @@ import "../Common/SoftwareHelpers.js" as Helpers
 // One app: who makes it, where it comes from (open source from NixOS, or
 // from its maker) in one plain line, what installing it downloads,
 // screenshots from Flathub, what it does, the facts, and similar apps.
-// "Add to queue" puts it on the install queue (docs/software-and-defaults.md).
+// "Install" installs it at once while nothing else is queued; otherwise
+// "Add to queue" puts it on the install queue (AppAction.direct,
+// docs/software-and-defaults.md).
 PageScroll {
     id: root
 
@@ -49,8 +51,14 @@ PageScroll {
         if (app.unavailable)
             return I18n.tr("NixOS marks this app as unavailable for this computer.");
         const state = verdict ? verdict.state : "checking";
+        // The reason sits under the disabled action; the way round it, when
+        // Flathub has the app, sits beside it (2026-11-24 review).
         if (state === "compiles")
-            return I18n.tr("NixOS hasn't finished building this yet. Try again after the next update.");
+            return flathubOffer && !viaFlathub
+                // The notice below explains Flathub's version; saying it here
+                // too repeated it (2026-11-24 review, round 2).
+                ? I18n.tr("NixOS hasn't finished building this yet.")
+                : I18n.tr("NixOS hasn't finished building this yet. Try again after the next update.");
         if (state === "unavailable")
             return verdict.reason === "unfree" ? I18n.tr("Proprietary apps are turned off on this computer.")
                 : I18n.tr("NixOS marks this app as unavailable for this computer.");
@@ -73,6 +81,9 @@ PageScroll {
             return app.developer
                 ? I18n.format("Made by %1 and downloaded from them, ready to use. It isn't open source, and it updates with Software Update.", [app.developer])
                 : I18n.tr("Downloaded from its maker, ready to use. It isn't open source, and it updates with Software Update.");
+        // No promise of "ready to use" while NixOS can't deliver it.
+        if (blocked)
+            return I18n.tr("Open source, from NixOS, which Cybex OS is built on. It updates with Software Update once it can be installed.");
         return I18n.tr("Open source, from NixOS, which Cybex OS is built on. It arrives ready to use and updates with Software Update.");
     }
     function downloadFact() {
@@ -179,7 +190,22 @@ PageScroll {
                     app: root.app
                     big: true
                     prominent: true
-                    primary: primaryAction.mode === "install" || primaryAction.mode === "open"
+                    direct: true
+                    // One primary per screen: while the queue bar shows, its
+                    // Install is the one, and this action steps back.
+                    primary: (primaryAction.mode === "install" || primaryAction.mode === "open")
+                        && Software.queue.length === 0 && !Software.flowActive
+                }
+                // NixOS can't install it yet and Flathub can: the way round
+                // stands beside the disabled action, not further down.
+                SoftwareButton {
+                    objectName: "softwareAppFlathubOpen"
+                    visible: root.blocked && root.flathubOffer && !root.viaFlathub
+                    big: true
+                    glyph: "shield-lock"
+                    text: I18n.tr("Get it from Flathub")
+                    accessibleName: I18n.format("Get %1 from Flathub, for your account only", [root.app.name || ""])
+                    onTriggered: Software.openFlathub(root.app.appstream, { name: root.app.name, summary: root.app.summary })
                 }
             }
             Text {
@@ -187,7 +213,7 @@ PageScroll {
                 objectName: "softwareAppDownload"
                 width: parent.width
                 text: root.downloadLine()
-                color: root.verdict && root.verdict.state === "compiles" && !root.app.installed ? Theme.amber : Theme.textDim
+                color: root.blocked && !root.viaFlathub ? Theme.amber : Theme.textDim
                 font.family: Theme.fontMenu
                 font.pixelSize: Theme.typography.metadata
                 horizontalAlignment: Text.AlignRight
@@ -226,10 +252,12 @@ PageScroll {
         width: parent.width
         visible: root.flathubOffer
         glyph: root.viaFlathub ? "shield-lock" : "download"
+        // The offer's button is in the heading, beside the blocked action;
+        // this explains what Flathub's version is.
         text: root.viaFlathub
             ? I18n.tr("You installed this app from Flathub. It runs in a sandbox and updates in the Updates tab, separately from the system.")
-            : I18n.tr("Flathub has this app too. It installs right away for your account and runs in a sandbox, separately from system updates.")
-        action: root.viaFlathub ? I18n.tr("Manage") : I18n.tr("View on Flathub")
+            : I18n.tr("Flathub has this app too. It installs right away for your account only and runs in a sandbox, separately from system updates.")
+        action: root.viaFlathub ? I18n.tr("Manage") : ""
         actionPrimary: false
         actionName: "softwareAppFlathubOpen"
         onTriggered: Software.openFlathub(root.app.appstream, { name: root.app.name, summary: root.app.summary })
@@ -257,7 +285,8 @@ PageScroll {
                 : I18n.format("Use %1 as your %2?", [root.app.name, noun])
             text: Software.roleWord(modelData.id, "use")
             action: current ? I18n.tr("Change…") : waiting ? "" : choice && choice.ready ? I18n.format("Use as %1", [noun]) : I18n.tr("Install and use")
-            actionPrimary: !current
+            // The heading's action is the page's one primary.
+            actionPrimary: false
             actionName: "softwareAppDefaultAction"
             onTriggered: {
                 if (current)

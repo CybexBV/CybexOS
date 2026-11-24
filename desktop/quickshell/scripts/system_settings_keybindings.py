@@ -272,5 +272,5 @@ class KeybindingsSettings:
                         raise ValueError('rollback reload rejected')
                 except Exception as rollback_error:
                     raise ValueError('Shortcut recovery did not complete. Check keybindings.json and reload Hyprland.') from rollback_error
-                raise ValueError('Hyprland could not apply the shortcuts. Previous preferences were restored.') from error
+                raise ValueError('Could not apply the shortcuts, so your previous ones were restored.') from error
         return {'version': hashlib.sha256(payload).hexdigest(), 'preferences': candidate}

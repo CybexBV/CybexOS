@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // Labeled toggle row: title + optional description on the left, a
 // `ToggleSwitch` on the right. Clicking anywhere on the row emits `clicked()`;
@@ -56,7 +57,7 @@ BorderSurface {
   color: Style.controlFill(activeFocus, _hot, foreground, accent)
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 100 } }
+  Behavior on color { ColorAnimation { duration: Host.Theme.chipFadeDuration } }
 
   Row {
     id: content

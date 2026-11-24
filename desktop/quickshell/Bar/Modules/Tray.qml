@@ -111,16 +111,19 @@ BarModule {
                 // clip stop answering the bar-wide hover check.
                 visible: root.expanded || width > 0.5
 
+                // The icons fade over the whole reveal, so they arrive as
+                // the clip opens rather than ahead of it. Both stop under
+                // reduced motion; an added constant would not.
                 Behavior on width {
                     NumberAnimation {
-                        duration: Theme.expandDuration + 50
+                        duration: Theme.expandDuration
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: Theme.springCurve
                     }
                 }
 
                 Behavior on opacity {
-                    NumberAnimation { duration: Theme.chipFadeDuration + 150 }
+                    NumberAnimation { duration: Theme.expandDuration }
                 }
 
                 Row {
@@ -141,7 +144,7 @@ BarModule {
                             height: 26
                             radius: Theme.chipRadius
                             color: "transparent"
-                            scale: itemMouse.pressed ? 0.88 : 1
+                            scale: itemMouse.pressed && !Theme.reducedMotion ? 0.88 : 1
 
                             BarHover {
                                 id: itemHover

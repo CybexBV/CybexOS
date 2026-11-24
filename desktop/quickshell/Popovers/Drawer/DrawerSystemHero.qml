@@ -33,8 +33,9 @@ Rectangle {
     implicitHeight: heroContent.implicitHeight + Theme.scaled(24)
     radius: Theme.rowRadius + 2
     color: Theme.chip
-    border.width: 1
-    border.color: Theme.hairlineSoft
+    // Light mode's card edge; dark mode draws none (docs/shell-states.md).
+    border.width: Theme.cardEdgeWidth
+    border.color: Theme.cardEdge
 
     readonly property int logoSize: Theme.scaled(32)
     readonly property bool cybexosIdentity:

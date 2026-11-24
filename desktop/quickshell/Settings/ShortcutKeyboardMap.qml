@@ -418,7 +418,7 @@ Column {
                     : root.selectedKey.reservedBy ? I18n.tr("A protected shortcut always keeps this key.")
                     : root.selectedKey.protected ? I18n.format("%1 always keeps this key. You can give it other keys as well.",
                         [root.label(root.selectedKey.owner)])
-                    : root.selectedKey.owner.source === "user" ? I18n.tr("Set in ~/.config/cybexos/hypr/user.lua. Change it there.")
+                    : root.selectedKey.owner.source === "user" ? I18n.tr("Hand-written in ~/.config/cybexos/hypr/user.lua. Change it there.")
                     : root.selectedKey.shared ? root.selectedKey.owners.map(owner => root.label(owner)).join(", ")
                     : !root.selectedKey.owner.editable ? I18n.tr("This shortcut cannot be changed here.")
                     : I18n.actionLabel(root.selectedKey.owner.group)
@@ -433,7 +433,7 @@ Column {
 
                 Repeater {
                     model: [{ type: "app", label: I18n.tr("An app"), glyph: "apps" },
-                        { type: "url", label: I18n.tr("A website"), glyph: "language" },
+                        { type: "url", label: I18n.tr("A website"), glyph: "world" },
                         { type: "webapp", label: I18n.tr("A web app"), glyph: "web" },
                         { type: "command", label: I18n.tr("A command"), glyph: "terminal" }]
                     delegate: SettingsAction {

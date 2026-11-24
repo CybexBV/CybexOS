@@ -30,10 +30,13 @@ Flickable {
 
     Column {
         id: column
-        // The shared Software Update column: centred, at most 560 px.
+        // The shared Software Update column: centred, at most 560 px. It
+        // sits a little above the middle (42 %), where the eye expects a
+        // short page to rest, rather than floating mid-window (2026-11-24
+        // review).
         width: Math.min(root.width - Theme.scaled(56), Theme.scaled(560))
         x: Math.round((root.width - width) / 2)
-        y: Math.max(Theme.scaled(32), Math.round((root.contentHeight - implicitHeight) / 2))
+        y: Math.max(Theme.scaled(32), Math.round((root.contentHeight - implicitHeight) * 0.42))
         spacing: Theme.scaled(10)
 
         // Decorative, as the icon he replaces was: the heading says it.
@@ -103,11 +106,14 @@ Flickable {
                 radius: height / 2
                 color: Theme.accent
                 x: Theme.reducedMotion ? (track.width - width) / 2 : 0
+                // A loop's period, not a transition, so no motion token
+                // applies; it matches Software's queue bar sweep and stops
+                // under reduced motion rather than spinning at zero.
                 NumberAnimation on x {
                     running: track.visible && sweep.visible && !Theme.reducedMotion
                     from: -sweep.width
                     to: track.width
-                    duration: 1500
+                    duration: 1400
                     loops: Animation.Infinite
                     easing.type: Easing.InOutQuad
                 }

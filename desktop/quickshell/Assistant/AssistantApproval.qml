@@ -31,7 +31,8 @@ Rectangle {
         default: return label;
         }
     }
-    radius: Theme.scaled(12)
+    // AssistantWorking gives it the box's inner corner.
+    radius: Theme.cardRadius
     color: Theme.cardFill
     border.width: 1
     border.color: applying ? Theme.hairline : Theme.amberBorder
@@ -112,7 +113,7 @@ Rectangle {
             width: parent.width
             visible: root.body !== ""
             height: visible ? Math.min(bodyText.implicitHeight, Theme.scaled(150)) + Theme.scaled(14) : 0
-            radius: Theme.chipRadius
+            radius: Theme.concentricRadius(root.radius, Theme.scaled(10))
             color: Theme.well
             clip: true
 

@@ -179,9 +179,12 @@ Item {
                             color: dismissMouse.containsMouse ? Theme.textHi : Theme.textMid
                         }
 
+                        // The × stays 24 px; its target reaches 32 px
+                        // (docs/shell-states.md), still clear of Show.
                         MouseArea {
                             id: dismissMouse
                             anchors.fill: parent
+                            anchors.margins: Math.min(0, (bannerDismiss.width - Theme.inlineActionHeight) / 2)
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: Notifs.dismiss(bannerCard.entry)
@@ -208,8 +211,8 @@ Item {
                 radius: Theme.chipRadius + 3
                 // A chip, not an accent field: Show carries the accent.
                 color: stripMouse.containsMouse ? Theme.chipHover : Theme.chip
-                border.width: 1
-                border.color: Theme.hairlineSoft
+                border.width: Theme.cardEdgeWidth
+                border.color: Theme.cardEdge
                 Accessible.role: Accessible.Button
                 Accessible.name: I18n.format("New notification from %1: %2",
                     [entry.displayAppName || "", entry.displaySummary || ""])

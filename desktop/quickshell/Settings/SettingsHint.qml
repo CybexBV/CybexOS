@@ -11,9 +11,13 @@ Item {
     id: root
 
     property string text: ""
-    // A technical reason after the sentence (a parser's message): smaller,
-    // plain and untranslated, so the sentence stays the message.
+    // A technical reason after the sentence (a parser's message, a tool's
+    // stderr): behind a "Details" disclosure, smaller, plain and
+    // untranslated, so the sentence stays the message and the raw text is
+    // still there for whoever needs it (2026-11-24 review).
     property string detail: ""
+    property bool detailOpen: false
+    onDetailChanged: detailOpen = false
     // info | active | warning | error
     property string tone: "info"
     // Rows and groups align copy with their labels; a hint placed inside an
@@ -30,10 +34,12 @@ Item {
         : root.flagged ? glyph.width + Theme.iconTextSpacing : 0
 
     visible: text !== ""
-    implicitHeight: visible ? body.implicitHeight + (detail !== "" ? Theme.iconTextSpacing + detailText.implicitHeight : 0) : 0
+    implicitHeight: visible ? body.implicitHeight + (detail === "" ? 0
+        : Theme.iconTextSpacing + detailToggle.height
+            + (detailOpen ? Theme.iconTextSpacing + detailText.implicitHeight : 0)) : 0
     height: implicitHeight
     Accessible.role: flagged ? Accessible.AlertMessage : Accessible.StaticText
-    Accessible.name: detail !== "" ? text + " " + detail : text
+    Accessible.name: text
 
     Sym {
         id: glyph
@@ -61,19 +67,81 @@ Item {
         elide: Text.ElideRight
     }
 
+    Rectangle {
+        id: detailToggle
+        visible: root.detail !== ""
+        x: root.textX - Theme.scaled(4)
+        y: body.implicitHeight + Theme.iconTextSpacing
+        width: toggleRow.implicitWidth + Theme.scaled(10)
+        height: Math.max(Theme.scaled(22), toggleRow.implicitHeight + Theme.scaled(4))
+        radius: Theme.chipRadius
+        color: "transparent"
+        border.width: Theme.focusWidth(activeFocus)
+        border.color: Theme.focusRing
+        activeFocusOnTab: visible
+        Accessible.role: Accessible.Button
+        Accessible.name: root.detailOpen ? I18n.tr("Hide details") : I18n.tr("Show details")
+        Accessible.onPressAction: root.detailOpen = !root.detailOpen
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                root.detailOpen = !root.detailOpen;
+                event.accepted = true;
+            }
+        }
+
+        StateLayer {
+            anchors.fill: parent
+            radius: parent.radius
+            hovered: toggleMouse.containsMouse
+            pressed: toggleMouse.pressed
+            tint: Theme.textHi
+            pressPoint: Qt.point(toggleMouse.mouseX, toggleMouse.mouseY)
+        }
+        Row {
+            id: toggleRow
+            anchors.centerIn: parent
+            spacing: Theme.scaled(3)
+            Sym {
+                anchors.verticalCenter: parent.verticalCenter
+                name: "chevron_right"
+                size: Theme.iconSmall
+                color: Theme.textMid
+                rotation: root.detailOpen ? 90 : 0
+                Behavior on rotation { NumberAnimation { duration: Theme.chipFadeDuration } }
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("Details")
+                font.family: Theme.fontMenu
+                font.pixelSize: Theme.typography.metadata
+                font.weight: Theme.weightMedium
+                color: Theme.textMid
+            }
+        }
+        MouseArea {
+            id: toggleMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                detailToggle.forceActiveFocus();
+                root.detailOpen = !root.detailOpen;
+            }
+        }
+    }
+
+    // The tool's own words, whole, in the mono face.
     Text {
         id: detailText
-        visible: root.detail !== ""
+        visible: root.detail !== "" && root.detailOpen
         x: root.textX
-        y: body.implicitHeight + Theme.iconTextSpacing
+        y: detailToggle.y + detailToggle.height + Theme.iconTextSpacing
         width: Math.max(0, root.width - x)
         text: root.detail
         textFormat: Text.PlainText
-        font.family: Theme.fontMenu
+        font.family: Theme.fontMono
         font.pixelSize: Theme.typography.metadata
         color: Theme.textFaint
-        wrapMode: Text.Wrap
-        maximumLineCount: 3
-        elide: Text.ElideRight
+        wrapMode: Text.WrapAnywhere
     }
 }

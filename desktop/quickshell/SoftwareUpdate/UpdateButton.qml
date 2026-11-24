@@ -1,35 +1,38 @@
 import QtQuick
 import "../Common"
 
-// The app's buttons: one filled primary action per page, quiet secondary
-// ones. Taller than a settings action, as a dialog's are.
+// The app's buttons: one filled primary action per page, secondary ones on
+// the chip, and `quiet` tertiary ones (copy on a hover layer) for an action
+// that should not compete with the decision beside it. Taller than a
+// settings action, as a dialog's are.
 Rectangle {
     id: root
 
     property string text: ""
     property string glyph: ""
     property bool primary: false
+    property bool quiet: false
     // The page's tone (accent, ok, warn, error or neutral). A primary action
     // after a warning or a failure is amber: the next step is the person's.
     property string tone: "accent"
-    // A square button with only its glyph, such as Close; `text` still
-    // names it for assistive technology.
-    property bool iconOnly: false
     signal triggered()
 
     readonly property bool attention: primary && (tone === "warn" || tone === "error")
     // Amber copy already contrasts with the panel, so ink of the panel's
     // own lightness reads on an amber fill.
-    readonly property color ink: !primary ? Theme.textHi
+    readonly property color ink: quiet && !primary ? Theme.textMid
+        : !primary ? Theme.textHi
         : attention ? (Theme.dark ? "#1c1c12" : "#ffffff")
         : Theme.textOnAccent
 
-    implicitWidth: iconOnly ? implicitHeight : content.implicitWidth + Theme.scaled(32)
+    implicitWidth: content.implicitWidth + Theme.scaled(quiet ? 24 : 32)
     implicitHeight: Theme.scaled(38)
     radius: Theme.chipRadius + 3
-    color: !primary ? Theme.hoverFill : attention ? Theme.amber : Theme.accent
+    color: primary ? (attention ? Theme.amber : Theme.accent) : quiet ? "transparent" : Theme.hoverFill
+    // The keyboard ring; on an accent or amber fill an accent ring would
+    // vanish, so a primary takes textHi.
     border.width: Theme.focusWidth(activeFocus)
-    border.color: primary ? Theme.textHi : Theme.accentText
+    border.color: primary ? Theme.textHi : Theme.focusRing
     opacity: enabled ? 1 : 0.45
     activeFocusOnTab: enabled && visible
     Accessible.role: Accessible.Button
@@ -69,13 +72,12 @@ Rectangle {
             color: root.ink
         }
         Text {
-            visible: !root.iconOnly
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
             color: root.ink
             font.family: Theme.fontMenu
             font.pixelSize: Theme.typography.control
-            font.weight: Theme.weightSemibold
+            font.weight: root.quiet && !root.primary ? Theme.weightMedium : Theme.weightSemibold
         }
     }
 

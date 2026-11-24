@@ -621,6 +621,15 @@ Singleton {
     // window rounding (desktop/hypr/looknfeel.lua) and the Hug corners
     // that have to match it, not a shell-internal design choice.
     readonly property int popRadius: panelRadius
+    // Concentric corners (2026-11-24 review): something inset by `inset`
+    // inside a surface whose corner is `outer` takes `outer - inset`, so the
+    // two curves share a centre, but never less than `minimum` (4 by
+    // default): a nearly square corner inside a round one reads as a
+    // mistake. Use it for focus/selection rings around a control and for
+    // tiles inside a padded card.
+    function concentricRadius(outer, inset, minimum) {
+        return Math.max(minimum === undefined ? 4 : minimum, Math.round(outer - inset));
+    }
     readonly property int cardRadius: chipRadius
     readonly property int rowRadius: chipRadius
     readonly property int tileRadius: chipRadius
@@ -717,28 +726,36 @@ Singleton {
     })
 
     // ---- motion ------------------------------------------------------------
-    // Continuous movement inside the shell uses one physical spring. A panel
-    // entering or leaving is directional instead: it decelerates away from
-    // its trigger and accelerates back into it. Colour and opacity never
-    // spring — an overshooting fade reads as a flicker.
-    readonly property var springCurve: [0.34, 1.4, 0.28, 1.0, 1.0, 1.0]
+    // Continuous movement inside the shell uses one spring-like curve with a
+    // small overshoot. A panel entering or leaving is directional instead: it
+    // decelerates away from its trigger and accelerates back into it. Colour
+    // and opacity never overshoot: an overshooting fade reads as a flicker.
+    //
+    // Reduced motion (2026-11-24 review) removes movement, scaling and
+    // overshoot, but keeps short cross-fades on the opacity tokens below
+    // (the *Fade*/*Close* ones), so surfaces still appear and leave gently
+    // instead of cutting in. Tokens that also move things stay at 0.
+    readonly property var springCurve: [0.32, 1.15, 0.3, 1.0, 1.0, 1.0]
     readonly property var easeOutCurve: [0.22, 1.0, 0.36, 1.0, 1.0, 1.0]
     readonly property var easeInCurve: [0.4, 0.0, 1.0, 1.0, 1.0, 1.0]
 
     // Hover tint and other pure colour cross-fades.
-    readonly property int chipFadeDuration: reducedMotion ? 0 : 200
+    readonly property int chipFadeDuration: reducedMotion ? 0 : 160
     // A control acknowledging a press (scale down and back).
-    readonly property int pressDuration: reducedMotion ? 0 : 250
+    readonly property int pressDuration: reducedMotion ? 0 : 180
     // Something growing or sliding inside the bar: a revealed tray, a
     // widening workspace pip, the media transport unfolding.
-    readonly property int expandDuration: reducedMotion ? 0 : 450
+    readonly property int expandDuration: reducedMotion ? 0 : 280
     // Surface-level colour changes — theme switch, accent change.
-    readonly property int surfaceDuration: reducedMotion ? 0 : 450
-    // A panel entering: the transform springs while opacity eases, so the
-    // shape arrives a beat after the content becomes legible.
-    readonly property int panelMotionDuration: reducedMotion ? 0 : 550
-    readonly property int panelFadeDuration: reducedMotion ? 0 : 320
-    readonly property int panelCloseDuration: reducedMotion ? 0 : 260
+    readonly property int surfaceDuration: reducedMotion ? 0 : 300
+    // A panel entering: the transform moves while opacity eases, so the
+    // shape arrives a beat after the content becomes legible. 2026-11-24:
+    // 550 ms felt slow beside the 180 ms launcher; frequent surfaces now
+    // settle in about a third of a second.
+    readonly property int panelMotionDuration: reducedMotion ? 0 : 340
+    // Opacity only: kept short under reduced motion.
+    readonly property int panelFadeDuration: reducedMotion ? 120 : 220
+    readonly property int panelCloseDuration: reducedMotion ? 100 : 200
     // Cross-fade when one panel morphs into another in the same surface.
     readonly property int popoutContentFadeDuration: reducedMotion ? 0 : 150
     readonly property int popoutContentRevealDelay: reducedMotion ? 0 : 30
@@ -752,8 +769,8 @@ Singleton {
     readonly property int popoutOpenDuration: reducedMotion ? 0 : 250
     readonly property int popoutCloseDuration: reducedMotion ? 0 : 165
     readonly property int popoutMorphDuration: reducedMotion ? 0 : 320
-    readonly property int popoutFadeInDuration: reducedMotion ? 0 : 170
-    readonly property int popoutFadeOutDuration: reducedMotion ? 0 : 120
+    readonly property int popoutFadeInDuration: reducedMotion ? 120 : 170
+    readonly property int popoutFadeOutDuration: reducedMotion ? 90 : 120
     readonly property real popoutInitialScale: reducedMotion ? 1 : 0.975
     readonly property int popoutTravel: reducedMotion ? 0 : 10
     readonly property var popoutEnterCurve: [0.05, 0.7, 0.1, 1.0, 1.0, 1.0]
@@ -765,8 +782,8 @@ Singleton {
     // slower modal spring or per-result stagger.
     readonly property int launcherOpenDuration: reducedMotion ? 0 : 180
     readonly property int launcherCloseDuration: reducedMotion ? 0 : 120
-    readonly property int launcherFadeInDuration: reducedMotion ? 0 : 110
-    readonly property int launcherFadeOutDuration: reducedMotion ? 0 : 80
+    readonly property int launcherFadeInDuration: reducedMotion ? 90 : 110
+    readonly property int launcherFadeOutDuration: reducedMotion ? 70 : 80
     readonly property int launcherResizeDuration: reducedMotion ? 0 : 140
     readonly property real launcherInitialScale: reducedMotion ? 1 : 0.985
     readonly property int launcherTravel: reducedMotion ? 0 : 8

@@ -108,8 +108,12 @@ FocusScope {
                 continue;
             }
             const monitor = monitorGeometry(tile.isNew ? "" : tile.monitor);
-            const box = OverviewHelpers.fitAspect(cell.width, cell.tileHeight,
+            const full = OverviewHelpers.fitAspect(cell.width, cell.tileHeight,
                 monitor.width / Math.max(1, monitor.height));
+            // With nothing open, New workspace is a secondary target beside
+            // the workspaces, not a big empty preview (2026-11-24 review).
+            const box = tile.isNew && empty
+                ? OverviewHelpers.compactBox(full, Theme.scaled(176)) : full;
             const inTile = tile.isNew ? []
                 : windows.filter(entry => entry.workspaceId === tile.id);
             const rects = OverviewHelpers.windowRects(inTile, monitor, box.width, box.height,
@@ -207,6 +211,13 @@ FocusScope {
     }
 
     function move(direction) {
+        // With no windows the workspaces are all there is to choose, so the
+        // arrows and Tab walk those; the first press lands on the current one.
+        if (empty) {
+            selectWorkspace(selectedTileIndex < 0 ? 0
+                : ["next", "right", "down"].indexOf(direction) !== -1 ? 1 : -1);
+            return;
+        }
         selectedTileIndex = -1;
         const index = OverviewHelpers.indexOfAddress(items, selected);
         const next = direction === "next" || direction === "previous"
@@ -246,6 +257,84 @@ FocusScope {
     // overview (OverviewWindow), so this never stacks two keyboard grabs.
     function openLauncher() {
         Launcher.openProvider("apps", root.output);
+    }
+
+    // The filter takes the keys while there are windows to filter. With
+    // none it is hidden, and the empty state takes them instead, so Enter,
+    // Esc, the arrows and the shortcuts still work.
+    function takeKeys() {
+        if (empty) {
+            filterInput.text = "";
+            emptyState.forceActiveFocus();
+        } else {
+            filterInput.forceActiveFocus();
+        }
+    }
+
+    // One key map for the filter field and the empty state.
+    function handleKey(event) {
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {
+            root.minimizeSelected(); event.accepted = true; return;
+        }
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_L) {
+            DesktopWorkspaces.cycleLayout(root.selectedWorkspaceTarget);
+            event.accepted = true; return;
+        }
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_N) {
+            root.activateWorkspace(root.tiles[root.tiles.length - 1]);
+            event.accepted = true; return;
+        }
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_W) {
+            root.closeSelected(); event.accepted = true; return;
+        }
+        if ((event.modifiers & Qt.ControlModifier)
+                && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+            root.maximizeSelected(); event.accepted = true; return;
+        }
+        switch (event.key) {
+        case Qt.Key_Escape:
+            if (filterInput.text !== "")
+                filterInput.text = "";
+            else
+                Overview.close();
+            break;
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+            if (root.selectedTileIndex >= 0)
+                root.activateWorkspace(root.tiles[root.selectedTileIndex]);
+            else if (root.empty)
+                root.openLauncher();
+            else
+                root.activateWindow(root.selected);
+            break;
+        case Qt.Key_PageUp:
+            root.selectWorkspace(-1);
+            break;
+        case Qt.Key_PageDown:
+            root.selectWorkspace(1);
+            break;
+        case Qt.Key_Left:
+            root.move("left");
+            break;
+        case Qt.Key_Right:
+            root.move("right");
+            break;
+        case Qt.Key_Up:
+            root.move("up");
+            break;
+        case Qt.Key_Down:
+            root.move("down");
+            break;
+        case Qt.Key_Tab:
+            root.move("next");
+            break;
+        case Qt.Key_Backtab:
+            root.move("previous");
+            break;
+        default:
+            return;
+        }
+        event.accepted = true;
     }
 
     function minimizeSelected() {
@@ -293,10 +382,13 @@ FocusScope {
 
     onItemsChanged: settleSelection()
     onQueryChanged: { selectedTileIndex = -1; settleSelection(); }
+    // The last window closing, or the first opening, while the overview is
+    // up moves the keys between the filter and the empty state.
+    onEmptyChanged: takeKeys()
     Component.onCompleted: {
         initialActive = Hyprland.activeToplevel ? Hyprland.activeToplevel.address : "";
         settleSelection();
-        filterInput.forceActiveFocus();
+        takeKeys();
     }
 
     // A dragged window that closes mid-drag cancels the drag.
@@ -357,9 +449,12 @@ FocusScope {
     }
 
     // ---- filter ----------------------------------------------------------
+    // Hidden with no windows open: there is nothing to filter, and a live
+    // field would compete with the empty state's one action.
     Rectangle {
         id: filterField
 
+        visible: !root.empty
         anchors.horizontalCenter: parent.horizontalCenter
         y: Theme.scaled(36)
         width: Math.min(Theme.scaled(420), root.width - Theme.scaled(48))
@@ -404,70 +499,7 @@ FocusScope {
             Accessible.name: I18n.tr("Filter windows")
             onTextChanged: root.query = text
 
-            Keys.onPressed: event => {
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {
-                    root.minimizeSelected(); event.accepted = true; return;
-                }
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_L) {
-                    DesktopWorkspaces.cycleLayout(root.selectedWorkspaceTarget);
-                    event.accepted = true; return;
-                }
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_N) {
-                    root.activateWorkspace(root.tiles[root.tiles.length - 1]);
-                    event.accepted = true; return;
-                }
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_W) {
-                    root.closeSelected(); event.accepted = true; return;
-                }
-                if ((event.modifiers & Qt.ControlModifier)
-                        && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
-                    root.maximizeSelected(); event.accepted = true; return;
-                }
-                switch (event.key) {
-                case Qt.Key_Escape:
-                    if (filterInput.text !== "")
-                        filterInput.text = "";
-                    else
-                        Overview.close();
-                    break;
-                case Qt.Key_Return:
-                case Qt.Key_Enter:
-                    if (root.selectedTileIndex >= 0)
-                        root.activateWorkspace(root.tiles[root.selectedTileIndex]);
-                    else if (root.empty)
-                        root.openLauncher();
-                    else
-                        root.activateWindow(root.selected);
-                    break;
-                case Qt.Key_PageUp:
-                    root.selectWorkspace(-1);
-                    break;
-                case Qt.Key_PageDown:
-                    root.selectWorkspace(1);
-                    break;
-                case Qt.Key_Left:
-                    root.move("left");
-                    break;
-                case Qt.Key_Right:
-                    root.move("right");
-                    break;
-                case Qt.Key_Up:
-                    root.move("up");
-                    break;
-                case Qt.Key_Down:
-                    root.move("down");
-                    break;
-                case Qt.Key_Tab:
-                    root.move("next");
-                    break;
-                case Qt.Key_Backtab:
-                    root.move("previous");
-                    break;
-                default:
-                    return;
-                }
-                event.accepted = true;
-            }
+            Keys.onPressed: event => root.handleKey(event)
 
             Text {
                 anchors.fill: parent
@@ -569,8 +601,10 @@ FocusScope {
     }
 
     // ---- nothing open ----------------------------------------------------
-    // A heading, one line and one action, centred under the filter. The
-    // window actions are gone with the windows; New workspace stays a tile.
+    // A heading, one line and one action, centred near the top. The filter
+    // and the window actions are gone with the windows; New workspace stays
+    // a compact tile. The column holds the keys while it shows (takeKeys), so
+    // Enter opens an app, the arrows walk the workspaces and Esc closes.
     Column {
         id: emptyState
 
@@ -580,6 +614,7 @@ FocusScope {
         anchors.topMargin: Theme.scaled(28)
         width: Math.min(Theme.scaled(480), root.width - Theme.scaled(48))
         spacing: Theme.controlSpacing
+        Keys.onPressed: event => root.handleKey(event)
 
         Accessible.role: Accessible.StaticText
         Accessible.name: I18n.tr("No windows open")
@@ -631,7 +666,8 @@ FocusScope {
         anchors.rightMargin: Theme.scaled(48)
         anchors.topMargin: Theme.scaled(24)
         anchors.bottomMargin: Theme.scaled(48)
-        scale: Overview.open ? 1 : 0.97
+        // Reduced motion fades the grid without scaling it.
+        scale: Overview.open || Theme.reducedMotion ? 1 : 0.97
 
         Behavior on scale {
             NumberAnimation {
@@ -758,7 +794,7 @@ FocusScope {
                         anchors.centerIn: parent
                         visible: tile.modelData.isNew
                         name: "add"
-                        size: Theme.iconLarge
+                        size: root.empty ? Theme.iconMedium : Theme.iconLarge
                         color: Theme.textMid
                     }
 
@@ -824,8 +860,10 @@ FocusScope {
                                 Rectangle {
                                     anchors.fill: parent
                                     color: "transparent"
-                                    border.width: thumb.chosen ? 2 : 1
-                                    border.color: thumb.chosen ? Theme.accentText : Theme.stroke
+                                    // The selection cursor uses the shared selected-tile
+                                    // mark (docs/shell-states.md).
+                                    border.width: thumb.chosen ? Theme.selectedBorderWidth : 1
+                                    border.color: thumb.chosen ? Theme.selectedMark : Theme.stroke
                                 }
 
                                 // The selected window names itself.
@@ -916,8 +954,8 @@ FocusScope {
                     height: surface.height + 6
                     radius: surface.radius + 3
                     color: "transparent"
-                    border.width: tile.dropTarget || root.selectedTileIndex === tile.index ? 2 : 1
-                    border.color: tile.dropTarget || root.selectedTileIndex === tile.index ? Theme.accentText
+                    border.width: tile.dropTarget || root.selectedTileIndex === tile.index ? Theme.selectedBorderWidth : 1
+                    border.color: tile.dropTarget || root.selectedTileIndex === tile.index ? Theme.selectedMark
                         : tile.modelData.isNew ? Theme.stroke : "transparent"
                 }
 

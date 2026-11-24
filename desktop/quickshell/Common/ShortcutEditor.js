@@ -417,7 +417,7 @@ function workspaceNumber(label) {
 // not fit on it whole (two lines at word boundaries): its group's, as the
 // Settings rail draws that subject. The full name stays in the key's tip,
 // its accessible name and the detail under the map.
-var GROUP_GLYPHS = { "Shell": "tune", "Apps": "apps", "Web apps": "web", "Web": "language",
+var GROUP_GLYPHS = { "Shell": "tune", "Apps": "apps", "Web apps": "web", "Web": "world",
     "Development": "code", "Windows": "window", "Workspaces": "view_quilt", "Clipboard": "content_paste",
     "Capture": "photo_camera", "Dictation": "mic" };
 function groupGlyph(group) {

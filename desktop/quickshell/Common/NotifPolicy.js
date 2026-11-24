@@ -87,6 +87,42 @@ function groups(entries) {
     return result;
 }
 
+// The drawer's history folds repeated notifications from one source into one
+// row (2026-11-24 review), as the stack and the notification centre group
+// them. Entries arrive newest first. Each source's notifications follow its
+// newest, so an opened group reads as one block, and a source sits where its
+// newest arrived. A critical notification never folds away: it keeps its own
+// card where it fell. `open` maps source keys to true for opened groups.
+// Returns the entries in that order and, by entry key, what each card shows:
+// { source, lead, count, hidden, open, members } (members on the lead only).
+function historyFold(entries, open, criticalUrgency) {
+    var order = [], bySource = Object.create(null);
+    for (var i = 0; i < entries.length; i++) {
+        var row = entries[i];
+        if (row.urgency === criticalUrgency) {
+            order.push({ source: "", items: [row] });
+            continue;
+        }
+        var key = row.sourceKey || sourceKey(row);
+        if (!bySource[key]) {
+            bySource[key] = { source: key, items: [] };
+            order.push(bySource[key]);
+        }
+        bySource[key].items.push(row);
+    }
+    var list = [], fold = Object.create(null);
+    for (var j = 0; j < order.length; j++) {
+        var group = order[j], count = group.items.length;
+        var opened = count > 1 && !!open && open[group.source] === true;
+        for (var k = 0; k < count; k++) {
+            list.push(group.items[k]);
+            fold[group.items[k].key] = { source: group.source, lead: k === 0, count: count,
+                hidden: k > 0 && !opened, open: opened, members: k === 0 ? group.items : null };
+        }
+    }
+    return { entries: list, fold: fold };
+}
+
 function popupPlan(toasts, row, groupLimit, perGroup) {
     var current = toasts.filter(function(item) { return item.key !== row.key; });
     var list = [row].concat(current), bySource = Object.create(null), accepted = [];
@@ -244,7 +280,7 @@ if (typeof module !== "undefined" && module.exports)
     module.exports = { sourceKey: sourceKey, isQsImage: isQsImage, imageIdentity: imageIdentity,
         signature: signature, duplicate: duplicate,
         activeSnoozes: activeSnoozes, quietReason: quietReason, burst: burst,
-        groups: groups, popupPlan: popupPlan, targetScreen: targetScreen,
+        groups: groups, historyFold: historyFold, popupPlan: popupPlan, targetScreen: targetScreen,
         toastSide: toastSide, notificationsTabEnabled: notificationsTabEnabled,
         drawerCovers: drawerCovers, drawerRoute: drawerRoute,
         guideCovers: guideCovers, guideRoute: guideRoute, guideInset: guideInset,

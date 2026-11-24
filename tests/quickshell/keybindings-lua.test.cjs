@@ -34,10 +34,12 @@ test('defaults preserve the baseline with the reviewed dictation changes, includ
         // selection to Settings and routes all three keys through Quickshell,
         // with no binding allowed on the lock screen (8f3239cd), and
         // Super+Ctrl+Shift+X opens its history beside Super+Ctrl+X. The
-        // Control Panel took the shell's one name, Control Center (2026-11-10).
+        // Control Panel took the shell's one name, Control Center (2026-11-10),
+        // and Exit Hyprland the Control Center's Log out (2026-11-24).
+        const renamed = {'Shell: Control Panel': 'Shell: Control Center', 'Shell: Exit Hyprland': 'Shell: Log out'};
         const expected = old.flatMap(row => {
-            if (row.options.description === 'Shell: Control Panel')
-                return [{...row, options: {...row.options, description: 'Shell: Control Center'}}];
+            if (renamed[row.options.description])
+                return [{...row, options: {...row.options, description: renamed[row.options.description]}}];
             if (row.options.description === 'Dictation: Dictate in Dutch') return [];
             if (row.options.description === 'Dictation: Dictate in English') {
                 const toggle = {

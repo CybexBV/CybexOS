@@ -322,16 +322,17 @@ test("launcher-only motion stays brief and cannot gate input", () => {
     const theme = read("Common/Theme.qml");
     const window = read("LauncherWindow.qml");
 
-    for (const [token, value] of Object.entries({
-        launcherOpenDuration: 180,
-        launcherCloseDuration: 120,
-        launcherFadeInDuration: 110,
-        launcherFadeOutDuration: 80,
-        launcherResizeDuration: 140,
-        launcherTravel: 8
-    })) {
+    // Reduced motion removes movement but keeps a short opacity fade.
+    for (const [token, value, reduced] of [
+        ["launcherOpenDuration", 180, 0],
+        ["launcherCloseDuration", 120, 0],
+        ["launcherFadeInDuration", 110, 90],
+        ["launcherFadeOutDuration", 80, 70],
+        ["launcherResizeDuration", 140, 0],
+        ["launcherTravel", 8, 0]
+    ]) {
         assert.match(theme, new RegExp(
-            `property (?:int|real) ${token}: reducedMotion \\? 0 : ${value}\\b`));
+            `property (?:int|real) ${token}: reducedMotion \\? ${reduced} : ${value}\\b`));
         assert.match(window, new RegExp(`Theme\\.${token}`));
     }
     assert.match(theme, /launcherInitialScale:\s*reducedMotion \? 1 : 0\.985/);

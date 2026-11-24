@@ -8,41 +8,22 @@ import "../Assistant" as AssistantUi
 
 // What's new in a kept Cybex OS release: its release notes and important
 // changes, as the update's review showed them, read from the worker's
-// record (UpdatesHelpers.keptRelease). Nothing is fetched. Back returns to
-// the status.
+// record (UpdatesHelpers.keptRelease). Nothing is fetched. Back, in the
+// window's header (UpdateView), returns to the status.
 Item {
     id: root
 
     property var release: ({ version: "", notes: "", components: [] })
     property string pose: "happy"
-    signal back()
 
     // The shell's Markdown, its links in the accent; release notes never
     // load images or raw HTML.
     readonly property string notes: NotesHelpers.styleMarkdownLinks(Helpers.releaseNotes(release.notes),
         Theme.accentText.toString())
 
-    Item {
-        id: header
-        width: parent.width
-        height: backButton.height + Theme.scaled(24)
-        UpdateButton {
-            id: backButton
-            objectName: "updateBack"
-            x: Theme.scaled(16)
-            anchors.verticalCenter: parent.verticalCenter
-            glyph: "arrow-left"
-            text: I18n.tr("Back")
-            onTriggered: root.back()
-        }
-    }
-
     Flickable {
         id: flick
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: header.bottom
-        anchors.bottom: parent.bottom
+        anchors.fill: parent
         contentWidth: width
         contentHeight: column.implicitHeight + Theme.scaled(40)
         clip: true
@@ -54,6 +35,7 @@ Item {
             id: column
             width: Math.min(flick.width - Theme.scaled(56), Theme.scaled(560))
             x: Math.round((flick.width - width) / 2)
+            y: Theme.scaled(16)
             spacing: Theme.scaled(10)
 
             // Decorative: the heading says it.

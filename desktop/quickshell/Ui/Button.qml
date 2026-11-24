@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // The button. One component for every clickable thing in the kit.
 // States compose independently and are applied in priority order:
@@ -129,7 +130,8 @@ BorderSurface {
   // dedicated selected border.
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 120 } }
+  // The shell's motion tokens, so plugin controls follow reduced motion too.
+  Behavior on color { ColorAnimation { duration: Host.Theme.chipFadeDuration } }
 
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
@@ -179,8 +181,9 @@ BorderSurface {
         to: 360
         duration: 900
         loops: Animation.Infinite
-        // A hidden button has nothing to show turning.
-        running: root.iconSpinning && iconLabel.visible
+        // A hidden button has nothing to show turning; reduced motion
+        // stops the loop rather than spinning it at zero duration.
+        running: root.iconSpinning && iconLabel.visible && !Host.Theme.reducedMotion
       }
     }
 

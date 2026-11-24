@@ -18,7 +18,8 @@ Item {
     readonly property Item rippleMaskItem: rippleMask
 
     function pulseAt(x, y) {
-        if (!rippleEnabled || width <= 0 || height <= 0)
+        // A ripple is movement; reduced motion keeps the pressed tint only.
+        if (!rippleEnabled || Theme.reducedMotion || width <= 0 || height <= 0)
             return;
         const px = Math.max(0, Math.min(width, x));
         const py = Math.max(0, Math.min(height, y));

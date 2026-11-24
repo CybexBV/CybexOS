@@ -72,8 +72,11 @@ SettingsPage {
                 description: I18n.tr("Runs after a confirmed boot and skips active updates or unresolved recovery.")
                 onToggled: value => RetentionDraft.edit({automatic:value})
             }
+            // One plain name on this tab, "recovery points" (2026-11-24
+            // review); the updater's own term stays in the hint.
             SelectRow {
-                width: parent.width; label: I18n.tr("Confirmed deployments to keep")
+                width: parent.width; label: I18n.tr("Recovery points to keep")
+                hint: I18n.tr("Only systems that started and were confirmed count (confirmed deployments).")
                 model: [5, 10, 20, 50, 100].map(v => ({value:v, label:String(v)})); current: page.draft.keepConfirmed
                 onPicked: value => RetentionDraft.edit({keepConfirmed:value})
             }

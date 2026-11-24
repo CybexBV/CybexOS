@@ -5,6 +5,10 @@ import "../Common"
 // Style, laid out like the installer's account screen: the choices as
 // installer cards and rows on the left, and on the right a preview drawn
 // with the desktop's live theme, so every choice shows as it is made.
+//
+// Each choice here is single, so it reads as one: a radio dot, and for Dark
+// and Light a tinted card. The accent ring is keyboard focus only, and only
+// while the keyboard drives the guide (2026-11-24 review).
 Item {
     id: root
     readonly property var accents: [Settings.defaults.accent, "#9ecbeb", "#a992e0", "#79b88b", "#d3b47e", "#e8837a"]
@@ -56,7 +60,7 @@ Item {
             color: "transparent"
             border.width: Math.max(1, Kiosk.px(2))
             border.color: Kiosk.accent
-            visible: option.activeFocus
+            visible: option.activeFocus && FocusModality.keyboard
         }
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: option.chosen() }
         KioskIcon {
@@ -139,9 +143,9 @@ Item {
                     width: (controls.width - Kiosk.px(12)) / 2
                     height: Kiosk.px(72)
                     radius: Kiosk.px(16)
-                    color: Kiosk.card
+                    color: chosen ? Kiosk.accentSoft : Kiosk.card
                     border.width: Math.max(1, Kiosk.px(1.5))
-                    border.color: chosen ? Kiosk.accent : modeMouse.containsMouse ? Kiosk.line2 : Kiosk.line
+                    border.color: chosen ? Kiosk.accentLine : modeMouse.containsMouse ? Kiosk.line2 : Kiosk.line
                     activeFocusOnTab: true
                     Accessible.role: Accessible.RadioButton
                     Accessible.name: modelData.label
@@ -153,15 +157,6 @@ Item {
                             Settings.set("themeMode", mode.modelData.value);
                             event.accepted = true;
                         }
-                    }
-                    Rectangle {
-                        visible: mode.chosen
-                        anchors.fill: parent
-                        anchors.margins: -Kiosk.px(3)
-                        radius: parent.radius + Kiosk.px(3)
-                        color: "transparent"
-                        border.width: Kiosk.px(3)
-                        border.color: Kiosk.accentRing
                     }
                     KioskFocusRing { visible: mode.activeFocus; baseRadius: mode.radius }
                     Rectangle {
@@ -283,13 +278,14 @@ Item {
                                     }
                                 }
                                 Rectangle {
-                                    visible: accent.chosen || accent.activeFocus
+                                    readonly property bool focusShown: accent.activeFocus && FocusModality.keyboard
+                                    visible: accent.chosen || focusShown
                                     anchors.fill: parent
                                     anchors.margins: -Kiosk.px(2)
                                     radius: width / 2
                                     color: "transparent"
                                     border.width: Math.max(1, Kiosk.px(2))
-                                    border.color: accent.activeFocus ? Kiosk.accent : Kiosk.ink
+                                    border.color: focusShown ? Kiosk.accent : Kiosk.ink
                                 }
                                 MouseArea {
                                     anchors.fill: parent

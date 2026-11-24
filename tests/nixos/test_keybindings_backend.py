@@ -95,7 +95,7 @@ class KeybindingsBackend(unittest.TestCase):
                     self.service.path.write_bytes(previous)
                 self.run.reset_mock()
                 self.run.side_effect = ['ok', 'error: validation failed', 'ok']
-                with self.assertRaisesRegex(ValueError, 'Previous preferences were restored'):
+                with self.assertRaisesRegex(ValueError, 'your previous ones were restored'):
                     self.apply()
                 self.assertEqual(self.service.path.read_bytes() if self.service.path.exists() else None, previous)
                 self.assertEqual(self.run.call_count, 3)
@@ -103,7 +103,7 @@ class KeybindingsBackend(unittest.TestCase):
 
     def test_reload_failure_and_failed_recovery_are_reported(self):
         self.run.side_effect = ['rejected', 'ok']
-        with self.assertRaisesRegex(ValueError, 'Previous preferences were restored'):
+        with self.assertRaisesRegex(ValueError, 'your previous ones were restored'):
             self.apply()
         self.assertFalse(self.service.path.exists())
         self.run.side_effect = ['ok', ValueError('eval failed'), 'rejected']
@@ -191,7 +191,7 @@ class KeybindingsBackend(unittest.TestCase):
         broken = b'{"v":1,"custom":{}}'
         self.service.path.write_bytes(broken)
         self.run.side_effect = ['ok', ValueError('eval failed'), 'ok']
-        with self.assertRaisesRegex(ValueError, 'Previous preferences were restored'):
+        with self.assertRaisesRegex(ValueError, 'your previous ones were restored'):
             self.service.dispatch({'action': 'apply', 'preferences': {'v': 1}, 'replaceInvalid': True,
                                    'version': hashlib.sha256(broken).hexdigest()})
         self.assertEqual(self.service.path.read_bytes(), broken)

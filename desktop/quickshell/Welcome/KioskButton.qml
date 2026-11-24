@@ -1,7 +1,10 @@
 import QtQuick
+import "../Common"
 
 // installer/kiosk/ui/widgets.slint, Btn: a 52 px button, or 38 px small.
-// Return, Enter and Space activate it; a held key does not repeat it.
+// Return, Enter and Space activate it; a held key does not repeat it. A
+// ghost button's edge lightens on hover and on keyboard focus, not on the
+// focus a click leaves behind.
 Rectangle {
     id: root
     property string text: ""
@@ -19,7 +22,7 @@ Rectangle {
     color: kind === "primary" ? Kiosk.accent : kind === "danger" ? Kiosk.red : "transparent"
     border.width: Math.max(1, Kiosk.px(1))
     border.color: kind === "primary" ? Kiosk.accent : kind === "danger" ? Kiosk.red
-        : (mouse.containsMouse || activeFocus) && enabled ? Kiosk.fog : Kiosk.line2
+        : (mouse.containsMouse || activeFocus && FocusModality.keyboard) && enabled ? Kiosk.fog : Kiosk.line2
     opacity: enabled ? 1 : 0.35
     activeFocusOnTab: enabled && visible
     Accessible.role: Accessible.Button

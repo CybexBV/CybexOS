@@ -49,6 +49,11 @@ SettingsPage {
     property int enrolStage: 0
     property int enrolStages: 0
     property string enrolMessage: ""
+    // One primary per screen (2026-11-24 review): with neither a fingerprint
+    // nor a security key set up, the fingerprint, which comes first, leads
+    // and "Add security key" waits as a secondary.
+    readonly property bool fingerprintLeads: readerReady
+        && ((enrolState === "" && fingers.length === 0) || enrolState === "choose")
 
     Claim {
         active: page.visible && Settings.panelOpen
@@ -441,7 +446,8 @@ SettingsPage {
                 SettingsAction {
                     text: page.addingKey ? I18n.tr("Waiting…") : I18n.tr("Add security key")
                     glyph: page.addingKey ? "" : "add"
-                    primary: page.keyEntries.length === 0
+                    primary: page.keyEntries.length === 0 && !page.fingerprintLeads
+                    secondary: page.keyEntries.length === 0 && page.fingerprintLeads
                     enabled: !page.service.busy
                     onTriggered: page.act({ action: "add-key" })
                 }

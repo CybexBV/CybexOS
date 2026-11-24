@@ -105,7 +105,9 @@ test("every overview dispatch is validated and checks the window still exists", 
 });
 
 test("the overview's keys: arrows, Tab, Enter, and Esc clears before it closes", () => {
-    const keys = overviewView.slice(overviewView.indexOf("Keys.onPressed"));
+    // One key map, shared by the filter field and the empty state.
+    const keys = functionBody(overviewView, "handleKey");
+    assert.match(overviewView, /id: filterInput[\s\S]*?Keys\.onPressed: event => root\.handleKey\(event\)/);
     for (const [key, action] of [["Left", "left"], ["Right", "right"], ["Up", "up"],
         ["Down", "down"], ["Tab", "next"], ["Backtab", "previous"]])
         assert.match(keys, new RegExp(`Qt\\.Key_${key}:\\s*root\\.move\\("${action}"\\)`));
@@ -272,6 +274,19 @@ test("an overview with no windows says so and offers one way on", () => {
     assert.match(functionBody(overviewView, "openLauncher"), /Launcher\.openProvider\("apps", root\.output\)/);
     assert.match(overviewView, /else if \(root\.empty\)\s*root\.openLauncher\(\);/);
     assert.match(overviewView, /anchors\.top: root\.empty \? emptyState\.bottom : windowActions\.bottom/);
+    // 2026-11-24 review: with nothing to filter the field is hidden, the
+    // empty state takes the keys (Enter opens an app, the arrows walk the
+    // workspaces, Esc closes), and New workspace shrinks to a compact,
+    // secondary tile instead of a big empty preview.
+    assert.match(overviewView, /id: filterField\s*visible: !root\.empty/);
+    assert.match(empty, /Keys\.onPressed: event => root\.handleKey\(event\)/);
+    assert.match(functionBody(overviewView, "takeKeys"),
+        /if \(empty\) \{\s*filterInput\.text = "";\s*emptyState\.forceActiveFocus\(\);\s*\} else \{\s*filterInput\.forceActiveFocus\(\);/);
+    assert.match(overviewView, /onEmptyChanged: takeKeys\(\)/);
+    assert.match(functionBody(overviewView, "move"),
+        /if \(empty\) \{\s*selectWorkspace\(selectedTileIndex < 0 \? 0/);
+    assert.match(overviewView,
+        /const box = tile\.isNew && empty\s*\? OverviewHelpers\.compactBox\(full, Theme\.scaled\(176\)\) : full;/);
     // The action row is as wide as its actions, so it centres under the hint.
     assert.match(overviewView, /width: Math\.max\(1, Math\.min\(maxWidth, rowWidth\)\)/);
     assert.match(overviewView, /I18n\.format\("No windows match “%1”", \[root\.query\.trim\(\)\]\)/);

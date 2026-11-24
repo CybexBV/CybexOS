@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // Layer-shell popup attached to a bar widget icon, designed for
 // click-driven AND keyboard-driven panels (e.g. SUPER+CTRL+W summon).
@@ -379,7 +380,10 @@ PanelWindow {
 
     Behavior on opacity {
       enabled: !root.popoutSwitching && !root.popoutSwitchClosing
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation {
+        duration: root.open ? Host.Theme.popoutFadeInDuration : Host.Theme.popoutFadeOutDuration
+        easing.type: Easing.OutCubic
+      }
     }
 
     // Swallow clicks on the card so they don't bubble to the dismissal
@@ -400,7 +404,7 @@ PanelWindow {
 
       Behavior on opacity {
         enabled: root.popoutSwitching
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Host.Theme.popoutContentFadeDuration; easing.type: Easing.OutCubic }
       }
     }
   }

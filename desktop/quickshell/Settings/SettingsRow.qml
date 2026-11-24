@@ -50,8 +50,8 @@ Item {
     // only make sense under one mode restores them together.
     property var resetKeys: settingKey === "" ? [] : [settingKey]
     property string hint: ""
-    // A technical reason after the hint (a tool's own message), drawn
-    // smaller and plain by SettingsHint.
+    // A technical reason after the hint (a tool's own message), which
+    // SettingsHint keeps behind a "Details" disclosure.
     property string hintDetail: ""
     // info | active | warning | error — see SettingsHint.
     property string hintTone: "info"

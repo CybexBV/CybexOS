@@ -1,7 +1,7 @@
 import { Theme } from "theme.slint";
 import { Icons } from "icons.slint";
 import { Store, Choice, ZoneRow, WifiRow, CustomRow, UsbRow } from "store.slint";
-import { Icon, SlotIcon, Kicker, Btn, LinkButton, Card, Field, Toggle, Row, Help, ScrollHint } from "widgets.slint";
+import { Icon, SlotIcon, Kicker, Btn, LinkButton, Card, Field, Toggle, Row, Help, ScrollHint, PressArea } from "widgets.slint";
 
 component SheetTitle inherits Rectangle {
     in property <string> title;
@@ -52,7 +52,7 @@ component Panel inherits Rectangle {
     out property <length> inner-height: (root.wide ? 752px : root.panel-height) - 48px;
     width: 1280px;
     height: 800px;
-    TouchArea {
+    PressArea {
         clicked => { Store.close-sheet(); }
     }
     Rectangle {
@@ -69,7 +69,7 @@ component Panel inherits Rectangle {
         border-radius: 22px;
         clip: true;
         // Swallow clicks inside the panel.
-        TouchArea { }
+        PressArea { }
         // An ancestor of every field in the sheet, so Escape always closes it.
         content := FocusScope {
             focus-on-tab-navigation: false;
@@ -148,9 +148,12 @@ export component WifiSheet inherits Panel {
             title: "Network";
             subtitle: "Ethernet connects by itself. A Wi-Fi network you join here is used only for this installation.";
         }
+        // Ethernet's state, not a control.
         Row {
             in-sheet: true;
             keyboard-focus: false;
+            accessible-role: AccessibleRole.text;
+            accessible-label: "Ethernet: " + (Store.net-connected && Store.net-kind == "ethernet" ? "connected" : "no cable connected");
             selected: Store.net-connected && Store.net-kind == "ethernet";
             HorizontalLayout {
                 padding-left: 14px;
@@ -194,11 +197,21 @@ export component WifiSheet inherits Panel {
         ListArea {
             height: 360px;
             content-height: root.list-height;
+            accessible-role: list;
+            accessible-label: "Wi-Fi networks";
             VerticalLayout {
                 alignment: start;
                 for network[i] in Store.wifi: VerticalLayout {
                     Row {
                         in-sheet: true;
+                        accessible-role: list-item;
+                        accessible-label: network.ssid;
+                        accessible-description: (network.enterprise ? "Enterprise, username and password" : network.secure ? "Secured" : "Open")
+                            + ", signal " + network.bars + " of 4" + (network.connected ? ", connected" : "");
+                        accessible-item-selectable: true;
+                        accessible-item-selected: network.connected || Store.wifi-selected == i;
+                        accessible-item-index: i;
+                        accessible-item-count: Store.wifi.length;
                         selected: network.connected || Store.wifi-selected == i;
                         clicked => { Store.wifi-select(i); }
                         HorizontalLayout {
@@ -250,12 +263,14 @@ export component WifiSheet inherits Panel {
                             spacing: 8px;
                             identity := Field {
                                 in-sheet: true;
+                                label: "Username for " + network.ssid;
                                 visible: network.enterprise;
                                 height: network.enterprise ? 44px : 0px;
                                 placeholder: "Username";
                             }
                             secret := Field {
                                 in-sheet: true;
+                                label: "Password for " + network.ssid;
                                 visible: network.secure;
                                 height: 44px;
                                 password: true;
@@ -291,15 +306,26 @@ export component WifiSheet inherits Panel {
 
 // ── keyboard and language ────────────────────────────────────────────────────
 
+// A list with one chosen item; `name` names the list for screen readers.
 component ChoiceList inherits ListArea {
     in property <[Choice]> choices;
+    in property <string> name;
     callback picked(string);
+    accessible-role: list;
+    accessible-label: root.name;
     content-height: 56px * root.choices.length;
     VerticalLayout {
         alignment: start;
         spacing: 2px;
-        for choice in root.choices: Row {
+        for choice[i] in root.choices: Row {
             in-sheet: true;
+            accessible-role: list-item;
+            accessible-label: choice.label;
+            accessible-description: choice.detail;
+            accessible-item-selectable: true;
+            accessible-item-selected: choice.selected;
+            accessible-item-index: i;
+            accessible-item-count: root.choices.length;
             selected: choice.selected;
             clicked => { root.picked(choice.key); }
             HorizontalLayout {
@@ -339,10 +365,12 @@ export component KeyboardSheet inherits Panel {
         }
         Field {
             in-sheet: true;
+            label: "Keyboard test";
             placeholder: "Type to test: @ # € ß ø";
         }
         ChoiceList {
             height: 470px;
+            name: "Keyboard layouts";
             choices: Store.layouts;
             picked(key) => { Store.choose-layout(key); }
         }
@@ -360,6 +388,7 @@ export component LanguageSheet inherits Panel {
         }
         ChoiceList {
             height: 560px;
+            name: "Languages";
             choices: Store.languages;
             picked(key) => { Store.choose-language(key); }
         }
@@ -373,6 +402,7 @@ component MenuItem inherits Row {
     in property <string> icon;
     in property <string> text;
     row-height: 46px;
+    accessible-label: root.text;
     HorizontalLayout {
         padding-left: 12px;
         spacing: 12px;
@@ -386,10 +416,56 @@ component MenuItem inherits Row {
     }
 }
 
+// A menu row that is a switch: the whole row flips it and the menu stays
+// open, so the change shows at once.
+component MenuSwitch inherits Row {
+    in-sheet: true;
+    in property <string> icon;
+    in property <string> text;
+    in property <bool> on;
+    row-height: 46px;
+    accessible-role: switch;
+    accessible-label: root.text;
+    accessible-checkable: true;
+    accessible-checked: root.on;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 9px;
+        spacing: 12px;
+        SlotIcon { d: root.icon; }
+        Text {
+            text: root.text;
+            font-size: 15px;
+            color: Theme.ink;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        Rectangle {
+            width: 48px;
+            Toggle {
+                accessible-role: none;
+                in-sheet: true;
+                keyboard-focus: false;
+                on: root.on;
+                toggled => { root.clicked(); }
+            }
+        }
+    }
+}
+
+component MenuDivider inherits Rectangle {
+    height: 13px;
+    Rectangle {
+        height: 1px;
+        width: parent.width - 16px;
+        background: Theme.line;
+    }
+}
+
 export component ToolsMenu inherits Rectangle {
     width: 1280px;
     height: 800px;
-    TouchArea {
+    PressArea {
         clicked => { Store.close-sheet(); }
     }
     Rectangle {
@@ -401,7 +477,7 @@ export component ToolsMenu inherits Rectangle {
         border-width: 1px;
         border-color: Theme.line-2;
         border-radius: 16px;
-        TouchArea { }
+        PressArea { }
         keys := FocusScope {
             focus-on-tab-navigation: false;
             capture-key-pressed(event) => {
@@ -428,14 +504,16 @@ export component ToolsMenu inherits Rectangle {
                 text: "Use the text installer";
                 clicked => { Store.tool("text-installer"); }
             }
-            Rectangle {
-                height: 13px;
-                Rectangle {
-                    height: 1px;
-                    width: parent.width - 16px;
-                    background: Theme.line;
-                }
+            MenuDivider { }
+            // For this session: Wiz holds still and nothing blinks. It
+            // outlasts the screen's restarts (src/motion.rs).
+            MenuSwitch {
+                icon: Icons.accessible;
+                text: "Reduce motion";
+                on: Store.reduced-motion;
+                clicked => { Store.toggle-reduced-motion(); }
             }
+            MenuDivider { }
             MenuItem {
                 icon: Icons.firmware;
                 text: "Restart into firmware settings";
@@ -584,9 +662,15 @@ component CustomLine inherits Rectangle {
             wrap: word-wrap;
         }
     }
+    // The row is the switch; its Toggle only shows the state.
     row := Row {
         visible: root.data.kind == 1 || root.data.kind == 2;
         enabled: self.visible && root.data.enabled;
+        accessible-role: switch;
+        accessible-label: root.data.title;
+        accessible-description: root.data.detail;
+        accessible-checkable: true;
+        accessible-checked: root.data.on;
         in-sheet: true;
         row-height: root.height;
         background: self.selected ? Theme.accent-soft : root.odd ? #ffffff04 : transparent;
@@ -650,6 +734,7 @@ component CustomLine inherits Rectangle {
             Rectangle {
                 width: 48px;
                 Toggle {
+                    accessible-role: none;
                     in-sheet: true;
                     keyboard-focus: false;
                     enabled: root.data.enabled && (root.data.kind == 1 || root.data.kind == 2);
@@ -712,6 +797,7 @@ export component AppsSheet inherits Panel {
     }
 }
 
+// One of a few exclusive choices, a radio button.
 component Option inherits Row {
     in-sheet: true;
     in property <string> title;
@@ -719,6 +805,11 @@ component Option inherits Row {
     in property <bool> chosen;
     row-height: 72px;
     selected: root.chosen;
+    accessible-role: radio-button;
+    accessible-label: root.title;
+    accessible-description: root.body;
+    accessible-checkable: true;
+    accessible-checked: root.chosen;
     HorizontalLayout {
         padding-left: 14px;
         padding-right: 14px;
@@ -794,6 +885,7 @@ export component TimezoneSheet inherits Panel {
         spacing: 10px;
         search := Field {
             in-sheet: true;
+            label: "Search time zones";
             placeholder: "City, country or UTC offset";
             text <=> Store.tz-query;
             edited(text) => { Store.tz-query-edited(text); }
@@ -813,6 +905,10 @@ export component TimezoneSheet inherits Panel {
         Row {
             in-sheet: true;
             row-height: 26px;
+            accessible-role: checkbox;
+            accessible-label: "Include fixed UTC offsets (no daylight saving)";
+            accessible-checkable: true;
+            accessible-checked: Store.tz-fixed;
             clicked => { Store.tz-toggle-fixed(); }
             HorizontalLayout {
                 spacing: 10px;
@@ -842,11 +938,21 @@ export component TimezoneSheet inherits Panel {
         }
         list := ListArea {
             content-height: 58px * Store.tz-results.length;
+            // `list` alone would name this element.
+            accessible-role: AccessibleRole.list;
+            accessible-label: "Time zones";
             VerticalLayout {
                 alignment: start;
-                for zone in Store.tz-results: Row {
+                for zone[i] in Store.tz-results: Row {
                     in-sheet: true;
                     row-height: 58px;
+                    accessible-role: list-item;
+                    accessible-label: zone.title + (zone.sub != "" ? ", " + zone.sub : "");
+                    accessible-description: zone.time + " · " + zone.offset + (zone.note != "" ? " · " + zone.note : "");
+                    accessible-item-selectable: true;
+                    accessible-item-selected: zone.selected;
+                    accessible-item-index: i;
+                    accessible-item-count: Store.tz-results.length;
                     selected: zone.selected;
                     clicked => { Store.tz-pick(zone.id); }
                     HorizontalLayout {
@@ -927,6 +1033,9 @@ export component TimezoneSheet inherits Panel {
             height: map.height;
             mouse-cursor: crosshair;
             pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) {
+                    Store.keyboard-modality = false;
+                }
                 if (event.kind == PointerEventKind.move) {
                     Store.tz-map-hover(self.mouse-x / self.width, self.mouse-y / self.height);
                 }

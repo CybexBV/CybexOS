@@ -8,7 +8,10 @@ pill also stops it. The menubar's microphone action does the same; a middle
 click on it, or **Super+Ctrl+Shift+X**, opens the [history](#history).
 
 Dictation comes with the developer tooling feature
-(`cybexos.features.developer`, default on). Speech is recognised on this
+(`cybexos.features.developer`, default on). When it was left out at
+installation, Settings → Dictation says how to add it: an administrator changes
+`features.developer = false;` to `true;` in `/etc/nixos/machine.nix`, runs
+`cybex update stage local` and installs the change from Software Update. Speech is recognised on this
 computer by [Voxtype](https://github.com/peteonrails/voxtype) with OpenAI's
 Whisper models or NVIDIA's Parakeet; no audio leaves it. The assistant's
 push-to-talk (Super+I) uses the same daemon and settings
