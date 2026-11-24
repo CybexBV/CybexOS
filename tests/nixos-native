@@ -302,9 +302,14 @@ def release_delivery(base, revision):
         route(routes, api + '/releases?per_page=100', 200, json.dumps(releases).encode())
         route(routes, api + '/commits/v1.0.0-beta.2', 200, revision.encode())
         fetcher = Fetcher(base / 'metadata-cache')
-        expected = {'version': '1.0.0-beta.2', 'revision': revision, 'notes': 'Isolated keyless delivery qualification'}
-        assert discover(fetcher, 'beta', '1.0.0-beta.1') == expected
-        assert discover(fetcher, 'beta', '1.0.0-beta.1') == expected, 'ETag cache refresh failed'
+        def found():
+            result = discover(fetcher, 'beta', '1.0.0-beta.1')
+            # Its notes are the skipped releases' combined notes; this one's text is in them.
+            assert 'Isolated keyless delivery qualification' in result.pop('notes'), result
+            return result
+        expected = {'version': '1.0.0-beta.2', 'revision': revision, 'releases': ['1.0.0-beta.2']}
+        assert found() == expected
+        assert found() == expected, 'ETag cache refresh failed'
         checks = {'keylessHttpsDiscoveryAndCache': {'result': 'passed'}}
         for name, setup, channel, installed, message in (
             ('noStableRelease', lambda: None, 'stable', '1.0.0-beta.1', 'no cybex os release'),
