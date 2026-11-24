@@ -84,7 +84,7 @@ jobs:
             echo "The full check runs on that branch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/nixos.yml?query=branch%3A$(printf %s "$branch" | sed 's#/#%2F#g')"
             echo
             echo "- **It passes:** merge it (\`git merge --no-ff origin/$branch\`), push \`main\` and take it into the next beta release. Machines get the new Nixpkgs with that release."
-            echo "- **It fails:** this Nixpkgs doesn't work with Cybex OS yet. Fix Cybex OS on the branch or on \`main\`; machines are not affected, because they only take the revision a release pins."
+            echo "- **It fails:** this Nixpkgs doesn't work with Cybex OS yet. Fix Cybex OS on \`main\`, not on this branch: the next run replaces it. Machines are not affected, because they only take the revision a release pins."
             echo
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } > "$RUNNER_TEMP/issue.md"

@@ -202,7 +202,8 @@ pushes `main` or publishes.
   push `main` and take it into the next beta release.
 - When it fails, that Nixpkgs doesn't work with Cybex OS yet: a package NixOS
   hasn't built, an evaluation error, or a Cybex OS package that no longer
-  builds (Voxtype on 2026-11-10). Fix Cybex OS on the branch or on `main`.
+  builds (Voxtype on 2026-11-10). Fix Cybex OS on `main` (or a branch of
+  your own): the next run replaces the `nixpkgs-update` branch.
   Machines are not affected.
 
 This replaced the daily Nixpkgs canary (2026-11-24): with machines following

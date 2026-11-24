@@ -105,7 +105,8 @@ sub-agent in a worktree):
     Nixpkgs moves on the `nixpkgs-update` branch
     ([docs/releasing.md](docs/releasing.md#nixpkgs-updates)). A failing one
     means the next Nixpkgs doesn't work with Cybex OS yet; machines are not
-    affected, because they only take the revision a release pins.
+    affected, because they only take the revision a release pins. Fix it on
+    `main`: the workflows replace their branches on every run.
   - **Vendor updates** (`vendor-updates.yml`, daily): one
     `vendor-update` branch with a commit per verified pin update
     ([docs/releasing.md](docs/releasing.md#vendor-updates)).
@@ -132,7 +133,10 @@ sub-agent in a worktree):
   `nixos-unstable`; moving to 26.11 is the next branch change. Make that move
   as its own release one to two weeks after the branch exists and is built,
   with an ISO and qualification, and check for packages that are older on
-  26.11 than on the machines' nixos-unstable.
+  26.11 than on the machines' nixos-unstable. Before it, VM-test the branch
+  move from an installed release, the installer's and `release/promote`'s
+  "unstable" assumptions, and that compatibility follows the branch a
+  machine actually runs.
 - Hardware support targets non-Apple Intel/AMD x86_64 UEFI PCs only. Every
   enabled Cybex OS system and installation medium must retain the exact, unmodified selected
   Nixpkgs `linuxPackages_latest` kernel derivation. Never obtain hardware

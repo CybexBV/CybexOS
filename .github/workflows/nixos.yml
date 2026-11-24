@@ -1,18 +1,12 @@
 name: NixOS qualification
 on:
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      source_ref:
-        type: string
-        required: false
-        default: ''
 permissions:
   contents: read
 # One run per branch at a time: a newer dispatch replaces the older one, so
 # daily update branches can't queue up on The Beast's single runner.
 concurrency:
-  group: nixos-${{ inputs.source_ref || github.ref }}
+  group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   source:
@@ -20,11 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ github.sha }}
       # Every job checks the commit the run was started for, not whatever its
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
-      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
@@ -46,11 +40,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ github.sha }}
       # Every job checks the commit the run was started for, not whatever its
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
-      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
@@ -78,11 +72,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ github.sha }}
       # Every job checks the commit the run was started for, not whatever its
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
-      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
@@ -98,11 +92,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ github.sha }}
       # Every job checks the commit the run was started for, not whatever its
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
-      - run: test -n "${{ inputs.source_ref }}" || test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
