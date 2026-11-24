@@ -179,6 +179,7 @@ class PromoteTests(unittest.TestCase):
         shutil.copy2(ROOT / 'release/promote', self.work / 'release/promote')
         shutil.copytree(ROOT / 'lifecycle/cybexos', self.work / 'lifecycle/cybexos',
                         ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copy2(ROOT / 'flake.lock', self.work / 'flake.lock')
         self.git('remote', 'add', 'origin', str(self.origin))
         self.listing = []
         tools = base / 'bin'; tools.mkdir()
@@ -197,9 +198,14 @@ class PromoteTests(unittest.TestCase):
     def git(self, *arguments):
         return subprocess.run(['git', *arguments], cwd=self.work, check=True, capture_output=True, text=True).stdout
 
-    def release(self, version, prerelease=True, hours=200, compatibility=None, draft=False):
+    def release(self, version, prerelease=True, hours=200, compatibility=None, draft=False, branch=None):
         import datetime
         (self.work / 'VERSION').write_text(version + '\n')
+        if branch is not None:
+            # The release's own flake.lock names the NixOS branch it follows.
+            lock = json.loads((self.work / 'flake.lock').read_text())
+            lock['nodes'][lock['nodes'][lock['root']]['inputs']['nixpkgs']]['original']['ref'] = branch
+            (self.work / 'flake.lock').write_text(json.dumps(lock))
         declared = json.loads((ROOT / 'release/compatibility.json').read_text()) | (compatibility or {})
         (self.work / 'release/compatibility.json').write_text(json.dumps(declared))
         self.git('add', '.')
@@ -209,6 +215,9 @@ class PromoteTests(unittest.TestCase):
         # The local tag is fetched from origin, as on a fresh checkout.
         self.git('tag', '--delete', 'v' + version)
         published = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)
+        if self.state.exists():
+            # Promotions edit the published listing.
+            self.listing = json.loads(self.state.read_text())
         self.listing.insert(0, {'tag_name': 'v' + version, 'prerelease': prerelease, 'draft': draft,
                                 'published_at': published.strftime('%Y-%m-%dT%H:%M:%SZ'),
                                 'body': f'# Cybex OS {version}\n\n- Change in {version}.\n'})
@@ -308,6 +317,24 @@ class PromoteTests(unittest.TestCase):
         self.assert_refused('does not support NixOS unstable', '1.0.5', '--yes')
         self.release('1.0.6', compatibility={'configurationApi': 2})
         self.assert_refused('configurationApi 2 differs from 1', '1.0.6', '--yes')
+
+    def test_the_stable_release_s_own_lock_names_the_branch_its_machines_run(self):
+        # 1.0.4 moves to NixOS 26.11 and still supports unstable machines.
+        self.release('1.0.4', compatibility={'nixos': ['unstable', '26.11']}, branch='nixos-26.11')
+        result = self.promote('1.0.4', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Now stable follows 26.11: a release without it can't reach stable,
+        # whatever the updater source of either release declares.
+        self.release('1.0.5', compatibility={'nixos': ['unstable']}, branch='nixos-unstable')
+        self.assert_refused('does not support NixOS 26.11, which machines on v1.0.4 run', '1.0.5', '--yes')
+        self.release('1.0.6', compatibility={'nixos': ['unstable', '26.11']}, branch='nixos-26.11')
+        result = self.promote('1.0.6', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_stable_release_without_a_supported_nixos_branch_is_refused(self):
+        self.release('1.0.4', prerelease=False, hours=300, branch='nixos-26.05')
+        self.release('1.0.5', branch='nixos-unstable')
+        self.assert_refused('v1.0.4 has no valid Nixpkgs branch in its flake.lock', '1.0.5', '--yes')
 
     def test_github_must_confirm_the_promotion(self):
         result = self.promote('1.0.3', '--yes', GH_IGNORE_EDIT='1')

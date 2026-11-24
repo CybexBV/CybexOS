@@ -22,9 +22,6 @@ REPO = 'CybexBV/CybexOS'
 # flake names the one it was installed or last updated from: the updater
 # accepts it there and writes REPO at its next Cybex OS update.
 FORMER_REPOS = ('CybexHQ/CybexOS',)
-# The Nixpkgs branch a release follows: release.json's "nixos" and an entry of
-# a release's release/compatibility.json "nixos" list. A branch, not a version.
-NIXOS = 'unstable'
 GITHUB_API = f'https://api.github.com/repos/{REPO}'
 HOSTS = {'api.github.com'}
 SEMVER = re.compile(r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(beta|rc)\.([1-9][0-9]*))?$')

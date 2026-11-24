@@ -36,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'lifecycle'))
 from cybexos.common import Failure  # noqa: E402
+from cybexos.inputs import pin, release_name  # noqa: E402
 from cybexos.trust import version  # noqa: E402
 
 REPO = os.environ.get('CYBEXOS_RELEASE_REPO', 'CybexBV/CybexOS')
@@ -90,6 +91,15 @@ def declared(tag, name):
     return json.loads(match[1].replace("'", '"'))
 
 
+def nixos(tag):
+    """The NixOS branch a release follows ("unstable", "26.11"): the Nixpkgs
+    of its own flake.lock, as its release.json names it (nix/modules/default.nix)."""
+    try:
+        return release_name(pin(json.loads(source(tag, 'flake.lock')))['ref'])
+    except (Failure, ValueError) as error:
+        fail(f'{tag} has no valid Nixpkgs branch in its flake.lock: {error}')
+
+
 def compatible(candidate, current):
     """Whether every machine on the current stable release can install the candidate."""
     wanted = json.loads(source(candidate, 'release/compatibility.json'))
@@ -104,7 +114,7 @@ def compatible(candidate, current):
     missing = set(have.get('architectures', [])) - set(wanted.get('architectures', []))
     if missing:
         problems.append(f'it drops architectures {", ".join(sorted(missing))}')
-    branch = declared(current, 'NIXOS')
+    branch = nixos(current)
     if branch not in wanted.get('nixos', []):
         problems.append(f'it does not support NixOS {branch}, which machines on {current} run')
     return problems
