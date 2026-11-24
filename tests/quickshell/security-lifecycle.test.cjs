@@ -32,19 +32,6 @@ test("desktop-open boundaries accept only HTTP(S) URLs", () => {
     ])
         assert.equal(urls.safeHttpUrl(unsafe), "", String(unsafe));
 
-    const facade = readShell("Common/T3Code.qml");
-    const thread = readShell("Popovers/T3ThreadPage.qml");
-    const cloud = readShell("scripts/t3-cloud.mjs");
-    assert.match(facade,
-        /function openExternalUrl\(value\)[\s\S]*ExternalUrl\.safeHttpUrl\(value\)[\s\S]*execDetached\(\["xdg-open", url\]\)/);
-    assert.doesNotMatch(thread, /execDetached\(\["xdg-open"/,
-        "thread and PR payloads must go through the shared URL allow-list");
-    assert.ok((thread.match(/T3Code\.openExternalUrl\(/g) || []).length >= 5,
-        "every T3 thread, PR, diff, and markdown opener must use the boundary");
-    assert.match(cloud,
-        /const \{ safeHttpUrl \} = require\("\.\.\/Common\/ExternalUrl\.js"\)/);
-    assert.match(cloud,
-        /function openBrowser\(url\)[\s\S]*safeHttpUrl\(url\)[\s\S]*spawn\(CLOUD_CONFIG\.browserCommand, \[safeUrl\]/);
 });
 
 

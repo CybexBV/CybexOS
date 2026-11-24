@@ -6,10 +6,10 @@ const { shellDir, isVendored } = require("./shell.cjs");
 
 const assetsDir = path.join(shellDir, "assets");
 const brands = [
-    "claude", "cybexos", "fusebox", "gemini", "github", "grok", "kimi", "openai",
-    "slack", "t3", "tailscale", "whatsapp", "youtube"
+    "claude", "cybexos", "gemini", "grok", "kimi", "openai",
+    "slack", "tailscale", "whatsapp", "youtube"
 ];
-const whiteVariants = brands.filter(name => name !== "t3");
+const whiteVariants = brands;
 
 function read(relative) {
     return fs.readFileSync(path.join(shellDir, relative), "utf8");
@@ -44,7 +44,7 @@ test("the brand registry owns canonical and geometry-matched hover SVGs", () => 
     for (const name of brands) {
         assert.match(registry, new RegExp(`\\b${name}: "${name}\\.svg"`),
             `${name} must resolve through BrandIcons`);
-        const hoverFile = name === "t3" ? "t3.svg" : `${name}-white.svg`;
+        const hoverFile = `${name}-white.svg`;
         assert.match(highlightRegistry,
             new RegExp(`\\b${name}: "${hoverFile.replace(".", "\\.")}"`),
             `${name} must resolve a source-painted hover mark`);
@@ -83,12 +83,11 @@ test("every bundled product mark records pinned provenance and licensing", () =>
         assert.match(provenance, new RegExp(`\\b${name}\\.svg\\b`));
     for (const revision of [
         "4a79bb55697c85b8bc9f3caa22be747e0277ad4f",
-        "5a0fe38e97784d94279ce4eb1bf85f9a91bf027e",
-        "a3a8cbd60539b4af4de8f96c892dbd07a2b6c041"
+        "5a0fe38e97784d94279ce4eb1bf85f9a91bf027e"
     ])
         assert.match(provenance, new RegExp(revision));
     assert.match(licenses, /CC0 1\.0 Universal/);
     assert.match(licenses, /original project artwork/);
     assert.match(licenses, /Cybex OS marks/);
-    assert.equal((licenses.match(/MIT License/g) || []).length, 3);
+    assert.equal((licenses.match(/MIT License/g) || []).length, 2);
 });

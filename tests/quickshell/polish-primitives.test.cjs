@@ -63,16 +63,12 @@ test("clock and weather share one filled time pill with their own targets", () =
 test("menubar modules rest directly on one shared slab", () => {
     const chip = read("Bar/BarChip.qml");
     const icon = read("Bar/BarIcon.qml");
-    const t3 = read("Bar/T3Chip.qml");
-    const hermes = read("Bar/HermesChip.qml");
     const tray = read("Bar/Modules/Tray.qml");
     const media = read("Bar/Modules/Media.qml");
     const workspaces = read("Bar/Workspaces.qml");
 
     assert.match(chip, /property color restFill:\s*"transparent"/);
     assert.match(icon, /property color restFill:\s*"transparent"/);
-    assert.match(t3, /restFill:\s*"transparent"/);
-    assert.match(hermes, /restFill:\s*"transparent"/);
     assert.match(tray, /id:\s*pill[\s\S]{0,180}?color:\s*"transparent"/);
     assert.doesNotMatch(media, /color:\s*Theme\.barChipHover/,
         "the media glyph must not retain a private resting disc");
@@ -143,8 +139,6 @@ test("menubar icons keep bright system ink and shared monochrome brands", () => 
     const wifi = read("Bar/Modules/Wifi.qml");
     const bluetooth = read("Bar/Modules/Bluetooth.qml");
     const battery = read("Bar/Modules/Battery.qml");
-    const github = read("Bar/Modules/GitHub.qml");
-    const t3 = read("Bar/T3Chip.qml");
     const weather = read("Bar/Modules/Weather.qml");
     const brand = read("Bar/BarBrandIcon.qml");
 
@@ -205,11 +199,6 @@ test("menubar icons keep bright system ink and shared monochrome brands", () => 
     assert.doesNotMatch(wifi + bluetooth, /opacity:/);
     assert.match(battery, /Battery\.pluggedIn \? Theme\.barAccent : Theme\.barIcon/);
     assert.match(battery, /color:\s*chip\.fg/);
-    assert.match(github, /BarBrandIcon\s*\{[\s\S]{0,180}?name:\s*"github"/);
-    assert.match(github, /highlighted:\s*ghChip\.held \|\| ghChip\.hovered/);
-    assert.match(t3, /opacity:\s*highlighted \|\| root\.live \? 1 : 0\.52/);
-    assert.match(t3,
-        /BarBrandIcon\s*\{[\s\S]{0,500}?highlighted:\s*root\.held \|\| root\.hovered/);
     assert.match(weather, /idleColor:\s*Weather\.barGlyphColor\(Weather\.code, Weather\.isDay\)/);
     assert.match(weather, /color:\s*chip\.fg/);
     assert.match(weather,
@@ -236,8 +225,6 @@ test("scroll chrome discloses overflow without becoming an input surface", () =>
     assert.doesNotMatch(chrome, /MouseArea|TapHandler|WheelHandler|DragHandler/);
 
     for (const rel of [
-        "Popovers/GitHubPopover.qml", "Popovers/T3InboxPage.qml",
-        "Popovers/T3Picker.qml", "Popovers/T3ThreadPage.qml",
         "Settings/FolderDialog.qml",
         "Settings/SettingsPage.qml"
     ])
@@ -253,8 +240,7 @@ test("primary loading and empty states use a settled, gated placeholder", () => 
     assert.match(placeholder, /Theme\.redBgSoft/);
 
     for (const rel of [
-        "Popovers/GitHubPopover.qml", "Popovers/NotifsPopover.qml",
-        "Popovers/T3InboxPage.qml", "Popovers/T3ThreadPage.qml",
+        "Popovers/NotifsPopover.qml",
         "Settings/WallpaperPicker.qml"
     ])
         assert.match(read(rel), /StatusPlaceholder\s*\{/,

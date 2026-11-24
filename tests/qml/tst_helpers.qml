@@ -3,7 +3,6 @@ import QtTest
 import "../../desktop/quickshell/Common/Format.js" as Format
 import "../../desktop/quickshell/Common/LayoutHelpers.js" as Layout
 import "../../desktop/quickshell/Common/SysInfoHelpers.js" as SysInfo
-import "../../desktop/quickshell/Common/T3CodeHelpers.js" as T3
 import "../../desktop/quickshell/Common/UpdatesHelpers.js" as Updates
 
 Item {
@@ -47,13 +46,6 @@ Item {
             compare(result.idx, 1);
             compare(result.mods.left[0].id, "b");
             compare(result.mods.center[1].id, "a");
-        }
-
-        function test_t3_diff_is_bounded() {
-            const rendered = T3.truncateDiff("line\n".repeat(3000), 100000, 2000);
-            verify(rendered.truncated);
-            verify(rendered.text.length <= 100000);
-            verify(rendered.text.split("\n").length <= 2000);
         }
 
         function test_sysinfo_parsers_match_the_qml_javascript_runtime() {

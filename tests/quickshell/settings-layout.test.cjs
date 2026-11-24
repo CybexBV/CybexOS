@@ -93,8 +93,6 @@ test('native forms share field chrome and drawer tabs expose keyboard selection'
     assert.match(read('Settings/PluginRow.qml'), /FieldRow \{/);
     for (const file of ['PluginsPage', 'PluginRow', 'FieldRow'])
         assert.doesNotMatch(read(`Settings/${file}.qml`), /Controls.TextField/);
-    for (const surface of ['T3InboxPage', 'GitHubPopover'])
-        assert.match(read(`Popovers/${surface}.qml`), /component GroupHeader: SectionLabel/);
     const tabs = read('Popovers/Drawer/DrawerTabs.qml');
     assert.match(tabs, /activeFocusOnTab: on/);
     assert.match(tabs, /Accessible.selected: on/);

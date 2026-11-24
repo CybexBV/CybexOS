@@ -23,7 +23,7 @@ let
   python = python3.withPackages (p: [ p.pygobject3 p.pillow p.dbus-python p.websockets ]);
   # QML and shell helpers run these commands directly. Bind them into the
   # desktop environment so optional developer tools or ambient host PATH cannot
-  # conceal a missing product dependency (notably Node for connected widgets).
+  # conceal a missing product dependency (notably Node, which plugins may use).
   runtimeTools = [ bash python coreutils glibc.bin quickshell hyprland hyprlock hypridle systemd dbus glib openssl git
     omasnap wayfreeze tesseract zbar qrencode hyprpicker hyprsunset imagemagick matugen libnotify wtype
     pulseaudio pipewire wireplumber wl-clipboard cliphist grim slurp wf-recorder ffmpeg libva-utils jq

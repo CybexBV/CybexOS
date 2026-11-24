@@ -2,7 +2,6 @@
 let cfg = config.cybexos;
     assistant = pkgs.callPackage ../packages/assistant.nix {};
     titlebars = pkgs.callPackage ../packages/titlebars.nix { hyprland = config.programs.hyprland.package; };
-    hermesBridge = pkgs.callPackage ../packages/hermes-bridge.nix {};
     encryptionCheck = pkgs.callPackage ../packages/encryption-check.nix { source = ../..; };
     # The login screen must stay identical across releases that do not change
     # how logging in works, so the updater can skip their test boot: the
@@ -90,8 +89,7 @@ in {
     # is declared here too: otherwise any Nixpkgs update that rebuilds it waits
     # for NixOS to build a package NixOS never builds. What they need must
     # still come prebuilt.
-    cybexos.updates.ownBuilds = [ titlebars cfg.dictationPackage encryptionCheck ]
-      ++ lib.optional cfg.features.connectedWidgets hermesBridge;
+    cybexos.updates.ownBuilds = [ titlebars cfg.dictationPackage encryptionCheck ];
     environment.etc."cybexos/fingerprint-enabled" = lib.mkIf cfg.authentication.fingerprint { text = "enabled\n"; };
     environment.etc."cybexos/proprietary-enabled" = lib.mkIf cfg.features.proprietary { text = "enabled\n"; };
     environment.etc."cybexos/developer-enabled" = lib.mkIf cfg.features.developer { text = "enabled\n"; };
@@ -240,19 +238,6 @@ in {
       # Loading on demand is a config.toml choice: live text needs the model
       # resident, and Settings turns it off with live text (docs/dictation.md).
       serviceConfig = { ExecStart = "${cfg.dictationPackage}/bin/voxtype daemon"; Restart = "on-failure"; RestartSec = 5; };
-    };
-    # Started by the Hermes bar widget when it turns on
-    # (Common/HermesConnection.qml) and ended with the session; nothing runs
-    # it at login, so an optional widget no one uses costs nothing (2026-11-24).
-    systemd.user.services.hermes-menubar-bridge = lib.mkIf cfg.features.connectedWidgets {
-      description = "Remote Hermes WebUI desktop bridge";
-      partOf = [ "hyprland-session.target" ];
-      serviceConfig = {
-        ExecStart = "${hermesBridge}/bin/cybexos-hermes-bridge --listen 127.0.0.1 --port 9120 --remote-only --state %h/.local/state/hermes-menubar/conversations.json --remote-auth-state %h/.local/state/hermes-menubar/remote-webui-auth.json";
-        UMask = "0077";
-        Restart = "on-failure"; RestartSec = 2; RestartSteps = 8; RestartMaxDelaySec = "5min";
-        TimeoutStopSec = 15;
-      };
     };
     # Owns the assistant's agent processes, so a Quickshell restart (including
     # one the assistant's own change causes) never ends a turn. The agents

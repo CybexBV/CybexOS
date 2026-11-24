@@ -96,9 +96,6 @@
           cd source
           export PYTHONDONTWRITEBYTECODE=1
           python3 -m unittest discover -s tests/nixos -v
-          python3 -B tests/nixos/hermes-bridge.py
-          python3 -B tests/nixos/hermes-remote-runtime.py
-          python3 -B tests/nixos/hermes-webui-auth.py
           python3 -B tests/nixos/default-agent.py
           python3 -B tests/nixos/camera-frame.py
           python3 -B tests/system-settings.py

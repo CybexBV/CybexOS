@@ -23,12 +23,7 @@ test("the clock pill and the status pill group per the edge-drawer design", () =
     const notificationGroup = right.find(group =>
         group.items.some(item => item.entry.id === "notifications"));
     assert.equal(notificationGroup.kind, "status");
-    const agentGroup = right.find(group =>
-        group.items.some(item => item.entry.id === "hermes"));
-    assert.equal(agentGroup.kind, "chip");
     assert.ok(!SettingsHelpers.groupFilled("chip"));
-    assert.deepEqual(agentGroup.items.map(item => item.entry.id),
-        ["gh", "t3", "hermes"]);
     // Notifications and the four status glyphs share one filled pill; each keeps its own
     // pointer target inside it (the pill is furniture, not a hit area).
     const statusGroup = right.find(group =>
@@ -82,10 +77,10 @@ test("measured fitting compacts auto detail before prefer-detail", () => {
             { id: "media", col: "left", saving: 60, policy: "prefer" },
             { id: "weather", col: "center", saving: 30, policy: "auto" },
             { id: "clock", col: "center", saving: 45, policy: "auto" },
-            { id: "t3", col: "right", saving: 60, policy: "auto" }
+            { id: "notifications", col: "right", saving: 60, policy: "auto" }
         ]
     });
-    assert.deepEqual(result.compact, ["t3", "weather", "clock"]);
+    assert.deepEqual(result.compact, ["notifications", "weather", "clock"]);
     assert.equal(result.compact.includes("media"), false);
     assert.equal(result.fits, true);
 });
@@ -138,18 +133,13 @@ test("notification count participates in responsive compaction", () => {
     assert.deepEqual(result.compact, ["notifications"]);
 });
 
-test("Hermes activity detail participates in responsive compaction", () => {
-    assert.ok(H.COMPACT_ORDER.includes("hermes"));
-    assert.ok(H.COMPACT_ORDER.indexOf("hermes") > H.COMPACT_ORDER.indexOf("t3"));
-});
-
 test("narrow bars overflow low-priority modules but retain core status", () => {
     const entries = [
         { id: "ws", col: "left", width: 90, saving: 0, policy: "auto" },
         { id: "media", col: "left", width: 120, saving: 40, policy: "auto" },
         { id: "indicators", col: "center", width: 60, saving: 0, policy: "auto", centerSide: "left" },
         { id: "clock", col: "center", width: 100, saving: 30, policy: "auto", centerSide: "right" },
-        { id: "gh", col: "right", width: 60, saving: 20, policy: "auto" },
+        { id: "updates", col: "right", width: 60, saving: 20, policy: "auto" },
         { id: "wifi", col: "right", width: 40, saving: 0, policy: "auto" },
         { id: "batt", col: "right", width: 55, saving: 15, policy: "auto" }
     ];
@@ -160,11 +150,11 @@ test("narrow bars overflow low-priority modules but retain core status", () => {
         entries
     });
     assert.equal(result.fits, true);
-    assert.ok(result.overflow.includes("media") || result.overflow.includes("gh"));
+    assert.ok(result.overflow.includes("media") || result.overflow.includes("updates"));
     for (const critical of ["ws", "clock", "wifi", "batt"])
         assert.equal(result.overflow.includes(critical), false);
     assert.deepEqual(H.OVERFLOW_ORDER.slice(0, 5),
-        ["media", "updates", "gh", "t3", "hermes"]);
+        ["media", "updates", "weather", "tray", "bt"]);
 });
 
 test("asymmetric center extents pin the clock while actions reveal on its left", () => {
