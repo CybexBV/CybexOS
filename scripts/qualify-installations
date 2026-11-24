@@ -347,9 +347,14 @@ run('keyringState', prefix + ['busctl', '--user', 'get-property', 'org.freedeskt
 run('keyringJournal', ['journalctl', '--no-pager', '-g', 'gkr-pam|gnome-keyring', '-n', '40'])
 # Which daemon answers for secrets, and whether the session bus or the user's
 # service manager restarted after the login: a second daemon is locked.
-run('keyringProcesses', ['ps', '-o', 'pid,ppid,lstart,cgroup:60,args', '-C', 'gnome-keyring-daemon'])
+# The wrapped daemon's process name is .gnome-keyring-, so match the command.
+run('keyringProcesses', ['sh', '-c', 'ps -eo pid,ppid,lstart,cgroup:70,args | grep -e "[g]nome-keyring"'])
 run('secretsOwner', prefix + ['busctl', '--user', 'status', 'org.freedesktop.secrets'])
-run('userManagerJournal', ['journalctl', '-b', '--no-pager', '-o', 'short-monotonic', '-n', '60', '_UID=1000'])
+# GNOME Keyring 50.0 can abort in OpenSession and lose the login unlock: the
+# newest crash's signal and first stack trace (its crashing thread).
+run('keyringCrash', ['sh', '-c', 'coredumpctl --no-pager list 2>&1 | grep -i keyring; '
+    'coredumpctl --no-pager info 2>&1 | head -c 2800'])
+run('userManagerJournal', ['sh', '-c', 'journalctl -b --no-pager -o short-monotonic -n 120 _UID=1000 | grep -vE "^ {20,}"'])
 print(json.dumps(output))
 QA_DIAGNOSTIC'''
         try:
