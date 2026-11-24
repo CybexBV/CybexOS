@@ -77,9 +77,11 @@ if ((stable)); then kind=(--latest) channel='stable and beta'; fi
 # Only a commit the full check passed reaches machines: every job of a
 # nixos.yml run on The Beast, dispatched or started by the push to main
 # (docs/releasing.md#the-full-check). Both check out exactly this commit; a
-# pull request's run checks a merge commit instead, so it doesn't count.
+# pull request's run checks a merge commit instead, so it doesn't count. A
+# run whose upgrade job started from another release (`-f from=`) has its
+# own title and doesn't count either.
 qualified=$(gh run list --repo "$REPO" --workflow nixos.yml --commit "$revision" --status success --limit 100 \
-    --json event --jq '[.[] | select(.event == "workflow_dispatch" or .event == "push")] | length') \
+    --json event,displayTitle --jq '[.[] | select((.event == "workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length') \
     || fail 'cannot ask GitHub whether the full check passed; nothing was published'
 [[ $qualified =~ ^[1-9][0-9]*$ ]] || fail "the full check has not passed for $revision; run gh workflow run nixos.yml --repo $REPO --ref main and publish once it passes"
 if ((stable)); then

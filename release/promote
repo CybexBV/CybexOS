@@ -204,10 +204,11 @@ def main():
     if source(tag, 'VERSION').strip() != args.version:
         fail(f'the VERSION file at {tag} is not {args.version}')
     # A dispatched run or the one the push to main started: both check out
-    # exactly this commit (a pull request's run checks a merge commit).
+    # exactly this commit (a pull request's run checks a merge commit). One
+    # whose upgrade job started from another release has its own title.
     passed = run('gh', 'run', 'list', '--repo', REPO, '--workflow', 'nixos.yml', '--commit', revision,
-                 '--status', 'success', '--limit', '100', '--json', 'event', '--jq',
-                 '[.[] | select(.event == "workflow_dispatch" or .event == "push")] | length').stdout.strip()
+                 '--status', 'success', '--limit', '100', '--json', 'event,displayTitle', '--jq',
+                 '[.[] | select((.event == "workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length').stdout.strip()
     if not passed.isdigit() or int(passed) < 1:
         fail(f'the full check (nixos.yml) has not passed for {tag} ({revision[:12]}); '
              'stable gets only releases that passed it')

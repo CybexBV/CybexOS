@@ -1,4 +1,8 @@
 name: NixOS qualification
+# A run whose upgrade job starts from another release than the default says
+# so in its title; release/publish and release/promote count only runs with
+# the plain title, which upgraded from the release just before VERSION.
+run-name: ${{ inputs.from && format('NixOS qualification (upgrade from {0})', inputs.from) || 'NixOS qualification' }}
 # By hand on a branch (gh workflow run nixos.yml --ref BRANCH), and on every
 # push to main. release/publish and release/promote accept a successful
 # dispatched or push run for the exact commit: both check github.sha.

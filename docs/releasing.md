@@ -247,7 +247,9 @@ full check. It gates every release: `release/publish` and `release/promote`
 refuse a commit without a successful run for exactly that commit, either
 dispatched or started by a push to `main`. Both kinds check out the commit
 they were started for (each job verifies it); a pull request's run would
-check a merge commit, so it never counts.
+check a merge commit, so it never counts. Nor does a run whose upgrade job
+started from another release (`-f from=`, below): its title says so, and
+the gate needs the upgrade from the release just before `VERSION`.
 
 It runs by itself on every push to `main`, and a newer push replaces a run
 still going on `main`. Start it on a branch with
@@ -281,7 +283,8 @@ were published as the next release (`scripts/qualify-upgrade`). The previous
 release is the newest published one older than `VERSION`: on a release
 branch the newest release, on any other branch the one before it. The
 `from` input of the workflow names another (`gh workflow run nixos.yml
---ref <branch> -f from=v1.0.25`).
+--ref <branch> -f from=v1.0.25`); such a run is titled
+"NixOS qualification (upgrade from v1.0.25)" and doesn't qualify a release.
 
 The old updater can't be changed, so the job answers it at the network. A
 small HTTPS stand-in for api.github.com runs on the runner; the guest trusts
