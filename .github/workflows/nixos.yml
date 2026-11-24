@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           desktop=(hyprland-pointer screenshots session-restarts passwordless-sudo dictation pointer
-                   lock-terminal wayland-scale browser-1password)
+                   lock-terminal wayland-scale browser-1password settings-audit)
           nix eval --json .#checks.x86_64-linux --apply builtins.attrNames > "$RUNNER_TEMP/checks.json"
           python3 -I -B - "$RUNNER_TEMP/checks.json" "${desktop[@]}" >> "$GITHUB_ENV" <<'PYTHON'
           import json, sys
