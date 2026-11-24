@@ -72,16 +72,16 @@ Singleton {
             state = "disabled";
             return;
         }
+        if (websocketsMissing) {
+            state = "offline";
+            return;
+        }
         // Nothing starts the bridge at login (nix/modules/desktop.nix): the
         // widget does, as it turns on. Starting a running unit is a no-op,
         // and the reconnect backoff covers the moment it takes to listen.
         if (localBridge)
             Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
                 "hermes-menubar-bridge.service"]);
-        if (websocketsMissing) {
-            state = "offline";
-            return;
-        }
         if (socketLoader.status !== Loader.Ready) {
             state = "offline";
             if (!retryTimer.running)
