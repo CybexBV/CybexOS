@@ -546,18 +546,19 @@ def inset(rect, margin):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--screenshots', type=Path, required=True,
-                        help='screenshot directory; image comparisons need real frames')
+    parser.add_argument('--screenshots', type=Path,
+                        help='keep the screenshots here (default: a temporary directory, removed '
+                             'afterwards); image comparisons need real frames either way')
     args = parser.parse_args()
     for executable in ('qs', 'sway', 'grim', 'wtype', 'cmake', 'git'):
         if not shutil.which(executable):
             raise SystemExit(f'{executable} is required; use nix develop with grim and wtype')
-    shots = args.screenshots
-    shots.mkdir(parents=True, exist_ok=True)
     # Keep XDG_RUNTIME_DIR short enough for Quickshell's Unix IPC socket,
     # even when requested screenshots live under a long task output path.
     with tempfile.TemporaryDirectory(prefix='cxw-') as temporary:
         base = Path(temporary)
+        shots = args.screenshots or base / 'screenshots'
+        shots.mkdir(parents=True, exist_ok=True)
         native = base / 'native'
         subprocess.run(['cmake', '-S', str(ROOT / 'desktop/notification-images'), '-B', str(native),
                         '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_TESTING=OFF'], check=True, capture_output=True)

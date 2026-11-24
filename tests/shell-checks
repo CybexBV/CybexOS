@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # QML lint and the shell's runtime tests, for a change to the Quickshell config.
 #
-# The lint and the two runtime tests run side by side (tests/checks.bash).
+# The lint and the runtime tests run side by side (tests/checks.bash).
 # Each runtime test starts its Quickshell with a home, runtime directory,
 # session bus and compositor of its own, so neither waits for the other, nor
 # for another test's shell (the regression step's, a second run's).
@@ -13,4 +13,11 @@ source tests/checks.bash
 check tests/qml-lint tests/qml-lint
 check tests/user-plugins.py python3 -B tests/user-plugins.py
 check tests/media-player.py python3 -B tests/media-player.py
+# The real Settings, Software, Software Update and Welcome windows, the
+# shortcut editor, the wallpaper picker (two live Wallhaven API requests) and
+# their models, each in a private headless Sway with scripted helpers.
+for script in display-settings.py keybindings-model.py model-usage-popup.py settings-pages.py \
+    shortcut-editor.py software-app.py update-flow.py wallpaper-picker.py welcome-guide.py; do
+  check "tests/$script" python3 -B "tests/$script"
+done
 run_checks tests/shell-checks

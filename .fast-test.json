@@ -1,17 +1,22 @@
 {
-  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). Everything here runs on The Dragon in the dev shell. The NixOS checks (product, VM, boot, ISO) stay on the manual nixos.yml workflow on The Beast's runner: run it by hand when someone asks.",
+  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). Everything here runs on The Dragon in the dev shell. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
   "steps": [
     {
       "name": "regression",
-      "about": "The source and fixture regression suite.",
+      "about": "The source and fixture regression suite, with the linters (tests/lint: Ruff, ShellCheck, actionlint).",
       "unless": ["docs/**", "*.md", "release/notes.md", "assets/**", ".github/**"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/run",
       "timeout": 20
     },
     {
       "name": "shell",
-      "about": "QML lint and the shell's runtime tests, when the Quickshell config changed. Each test's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
-      "when": ["desktop/quickshell/**", "tests/qml-lint", "tests/user-plugins.py", "tests/media-player.py", "tests/shell-checks", "tests/checks.bash"],
+      "about": "QML lint and the shell's runtime tests (Settings, Software, Software Update, Welcome, shortcuts, wallpapers, displays, media, plugins), when the code they run changed. Each test's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
+      "when": ["desktop/**", "assets/scripts/**", "lifecycle/cybexos/software.py", "lifecycle/cybexos/common.py",
+        "tests/qml-lint", "tests/shell-checks", "tests/checks.bash", "tests/shell_fonts.py",
+        "tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
+        "tests/model-usage-popup.py", "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
+        "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py",
+        "tests/displays/**", "tests/fixtures/keybindings/**", "tests/model-usage-popup/**", "tests/quickshell/keybindings-support.cjs"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/shell-checks",
       "timeout": 20
     },
@@ -19,8 +24,16 @@
       "name": "single-tests",
       "about": "A changed standalone test script, one after the other. Each one's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
       "when": ["tests/*.py", "tests/nixos-native"],
-      "unless": ["tests/user-plugins.py", "tests/media-player.py"],
+      "unless": ["tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
+        "tests/model-usage-popup.py", "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
+        "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
+    },
+    {
+      "name": "lint",
+      "about": "The linters, for the workflows and scripts the regression step (which runs them too) skips.",
+      "when": [".github/**", "assets/**"],
+      "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/lint"
     },
     {
       "name": "flake-check",
