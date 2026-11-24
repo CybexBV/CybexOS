@@ -148,7 +148,12 @@ arguments = sys.argv[1:]
 with open(os.environ['GH_LOG'], 'a') as log:
     log.write(' '.join(arguments) + '\n')
 if arguments[0] == 'api':
-    print(json.dumps(listing))
+    # GitHub's pages; gh prints them all with --paginate, one array each.
+    size = int(os.environ.get('GH_PAGE_SIZE', '100'))
+    pages = [listing[start:start + size] for start in range(0, len(listing), size)] or [[]] \
+        if isinstance(listing, list) else [listing]
+    for page in pages if '--paginate' in arguments else pages[:1]:
+        print(json.dumps(page))
 elif arguments[:2] == ['run', 'list']:
     print(os.environ.get('GH_PASSED', '1'))
 elif arguments[:2] == ['release', 'edit']:
@@ -253,6 +258,18 @@ class PromoteTests(unittest.TestCase):
         self.assertIn('including 1.0.2', result.stdout)
         self.assert_refused('already on the stable channel', '1.0.3', '--yes')
         self.assert_refused('not newer than the current stable release v1.0.3', '1.0.2', '--yes')
+
+    def test_the_whole_listing_is_read_beyond_its_first_page(self):
+        # With one release per page, the current stable 1.0.1 is on page 3.
+        self.environment['GH_PAGE_SIZE'] = '1'
+        result = self.promote('1.0.3', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Stable machines on v1.0.1 receive it, including 1.0.2.', result.stdout)
+        self.assertIn('since Cybex OS 1.0.1', self.published('1.0.3')['body'])
+        self.assertTrue(all('--paginate' in line for line in self.log.read_text().splitlines() if line.startswith('api')))
+        self.environment['GH_PAGE_SIZE'] = '100'
+        self.state.write_text('{"message": "Not Found"}')
+        self.assert_refused('invalid release listing', '1.0.3', '--yes')
 
     def test_a_single_release_keeps_its_own_notes(self):
         result = self.promote('1.0.2', '--yes')
