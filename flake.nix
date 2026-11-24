@@ -12,7 +12,7 @@
       systems = [ "x86_64-linux" ];
       each = nixpkgs.lib.genAttrs systems;
       # Carry the tested input sources in the live store. A fresh machine starts
-      # from this lock, without resolving the moving nixos-unstable branch during install.
+      # from this lock, without resolving its moving NixOS branch during install.
       inputNodes = builtins.genericClosure {
         startSet = map (value: { key = value.outPath; inherit value; })
           (builtins.attrValues (builtins.removeAttrs inputs [ "self" ]));
