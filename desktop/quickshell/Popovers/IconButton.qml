@@ -1,7 +1,7 @@
 import QtQuick
 import "../Common"
 
-// Compact T3 header icon button. Tabler icons avoid the baseline and
+// Compact popover header icon button. Tabler icons avoid the baseline and
 // weight inconsistencies of typographic arrows while retaining a text-only
 // accessible name at every call site.
 Rectangle {
@@ -9,8 +9,8 @@ Rectangle {
     property string symbol: ""
     // Legacy plugin API: outlines are used regardless of this value.
     property real symbolFill: 0
-    property color tint: T3Theme.textMuted
-    property int controlSize: T3Theme.iconButtonSize
+    property color tint: Theme.textLow
+    property int controlSize: Theme.chipHeight
     // A glyph is not a label. Every call site names itself, because a
     // focus ring on an unnamed arrow is worse than no focus ring.
     property string accessibleName: ""
@@ -31,12 +31,12 @@ Rectangle {
 
     width: controlSize
     height: controlSize
-    radius: T3Theme.controlRadius
-    color: iconMouse.containsMouse || activeFocus ? T3Theme.hoverStrong : "transparent"
+    radius: Theme.chipRadius
+    color: iconMouse.containsMouse || activeFocus ? Theme.hoverFillStrong : "transparent"
     opacity: enabled ? 1 : 0.4
     activeFocusOnTab: enabled && visible
     border.width: Theme.focusWidth(activeFocus)
-    border.color: T3Theme.focus
+    border.color: Settings.highContrast ? Theme.accentText : Theme.accentGlow
 
     Keys.onPressed: event => {
         if (!iconButton.enabled)

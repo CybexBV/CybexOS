@@ -78,8 +78,8 @@ test("views cannot introduce pixel literals, point sizes, or ambiguous legacy te
         assert.doesNotMatch(source, /font\.pointSize\s*:/, name);
         assert.doesNotMatch(source, /font\.pixelSize:\s*Theme\.scaled\(/, name);
         assert.doesNotMatch(source, /font\.pixelSize:\s*Theme\.font(?:Micro|Tiny|Caption|Secondary|Body|Heading|Prominent|Display|Hero)\b/, name);
-        // These two exceptions size icon glyphs, never copy.
-        if (!["Bar/HermesChip.qml", "Ui/MultiSelect.qml"].includes(name))
+        // This exception sizes icon glyphs, never copy.
+        if (!["Ui/MultiSelect.qml"].includes(name))
             assert.doesNotMatch(source, /font\.pixelSize:[^\n]*(?:\s[+*\/-]\s)/, name);
     }
 });

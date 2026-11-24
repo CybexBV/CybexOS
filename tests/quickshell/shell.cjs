@@ -18,8 +18,9 @@ function load(name) {
 // Directories vendored from upstream projects (see each README for reviewed
 // integration patches). Repo style rules cannot be applied to these sources,
 // so the tree-wide scans skip them; the tests
-// for how the shell hosts them live elsewhere.
-const VENDORED_DIRS = ["ModelUsage"];
+// for how the shell hosts them live elsewhere. None at the moment: Model
+// Usage, the last one, became a plugin again (2026-11-24).
+const VENDORED_DIRS = [];
 
 // Whether `rel`, a path relative to shellDir (or an absolute one inside it),
 // lies in a vendored directory.

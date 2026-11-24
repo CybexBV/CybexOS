@@ -65,20 +65,9 @@ def preferences(path: Path) -> dict:
     return value
 
 
-# Packages whose widget now ships inside the shell. Loading one would draw a
-# second copy of the built-in widget, so it is listed with this reason and
-# never loaded; its files and preferences are left for the user to remove.
-BUILT_IN = {
-    "digitalpals.model-usage": "Model Usage is built into Cybex OS. Add it from "
-                               "Settings → Bar, then remove this plugin.",
-}
-
-
 def package(packages: Path, plugin_id: str) -> dict:
     if not valid_id(plugin_id):
         raise ValueError("Invalid plugin id (use letters, digits, dots, underscores or hyphens)")
-    if plugin_id in BUILT_IN:
-        raise ValueError(BUILT_IN[plugin_id])
     directory = packages / plugin_id
     manifest = read_object(directory / "manifest.json")
     if manifest.get("id") != plugin_id:
@@ -182,12 +171,6 @@ def scan(config: Path, packages: Path, state: Path) -> dict:
     for plugin_id in sorted(found):
         descriptor = {"id": plugin_id, "name": plugin_id, "enabled": False,
                       "order": 0, "width": 120, "settings": {}, "error": ""}
-        if plugin_id in BUILT_IN:
-            # Only a copy still on disk is worth listing, and it is never
-            # drawn: not even as an error chip beside the built-in widget.
-            if (packages / plugin_id).is_dir():
-                result.append({**descriptor, "error": BUILT_IN[plugin_id]})
-            continue
         try:
             descriptor.update(options(saved.get(plugin_id, {})))
             # Removal retains preferences for a later reinstall. Those saved

@@ -551,9 +551,7 @@ ShellRoot {
     }
 
     // Reading a singleton's property is what constructs it. Notifications
-    // must start collecting, GitHub must start polling — GitHub
-    // also raises the toasts for watched repositories, which must not wait
-    // for the popover — and settings must load from session start rather than
+    // must start collecting and settings must load from session start rather than
     // from the first popover open. Constructing them is cheap; the
     // non-critical first fetches stagger themselves behind their own
     // start-up timers (Reminders restore 8 s, Calendar 12 s,
@@ -562,7 +560,6 @@ ShellRoot {
         void DesktopWorkspaces.ready;
         void OmarchyPlugins.ready;
         void Notifs.server;
-        void GitHub.pollEnabled;
         void Calendar.enabled;
         void Settings.loaded;
         void SystemTheme.settled;

@@ -687,7 +687,7 @@ SettingsPage {
                 dotColor: page.healthColor
                 value: ShellHealth.busy ? I18n.tr("Checking…") : ShellHealth.statusLabel
                 hint: ShellHealth.issueCount > 0
-                    ? (ShellHealth.integrationIssues.concat(ShellHealth.recentWarnings))[0] || ""
+                    ? ShellHealth.recentWarnings[0] || ""
                     : ShellHealth.serviceActive
                     ? "PID " + ShellHealth.servicePid + " · " + I18n.tr("up ") + ShellHealth.uptimeLabel()
                         + (ShellHealth.deploymentId !== ""

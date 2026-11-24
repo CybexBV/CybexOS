@@ -144,7 +144,7 @@ CVE-2026-91840/91841 and is excluded; insecure packages are not globally
 permitted. Real Cisco gateway authentication, routing, DNS and reconnect still
 require qualification. The native wrapped T3 Code AppImage builds but needs runtime
 qualification; native titlebar/compositor integration is still being completed.
-Connected account services and the Hermes bridge have native declarations;
-their real account/credential flows remain unqualified. Installing a related
+Connected account services have native declarations; their real
+account/credential flows remain unqualified. Installing a related
 command is not proof of product parity. See the current
 [validation record](validation.md).

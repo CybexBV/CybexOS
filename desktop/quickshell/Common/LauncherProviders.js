@@ -329,7 +329,7 @@ var BUILTIN_ACTIONS = [
 
 // Features an entry can require, keyed by the flags Settings.qml derives
 // from the installer's choices (quickshell.service sets them).
-var FEATURE_FLAGS = ["developerTools", "connectedWidgets"];
+var FEATURE_FLAGS = ["developerTools"];
 
 var GLYPHS = PROVIDERS.map(function(provider) { return provider.glyph; })
     .concat(BUILTIN_ACTIONS.map(function(action) { return action.glyph; }))

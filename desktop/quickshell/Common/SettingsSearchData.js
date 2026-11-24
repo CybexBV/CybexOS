@@ -140,6 +140,7 @@ var ROWS = [
     { page: "workspaces", pageLabel: "Workspaces & dock", group: "Dock", label: "Dock auto-hide", key: "dockAutoHide", terms: "dock hide reveal bottom edge" },
 
     // Bar widgets and their options
+    { page: "plugins", pageLabel: "Plugins", group: "Cybex OS plugins", label: "Cybex OS plugins", key: "", terms: "model usage claude codex kimi quota github pull requests issues t3 code hermes agent fusebox remote server ssh widget install" },
     { page: "plugins", pageLabel: "Plugins", group: "Add a plugin", label: "Browse plugins", key: "", terms: "plugins.omarchy.org directory marketplace community find discover website" },
     { page: "plugins", pageLabel: "Plugins", group: "Add a plugin", label: "Source", key: "", terms: "install git url local path add omarchy plugin add command paste trust" },
     { page: "plugins", pageLabel: "Plugins", group: "Installed", label: "Installed plugins", key: "", terms: "enable disable update preview clone remove omarchy manage" },
@@ -148,8 +149,6 @@ var ROWS = [
     { page: "bar", pageLabel: "Bar & Control Center", group: "Indicators", label: "Clock-side actions", key: "", terms: "indicator dictate dictation microphone recording ocr scan text clipboard reminder night light do not disturb dnd stay awake idle inhibit order startup duration" },
     { page: "bar", pageLabel: "Bar & Control Center", group: "Notes", label: "AI note titles", key: "", terms: "codex claude model provider effort reasoning generate regenerate privacy" },
     { page: "bar", pageLabel: "Bar & Control Center", group: "Weather", label: "Weather location", key: "", widget: "weather", terms: "clock city place search country region coordinates latitude longitude forecast" },
-    { page: "bar", pageLabel: "Bar & Control Center", group: "Fusebox", label: "Fusebox server", key: "", widget: "fusebox", terms: "ai proxy cliproxy subscriptions accounts management key url faults load requests sessions quota used remaining left meters pace breaker priority clients budgets connected addresses notifications privacy email" },
-    { page: "bar", pageLabel: "Bar & Control Center", group: "Model Usage", label: "Model Usage", key: "", widget: "modelusage", terms: "ai claude codex kimi quota limits reset percentage providers cliproxy proxy accounts credentials cost tokens t3 refresh warning critical" },
     { page: "bar", pageLabel: "Bar & Control Center", group: "Updates", label: "Download updates automatically", key: "", widget: "updates", terms: "background download updates automatic schedule timer nix packages metered power check every interval notify software update finish confirm restart" },
     { page: "bar", pageLabel: "Bar & Control Center", group: "Updates", label: "Get beta releases", key: "", widget: "updates", terms: "beta stable release channel prerelease early testing preview cybex os version software update" },
 

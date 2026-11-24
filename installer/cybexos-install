@@ -415,7 +415,7 @@ FEATURES = ('developer', 'proprietary', 'steam', 'docker', 'podman', 'tailscale'
 SYSTEM_FEATURES = (
     ('docker', 'Docker'), ('podman', 'Podman'), ('tailscale', 'Tailscale'),
     ('localNetworkServices', 'Local network discovery services'),
-    ('connectedWidgets', 'Connected desktop widgets'),
+    ('connectedWidgets', 'Calendar and online accounts'),
 )
 UNFREE_FEATURES = ('steam',)
 

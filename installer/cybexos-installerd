@@ -71,7 +71,7 @@ SYSTEM_FEATURES = [
     ('podman', 'Podman', 'Rootless containers and Distrobox'),
     ('tailscale', 'Tailscale', 'Mesh VPN'),
     ('localNetworkServices', 'Local network discovery', 'Avahi, .local names and LAN ports'),
-    ('connectedWidgets', 'Connected desktop widgets', 'Calendar, online accounts and service widgets'),
+    ('connectedWidgets', 'Calendar and online accounts', 'GNOME Calendar, online accounts and events in the clock'),
     ('proprietary', 'Proprietary applications', 'Chrome, 1Password, Claude Code, Steam and vendor apps'),
 ]
 # Features whose software is itself unfree, off without proprietary applications.

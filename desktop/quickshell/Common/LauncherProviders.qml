@@ -134,14 +134,13 @@ Singleton {
         return workspace ? " · " + workspace.monitor + " · " + I18n.tr("Workspace") + " " + workspace.label : "";
     }
 
-    // Entries for a feature the installation left out (developer tools,
-    // connected widgets) never appear, typed or blended.
+    // Entries for a feature the installation left out (developer tools)
+    // never appear, typed or blended.
     // Built-in entries are shown in the session's language; their English
     // name stays a keyword, so either language finds them.
     readonly property var actions: ProviderHelpers.availableActions(
         ProviderHelpers.BUILTIN_ACTIONS, {
-            developerTools: Settings.developerToolsConfigured,
-            connectedWidgets: Settings.connectedWidgetsConfigured
+            developerTools: Settings.developerToolsConfigured
         }).map(action => Object.assign({}, action, {
             name: I18n.tr(action.name),
             subtitle: I18n.tr(action.subtitle),

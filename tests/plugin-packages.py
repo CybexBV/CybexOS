@@ -130,9 +130,8 @@ with tempfile.TemporaryDirectory(prefix="cybex-plugin-packages-") as temporary:
     assert missing["enabled"] and missing["error"], "missing enabled packages must remain diagnosable"
     cli("disable", "example.git")
 
-    # Model Usage is built into the shell. An old copy of the plugin is listed
-    # with the reason, never drawn (not even as an error chip), and can only
-    # be removed; once it is gone its leftover preferences stay out of view.
+    # Model Usage was built into the shell until schema 36; it is an ordinary
+    # plugin again, so its package loads and draws like any other.
     builtin_id = "digitalpals.model-usage"
     (packages / builtin_id).mkdir()
     (packages / builtin_id / "manifest.json").write_text(json.dumps({**manifest, "id": builtin_id,
@@ -143,9 +142,10 @@ with tempfile.TemporaryDirectory(prefix="cybex-plugin-packages-") as temporary:
     (base / "config/plugins.json").write_text(json.dumps(registry))
     listing = json.loads(cli("list"))
     listed = next(item for item in listing["plugins"] if item["id"] == builtin_id)
-    assert "built into Cybex OS" in listed["error"] and not listed["enabled"]
-    assert not any(widget["id"] == builtin_id for widget in listing["widgets"])
-    cli("enable", builtin_id, ok=False)
+    assert not listed["error"] and listed["enabled"], listed
+    assert any(widget["id"] == builtin_id for widget in listing["widgets"])
+    cli("disable", builtin_id)
+    cli("enable", builtin_id)
     cli("remove", builtin_id)
     assert not any(item["id"] == builtin_id for item in json.loads(cli("list"))["plugins"])
     assert not any(path.name.startswith(".") for path in packages.iterdir())

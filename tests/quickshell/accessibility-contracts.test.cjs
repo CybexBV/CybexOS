@@ -142,8 +142,6 @@ test("reduced-motion mode stops infinite activity loops instead of busy-looping 
     for (const relative of [
         "Bar/Modules/Indicators.qml",
         "Popovers/BatteryPopover.qml",
-        "Popovers/T3Composer.qml",
-        "Popovers/T3ThreadPage.qml",
         "Popovers/WifiPopover.qml"
     ]) {
         const source = read(relative);

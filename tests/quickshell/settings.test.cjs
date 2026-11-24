@@ -259,8 +259,7 @@ test("the tray and the updates chip use the reorderable widget pipeline", () => 
     const catalog = read("Common/WidgetCatalog.js");
     const bar = read("Bar/Bar.qml");
 
-    assert.match(helpers, /"updates", "gh"/);
-    assert.match(helpers, /"hermes",\s*"remote",\s*"tray"/);
+    assert.match(helpers, /"notes", "updates",\s*"tray"/);
     assert.match(catalog, /updates:\s*\{ name: "Updates"/);
     assert.match(catalog, /tray:\s*\{ name: "System tray"/);
     assert.doesNotMatch(modules, /pinnedTail|text:\s*"pinned"/);
@@ -285,51 +284,38 @@ test("the retired bell, idle, and usage modules leave nothing behind", () => {
     for (const [id, file] of [["bell", "Bell"], ["idle", "Idle"], ["usage", "Usage"]]) {
         assert.ok(!fs.existsSync(path.join(shellDir, `Bar/Modules/${file}.qml`)),
             `Bar/Modules/${file}.qml is still on disk`);
-        // Word-bounded, so the built-in `modelusage` module is not `usage`.
+        // Word-bounded, so a `modelusage` id would not count as `usage`.
         assert.doesNotMatch(bar, new RegExp(`\\b${id}:\\s*"Modules/`),
             `the bar still maps a source for ${id}`);
         assert.doesNotMatch(modules, new RegExp(`^\\s*${id}:\\s*\\{ name:`, "m"),
             `the settings module list still names ${id}`);
     }
-    assert.match(helpers, /RETIRED_MODULE_IDS = \["bell", "idle", "usage"\]/);
+    assert.match(helpers, /RETIRED_MODULE_IDS = \["bell", "idle", "usage",/);
     // The Model Usage plugin replaced the built-in widget wholesale: its
     // singleton, chips, popover, drawer tab and fetch scripts went with it.
+    // Schema 36 retired the six connected-service widgets the same way:
+    // they are Cybex OS plugins now.
+    for (const [id, file] of [["modelusage", "ModelUsage"], ["fusebox", "Fusebox"],
+            ["gh", "GitHub"], ["t3", "T3"], ["hermes", "Hermes"], ["remote", "Remote"]]) {
+        assert.ok(!fs.existsSync(path.join(shellDir, `Bar/Modules/${file}.qml`)),
+            `Bar/Modules/${file}.qml is still on disk`);
+        assert.doesNotMatch(bar, new RegExp(`\\b${id}:\\s*"Modules/`),
+            `the bar still maps a source for ${id}`);
+    }
+    for (const file of ["ModelUsage", "Common/T3Code.qml", "Common/Hermes.qml",
+                        "Common/GitHub.qml", "Common/Fusebox.qml", "Common/RemoteServer.qml",
+                        "Settings/GitHubWatchList.qml", "scripts/fusebox.py",
+                        "scripts/remote-server.py", "scripts/t3-cloud.mjs"])
+        assert.ok(!fs.existsSync(path.join(shellDir, file)), `${file} is still on disk`);
     for (const file of ["Common/Usage.qml", "Common/UsageHelpers.js", "Bar/UsageChips.qml",
                         "Popovers/UsagePopover.qml", "Popovers/Drawer/DrawerUsage.qml",
                         "scripts/usage-fetch.py", "scripts/usage-credential.py"])
         assert.ok(!fs.existsSync(path.join(shellDir, file)), `${file} is still on disk`);
 });
 
-test("T3 Code and Hermes Agent are separate reorderable widgets", () => {
-    const helpers = read("Common/SettingsHelpers.js");
-    const catalog = read("Common/WidgetCatalog.js");
-    const bar = read("Bar/Bar.qml");
-
-    assert.match(helpers, /"gh",\s*"t3", "hermes"/,
-        "fresh layouts should keep the agent widgets adjacent");
-    assert.match(catalog, /t3:\s*\{ name: "T3 Code"/);
-    assert.match(catalog, /hermes:\s*\{ name: "Hermes Agent"/);
-    assert.match(bar, /t3:\s*"Modules\/T3\.qml"/);
-    assert.match(bar, /hermes:\s*"Modules\/Hermes\.qml"/);
-    assert.match(read("Bar/Modules/T3.qml"), /panelName:\s*"t3code"/);
-});
-
-test("the T3 running indicator is a static dot", () => {
-    const chip = read("Bar/T3Chip.qml");
-    const dot = chip.match(/\/\/ Live work:[\s\S]*?\n    Text \{/)?.[0] ?? "";
-
-    assert.ok(dot !== "", "the T3 chip must still mark live work");
-    assert.match(dot, /width:\s*root\.busy \? 5 : 0/);
-    assert.match(dot, /width:\s*5[\s\S]*height:\s*5/);
-    assert.doesNotMatch(dot, /\b(?:Timer|SequentialAnimation|PropertyAnimation)\s*\{/,
-        "the five-pixel running indicator must not pulse");
-    assert.doesNotMatch(chip, /modOpts\.t3\.pulse|heartbeat|pulseOpacity|pulseStartedAt|barVisible/);
-});
-
-
 test("schema twenty-three keeps safe defaults and exposes accessibility preferences", () => {
     const helpers = read("Common/SettingsHelpers.js");
-    assert.match(helpers, /var VERSION = 35/);
+    assert.match(helpers, /var VERSION = 36/);
     // Schema 17: the drawer becomes configurable (turn-3 settings design).
     assert.match(helpers, /drawerHover: "open"/);
     assert.match(helpers, /drawerWidth: 400/);
@@ -345,8 +331,7 @@ test("schema twenty-three keeps safe defaults and exposes accessibility preferen
     assert.match(helpers, /nightLight:\s*false/);
     assert.match(helpers, /idleInhibitMode:\s*"off"/);
     assert.match(helpers, /idleInhibitUntilMs:\s*0/);
-    assert.match(helpers, /"modelusage", "fusebox", "updates", "gh",\s*"t3", "hermes", "remote", "tray"/);
-    assert.match(helpers, /hermes:\s*\{ showLabel: true, activityDetail: "verb" \}/);
+    assert.match(helpers, /"notes", "updates",\s*"tray"/);
     assert.match(helpers,
         /notes:\s*\{[\s\S]*?titleProvider:\s*"off"[\s\S]*?codexModel:\s*"gpt-5\.6-luna"[\s\S]*?codexEffort:\s*"none"[\s\S]*?claudeModel:\s*"fable"[\s\S]*?claudeEffort:\s*"low"/);
     assert.match(helpers, /mod\("tray", false\), mod\("assistant", true\), mod\("notifications", true\), mod\("vol", true\)/);
@@ -371,15 +356,6 @@ test("schema twenty-three keeps safe defaults and exposes accessibility preferen
     assert.doesNotMatch(helpers, /function adoptRedesign|function adoptClassicMenubar/);
     assert.match(helpers, /function serializeDocument/);
 
-});
-
-test("Connected enables integration widgets including auto-hiding Bluetooth", () => {
-    const settings = read("Common/Settings.qml");
-    const preset = settings.slice(settings.indexOf("function modulePresetIds(name)"),
-        settings.indexOf("function resetKeys("));
-    assert.match(preset,
-        /name === "connected"[\s\S]*?\["ws"[\s\S]*?"gh"[\s\S]*?"t3"[\s\S]*?"hermes"[\s\S]*?"bt"[\s\S]*?"batt"[\s\S]*?"control"\]/,
-        "Connected should enable every connection-driven widget; Bluetooth hides itself when idle");
 });
 
 test("settings improvements expose fitting, embedded folders, undo, and shortcut", () => {
@@ -900,14 +876,9 @@ test("a widget chip opens its built-in options in the widget dialog", () => {
     assert.match(detail, /Settings\.setModuleDetail\(view\.moduleId/,
         "the detail policy control lives on the sub-page, stored in mods");
     assert.match(detail, /Settings\.setModuleOption/);
-    assert.match(detail, /case "hermes": return hermesOptions/);
     assert.match(detail, /case "notifications": return notificationsOptions/);
     assert.match(detail,
         /id:\s*notificationsOptions[\s\S]*?label:\s*"Grouping"[\s\S]*?value:\s*"solo", label:\s*"Separate"[\s\S]*?value:\s*"status", label:\s*"Status group"/);
-    assert.match(detail,
-        /id:\s*hermesOptions[\s\S]*?label:\s*"Status label"[\s\S]*?view\.opts\.showLabel/);
-    assert.match(detail,
-        /id:\s*hermesOptions[\s\S]*?label:\s*"Activity detail"[\s\S]*?value:\s*"full"[\s\S]*?value:\s*"verb"[\s\S]*?value:\s*"generic"/);
 });
 
 test("the settings store keeps its fixed user-owned config path", () => {

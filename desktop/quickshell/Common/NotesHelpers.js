@@ -530,8 +530,17 @@ function escapeHtmlAttribute(value) {
     return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// A link label that is one code span (`file.rs`) keeps its code face.
+function markdownLinkLabel(label) {
+    var code = /^`([^`\n]+)`$/.exec(label);
+    if (code)
+        return "<tt>" + escapeHtml(code[1]) + "</tt>";
+    return escapeHtml(label);
+}
+
 // MarkdownText otherwise uses Qt's literal blue for anchors. Styling the
-// rendered copy never touches the raw body retained in Notes.records.
+// rendered copy never touches the raw body retained in Notes.records. The
+// assistant's replies use it too (Assistant/AssistantMarkdown.qml).
 function styleMarkdownLinks(markdown, linkColor) {
     var source = String(markdown == null ? "" : markdown);
     var color = String(linkColor == null ? "" : linkColor).trim();
@@ -544,7 +553,7 @@ function styleMarkdownLinks(markdown, linkColor) {
             destination = destination.slice(1, -1);
         return prefix + "<a href=\"" + escapeHtmlAttribute(destination)
             + "\"><font color=\"" + color + "\">"
-            + escapeHtml(label) + "</font></a>";
+            + markdownLinkLabel(label) + "</font></a>";
     });
 }
 

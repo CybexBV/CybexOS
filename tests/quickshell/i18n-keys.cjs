@@ -73,6 +73,8 @@ function dataKeys() {
         add(action.name);
         add(action.subtitle);
     }
+    for (const plugin of load("CybexPlugins.js").PLUGINS)
+        add(plugin.description);
     add("Action");
     add("Custom");
     // I18n.localeName() translates locale names and joins them itself.

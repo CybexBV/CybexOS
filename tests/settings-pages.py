@@ -379,6 +379,8 @@ def main():
                               ('security', None), ('accounts', None), ('assistant', 'wiz'), ('applications', None),
                               ('region', None), ('backup', 'backups')):
                 show(page, tab)
+            show('plugins')
+            screenshot('16-plugins.png')
             show('keyboard', 'layouts')
             ipc('settings-test', 'showTab', 'keyboard', 'shortcuts')
             wait(lambda: state().get('shortcuts'), 'Keyboard › Shortcuts')
@@ -571,7 +573,7 @@ def main():
             def saved_icon():
                 saved = json.loads((home / '.config/cybexos/shell.json').read_text())
                 return saved['v'], saved.get('controlIcon', 'cybex'), saved.get('controlIconPrompt', True)
-            wait(lambda: saved_icon() == (35, 'cybex', True), 'the choice saved in schema 35')
+            wait(lambda: saved_icon() == (36, 'cybex', True), 'the choice saved in schema 36')
 
             # The narrow window: icon rail, compact chip.
             subprocess.run(['swaymsg', '[title="Cybex OS Settings"]', 'resize', 'set', '640', '620'],

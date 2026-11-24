@@ -12,7 +12,6 @@ const page = untranslated(fs.readFileSync(path.join(shellRoot, "Settings/HomePag
 const helper = untranslated(fs.readFileSync(path.join(shellRoot, "scripts/shell-health.py"), "utf8"));
 
 test("Shell Health is read-only, bounded, and refreshable", () => {
-    assert.match(health, /readonly property var integrationIssues/);
     assert.match(health, /FileView\s*{[\s\S]*?watchChanges:\s*true/);
     assert.match(health, /command:\s*\["python3", root\.helper\]/);
     assert.match(health, /property bool exitSeen:\s*false/);

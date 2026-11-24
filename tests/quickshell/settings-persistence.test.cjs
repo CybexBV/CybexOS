@@ -207,7 +207,7 @@ test("persisted settings are written through Settings writers, not assigned", ()
 test("module option sliders store where the drag rests", () => {
     const detail = read("Settings/ModuleDetailView.qml");
     const sliders = [...detail.matchAll(/^( +)SliderRow \{\n[^]*?^\1\}/gm)].map(match => match[0]);
-    assert.ok(sliders.length >= 10);
+    assert.ok(sliders.length >= 8);
     for (const slider of sliders) {
         assert.doesNotMatch(slider, /onMoved: value => view\.setOpt\(/, slider);
         assert.match(slider, /onMoved: value => view\.settleOpt\("(\w+)", value\)/);

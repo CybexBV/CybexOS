@@ -342,13 +342,13 @@ installer/cybexos-installerd --dump-static > static.json   # with lifecycle/ on 
 cd installer/kiosk && cargo run --features preview --bin installer-preview -- ../../static.json /tmp/renders
 ```
 
-New menubars leave the optional widgets (Model Usage, Hermes Agent, Remote
-Server, T3 Code, GitHub and Fusebox) available but off; turn them on in
-Settings -> Bar. Their code runs only while they are on, and the Hermes bridge
-starts only once its widget is on.
-Installing connected-service support does not enable them. Saved widget
-choices remain personal: a menubar from before 1.0.32 that showed Model Usage
-by default keeps it. LAN
+Model Usage, Hermes Agent, Remote Server, T3 Code, GitHub and Fusebox are
+not part of the menubar any more: they are Cybex OS plugins, installed from
+Settings -> Plugins -> Cybex OS plugins or with `cybex plugin add <url>`
+([Omarchy plugins](omarchy-plugin-compatibility.md#cybex-os-plugins)). The
+installer's **Calendar and online accounts** choice (the
+`cybexos.features.connectedWidgets` option) installs GNOME Calendar, GNOME
+Online Accounts and Evolution Data Server, which give the clock its events. LAN
 discovery is enabled by default: Avahi browses and publishes local addresses,
 `.local` resolution is available, and the firewall admits the discovery and
 selected application ports. Bibata Modern Classic is the default pointer across
