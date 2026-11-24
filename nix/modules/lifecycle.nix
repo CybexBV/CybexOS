@@ -48,11 +48,8 @@ in {
   };
   config = lib.mkMerge [ (lib.mkIf (cfg.enable || cfg.installationMedium) {
     # The medium installs its own release and passes its channel policy on.
-    # Its branch is the one this release's pinned Nixpkgs follows.
-    environment.etc."cybexos/update.json".text = let
-      lock = builtins.fromJSON (builtins.readFile ../../flake.lock);
-    in builtins.toJSON { schema = 1; channel = cfg.updates.channel;
-                         branch = lock.nodes.${lock.nodes.${lock.root}.inputs.nixpkgs}.original.ref; };
+    # The NixOS branch is the machine's own flake.lock's, not a policy here.
+    environment.etc."cybexos/update.json".text = builtins.toJSON { schema = 1; channel = cfg.updates.channel; };
   }) (lib.mkIf cfg.enable {
     # units and userUnits must work: a deployment that breaks one is rolled
     # back. The reported lists cover optional devices such as a camera or

@@ -1248,7 +1248,9 @@ class EngineTests(unittest.TestCase):
             'inputs = {\n  nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";\n'
             '  cybexos.url = "github:CybexHQ/CybexOS/' + REV_OLD + '";\n};\n')
         self.runner.pinned = PIN_NEW | {'ref': 'nixos-unstable', 'lastModified': 10 ** 9}
-        record = self.engine.stage('both')
+        # A release on nixos-unstable that still supports 26.11 machines.
+        with patch.dict(COMPATIBILITY, {'nixos': ['unstable', '26.11']}):
+            record = self.engine.stage('both')
         config = self.engine.tx(record['id']) / 'config'
         self.assertIn('nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";', (config / 'flake.nix').read_text())
         staged = read(config / 'flake.lock')
@@ -1310,6 +1312,32 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(self.system.readlink(),Path(OLD_SYSTEM))
             self.assertFalse(self.engine.pending_path.exists())
             self.assertEqual(read(self.engine.status_path)['state'],'failed')
+
+    def test_release_compatibility_follows_the_branch_the_machine_runs(self):
+        # The machine's own lock names its branch, not release.json: a
+        # release prepared alone keeps the machine's Nixpkgs.
+        original = self.runner
+        def declaring(branches):
+            def run(*args, **kwargs):
+                if tuple(map(str, args[:2])) == ('cat', STORE_SOURCE + '/release/compatibility.json'):
+                    return json.dumps(COMPATIBILITY | {'nixos': branches})
+                return original(*args, **kwargs)
+            run.log = None
+            return run
+        atomic(self.release, read(self.release) | {'nixos': '26.11'})
+        self.assertEqual(self.engine.installed_branch(), 'unstable')
+        self.engine.run = declaring(['26.11'])
+        with self.assertRaisesRegex(Failure, 'NixOS branch'):
+            self.engine.stage('cybexos')
+        data = lock(); data['nodes']['nixpkgs']['original']['ref'] = 'nixos-26.11'
+        atomic(self.config / 'flake.lock', data)
+        atomic(self.release, read(self.release) | {'nixos': 'unstable'})
+        self.assertEqual(self.engine.installed_branch(), '26.11')
+        record = self.engine.stage('cybexos')
+        self.assertEqual(read(self.engine.status_path)['state'], 'ready', record)
+        self.engine.run = declaring(['unstable'])
+        with self.assertRaisesRegex(Failure, 'NixOS branch'):
+            self.engine.stage('cybexos')
 
     def test_release_source_disagreements_are_rejected_before_build(self):
         # The tag, the release's own VERSION and compatibility declaration and

@@ -462,7 +462,9 @@ def interactive(release):
     logo = Path(os.environ['CYBEXOS_UPDATER_SHARE']) / 'brand/ascii/cybexos-compact.fastfetch.txt'
     print(logo.read_text().replace('$1', '\033[38;2;243;242;236m').replace('$2', '\033[38;2;96;165;250m') + '\033[0m')
     media = read(ETC / 'release.json', {})
-    nixos = media.get('nixos', '') if isinstance(media, dict) and isinstance(media.get('nixos'), str) else ''
+    pinned = media.get('nixpkgs') if isinstance(media, dict) else None
+    ref = pinned.get('ref') if isinstance(pinned, dict) else None
+    nixos = ref.removeprefix('nixos-') if supported_branch(ref) else ''
     print(f'Fresh installation • UEFI • NixOS {nixos}'.rstrip() + '\n' + release)
     print('\nConnect to the internet and power before continuing. Back up the target disk.')
     print('You will review all settings before anything is erased. Ctrl+C cancels.\n')

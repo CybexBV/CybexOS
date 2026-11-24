@@ -204,7 +204,7 @@ in
 assert live == installed;
 # Prebuilt packages only: NixOS's cached default builds, not module variants
 # (Hyprland's NO_UWSM rebuild and its portal, a font-path Xwayland, a locale
-# subset). UWSM stays off. The release follows the nixos-unstable branch.
+# subset). UWSM stays off.
 assert generic.programs.hyprland.package.drvPath == pkgs.hyprland.drvPath;
 assert generic.programs.hyprland.portalPackage.drvPath == pkgs.xdg-desktop-portal-hyprland.drvPath;
 assert generic.programs.xwayland.package.drvPath == pkgs.xwayland.drvPath;
@@ -223,8 +223,10 @@ assert installed.sudo.ui == { user = payload.cybexos.primaryUser; available = tr
 assert lib.all (c: c.programs.nix-ld.enable && c.programs.appimage.enable && c.programs.appimage.binfmt
   && c.services.flatpak.enable && c.cybexos.features.flathub && c.environment.etc ? "cybexos/flathub-enabled")
   [ payload generic ];
-assert (builtins.fromJSON (medium "release.json")).nixos == "unstable";
-assert installed.updates.branch == "nixos-unstable";
+# The release names its pinned Nixpkgs; the branch a machine runs is its own lock's.
+assert (builtins.fromJSON (medium "release.json")).nixpkgs.ref == lock.nodes.${lock.nodes.${lock.root}.inputs.nixpkgs}.original.ref;
+assert !((builtins.fromJSON (medium "release.json")) ? nixos);
+assert installed.updates == { schema = 1; channel = installed.updates.channel; };
 # All default profiles, including the live medium, must boot the same latest
 # kernel. Force the ZFS module's compatibility check, not just kernel scalars.
 assert lib.all (c: c.boot.kernelPackages.kernel == pkgs.linuxPackages_latest.kernel)
