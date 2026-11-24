@@ -42,8 +42,13 @@ function channel(deployment) {
 }
 
 function scope(sources, selected) {
-    const upstream = selected.includes("upstream") && sources.upstream.state === "available";
     const vendor = selected.includes("cybexos") && sources.cybexos.state === "available";
+    // NixOS packages that come with the available release (its pinned
+    // Nixpkgs revision) are prepared with it, never on their own.
+    const withRelease = sources.cybexos.state === "available" && !!sources.upstream.release
+        && sources.upstream.release === sources.cybexos.available;
+    const upstream = selected.includes("upstream") && sources.upstream.state === "available"
+        && (!withRelease || vendor);
     return upstream && vendor ? "both" : upstream ? "upstream" : vendor ? "cybexos"
         : (sources.firmware || {}).state === "available" ? "firmware" : "";
 }

@@ -54,6 +54,14 @@ test("source scope includes only confirmed and explicitly selected updates", () 
     const both = { ...available, cybexos: { state: "available", available: "1.1.0" } };
     assert.equal(H.scope(both, ["upstream", "cybexos"]), "both");
     assert.equal(H.scope(both, ["cybexos"]), "cybexos");
+    // Packages pinned by that release come only with it.
+    const pinned = { ...both, upstream: { ...available.upstream, release: "1.1.0" } };
+    assert.equal(H.scope(pinned, ["upstream", "cybexos"]), "both");
+    assert.equal(H.scope(pinned, ["upstream"]), "");
+    assert.equal(H.scope(pinned, ["cybexos"]), "cybexos");
+    // Packages the installed release pins stay their own choice.
+    const own = { ...both, upstream: { ...available.upstream, release: "1.0.0" } };
+    assert.equal(H.scope(own, ["upstream"]), "upstream");
 });
 
 test("an unpublished vendor channel is neutral and leaves NixOS updates selectable", () => {

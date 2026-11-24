@@ -125,10 +125,12 @@ def newer(pinned, lock):
     """
     current = identity(lock, 'nixpkgs')
     modified = current.get('lastModified')
-    modified = modified if type(modified) is int else 0
+    if type(modified) is not int or modified <= 0:
+        # Without the machine's own date nothing proves the release's is later.
+        return False
     branch = resolved(lock, 'nixpkgs')['original'].get('ref')
-    if pinned['ref'] != branch:
-        return pinned['lastModified'] >= modified
+    if pinned['ref'] != branch and pinned['rev'] == current.get('rev'):
+        return True
     return pinned['rev'] != current.get('rev') and pinned['lastModified'] > modified
 
 

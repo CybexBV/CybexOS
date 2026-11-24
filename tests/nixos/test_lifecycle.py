@@ -1187,10 +1187,32 @@ class EngineTests(unittest.TestCase):
         self.assertFalse(inputs.newer(PIN_NEW | {'lastModified': 999}, data))
         # 26.11 branching off at the machine's own revision: only the branch moves.
         self.assertTrue(inputs.newer(same | {'ref': 'nixos-26.11'}, data))
-        self.assertFalse(inputs.newer(same | {'ref': 'nixos-26.11', 'lastModified': 999}, data))
+        # Another revision on another branch moves only when it is later.
+        self.assertFalse(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11', 'lastModified': 1000}, data))
+        self.assertTrue(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11'}, data))
+        # A lock without its date never moves: nothing proves the pin is later.
+        undated = lock(); del undated['nodes']['nixpkgs']['locked']['lastModified']
+        self.assertFalse(inputs.newer(PIN_NEW, undated))
         moved = inputs.take(lock(), same | {'ref': 'nixos-26.11'})
         self.assertEqual(moved['nodes']['nixpkgs']['original']['ref'], 'nixos-26.11')
         self.assertEqual(moved['nodes']['nixpkgs']['locked']['rev'], REV_OLD)
+
+    def test_packages_alone_never_take_a_newer_release_s_nixpkgs(self):
+        # The machine already runs its installed release's revision; a newer
+        # release brings a newer one, which packages alone can't take.
+        data = lock(); data['nodes']['nixpkgs']['locked'].update(rev=REV_NEW, narHash=NAR_NEW, lastModified=2000)
+        atomic(self.config / 'flake.lock', data)
+        working = config_digest(self.config)
+        self.engine.release_pin = lambda revision: PIN_NEW | {'rev': '4' * 40, 'lastModified': 4000}
+        with self.assertRaisesRegex(Failure, 'come with Cybex OS 1.1.0. Prepare them together'):
+            self.engine.stage('upstream')
+        self.assertEqual(config_digest(self.config), working)
+        # With no newer release it prepares the same packages again, as the
+        # installation qualification does.
+        self.engine.channel = lambda: release() | {'version': '1.0.0'}
+        record = self.engine.stage('upstream')
+        staged = read(self.engine.tx(record['id']) / 'config/flake.lock')
+        self.assertEqual(inputs.identity(staged, 'nixpkgs')['rev'], REV_NEW)
 
     def test_the_nixpkgs_probe_puts_the_installed_branch_back(self):
         # A Nixpkgs incompatibility is told apart by evaluating with the

@@ -304,6 +304,20 @@ class Engine:
             f'{GITHUB_API}/contents/flake.lock?ref={revision}', limit=1024 * 1024,
             accept='application/vnd.github.raw+json')))
 
+    def release_brings_nixpkgs(self, lock):
+        """The newer release whose Nixpkgs revision is newer than the lock's, or None.
+
+        NixOS packages alone move only to the installed release's revision;
+        a newer one belongs to the release that was checked with it.
+        """
+        try:
+            candidate = self.channel()
+            if version(candidate['version']) <= version(read(self.release)['version']):
+                return None
+            return candidate['version'] if inputs.newer(self.release_pin(candidate['revision']), lock) else None
+        except (Failure, KeyError, TypeError, ValueError):
+            return None
+
     def installed_pin(self):
         """The installed release's Nixpkgs revision, or None for a release without one."""
         value = read(self.release).get('nixpkgs')
@@ -488,6 +502,9 @@ class Engine:
                     pinned = candidate['nixpkgs'] if candidate else self.installed_pin()
                     if pinned and inputs.newer(pinned, old):
                         self.move_nixpkgs(config, old, pinned)
+                    elif scope == 'upstream' and (bringing := self.release_brings_nixpkgs(old)):
+                        raise Failure(f'These NixOS packages come with Cybex OS {bringing}. '
+                                      'Prepare them together with it.')
                 if candidate:
                     flake = config / 'flake.nix'
                     # A machine installed from its medium's bundled source names
