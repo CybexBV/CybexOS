@@ -55,7 +55,9 @@ PageScroll {
         // Flathub has the app, sits beside it (2026-11-24 review).
         if (state === "compiles")
             return flathubOffer && !viaFlathub
-                ? I18n.tr("NixOS hasn't finished building this yet. Flathub's version installs now, for your account only.")
+                // The notice below explains Flathub's version; saying it here
+                // too repeated it (2026-11-24 review, round 2).
+                ? I18n.tr("NixOS hasn't finished building this yet.")
                 : I18n.tr("NixOS hasn't finished building this yet. Try again after the next update.");
         if (state === "unavailable")
             return verdict.reason === "unfree" ? I18n.tr("Proprietary apps are turned off on this computer.")

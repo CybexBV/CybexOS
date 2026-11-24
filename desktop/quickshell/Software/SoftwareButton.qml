@@ -3,10 +3,10 @@ import "../Common"
 
 // Software's buttons: one accent-filled primary action per surface, quiet
 // outlined ones, and "queued" for an app already in the install queue. Over
-// brand artwork a view passes its own `foreground` for the secondary ones;
-// the primary stays the shell's accent there too, one primary style
-// everywhere (2026-11-24 review), with a hairline in the artwork's ink so
-// its edge holds on a brand colour close to the accent.
+// brand artwork a view passes its own `foreground`, and for its main action
+// a `solidFill` with `solidInk`: a solid button that contrasts with any
+// brand colour, where the accent could be blue on blue (the 2026-11-24
+// review tried the accent there and found exactly that).
 Rectangle {
     id: root
 
@@ -18,11 +18,14 @@ Rectangle {
     property bool big: false
     property bool busy: false
     property color foreground: "transparent"
+    property color solidFill: "transparent"
+    property color solidInk: "transparent"
     property string accessibleName: text
     signal triggered()
 
     readonly property bool custom: foreground.a > 0
-    readonly property color ink: primary ? Theme.textOnAccent
+    readonly property bool solid: solidFill.a > 0
+    readonly property color ink: solid ? solidInk : primary ? Theme.textOnAccent
         : custom ? foreground : queued ? Theme.accentText : Theme.textHi
     // The pointer target reaches 32 px even where the button is drawn smaller.
     readonly property real hitPad: Math.max(0, (Theme.scaled(32) - height) / 2)
@@ -34,12 +37,12 @@ Rectangle {
     implicitWidth: content.implicitWidth + Theme.scaled(big ? 36 : 24)
     implicitHeight: Theme.scaled(big ? 38 : 30)
     radius: Theme.chipRadius + (big ? 2 : 0)
-    color: primary ? Theme.accent
+    color: solid ? solidFill : primary ? Theme.accent
         : custom ? Qt.rgba(foreground.r, foreground.g, foreground.b, quiet ? 0 : 0.14)
         : queued ? Theme.accentAlpha(0.16)
         : quiet ? "transparent" : Theme.hoverFill
     border.width: ring > 0 ? ring : (queued || quiet || (primary && custom)) ? 1 : 0
-    border.color: ring > 0 ? (primary ? Theme.textHi : Theme.focusRing)
+    border.color: ring > 0 ? (solid ? solidInk : primary ? Theme.textHi : Theme.focusRing)
         : custom ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.35)
         : queued ? Theme.accentAlpha(0.5) : Theme.stroke
     opacity: enabled ? 1 : 0.45

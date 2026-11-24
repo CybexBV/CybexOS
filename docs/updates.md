@@ -152,7 +152,7 @@ update brings one (**Cybex OS 1.0.26 is ready to install**). Its action bar
 says the current version is kept, then offers **Install update**, the page's
 one primary action, with **Later** beside it; **Check again** is a quiet
 action on the far side. While preparing, the page names the current activity
-and counts steps in plain words ("3 of 9 steps done"), with the build log
+and counts packages in plain words ("3 of 9 packages ready"), with the build log
 behind **Details**. Installing shows its own steps (authorize, install and
 check, restart to finish) and what it is doing now.
 

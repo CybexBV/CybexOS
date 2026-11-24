@@ -165,19 +165,20 @@ FocusScope {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.scaled(34)
                 spacing: Theme.scaled(8)
-                // The slide's main action is the shell's accent primary, as on
-                // an app's page; SoftwareButton edges it in the slide's ink so
-                // it holds on a brand colour close to the accent.
+                // The slide's main action is solid in its ink, so it stands
+                // out on any brand colour: an accent fill can be blue on blue
+                // (2026-11-24 review, round 2). It steps back to an outline
+                // while the queue bar's Install is the screen's primary.
                 AppAction {
                     id: heroAction
+                    readonly property bool leads: (heroAction.mode === "install" || heroAction.mode === "open")
+                        && Software.queue.length === 0 && !Software.flowActive
                     objectName: slide.active ? "softwareHeroInstall" : ""
                     app: slide.modelData
                     big: true
                     foreground: slide.ink
-                    // Stepping back while the queue bar's Install is the
-                    // screen's primary.
-                    primary: (heroAction.mode === "install" || heroAction.mode === "open")
-                        && Software.queue.length === 0 && !Software.flowActive
+                    solidFill: leads ? slide.ink : "transparent"
+                    solidInk: slide.darkText ? "#f7f5f0" : "#1d1b26"
                 }
                 SoftwareButton {
                     objectName: slide.active ? "softwareHeroDetails" : ""

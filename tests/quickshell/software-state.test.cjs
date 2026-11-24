@@ -96,14 +96,15 @@ test('Explore leads with the featured apps; the default apps fold to one row', (
     const defaults = read('Software/DefaultsSection.qml');
     assert.match(defaults, /model: root\.expanded \? Software\.roles : Software\.roles\.slice\(0, root\.columns\)/);
     assert.match(defaults, /actionName: "softwareDefaultsMore"/);
-    // One primary style everywhere (2026-11-24 review): the hero's main
-    // action is the shell's accent primary, as on an app's page, edged in the
-    // slide's ink; it steps back while the queue bar holds the primary.
+    // The hero's main action is solid in the slide's ink, never the accent,
+    // which can be blue on a blue brand colour (2026-11-24 review, round 2);
+    // it steps back to an outline while the queue bar holds the primary.
     const hero = read('Software/HeroCarousel.qml');
-    assert.match(hero, /primary: \(heroAction\.mode === "install" \|\| heroAction\.mode === "open"\)\s*&& Software\.queue\.length === 0 && !Software\.flowActive/);
-    assert.doesNotMatch(hero, /solidFill|solidInk/);
+    assert.match(hero, /readonly property bool leads: \(heroAction\.mode === "install" \|\| heroAction\.mode === "open"\)\s*&& Software\.queue\.length === 0 && !Software\.flowActive/);
+    assert.match(hero, /solidFill: leads \? slide\.ink : "transparent"/);
+    assert.doesNotMatch(hero, /primary:/);
     const button = read('Software/SoftwareButton.qml');
-    assert.match(button, /color: primary \? Theme\.accent/);
+    assert.match(button, /color: solid \? solidFill : primary \? Theme\.accent/);
     assert.match(button, /\(queued \|\| quiet \|\| \(primary && custom\)\) \? 1 : 0/);
 });
 

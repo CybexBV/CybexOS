@@ -330,6 +330,10 @@ Singleton {
     readonly property bool owned: Helpers.owns(deployment, requestId)
     readonly property string phase: Helpers.phase(localPhase, deployment, owned, requestStatus)
     readonly property bool flowActive: !["idle", "blocked"].includes(phase)
+    // From the check to the end of the install the queue is the change being
+    // made: toggling an app then would stage something the check never saw
+    // (2026-11-24 review, round 2). Done and failed hand it back.
+    readonly property bool queueFrozen: ["checking", "authorizing", "preparing", "ready", "installing"].includes(phase)
     readonly property string blockReason: Helpers.blocked({
         available: Updates.statusLoaded ? Updates.deployment.available !== false : true,
         deployment: deployment, owned: owned, rebootRecommended: Updates.rebootRecommended,
@@ -355,7 +359,7 @@ Singleton {
             name: app ? app.name : option ? option.name : attribute };
     }
     function toggleInstall(attribute) {
-        if (!attribute)
+        if (!attribute || queueFrozen)
             return;
         queue = Helpers.toggle(queue, item(attribute, "install"));
         flowError = "";
@@ -365,7 +369,7 @@ Singleton {
             localPhase = "idle";
     }
     function toggleRemove(attribute) {
-        if (!attribute)
+        if (!attribute || queueFrozen)
             return;
         queue = Helpers.toggle(queue, item(attribute, "remove"));
         flowError = "";

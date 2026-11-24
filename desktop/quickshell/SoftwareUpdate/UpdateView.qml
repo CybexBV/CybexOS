@@ -418,8 +418,10 @@ Item {
                 font.pixelSize: Theme.typography.secondary
                 wrapMode: Text.Wrap
             }
-            // Steps, not "builds": the count is the worker's, the word is
-            // the person's (2026-11-24 review). The log is behind Details.
+            // Packages, not "builds": the count is the worker's, the word is
+            // the person's, and "steps" clashed with the three-step tracker
+            // above (2026-11-24 review, rounds 1 and 2). The log is behind
+            // Details.
             Text {
                 objectName: "updateBuildProgress"
                 visible: !!root.preparation.builds
@@ -428,9 +430,9 @@ Item {
                     const value = root.preparation.builds;
                     if (!value) return "";
                     return value.expected > 0
-                        ? I18n.format("%1 of %2 steps done", [value.done, value.expected])
-                        : value.active === 1 ? I18n.tr("1 step in progress")
-                        : I18n.format("%1 steps in progress", [value.active]);
+                        ? I18n.format("%1 of %2 packages ready", [value.done, value.expected])
+                        : value.active === 1 ? I18n.tr("Preparing 1 package")
+                        : I18n.format("Preparing %1 packages", [value.active]);
                 }
                 color: Theme.textDim
                 horizontalAlignment: Text.AlignHCenter
@@ -740,7 +742,7 @@ Item {
                 visible: root.page === "current" || (root.page === "problem" && root.problem === "check")
                 primary: root.page === "problem"
                 tone: root.current.tone
-                text: root.page === "current" ? I18n.tr("Check now") : I18n.tr("Try again")
+                text: root.page === "current" ? I18n.tr("Check again") : I18n.tr("Try again")
                 enabled: !root.service.busy
                 onTriggered: { root.service.refreshStatus(); root.service.check(true); }
             }

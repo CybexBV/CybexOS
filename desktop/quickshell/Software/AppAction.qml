@@ -57,7 +57,10 @@ SoftwareButton {
     glyph: queued ? "check" : installsNow ? "download" : adds ? "plus" : ""
     primary: prominent && mode === "install"
     busy: mode === "installing"
-    enabled: mode === "install" || mode === "added" || (mode === "open" && Software.canOpenApp(app))
+    // While a change is checked or installed the queue is frozen
+    // (Software.queueFrozen): adding or taking an app out waits.
+    enabled: ((mode === "install" || mode === "added") && !Software.queueFrozen)
+        || (mode === "open" && Software.canOpenApp(app))
     accessibleName: !app ? "" : mode === "open" ? I18n.format("Open %1", [app.name])
         : mode === "added" ? I18n.format("Take %1 out of the install queue", [app.name])
         : installsNow ? I18n.format("Install %1 now", [app.name])
