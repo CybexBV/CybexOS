@@ -332,11 +332,14 @@ and helper startup/timeout errors are visible in the review.
 full built diff, transaction, review token and `automatic` policy.
 `cybex update discard ID` clears an unapplied ready or stale preview, or
 dismisses a finished failure; it cannot discard a pending generation or
-recovery that needs attention.
+recovery that needs attention. Its log stays; storage cleanup releases its
+downloads and build three days later, like those of a failed, superseded or
+interrupted preview ([cleanup](recovery.md)).
 `cybex update apply ID TOKEN` runs under a supervised systemd worker and rejects
 stale review tokens or intervening personal edits. No widget/module is removed
 to make evaluation or runtime checks pass. Actual build progress is phase-based;
-private transaction logs hold build diagnostics. After a deliberate reboot and
+private transaction logs hold build diagnostics in full, while the updater
+keeps only the last mebibyte of a command's output in memory. After a deliberate reboot and
 authenticated desktop login, `cybex update confirm` validates system services,
 Hyprland, exactly one managed Quickshell and its current journal.
 The app distinguishes **Restart to finish** (before the trial boot) from
