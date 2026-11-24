@@ -1,6 +1,11 @@
 name: NixOS qualification
 on:
   workflow_dispatch:
+    inputs:
+      from:
+        description: 'Upgrade job: the installed release (a tag such as v1.0.25). Default: the release before VERSION'
+        required: false
+        default: ''
 permissions:
   contents: read
 # One run per branch at a time: a newer dispatch replaces the older one, so
@@ -9,9 +14,9 @@ concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # Two jobs side by side, as many as The Beast's memory runs at once. Each
-  # job starts on an empty disposable runner and builds Cybex OS's own
-  # packages itself, so this job builds them once for every check below.
+  # Three jobs side by side, one per runner slot on The Beast. Each job
+  # starts on an empty disposable runner and builds Cybex OS's own packages
+  # itself, so this job builds them once for every check below.
   checks:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -83,17 +88,12 @@ jobs:
         run: |
           set -euo pipefail
           staging=$(mktemp -d "$RUNNER_TEMP/cybexos-image-XXXXXX")
-          revision=$(git rev-parse HEAD)
-          image="/data/pxe/iso/cybexos-$revision-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.iso"
-          trap 'rm -rf "$staging"; sudo rm -f "$image" "$image.sha256"' EXIT
+          trap 'rm -rf "$staging"' EXIT
           nix build .#iso -L --out-link "$staging/result"
-          sudo install -d -m 0755 /data/pxe/iso
-          sudo install -m 0644 "$staging"/result/iso/*.iso "$image"
-          (cd /data/pxe/iso; sha256sum "$(basename "$image")") > "$staging/checksum"
-          sudo install -m 0644 "$staging/checksum" "$image.sha256"
-          (cd /data/pxe/iso; sha256sum -c "$image.sha256")
-          # The disposable runner has no PXE service. Local PXE delivery
-          # separately requires the refresh/service/image-list checks in AGENTS.md.
+          # The ISO stays in the job's own staging directory: the disposable
+          # runner serves nothing, and testing ISOs reach PXE only by hand.
+          image=$(echo "$staging"/result/iso/*.iso)
+          test -f "$image"
           nix develop -c scripts/check-image-parity "$image" . --output "$staging/image-parity.json"
           # The plain and the encrypted installation are separate VMs with
           # their own disks and sockets (4 vCPUs each): run them side by side.
@@ -108,3 +108,43 @@ jobs:
           failed=0
           for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
           exit "$failed"
+  # The path people take: a machine on the previous published release, whose
+  # own updater discovers, prepares, applies, trial-boots and confirms this
+  # commit as the next release (scripts/qualify-upgrade). That updater asks
+  # api.github.com for the newest release; a stand-in on the runner answers
+  # with this commit and passes everything else on to GitHub.
+  upgrade:
+    runs-on: [self-hosted, linux, x64, cybexos-isolated]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
+        with:
+          extra_nix_config: |
+            max-jobs = 4
+            cores = 0
+      # One installation VM of 16 GiB, built once the ISO is.
+      - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 24
+      - name: Upgrade the previous release to this commit with its own updater
+        env:
+          # Raises the API rate limit for the runner's own GitHub requests;
+          # the guest never sees it.
+          GITHUB_TOKEN: ${{ github.token }}
+          FROM: ${{ inputs.from }}
+        run: |
+          set -euo pipefail
+          staging=$(mktemp -d "$RUNNER_TEMP/cybexos-upgrade-XXXXXX")
+          trap 'rm -rf "$staging"' EXIT
+          from=${FROM:-$(python3 -I -B scripts/qualify-upgrade previous)}
+          [[ $from =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$ ]] || { echo "Not a release tag: $from" >&2; exit 1; }
+          echo "Upgrading $from to $(cat VERSION) ($(git rev-parse HEAD))"
+          # That release's own ISO, built from its tag.
+          NIX_CONFIG="access-tokens = github.com=$GITHUB_TOKEN" \
+            nix build "github:CybexBV/CybexOS/$from#iso" -L --out-link "$staging/from"
+          nix develop -c scripts/qualify-upgrade run "$staging"/from/iso/*.iso --from "$from" \
+            --work-dir "$staging" --output "$staging/upgrade.json"
