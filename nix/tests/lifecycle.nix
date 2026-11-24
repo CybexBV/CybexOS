@@ -180,7 +180,10 @@ in pkgs.testers.runNixOSTest {
     # The parser must reject a real invalid declaration as well as accepting
     # the full vendor configuration without its former timer SIGSEGV.
     machine.succeed("install -d -m0700 /run/cybexos-verifier-test")
-    machine.fail("XDG_RUNTIME_DIR=/run/cybexos-verifier-test Hyprland --i-am-really-stupid --verify-config --config ${invalidConfiguration} > /run/cybexos-verifier-test/result 2>&1")
+    # As the updater runs it (lifecycle/cybexos/desktop_check.py): Hyprland
+    # 0.57 binds /.socket2.sock before it has an event loop and crashes when
+    # it can; a read-only root denies that bind.
+    machine.fail("${pkgs.bubblewrap}/bin/bwrap --dev-bind / / --remount-ro / --setenv XDG_RUNTIME_DIR /run/cybexos-verifier-test -- Hyprland --i-am-really-stupid --verify-config --config ${invalidConfiguration} > /run/cybexos-verifier-test/result 2>&1")
     machine.succeed("grep -F 'unknown config key' /run/cybexos-verifier-test/result")
     machine.succeed("rm -rf /run/cybexos-verifier-test")
     # Exercise the packaged script plugin and its actual password callback,
