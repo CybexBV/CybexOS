@@ -13,8 +13,9 @@ Each machine follows a release channel. **Stable** takes the newest published
 release that is neither marked as a prerelease nor has a prerelease version;
 **beta** takes the newest published release of either kind, so a beta machine
 is never behind stable. Drafts and tags that are not semantic versions are
-ignored. Only Cybex OS releases follow the channel: NixOS package updates are
-selected independently and never consult releases.
+ignored. Each release pins its Nixpkgs revision, so NixOS package updates
+reach a machine with the releases of its channel
+([updates](updates.md#nixpkgs-comes-with-the-release)).
 
 A release reaches beta first. `release/publish` creates it as a GitHub
 prerelease; `release/promote` later clears that flag on the same release, so

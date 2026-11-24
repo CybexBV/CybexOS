@@ -310,7 +310,17 @@ class Engine:
         return inputs.pin(value) if value is not None else None
 
     @staticmethod
-    def move_nixpkgs(config, old, pinned):
+    def nixpkgs_branch(config, ref):
+        """Name a NixOS branch in the machine flake's literal nixpkgs.url."""
+        flake = config / 'flake.nix'
+        text, count = re.subn(r'(nixpkgs\.url\s*=\s*")github:NixOS/nixpkgs/[A-Za-z0-9._-]+("\s*;)',
+                              lambda m: m[1] + 'github:NixOS/nixpkgs/' + ref + m[2], flake.read_text())
+        if count != 1:
+            raise Failure('Machine flake must declare one literal nixpkgs.url. Keep personal modules in local/.')
+        atomic(flake, text.encode())
+
+    @classmethod
+    def move_nixpkgs(cls, config, old, pinned):
         """Lock the staged configuration's Nixpkgs to a release's revision.
 
         When the release follows another NixOS branch (nixos-unstable to
@@ -318,12 +328,7 @@ class Engine:
         the lock stays what the flake declares.
         """
         if pinned['ref'] != inputs.resolved(old, 'nixpkgs')['original']['ref']:
-            flake = config / 'flake.nix'
-            text, count = re.subn(r'(nixpkgs\.url\s*=\s*")github:NixOS/nixpkgs/[A-Za-z0-9._-]+("\s*;)',
-                                  lambda m: m[1] + 'github:NixOS/nixpkgs/' + pinned['ref'] + m[2], flake.read_text())
-            if count != 1:
-                raise Failure('Machine flake must declare one literal nixpkgs.url. Keep personal modules in local/.')
-            atomic(flake, text.encode())
+            cls.nixpkgs_branch(config, pinned['ref'])
         atomic(config / 'flake.lock', inputs.take(read(config / 'flake.lock'), pinned))
 
     def check(self):
@@ -664,6 +669,10 @@ class Engine:
         copy_config(config, probe)
         lock = parse(json.dumps(new))
         lock['nodes'][upstream] = old['nodes'][installed]
+        # A release on another branch also moved the flake's nixpkgs.url;
+        # the installed Nixpkgs needs its own back for the lock to match.
+        if old['nodes'][installed]['original'].get('ref') != new['nodes'][upstream]['original'].get('ref'):
+            self.nixpkgs_branch(probe, old['nodes'][installed]['original']['ref'])
         atomic(probe / 'flake.lock', lock)
         try:
             self.nix('eval', '--raw', '--no-update-lock-file',

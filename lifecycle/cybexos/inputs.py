@@ -117,10 +117,19 @@ def pin(value):
 
 
 def newer(pinned, lock):
-    """Whether `pinned` is newer than the machine lock's Nixpkgs. Never back."""
+    """Whether the machine lock's Nixpkgs moves to `pinned`. Never back.
+
+    A later revision moves it. So does the same point on another branch
+    (when nixos-26.11 branches off at a revision the machine already has):
+    then only the branch the flake follows changes.
+    """
     current = identity(lock, 'nixpkgs')
     modified = current.get('lastModified')
-    return pinned['rev'] != current.get('rev') and pinned['lastModified'] > (modified if type(modified) is int else 0)
+    modified = modified if type(modified) is int else 0
+    branch = resolved(lock, 'nixpkgs')['original'].get('ref')
+    if pinned['ref'] != branch:
+        return pinned['lastModified'] >= modified
+    return pinned['rev'] != current.get('rev') and pinned['lastModified'] > modified
 
 
 def take(lock, pinned):

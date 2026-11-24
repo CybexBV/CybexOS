@@ -102,7 +102,7 @@ sub-agent in a worktree):
     means the next Nixpkgs doesn't work with Cybex OS yet; machines are not
     affected, because they only take the revision a release pins.
   - **Vendor updates** (`vendor-updates.yml`, daily): one
-    `vendor-update/<name>-<version>` branch per verified pin update
+    `vendor-update/<date>` branch with a commit per verified pin update
     ([docs/releasing.md](docs/releasing.md#vendor-updates)).
 
 ## NixOS installation and lifecycle contract

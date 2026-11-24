@@ -1179,6 +1179,31 @@ class EngineTests(unittest.TestCase):
         staged = read(self.engine.tx(record['id']) / 'config/flake.lock')
         self.assertEqual(inputs.identity(staged, 'nixpkgs')['rev'], REV_OLD)
 
+    def test_nixpkgs_moves_forward_or_to_another_branch_at_the_same_point(self):
+        data = lock()  # nixos-unstable, REV_OLD, lastModified 1000
+        same = {'rev': REV_OLD, 'narHash': NAR_OLD, 'lastModified': 1000}
+        self.assertFalse(inputs.newer(same | {'ref': 'nixos-unstable'}, data))
+        self.assertTrue(inputs.newer(PIN_NEW, data))
+        self.assertFalse(inputs.newer(PIN_NEW | {'lastModified': 999}, data))
+        # 26.11 branching off at the machine's own revision: only the branch moves.
+        self.assertTrue(inputs.newer(same | {'ref': 'nixos-26.11'}, data))
+        self.assertFalse(inputs.newer(same | {'ref': 'nixos-26.11', 'lastModified': 999}, data))
+        moved = inputs.take(lock(), same | {'ref': 'nixos-26.11'})
+        self.assertEqual(moved['nodes']['nixpkgs']['original']['ref'], 'nixos-26.11')
+        self.assertEqual(moved['nodes']['nixpkgs']['locked']['rev'], REV_OLD)
+
+    def test_the_nixpkgs_probe_puts_the_installed_branch_back(self):
+        # A Nixpkgs incompatibility is told apart by evaluating with the
+        # installed Nixpkgs; across a branch move the flake must name it too.
+        config = self.base / 'probe-config'; config.mkdir()
+        (config / 'flake.nix').write_text('inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";\n')
+        Engine.nixpkgs_branch(config, 'nixos-unstable')
+        self.assertEqual((config / 'flake.nix').read_text(),
+                         'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";\n')
+        (config / 'flake.nix').write_text('# no literal input\n')
+        with self.assertRaises(Failure):
+            Engine.nixpkgs_branch(config, 'nixos-26.11')
+
     def test_a_release_on_another_nixos_branch_moves_the_machine_flake_with_it(self):
         (self.config / 'flake.nix').write_text(
             'inputs = {\n  nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";\n'
