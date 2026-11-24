@@ -29,7 +29,7 @@
   to make it pass.
 - **The full check** is the `nixos.yml` workflow on The Beast's runner: a checks job, an image job and an upgrade
   job side by side; the upgrade job moves a VM on the previous release to this commit with that release's own
-  updater ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). Start it with
+  updater ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). About 35 minutes. Start it with
   `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with `gh run watch`. Never run it
   on The Dragon. Run it on your branch before you merge a change to `lifecycle/`, `nix/`, `installer/`, `release/`,
   `scripts/qualify-installations`, `scripts/qualify-upgrade` or `.github/`, and on the release commit before every
