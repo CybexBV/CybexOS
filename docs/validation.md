@@ -88,7 +88,7 @@ tests and failures; inspect that evidence before using a particular image.
   host. A copied ISO is not advertised as PXE-ready until checksum verification,
   refresh, running service and image-list checks succeed there.
 
-1Password CLI/Polkit integration, connected-account services, the Hermes bridge, encrypted-backup timer,
+1Password CLI/Polkit integration, connected-account services, encrypted-backup timer,
 external-monitor lid handling, Voxtype and the required offline dictation model
 have native declarations. Their installed interactions still require testing.
 
