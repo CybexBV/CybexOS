@@ -18,12 +18,6 @@
 - Never publish to the stable channel, build an ISO for testing or release, or touch installed machines unless John
   asks for it. The disposable images the full check builds on The Beast are part of the check.
 
-## Stability first (from 2026-11-24)
-
-Cybex OS is in a feature freeze until the full check and real updates have both stayed green for two weeks in a row.
-Until then only fixes, stability work and the agreed clean-up land: no new desktop features, widgets, settings,
-assistant integrations, vendor packages or hardware profiles. John lifts the freeze; it does not end by itself.
-
 ## Testing
 
 - After a change, run `fast-test` in your worktree. It tests only what changed since `main` (commits, staged and
