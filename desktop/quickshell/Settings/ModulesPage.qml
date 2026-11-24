@@ -593,7 +593,6 @@ Item {
     }
     readonly property var presetChoices: [
         { value: "focused", label: I18n.tr("Focused") },
-        { value: "connected", label: I18n.tr("Connected") },
         { value: "everything", label: I18n.tr("Everything") }
     ]
 

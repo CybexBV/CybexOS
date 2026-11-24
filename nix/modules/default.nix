@@ -71,7 +71,12 @@ in {
       docker = mkOption { type = types.bool; default = true; };
       podman = mkOption { type = types.bool; default = true; };
       tailscale = mkOption { type = types.bool; default = true; };
-      connectedWidgets = mkOption { type = types.bool; default = true; };
+      # Calendar and online accounts: GNOME Calendar, GNOME Online Accounts and
+      # Evolution Data Server, which give the clock its events and Settings ->
+      # Online accounts its accounts. The name is historical: it also gated the
+      # connected-service bar widgets, which became plugins on 2026-11-24.
+      # Installed machines set it in /etc/nixos, so it keeps its name.
+      connectedWidgets = mkOption { type = types.bool; default = true; description = "Calendar and online accounts (GNOME Calendar, Online Accounts, Evolution Data Server)"; };
       # The floating Cybex OS Assistant and its service. The agent CLIs it uses
       # are always installed (Claude Code with proprietary). Independent of developer.
       assistant = mkOption { type = types.bool; default = true; };

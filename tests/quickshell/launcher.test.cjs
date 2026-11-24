@@ -401,7 +401,7 @@ test("typed arguments run as argv without a shell; fixed commands report failure
     assert.match(run, /commandTimer\.interval = Theme\.launcherFadeOutDuration\s*\+ \(action\.settle \?/,
         "captures start once the launcher has left the screen");
     assert.match(run, /Settings\.showSetting\(page, key\)/);
-    assert.match(providers, /ProviderHelpers\.availableActions\(\s*ProviderHelpers\.BUILTIN_ACTIONS, \{\s*developerTools: Settings\.developerToolsConfigured,\s*connectedWidgets: Settings\.connectedWidgetsConfigured/);
+    assert.match(providers, /ProviderHelpers\.availableActions\(\s*ProviderHelpers\.BUILTIN_ACTIONS, \{\s*developerTools: Settings\.developerToolsConfigured\s*\}/);
     assert.match(providers, /const matches = ProviderHelpers\.blendRows\(root\.appRows, root\.actions, root\.term\);/);
 });
 

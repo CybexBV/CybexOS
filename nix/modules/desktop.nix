@@ -105,7 +105,6 @@ in {
       # (cursor-shape-v1), so it follows Settings -> Appearance -> Pointer at
       # once, and they render at the display's own scale, not stretched from 1x.
       NIXOS_OZONE_WL = lib.mkDefault "1";
-      CYBEXOS_CONNECTED_WIDGETS = if cfg.features.connectedWidgets then "1" else "0";
       CYBEXOS_ASSISTANT = if cfg.features.assistant then "1" else "0";
       CYBEXOS_DEVELOPER_TOOLS = if cfg.features.developer then "1" else "0";
       CYBEXOS_PROPRIETARY_APPS = if cfg.features.proprietary then "1" else "0";
