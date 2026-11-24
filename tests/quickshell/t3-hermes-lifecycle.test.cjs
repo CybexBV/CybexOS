@@ -89,8 +89,22 @@ test("Hermes derives its address from the environment only", () => {
     assert.deepEqual(Object.keys(SettingsHelpers.normalizeModOpts({
         hermes: { enabled: false, socketUrl: "ws://example.test/ws" },
     }).hermes).sort(), ["activityDetail", "showLabel"]);
-    assert.match(connection, /onEnabledChanged: enabled \? reconnect\(\) : disconnect\(\)/);
+    assert.match(connection, /onEnabledChanged: \{\s*if \(enabled\) \{\s*reconnect\(\);\s*\} else \{\s*disconnect\(\);/);
     assert.doesNotMatch(connection, /onEndpointChanged/);
+});
+
+test("the Hermes bridge runs only while its widget wants it", () => {
+    const connection = read("Common/HermesConnection.qml");
+    // Nothing starts it at login; connecting starts it, turning off stops it.
+    const unit = fs.readFileSync(path.join(__dirname, "../../nix/modules/desktop.nix"), "utf8")
+        .split("systemd.user.services.hermes-menubar-bridge")[1].split("\n    };")[0];
+    assert.doesNotMatch(unit, /wantedBy/);
+    const connect = blockAfter(connection, "function connect() {");
+    const guard = connect.indexOf("if (!enabled)");
+    const start = connect.indexOf('"start", "--no-block",\n            "hermes-menubar-bridge.service"');
+    assert.ok(guard !== -1 && start > guard, "the bridge starts only past the enabled guard");
+    const changed = blockAfter(connection, "onEnabledChanged: {");
+    assert.match(changed.split("} else {")[1], /"stop", "--no-block",\s*"hermes-menubar-bridge.service"/);
 });
 
 test("Settings → About reports an off integration without constructing it", () => {
