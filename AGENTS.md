@@ -14,7 +14,8 @@
 - Commit in small commits, merge your branch into `main` here (`git merge --no-ff`) and push `main`.
 - Landing on `main` is not a release. Releases are a separate, deliberate step (see Releases below).
 - Once your work is merged, remove your worktree and branch.
-- Never publish to the stable channel, build an ISO or touch installed machines unless John asks for it.
+- Never publish to the stable channel, build an ISO for testing or release, or touch installed machines unless John
+  asks for it. The disposable images the full check builds on The Beast are part of the check.
 
 ## Stability first (from 2026-11-24)
 
@@ -155,8 +156,7 @@ sub-agent in a worktree):
   qualification. Test ISO/source parity and use the exact same source identity
   for release artifacts and qualification. Record what was actually exercised.
 - Do not modify the running workstation, partition existing systems, publish
-  releases other than a direct instruction's beta release (or the
-  vendor-updates workflow's), or reboot the
+  a release John didn't ask for (see Releases), or reboot the
   host without explicit authorization. Use isolated
   build/test environments and preserve unrelated work.
 
