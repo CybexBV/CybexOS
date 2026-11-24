@@ -134,6 +134,12 @@ def compatible(candidate, current):
     branch = nixos(current)
     if branch not in wanted.get('nixos', []):
         problems.append(f'it does not support NixOS {branch}, which machines on {current} run')
+    # Machines that took a release alone (`stage cybexos`) keep their own
+    # branch, so any branch the current stable release accepts may still run.
+    dropped = set(have.get('nixos', [])) - set(wanted.get('nixos', [])) - {branch}
+    if dropped:
+        problems.append(f'it drops NixOS {", ".join(sorted(dropped))}, which {current} supports and machines '
+                        'that installed a release alone may still run')
     return problems
 
 

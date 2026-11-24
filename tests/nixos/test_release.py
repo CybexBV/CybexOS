@@ -429,6 +429,10 @@ class PromoteTests(unittest.TestCase):
         self.release('1.0.6', compatibility={'nixos': ['unstable', '26.11']}, branch='nixos-26.11')
         result = self.promote('1.0.6', '--yes')
         self.assertEqual(result.returncode, 0, result.stderr)
+        # Machines that installed 1.0.4 or 1.0.6 alone may still run unstable:
+        # a release can't reach stable while it drops a branch stable accepts.
+        self.release('1.0.7', compatibility={'nixos': ['26.11']}, branch='nixos-26.11')
+        self.assert_refused('it drops NixOS unstable, which v1.0.6 supports', '1.0.7', '--yes')
 
     def test_a_stable_release_without_a_supported_nixos_branch_is_refused(self):
         self.release('1.0.4', prerelease=False, hours=300, branch='nixos-26.05')
