@@ -45,8 +45,10 @@ package NixOS hasn't built. Updaters from 1.0.27 fall back to the release
 alone only when packages are missing, not when a build fails; 1.0.25 and
 1.0.26 (stable until 1.0.32) don't fall back at all. So run `cybex update
 stage cybexos` once to prepare the release on its own, on the packages the
-computer already has, and install it from Software Update. Before 1.0.32 is
-promoted to stable, check that path on a computer or VM running 1.0.25. From then on the installed
+computer already has, and install it from Software Update. That path was
+checked on 2026-11-24: a VM installed from the v1.0.25 ISO, on stable,
+prepared 1.0.32 alone this way and started it with a healthy desktop
+(the full check's upgrade job, run `from=v1.0.25`). From then on the installed
 updater takes only release revisions. A machine that got ahead of the pinned
 revision that way stays on its own Nixpkgs until a release passes it, which
 is why 1.0.32 pins the channel head of the day it was checked.
