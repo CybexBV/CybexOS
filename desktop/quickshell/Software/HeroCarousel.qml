@@ -127,7 +127,10 @@ FocusScope {
                 }
                 Row {
                     spacing: Theme.scaled(12)
+                    // The icon appears once: here only while a screenshot
+                    // is the art, else the art on the right is the icon.
                     AppIcon {
+                        visible: slide.shot !== ""
                         anchors.verticalCenter: parent.verticalCenter
                         app: slide.modelData
                         size: Theme.scaled(44)
@@ -162,16 +165,19 @@ FocusScope {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.scaled(34)
                 spacing: Theme.scaled(8)
-                // The slide's main action is solid in its ink, so it stands
-                // out on any brand colour (an accent fill can be blue on blue).
+                // The slide's main action is the shell's accent primary, as on
+                // an app's page; SoftwareButton edges it in the slide's ink so
+                // it holds on a brand colour close to the accent.
                 AppAction {
                     id: heroAction
                     objectName: slide.active ? "softwareHeroInstall" : ""
                     app: slide.modelData
                     big: true
                     foreground: slide.ink
-                    solidFill: heroAction.mode === "install" || heroAction.mode === "open" ? slide.ink : "transparent"
-                    solidInk: slide.darkText ? "#f7f5f0" : "#1d1b26"
+                    // Stepping back while the queue bar's Install is the
+                    // screen's primary.
+                    primary: (heroAction.mode === "install" || heroAction.mode === "open")
+                        && Software.queue.length === 0 && !Software.flowActive
                 }
                 SoftwareButton {
                     objectName: slide.active ? "softwareHeroDetails" : ""
@@ -220,12 +226,13 @@ FocusScope {
         }
     }
 
+    // The keyboard ring, for keyboard modality only.
     Rectangle {
         anchors.fill: parent
-        visible: root.activeFocus
+        visible: border.width > 0
         color: "transparent"
         radius: Theme.chipRadius + 7
-        border.width: 2
-        border.color: Theme.accentText
+        border.width: Theme.focusWidth(root.activeFocus)
+        border.color: Theme.focusRing
     }
 }

@@ -98,8 +98,13 @@ finishing after the restart, and a problem page. Worker state wins over
 discovery, so a prepared or restarting update is shown even when a source
 cannot be checked.
 
-Every page lays its content in one centred column of at most 560 px; the
-window keeps its size, and the ready page's action bar spans it. Times such as
+The window's header names it (**Software Update**) and ends with the same
+small Close that Settings draws; What's New adds **Back** on its left. Close
+does what Escape does and never interrupts an update, so no page repeats it
+as a **Close** button. Every page lays its content in one centred column of
+at most 560 px, a short status page resting a little above the middle; the
+window keeps its size, and the ready page's action bar keeps to the same
+column. Times such as
 **Last checked today at 07:03** follow the clock's 12/24-hour setting, as the
 menubar does. Release notes are prose: at most 72 characters a line, at
 `Theme.proseLineHeight`, in the interface font.
@@ -141,6 +146,15 @@ transaction IDs or tokens appear outside the technical details. The worker
 publishes this grouping as `highlights` in `cybex update status`, and the
 review token covers it with the package changes and closure diff. Nixpkgs does
 not label security fixes, so the app does not claim them.
+
+The ready page's heading names the Cybex OS version that installs when the
+update brings one (**Cybex OS 1.0.26 is ready to install**). Its action bar
+says the current version is kept, then offers **Install update**, the page's
+one primary action, with **Later** beside it; **Check again** is a quiet
+action on the far side. While preparing, the page names the current activity
+and counts steps in plain words ("3 of 9 steps done"), with the build log
+behind **Details**. Installing shows its own steps (authorize, install and
+check, restart to finish) and what it is doing now.
 
 **Install update** asks for authorization and is offered only after the
 candidate passes its checks. A new personal configuration edit invalidates the
@@ -235,7 +249,8 @@ finish, the status returns to the prepared update with a `replacement` record
 (`scope`, `version`, `state` `failed` or `waiting`, `error`, `notPrebuilt`,
 `requestId`), the request still fails with its error, and the review's
 **Cybex OS VERSION is available** card says why and that the update below can
-be installed now. Background preparation tries the same newer set again after
+be installed now. Its **Prepare again** is a secondary button: the heading
+names the prepared version and **Install update** stays the one primary. Background preparation tries the same newer set again after
 a day, or straight away when the set changes. A worker killed mid-way is
 reported as interrupted, as any preparation is; prepare again.
 
@@ -385,8 +400,10 @@ on one of those, `cybex update stage cybexos` prepares the release alone.
 
 When only newer NixOS packages are held, there is nothing for the person to
 do. Software Update, Settings and the Control Center read as up to date, with
-one quiet line saying the packages follow once NixOS has built them, and no
-indicator, package names or "Prepare again" card appear. The hold is kept
+one quiet line saying plainly that a newer update is waiting for NixOS to
+finish building its packages and what happens next (it is prepared
+automatically, or can be once they are ready), and no indicator, package
+names or "Prepare again" card appear. The hold is kept
 after a restart. A different Nixpkgs revision, Cybex OS release or available
 firmware is offered as usual. **Waiting for NixOS packages**, with the
 package names, remains only for a hold that also has a Cybex OS release

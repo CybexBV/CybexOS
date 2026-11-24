@@ -3,6 +3,7 @@ import QtQuick
 import "../Common"
 import "../Common/UpdatesHelpers.js" as Helpers
 import "../Popovers" as Popovers
+import "../Settings" as SettingsUi
 
 // The Software Update app's content: the prepared-update review, one
 // centred status with the next step, or what's new in a kept release.
@@ -101,12 +102,15 @@ Item {
             : I18n.format("Cybex OS %1 is newer than the newest stable release. Cybex OS updates resume with the next stable release.", [vendor.installed]);
     }
 
+    // Plain words for what is waiting (2026-11-24 review): NixOS packages are
+    // the system and its apps, as people meet them; the source choice and the
+    // technical details still name NixOS.
     function availableBody() {
         const upstream = service.sources.upstream.state === "available";
         const lead = vendor.state === "available" && upstream
-            ? I18n.format("Cybex OS %1 and new NixOS packages are available.", [vendor.available])
+            ? I18n.format("Cybex OS %1 is available, with updates for the system and your apps.", [vendor.available])
             : vendor.state === "available" ? I18n.format("Cybex OS %1 is available.", [vendor.available])
-            : upstream ? I18n.tr("New NixOS packages are available.") : I18n.tr("Device firmware updates are available.");
+            : upstream ? I18n.tr("Updates for the system and your apps are available.") : I18n.tr("Device firmware updates are available.");
         return lead + " " + I18n.tr("Prepare the update to see exactly what changes. Nothing is installed until you choose to.");
     }
 
@@ -120,9 +124,11 @@ Item {
                 body: (deployment.state === "done" && deployment.changeKind === "update"
                     ? I18n.tr("The last update was installed and passed its checks.") + "\n" : "")
                     + (aheadNote() !== "" ? aheadNote() + "\n" : "")
+                    // Nothing to install yet, but say plainly that a newer
+                    // update exists, what it waits for and what happens next.
                     + (service.nixosPending ? (service.automatic.prepare
-                        ? I18n.tr("Newer NixOS packages are prepared for you once NixOS has finished building them.")
-                        : I18n.tr("Newer NixOS packages can be prepared once NixOS has finished building them.")) + "\n" : "")
+                        ? I18n.tr("A newer update is waiting for NixOS to finish building its packages. It's prepared for you once they're ready; you don't need to do anything.")
+                        : I18n.tr("A newer update is waiting for NixOS to finish building its packages. Check again later to prepare it once they're ready.")) + "\n" : "")
                     + checked() };
         case "available":
             return { tone: "accent", busy: false, title: I18n.tr("Updates are available"),
@@ -203,40 +209,90 @@ Item {
 
     readonly property var current: info()
     readonly property var actionIcons: ({ available: "download" })
+    // Where installing is: the request waiting for authorization (0), then
+    // the worker installing and checking (1). The worker reports nothing
+    // finer, so the view claims nothing finer.
+    readonly property int installStep: ["activating", "firmware"].includes(deployment.state) ? 1 : 0
+
+    // ---- header ----------------------------------------------------------
+    // The window's name and one small Close, drawn as Settings draws its
+    // header (2026-11-24 review); What's New adds Back on the left. Close
+    // does what Escape does and never interrupts an update: the worker owns
+    // that. No page repeats it as a "Close" button.
+    Item {
+        id: header
+        width: parent.width
+        height: Theme.scaled(44)
+        z: 2
+
+        SettingsUi.SettingsAction {
+            id: backAction
+            objectName: "updateBack"
+            visible: root.whatsNew
+            x: Theme.panelPadding / 2
+            anchors.verticalCenter: parent.verticalCenter
+            compact: true
+            glyph: "arrow_back"
+            text: I18n.tr("Back")
+            Accessible.name: I18n.tr("Back to the update status")
+            onTriggered: root.service.closeWhatsNew()
+        }
+
+        Text {
+            objectName: "updateWindowTitle"
+            anchors.left: backAction.visible ? backAction.right : parent.left
+            anchors.leftMargin: backAction.visible ? Theme.scaled(6) : Theme.panelPadding / 2 + Theme.scaled(8)
+            anchors.right: closeAction.left
+            anchors.rightMargin: Theme.scaled(10)
+            anchors.verticalCenter: parent.verticalCenter
+            text: I18n.tr("Software Update")
+            font.family: Theme.fontMenu
+            font.pixelSize: Theme.typography.title
+            font.weight: Theme.weightSemibold
+            color: Theme.textHi
+            elide: Text.ElideRight
+            textFormat: Text.PlainText
+        }
+
+        SettingsUi.SettingsAction {
+            id: closeAction
+            objectName: "updateClose"
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.panelPadding / 2
+            anchors.verticalCenter: parent.verticalCenter
+            compact: true
+            glyph: "close"
+            text: I18n.tr("Close")
+            onTriggered: root.service.close()
+        }
+
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: Theme.hairlineSoft
+        }
+    }
 
     ReadyPage {
         anchors.fill: parent
+        anchors.topMargin: header.height
         visible: root.page === "ready" && !root.whatsNew
         service: root.service
     }
 
-    // Closes the window, as Escape does once What's New is closed. Level
-    // with What's New's Back, above every page, so it is always in reach.
-    // Closing never interrupts an update; the worker owns that.
-    UpdateButton {
-        objectName: "updateClose"
-        z: 2
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: Theme.scaled(12)
-        anchors.rightMargin: Theme.scaled(16)
-        glyph: "x"
-        text: I18n.tr("Close")
-        iconOnly: true
-        onTriggered: root.service.close()
-    }
-
     WhatsNewPage {
         anchors.fill: parent
+        anchors.topMargin: header.height
         visible: root.whatsNew
         release: root.service.whatsNew || ({ version: "", notes: "", components: [] })
         pose: root.pose
-        onBack: root.service.closeWhatsNew()
     }
 
     StatusPage {
         id: status
         anchors.fill: parent
+        anchors.topMargin: header.height
         visible: root.page !== "ready" && !root.whatsNew
         pose: root.pose
         unread: root.wiz.unread
@@ -292,13 +348,18 @@ Item {
             }
         }
 
-        // Preparation steps follow the worker's phases.
+        // Preparation steps follow the worker's phases; installing shows its
+        // own three, so neither long wait is only a moving bar.
         Row {
-            visible: root.page === "preparing"
+            visible: root.page === "preparing" || (root.page === "installing" && root.deployment.state !== "firmware")
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.scaled(18)
             Repeater {
-                model: [
+                model: root.page === "installing" ? [
+                    { label: I18n.tr("Authorize"), done: root.installStep > 0, active: root.installStep === 0 },
+                    { label: I18n.tr("Install and check"), done: false, active: root.installStep === 1 },
+                    { label: I18n.tr("Restart to finish"), done: false, active: false }
+                ] : [
                     { label: I18n.tr("Download and build"), done: root.deployment.state === "validating", active: root.deployment.state !== "validating" },
                     { label: I18n.tr("Check compatibility"), done: false, active: root.deployment.state === "validating" },
                     { label: I18n.tr("Ready to review"), done: false, active: false }
@@ -357,6 +418,8 @@ Item {
                 font.pixelSize: Theme.typography.secondary
                 wrapMode: Text.Wrap
             }
+            // Steps, not "builds": the count is the worker's, the word is
+            // the person's (2026-11-24 review). The log is behind Details.
             Text {
                 objectName: "updateBuildProgress"
                 visible: !!root.preparation.builds
@@ -365,8 +428,9 @@ Item {
                     const value = root.preparation.builds;
                     if (!value) return "";
                     return value.expected > 0
-                        ? I18n.format("Builds: %1 of %2 complete · %3 running", [value.done, value.expected, value.active])
-                        : I18n.format("Builds: %1 running", [value.active]);
+                        ? I18n.format("%1 of %2 steps done", [value.done, value.expected])
+                        : value.active === 1 ? I18n.tr("1 step in progress")
+                        : I18n.format("%1 steps in progress", [value.active]);
                 }
                 color: Theme.textDim
                 horizontalAlignment: Text.AlignHCenter
@@ -383,6 +447,22 @@ Item {
                 font.family: Theme.fontNumeric
                 font.pixelSize: Theme.typography.secondary
             }
+        }
+
+        // What installing is doing now, as preparing names its activity.
+        Text {
+            objectName: "updateActivity"
+            visible: root.page === "installing" && root.deployment.state !== "firmware"
+            width: parent.width
+            text: root.installStep === 1 ? I18n.tr("Installing the new version and checking it…")
+                : I18n.tr("Waiting for authorization…")
+            color: Theme.textHi
+            horizontalAlignment: Text.AlignHCenter
+            font.family: Theme.fontMenu
+            font.pixelSize: Theme.typography.primary
+            font.weight: Theme.weightSemibold
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
         }
 
         // Installed versions, from the running system's own manifest.
@@ -635,15 +715,18 @@ Item {
                 text: root.problem === "stale" ? I18n.tr("Discard") : I18n.tr("Dismiss")
                 onTriggered: root.service.discard()
             }
+            // The build log, for those who want it; the header's Close
+            // already leaves preparation running.
             UpdateButton {
                 objectName: "updateBuildLog"
                 visible: root.page === "preparing" && !!root.deployment.transaction
-                text: I18n.tr("Build log")
+                text: I18n.tr("Details")
+                Accessible.name: I18n.tr("Open the build log")
                 onTriggered: root.service.openLog()
             }
             UpdateButton {
-                visible: ["restart", "preparing"].includes(root.page)
-                text: root.page === "restart" ? I18n.tr("Later") : I18n.tr("Close")
+                visible: root.page === "restart"
+                text: I18n.tr("Later")
                 onTriggered: root.service.close()
             }
             UpdateButton {

@@ -460,7 +460,10 @@ def main():
                 'quiet package wait')
             state = session.state()
             assert not state['indicator'] and not state['failureText'], state
-            assert 'opencode' not in state['body'] and 'once NixOS has finished building them' in state['body'], state
+            # It says plainly that a newer update waits for its packages and
+            # that nothing is needed from the person.
+            assert 'opencode' not in state['body'] and 'A newer update is waiting for NixOS to finish building' in state['body'], state
+            assert "you don't need to do anything" in state['body'], state
             assert session.pose()==('happy',False), state
             shot('software-update-packages-pending.png')
             session.start_shell('qs-waiting-reloaded.log')
@@ -534,6 +537,8 @@ def main():
                                       'You can install the update below now.'), state
             assert state['failure'] == '' and 'Release endpoint' not in state['error'], state
             assert state['primary'] == {'label':'Install update','enabled':True,'amber':False}, state
+            # The heading names the update that installs, apart from the newer one.
+            assert state['title']['text'] == 'Cybex OS 1.0.1 is ready to install', state
             shot('software-update-kept-prepared.png')
             session.fixture(sources=sources)
             session.status(state='idle')
@@ -563,6 +568,8 @@ def main():
             session.status(state='activating',transaction='a'*32,phase='Activating under supervision')
             session.wait(lambda:session.state().get('page')=='installing','installing')
             assert session.pose()==('working',False), session.state()
+            # Installing names its stage, as preparing does.
+            assert session.state()['activity']=='Installing the new version and checking it…', session.state()
             shot('software-update-installing.png')
             session.start_shell('qs-activation.log')
             session.wait(lambda:session.state().get('window') and session.state().get('page')=='installing',

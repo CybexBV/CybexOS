@@ -94,13 +94,14 @@ FocusScope {
                     : root.page.kind === "flathub" ? flathubPage : categoryPage;
             }
             onLoaded: fade.restart()
+            // Opacity only, so it keeps a short fade under reduced motion.
             NumberAnimation {
                 id: fade
                 target: pageLoader.item
                 property: "opacity"
                 from: 0
                 to: 1
-                duration: Theme.popoutContentFadeDuration * 1.4
+                duration: Theme.panelFadeDuration
                 easing.type: Easing.OutCubic
             }
         }

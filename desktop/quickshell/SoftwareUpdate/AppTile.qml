@@ -1,7 +1,6 @@
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
 import "../Common"
+import "../Software" as SoftwareUi
 
 // An updated, added or removed application with its own name and icon.
 Rectangle {
@@ -15,18 +14,19 @@ Rectangle {
     border.width: 1
     border.color: Theme.hairlineSoft
 
-    IconImage {
+    // Software's icon: the catalogue's own, else the theme's only when it
+    // really has one, else the app's monogram. A themed lookup with a
+    // fallback name drew Qt's magenta missing-image box where neither
+    // existed (2026-11-24 review).
+    SoftwareUi.AppIcon {
         id: icon
         anchors.left: parent.left
         anchors.leftMargin: Theme.scaled(10)
         anchors.verticalCenter: parent.verticalCenter
-        implicitSize: Theme.scaled(28)
-        asynchronous: true
-        source: {
-            const name = root.app.icon || "";
-            return /^(file:|image:|\/)/.test(name) ? name
-                : Quickshell.iconPath(name || "application-x-executable", "application-x-executable");
-        }
+        size: Theme.scaled(28)
+        app: Software.appsByAttribute[root.app.name || ""] || null
+        icon: (root.app.icon || "").replace(/^file:\/\//, "")
+        name: root.app.title || root.app.name || ""
     }
 
     Text {

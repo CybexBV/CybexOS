@@ -319,7 +319,7 @@ test("Software Update's buttons and labels are in sentence case", () => {
     for (const name of ["UpdateView.qml", "ReadyPage.qml", "TechnicalDetails.qml", "WhatsNewPage.qml", "StatusPage.qml"]) {
         const source = fs.readFileSync(path.join(shellDir, "SoftwareUpdate", name), "utf8");
         for (const [, text] of source.matchAll(/I18n\.tr\("([^"]+)"\)/g)) {
-            const names = text.replace(/Cybex OS|NixOS|Linux|Wiz|NVIDIA|Flathub|Wi-Fi|Bluetooth|Mesa|Hyprland|OK/g, "");
+            const names = text.replace(/Software Update|Cybex OS|NixOS|Linux|Wiz|NVIDIA|Flathub|Wi-Fi|Bluetooth|Mesa|Hyprland|OK/g, "");
             for (const sentence of names.split(/[.?!:]\s+/)) {
                 const words = sentence.trim().split(/\s+/).slice(1);
                 assert.ok(!words.some(word => /^[A-Z][a-z]/.test(word)), `${name}: "${text}"`);

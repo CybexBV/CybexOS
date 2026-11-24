@@ -1,14 +1,28 @@
 import QtQuick
 import "../Common"
 
-// A catalogue app in a list: icon, name, one line of summary, its action.
+// A catalogue app in a list: icon, name, up to two lines of summary, its
+// action. Every row is as tall as two lines, so a grid row stays even; one
+// line in a three-column row cut most summaries short (2026-11-24 review).
 Item {
     id: root
 
     property var app: ({})
     property bool showAction: true
 
-    implicitHeight: Theme.scaled(64)
+    FontMetrics {
+        id: nameMetrics
+        font.family: Theme.fontMenu
+        font.pixelSize: Theme.typography.primary
+    }
+    FontMetrics {
+        id: summaryMetrics
+        font.family: Theme.fontMenu
+        font.pixelSize: Theme.typography.secondary
+    }
+
+    implicitHeight: Math.max(Theme.scaled(64),
+        Math.ceil(nameMetrics.height + summaryMetrics.height * 2) + Theme.scaled(2) + Theme.scaled(16))
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: root.app.name || ""
@@ -69,6 +83,8 @@ Item {
             color: Theme.textDim
             font.family: Theme.fontMenu
             font.pixelSize: Theme.typography.secondary
+            wrapMode: Text.Wrap
+            maximumLineCount: 2
             elide: Text.ElideRight
             textFormat: Text.PlainText
         }

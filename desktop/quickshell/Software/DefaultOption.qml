@@ -42,9 +42,11 @@ Rectangle {
     objectName: "softwareDefaultOption"
     implicitHeight: Math.max(icon.height, copy.implicitHeight) + Theme.scaled(22)
     radius: Theme.chipRadius + 4
-    color: selected ? Theme.accentAlpha(Theme.dark ? 0.14 : 0.11) : "transparent"
-    border.width: selected || activeFocus ? 1 : 0
-    border.color: selected ? Theme.accentAlpha(0.55) : Theme.accentText
+    // Selected: the shared tint and mark (docs/shell-states.md); the
+    // keyboard ring replaces the mark while it shows.
+    color: selected ? Theme.selectedFill : "transparent"
+    border.width: Theme.focusWidth(activeFocus) || (selected ? 1 : 0)
+    border.color: Theme.focusWidth(activeFocus) > 0 ? Theme.focusRing : Theme.selectedMark
     activeFocusOnTab: true
     Accessible.role: Accessible.RadioButton
     Accessible.checkable: true

@@ -6,15 +6,22 @@ import "../Common"
 // installed from Flathub instead), or why it can't be installed yet.
 //
 // One rule for the words: "Install" always starts installing now (the
-// queue bar's "Install N apps", a Flathub app, "Install and use"), while a
-// NixOS app only joins the queue, because the queued apps install together
-// as one checked system change (docs/software-and-defaults.md).
+// queue bar's "Install N apps", a Flathub app, "Install and use", and an
+// app's own page while nothing else is queued), while "Add to queue" only
+// joins the queue, because the queued apps install together as one checked
+// system change (docs/software-and-defaults.md).
 SoftwareButton {
     id: root
 
     property var app: null
     // An accent-filled Install, for the one main action of a surface.
     property bool prominent: false
+    // On an app's own page: with the queue empty and nothing in flight,
+    // Install adds this app and starts the queue's install at once, the
+    // same call as the queue bar's "Install 1 app", so one app is one step
+    // (2026-11-24 review). With other apps queued it joins them instead;
+    // cards and lists always add.
+    property bool direct: false
 
     readonly property string attribute: app && app.attribute ? app.attribute : ""
     readonly property string queuedAction: Software.queued(attribute)
@@ -30,8 +37,12 @@ SoftwareButton {
         : verdict && verdict.state === "compiles" ? "compiles"
         : "install"
 
-    // Pressing it adds the app to the install queue.
+    // Pressing it installs now (installsNow) or adds the app to the queue.
     readonly property bool adds: mode === "install"
+    // Software.install() would refuse a blocked or busy flow; then the app
+    // joins the queue and the queue bar says why it waits.
+    readonly property bool installsNow: direct && mode === "install" && Software.loaded
+        && Software.queue.length === 0 && Software.phase === "idle" && Software.blockReason === ""
 
     visible: mode !== "none"
     text: mode === "open" ? I18n.tr("Open")
@@ -40,20 +51,26 @@ SoftwareButton {
         : mode === "ready" ? I18n.tr("Ready to install")
         : mode === "unavailable" ? I18n.tr("Unavailable")
         : mode === "compiles" ? I18n.tr("Not ready yet")
+        : installsNow ? I18n.tr("Install")
         : I18n.tr("Add to queue")
     queued: mode === "added" || mode === "ready"
-    glyph: queued ? "check" : adds ? "plus" : ""
+    glyph: queued ? "check" : installsNow ? "download" : adds ? "plus" : ""
     primary: prominent && mode === "install"
     busy: mode === "installing"
     enabled: mode === "install" || mode === "added" || (mode === "open" && Software.canOpenApp(app))
     accessibleName: !app ? "" : mode === "open" ? I18n.format("Open %1", [app.name])
         : mode === "added" ? I18n.format("Take %1 out of the install queue", [app.name])
+        : installsNow ? I18n.format("Install %1 now", [app.name])
         : mode === "install" ? I18n.format("Add %1 to the install queue", [app.name])
         : text
     onTriggered: {
-        if (mode === "open")
+        if (mode === "open") {
             Software.openApplication(app);
-        else if (mode === "install" || mode === "added")
+        } else if (installsNow) {
             Software.toggleInstall(attribute);
+            Software.install();
+        } else if (mode === "install" || mode === "added") {
+            Software.toggleInstall(attribute);
+        }
     }
 }

@@ -32,6 +32,9 @@ Rectangle {
         .filter(app => !!app && Software.canOpenApp(app))
     readonly property var progress: Software.preparation
     readonly property string blocked: Software.blockReason
+    // A failure in plain words: the worker's own message stays behind
+    // Details (Software Update), never the headline (2026-11-24 review).
+    readonly property string failureKind: Helpers.failureKind(Software.failure)
     readonly property bool confirming: phase === "ready"
     readonly property bool busy: ["checking", "authorizing", "preparing", "installing"].includes(phase)
         || (phase === "ready" && Updates.requestPending)
@@ -60,7 +63,14 @@ Rectangle {
             return removals.length === 0 ? I18n.format("%1 installed", [names])
                 : installs.length === 0 ? I18n.format("%1 removed", [names]) : I18n.tr("Your changes are installed");
         case "failed":
-            return I18n.tr("The change couldn't be installed");
+            // By the apps' own names, as the list shows them.
+            if (names === "")
+                return I18n.tr("The change couldn't be installed");
+            if (removals.length === 0)
+                return failureKind === "download" ? I18n.format("Couldn't download %1", [names])
+                    : I18n.format("Couldn't install %1", [names]);
+            return installs.length === 0 ? I18n.format("Couldn't remove %1", [names])
+                : I18n.tr("Your changes couldn't be applied");
         }
         if (removals.length === 0)
             return installs.length === 1 ? I18n.format("1 app to install: %1", [names])
@@ -94,7 +104,13 @@ Rectangle {
                 ? I18n.tr("Find them in the launcher, or open one now. Restart when convenient to finish; until then your previous system stays the default.")
                 : I18n.tr("Restart when convenient to finish; until then your previous system stays the default.");
         case "failed":
-            return Software.failure || I18n.tr("Nothing on your computer was changed.");
+            return failureKind === "download" ? I18n.tr("Check your internet connection and try again. Nothing on your computer was changed.")
+                : failureKind === "space" ? I18n.tr("There isn't enough free disk space. Free some up and try again. Nothing on your computer was changed.")
+                : failureKind === "cancelled" ? I18n.tr("Authorization was cancelled. Nothing on your computer was changed.")
+                // A request refused before the worker took it never reaches
+                // Software Update's details, so its reason stays here.
+                : !Software.owned && Software.failure !== "" ? Software.failure
+                : I18n.tr("Nothing on your computer was changed. Details shows what went wrong.");
         }
         if (blocked === "restart")
             return I18n.tr("Restart your computer to finish the last system change, then install these.");
@@ -253,7 +269,10 @@ Rectangle {
                     NumberAnimation { duration: Theme.chipFadeDuration }
                 }
             }
-            // Indeterminate: a short sweep, only while open and moving is allowed.
+            // Indeterminate: a short sweep, only while open and moving is
+            // allowed. A loop's period, not a transition, so no motion token
+            // applies; Software Update's sweep matches it, and it stops under
+            // reduced motion rather than spinning at zero.
             NumberAnimation {
                 id: sweep
                 property real position: 0

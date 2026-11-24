@@ -62,7 +62,17 @@ test('one rule for the words: adding queues a NixOS app, Install starts installi
     const action = read('Software/AppAction.qml');
     assert.match(action, /: I18n\.tr\("Add to queue"\)/, 'a catalogue app joins the queue');
     assert.match(action, /mode === "added" \? I18n\.tr\("In queue"\)/, 'an obvious queued state');
-    assert.doesNotMatch(action, /I18n\.tr\("Install"\)/, 'a catalogue app never says Install for queueing');
+    // Install appears only where pressing it starts installing: an app's own
+    // page while nothing else is queued or in flight, which adds the app and
+    // makes the queue bar's own call.
+    assert.match(action, /: installsNow \? I18n\.tr\("Install"\)/);
+    assert.match(action, /readonly property bool installsNow: direct && mode === "install" && Software\.loaded\s*&& Software\.queue\.length === 0 && Software\.phase === "idle" && Software\.blockReason === ""/);
+    assert.match(action, /\} else if \(installsNow\) \{\s*Software\.toggleInstall\(attribute\);\s*Software\.install\(\);/);
+    assert.equal([...action.matchAll(/I18n\.tr\("Install"\)/g)].length, 1, 'Install is said in one place only');
+    assert.match(read('Software/AppPage.qml'), /objectName: "softwareAppPrimary"[\s\S]*?direct: true/,
+        "an app's own page installs directly");
+    for (const name of ['Software/AppCard.qml', 'Software/AppRow.qml', 'Software/PickCard.qml', 'Software/HeroCarousel.qml'])
+        assert.doesNotMatch(read(name), /direct: true/, `${name}: cards and lists keep Add to queue`);
     assert.match(read('Software/PackageRow.qml'), /I18n\.tr\("Add to queue"\)/);
     assert.match(read('Software/CollectionCard.qml'), /I18n\.tr\("Add all to queue"\)/);
     // Install is the queue bar's commit, and a Flathub app's immediate install.
@@ -86,8 +96,51 @@ test('Explore leads with the featured apps; the default apps fold to one row', (
     const defaults = read('Software/DefaultsSection.qml');
     assert.match(defaults, /model: root\.expanded \? Software\.roles : Software\.roles\.slice\(0, root\.columns\)/);
     assert.match(defaults, /actionName: "softwareDefaultsMore"/);
-    // The hero's main action is solid in the slide's ink, never the accent on a brand colour.
+    // One primary style everywhere (2026-11-24 review): the hero's main
+    // action is the shell's accent primary, as on an app's page, edged in the
+    // slide's ink; it steps back while the queue bar holds the primary.
     const hero = read('Software/HeroCarousel.qml');
-    assert.match(hero, /solidFill: heroAction\.mode === "install" \|\| heroAction\.mode === "open" \? slide\.ink : "transparent"/);
-    assert.doesNotMatch(hero, /prominent: true/);
+    assert.match(hero, /primary: \(heroAction\.mode === "install" \|\| heroAction\.mode === "open"\)\s*&& Software\.queue\.length === 0 && !Software\.flowActive/);
+    assert.doesNotMatch(hero, /solidFill|solidInk/);
+    const button = read('Software/SoftwareButton.qml');
+    assert.match(button, /color: primary \? Theme\.accent/);
+    assert.match(button, /\(queued \|\| quiet \|\| \(primary && custom\)\) \? 1 : 0/);
+});
+
+test("Software's chrome and states follow the shell's vocabulary", () => {
+    // The same small header Close as Settings.
+    const header = read('Software/HeaderBar.qml');
+    assert.match(header, /SettingsUi\.SettingsAction \{\s*id: closeAction\s*objectName: "softwareClose"[\s\S]*?compact: true\s*glyph: "close"\s*text: I18n\.tr\("Close"\)\s*onTriggered: Software\.close\(\)/);
+    // Keyboard rings only for keyboard modality, never a raw activeFocus border.
+    for (const name of ['Software/HeaderBar.qml', 'Software/SoftwareButton.qml', 'Software/AppCard.qml',
+        'Software/CategoryTile.qml', 'Software/CategoryPage.qml', 'Software/DefaultCard.qml',
+        'Software/CollectionCard.qml', 'Software/InstalledPage.qml', 'Software/DefaultOption.qml',
+        'Software/PickCard.qml', 'Software/HeroCarousel.qml', 'Software/ScreenshotTile.qml']) {
+        const source = read(name);
+        assert.doesNotMatch(source, /border\.width: (?:\w+\.)?activeFocus \? 2/, name);
+        assert.doesNotMatch(source, /visible: root\.activeFocus/, name);
+        assert.match(source, /Theme\.focusWidth\(/, name);
+    }
+    // The selected filter is the shared selected chip, not a solid pill.
+    const category = read('Software/CategoryPage.qml');
+    assert.match(category, /color: selected \? Theme\.selectedFill/);
+    assert.match(category, /selected \? Theme\.selectedMark : Theme\.stroke/);
+    // A featured app's icon is drawn once.
+    assert.match(read('Software/PickCard.qml'), /id: icon\s*visible: root\.shot !== ""/);
+    assert.match(read('Software/HeroCarousel.qml'), /AppIcon \{\s*visible: slide\.shot !== ""/);
+    // Summaries get two lines in a grid row.
+    for (const name of ['Software/AppRow.qml', 'Software/CategoryTile.qml'])
+        assert.match(read(name), /wrapMode: Text\.Wrap\s*maximumLineCount: 2/, name);
+});
+
+test('a failed change is named plainly; the worker message stays behind Details', () => {
+    const bar = read('Software/QueueBar.qml');
+    assert.match(bar, /readonly property string failureKind: Helpers\.failureKind\(Software\.failure\)/);
+    assert.match(bar, /I18n\.format\("Couldn't download %1", \[names\]\)/);
+    assert.doesNotMatch(bar, /return Software\.failure \|\|/, 'the raw message is not the detail line');
+    // A blocked app makes no "ready to use" promise, and Flathub's version
+    // stands beside the disabled action.
+    const page = read('Software/AppPage.qml');
+    assert.match(page, /if \(blocked\)\s*return I18n\.tr\("Open source, from NixOS, which Cybex OS is built on\. It updates with Software Update once it can be installed\."\)/);
+    assert.match(page, /objectName: "softwareAppFlathubOpen"\s*visible: root\.blocked && root\.flathubOffer && !root\.viaFlathub/);
 });

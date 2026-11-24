@@ -61,12 +61,13 @@ Item {
                 root.opened();
         }
     }
+    // The keyboard ring, for keyboard modality only.
     Rectangle {
         anchors.fill: parent
-        visible: root.activeFocus
+        visible: border.width > 0
         color: "transparent"
         radius: root.radius
-        border.width: 2
-        border.color: Theme.accentText
+        border.width: Theme.focusWidth(root.activeFocus)
+        border.color: Theme.focusRing
     }
 }

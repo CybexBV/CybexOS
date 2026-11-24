@@ -86,9 +86,14 @@ PageScroll {
                 width: chipText.implicitWidth + Theme.scaled(24)
                 height: Theme.scaled(30)
                 radius: height / 2
-                color: selected ? Theme.textHi : mouse.containsMouse ? Theme.hoverFill : "transparent"
-                border.width: chip.activeFocus ? 2 : 1
-                border.color: chip.activeFocus ? Theme.accentText : selected ? Theme.textHi : Theme.stroke
+                // The shell's selected chip (docs/shell-states.md): the
+                // accent tint and mark, not a one-off solid pill
+                // (2026-11-24 review). The keyboard ring replaces the edge
+                // while it shows.
+                color: selected ? Theme.selectedFill : mouse.containsMouse ? Theme.hoverFill : "transparent"
+                border.width: Theme.focusWidth(chip.activeFocus) || 1
+                border.color: Theme.focusWidth(chip.activeFocus) > 0 ? Theme.focusRing
+                    : selected ? Theme.selectedMark : Theme.stroke
                 activeFocusOnTab: true
                 Accessible.role: Accessible.RadioButton
                 Accessible.name: chip.label
@@ -104,7 +109,7 @@ PageScroll {
                     id: chipText
                     anchors.centerIn: parent
                     text: chip.label
-                    color: chip.selected ? Theme.background : Theme.textMid
+                    color: chip.selected ? Theme.textHi : Theme.textMid
                     font.family: Theme.fontMenu
                     font.pixelSize: Theme.typography.secondary
                     font.weight: chip.selected ? Theme.weightSemibold : Theme.weightMedium

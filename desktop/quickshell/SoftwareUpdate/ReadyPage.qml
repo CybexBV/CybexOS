@@ -22,13 +22,31 @@ Item {
     readonly property bool firmwareOnly: service.deployment.scope === "firmware"
     readonly property string size: Helpers.sizeChange(review.sizeChange)
     readonly property bool onlyTools: review.components.length === 0 && review.apps.length === 0
+    // The Cybex OS version this update installs, when it brings one: from
+    // the review, else from the prepared record (a release prepared with
+    // packages). The heading names it, so a newer release offered above
+    // the review can't be mistaken for the one that installs (2026-11-24
+    // review).
+    readonly property var deployment: service.deployment
+    readonly property string version: !update || firmwareOnly ? ""
+        : cybexos ? cybexos.after
+        : ["cybexos", "both"].includes(deployment.scope) && (deployment.availableVersion || "") !== ""
+            && deployment.availableVersion !== deployment.installedVersion ? deployment.availableVersion : ""
+    readonly property bool newerShown: service.newerRelease !== ""
+        || (service.replacement !== null && service.replacement.state !== "waiting")
+
+    function title() {
+        if (!update)
+            return I18n.tr("A system change is ready to apply");
+        return version !== "" ? I18n.format("Cybex OS %1 is ready to install", [version])
+            : I18n.tr("An update is ready to install");
+    }
 
     function subtitle() {
         if (firmwareOnly) return I18n.tr("Device firmware updates");
-        if (cybexos && nixosRelease !== "")
-            return I18n.format("Cybex OS %1 with the latest NixOS %2 updates", [cybexos.after, nixosRelease]);
-        if (cybexos)
-            return I18n.format("Cybex OS %1", [cybexos.after]);
+        if (version !== "")
+            return nixosRelease !== "" ? I18n.format("With the latest NixOS %1 updates", [nixosRelease])
+                : I18n.tr("Desktop, settings and system tools");
         if (nixosRelease !== "")
             return I18n.format("The latest NixOS %1 updates", [nixosRelease]);
         return update ? I18n.tr("Updated apps and system components") : I18n.tr("Changes to your system configuration");
@@ -98,7 +116,7 @@ Item {
                     Text {
                         objectName: "updateTitle"
                         width: parent.width
-                        text: root.update ? I18n.tr("An update is ready to install") : I18n.tr("A system change is ready to apply")
+                        text: root.title()
                         color: Theme.textHi
                         font.family: Theme.fontMenu
                         font.pixelSize: Theme.typography.heading
@@ -137,8 +155,7 @@ Item {
                 objectName: "updateNewerRelease"
                 // Newer packages NixOS hasn't built yet need nothing from
                 // the person: preparing again would only wait again.
-                visible: root.service.newerRelease !== ""
-                    || (root.service.replacement !== null && root.service.replacement.state !== "waiting")
+                visible: root.newerShown
                 width: parent.width
                 height: Math.max(newer.implicitHeight, prepareAgain.height) + Theme.scaled(24)
                 radius: Theme.chipRadius + 3
@@ -154,7 +171,7 @@ Item {
                     Text {
                         width: parent.width
                         text: root.service.newerRelease !== "" ? I18n.format("Cybex OS %1 is available", [root.service.newerRelease])
-                            : I18n.tr("Newer NixOS packages are available")
+                            : I18n.tr("Newer system updates are available")
                         color: Theme.textHi
                         font.family: Theme.fontMenu
                         font.pixelSize: Theme.typography.primary
@@ -182,13 +199,14 @@ Item {
                         textFormat: Text.PlainText
                     }
                 }
+                // A second choice, on the chip: Install update, in the
+                // footer, stays the page's one primary action.
                 UpdateButton {
                     id: prepareAgain
                     objectName: "updatePrepareAgain"
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.scaled(12)
                     anchors.verticalCenter: parent.verticalCenter
-                    primary: true
                     glyph: "download"
                     text: I18n.tr("Prepare again")
                     enabled: !root.service.runActive && !root.service.requestPending
@@ -444,12 +462,15 @@ Item {
         }
     }
 
+    // The decision, on the same column as the review: what stays safe, then
+    // Install update with Later beside it. Checking again is a quiet aside
+    // on the far side, away from the decision (2026-11-24 review).
     Rectangle {
         id: footer
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: footerRow.implicitHeight + Theme.scaled(28)
+        height: footerColumn.implicitHeight + Theme.scaled(28)
         color: Theme.surfaceMenu
 
         Rectangle {
@@ -459,61 +480,79 @@ Item {
             color: Theme.hairlineSoft
         }
 
-        Row {
-            id: footerRow
-            x: Theme.scaled(28)
+        Column {
+            id: footerColumn
+            width: column.width
+            x: Math.round((parent.width - width) / 2)
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - Theme.scaled(56)
-            spacing: Theme.scaled(12)
+            spacing: Theme.scaled(10)
 
-            Sym {
-                id: keepGlyph
-                anchors.verticalCenter: parent.verticalCenter
-                name: "arrow-back-up"
-                size: Theme.iconMedium
-                color: Theme.ok
+            Row {
+                width: parent.width
+                spacing: Theme.scaled(10)
+                Sym {
+                    id: keepGlyph
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "arrow-back-up"
+                    size: Theme.iconMedium
+                    color: Theme.ok
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - keepGlyph.width - parent.spacing
+                    objectName: "updateRequestError"
+                    text: root.service.requestFailure !== "" ? root.service.requestFailure
+                        : root.firmwareOnly ? I18n.tr("Keep your computer on and follow any instructions for your devices.")
+                        : I18n.tr("Your current version is kept. If the update doesn't start properly, your computer returns to it.")
+                    color: root.service.requestFailure !== "" ? Theme.redText : Theme.textDim
+                    font.family: Theme.fontMenu
+                    font.pixelSize: Theme.typography.secondary
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                }
             }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - keepGlyph.width - check.width - later.width - install.width - parent.spacing * 4
-                objectName: "updateRequestError"
-                text: root.service.requestFailure !== "" ? root.service.requestFailure
-                    : root.firmwareOnly ? I18n.tr("Keep your computer on and follow any instructions for your devices.")
-                    : I18n.tr("Your current version is kept. If the update doesn't start properly, your computer returns to it.")
-                color: root.service.requestFailure !== "" ? Theme.redText : Theme.textDim
-                font.family: Theme.fontMenu
-                font.pixelSize: Theme.typography.secondary
-                wrapMode: Text.Wrap
-                maximumLineCount: 3
-                elide: Text.ElideRight
-                textFormat: Text.PlainText
-            }
-            // A forced check, as on the up-to-date page; a newer Cybex OS
-            // release then appears above.
-            UpdateButton {
-                id: check
-                objectName: "updateCheck"
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.service.busy ? I18n.tr("Checking…") : I18n.tr("Check now")
-                enabled: !root.service.busy && !root.service.requestPending
-                onTriggered: { root.service.refreshStatus(); root.service.check(true); }
-            }
-            UpdateButton {
-                id: later
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("Later")
-                onTriggered: root.service.close()
-            }
-            UpdateButton {
-                id: install
-                objectName: "updatePrimary"
-                anchors.verticalCenter: parent.verticalCenter
-                primary: true
-                glyph: "lock"
-                enabled: root.service.actions.apply && !root.service.requestPending
-                text: root.service.requestPending ? I18n.tr("Waiting for authorization…")
-                    : root.update ? I18n.tr("Install update") : I18n.tr("Apply change")
-                onTriggered: root.service.apply()
+
+            Item {
+                width: parent.width
+                height: install.height
+                // A forced check, as on the up-to-date page; a newer Cybex OS
+                // release then appears above.
+                UpdateButton {
+                    id: check
+                    objectName: "updateCheck"
+                    anchors.left: parent.left
+                    anchors.leftMargin: -Theme.scaled(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    quiet: true
+                    glyph: "refresh"
+                    text: root.service.busy ? I18n.tr("Checking…") : I18n.tr("Check again")
+                    enabled: !root.service.busy && !root.service.requestPending
+                    onTriggered: { root.service.refreshStatus(); root.service.check(true); }
+                }
+                Row {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.scaled(10)
+                    UpdateButton {
+                        id: later
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: I18n.tr("Later")
+                        onTriggered: root.service.close()
+                    }
+                    UpdateButton {
+                        id: install
+                        objectName: "updatePrimary"
+                        anchors.verticalCenter: parent.verticalCenter
+                        primary: true
+                        glyph: "lock"
+                        enabled: root.service.actions.apply && !root.service.requestPending
+                        text: root.service.requestPending ? I18n.tr("Waiting for authorization…")
+                            : root.update ? I18n.tr("Install update") : I18n.tr("Apply change")
+                        onTriggered: root.service.apply()
+                    }
+                }
             }
         }
     }

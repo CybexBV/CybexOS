@@ -42,8 +42,12 @@ download beyond the default installation) is an estimate until then.
 follow as one row of cards, with **Show all** opening every job; then eight
 categories, collections built from the installer's profiles (**Add all to
 queue** adds a collection's missing apps), and the most popular apps by
-Flathub's install counts. The featured slide's main action is a solid button
-in the slide's own ink, so it contrasts with any brand colour. An app without
+Flathub's install counts. The featured slide's main action is the shell's
+accent primary, as on an app's page (one primary style everywhere, 2026-11-24
+review), with a hairline in the slide's ink so its edge holds on a brand
+colour close to the accent; the slide draws the app's icon once. While the
+install queue's bar shows, its **Install** is the screen's one primary and
+the page's or slide's action steps back to secondary. An app without
 an icon shows a monogram tile: its first letter on a colour derived from its
 name (`Common/Monogram.js`, shared with other surfaces). A category page has subcategory
 filters, an Editor's choice and every app in it by popularity. An app page
@@ -73,7 +77,9 @@ configuration changes. Discovery neither refreshes inputs nor creates a second
 package universe. A package from that list is checked before Install is
 offered.
 
-In a narrow window, where the search field's minimum width no longer fits
+The header ends with Refresh and Close, the same small Close Settings draws
+in its header; closing never interrupts a change in flight. In a narrow
+window, where the search field's minimum width no longer fits
 beside **Explore**, **Installed** and **Updates**, the field folds to a
 search button. The button, typing, / or Ctrl+F opens it over the tabs;
 Escape, a click elsewhere or moving focus away folds it again, and the query
@@ -82,8 +88,13 @@ and its results stay.
 ## The install queue
 
 One rule for the words: **Install** always starts installing now (the queue's
-**Install N apps**, a Flathub app, **Install and use** for a default app),
-and a NixOS app is only ever *added*. **Add to queue** puts an app in the
+**Install N apps**, a Flathub app, **Install and use** for a default app, and
+an app's own page while nothing else is queued), and **Add to queue** only
+ever adds. On an app's page with the queue empty and no change in flight,
+**Install** adds the app and starts the queue's install at once, the same
+call as **Install 1 app**, so one app is one step (2026-11-24 review). With
+other apps queued the page says **Add to queue**, and cards, lists, the
+featured slide and collections always do. **Add to queue** puts an app in the
 queue at the bottom of the window (**In queue**, with a tick; press again to
 take it out); you can keep browsing. **Install N apps** checks the whole queue, then stages one
 change: the supervised worker builds the complete system from prebuilt
@@ -97,7 +108,9 @@ Removing apps uses the same queue.
 Closing Software does not cancel a change. Cancelled authorization, a worker
 failure, or a change started elsewhere (a system update being prepared or
 awaiting review, or a restart still pending) is explained in the list, and
-nothing is changed. A change adopted after a shell restart continues where it
+nothing is changed. A failure is said in plain words with the apps' own
+names ("Couldn't download Krita", then what to do); the worker's own message
+stays behind **Details**, in Software Update. A change adopted after a shell restart continues where it
 was.
 
 ## Who installed what
@@ -143,8 +156,11 @@ system, the network). **Install** starts at once, for your account only
 any runtime nothing else uses. The app's data in `~/.var/app` stays.
 
 A catalogue app NixOS cannot install yet (it would compile, or NixOS marks it
-unavailable) offers **View on Flathub** on its page. One already installed
-from Flathub opens from the catalogue as well. NixOS remains the first
+unavailable) offers **Get it from Flathub** on its page, beside the disabled
+action and under it the reason and the scope ("Flathub's version installs
+now, for your account only"); the page makes no "ready to use" promise
+meanwhile. One already installed from Flathub opens from the catalogue as
+well. NixOS remains the first
 source: an installable catalogue app is never sent elsewhere.
 
 **Installed** groups Flathub apps under **From Flathub**; ones installed for

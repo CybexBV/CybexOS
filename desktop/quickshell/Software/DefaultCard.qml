@@ -53,8 +53,10 @@ Rectangle {
     implicitHeight: Theme.scaled(92)
     radius: Theme.chipRadius + 4
     color: Theme.cardFill
-    border.width: activeFocus ? 2 : 1
-    border.color: activeFocus ? Theme.accentText : card.who === "none" ? Theme.stroke : Theme.hairlineSoft
+    // The keyboard ring replaces the resting edge while it shows.
+    border.width: Theme.focusWidth(activeFocus) || 1
+    border.color: Theme.focusWidth(activeFocus) > 0 ? Theme.focusRing
+        : card.who === "none" ? Theme.stroke : Theme.hairlineSoft
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: Software.roleWord(role.id, "label") + ": " + (card.name || I18n.tr("Choose an app"))
