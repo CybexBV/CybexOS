@@ -407,11 +407,17 @@ def main():
                 session.env.update(opengl())
             (session.base / "sway.conf").write_text("output HEADLESS-1 mode 1440x900\nseat seat0 fallback true\n")
             sway = session.base / "sway"
-            shutil.copyfile(shutil.which("sway"), sway)
+            # The unwrapped sway, as in the other tests: without a session bus
+            # Nixpkgs' wrapper starts one with dbus-run-session, whose default
+            # configuration in /etc a CI runner may not have.
+            shutil.copyfile(os.environ.get("CYBEXOS_SWAY_BINARY") or shutil.which("sway"), sway)
             sway.chmod(0o700)
             session.start([str(sway), "-c", str(session.base / "sway.conf")], "sway.log")
-            sockets = session.wait(lambda: [p for p in session.runtime.glob("wayland-*") if p.is_socket()],
-                                   "the compositor", timeout=10)
+            try:
+                sockets = session.wait(lambda: [p for p in session.runtime.glob("wayland-*") if p.is_socket()],
+                                       "the compositor", timeout=10)
+            except AssertionError as error:
+                raise AssertionError(f"{error}\n{(session.base / 'sway.log').read_text(errors='replace')}") from None
             session.env["WAYLAND_DISPLAY"] = sockets[0].name
             session.pointer = VirtualPointer(session.env, 1440, 900)
             session.start([sys.executable, "-B", "-m", "cybexos_assistant", "serve"], "service.log",
