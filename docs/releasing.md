@@ -248,12 +248,14 @@ It has two jobs that run side by side. The checks job runs the source tests
 and actionlint), the shell tests (`tests/shell-checks`: QML lint and every
 headless Quickshell test) and then builds **every** flake check
 (`checks.x86_64-linux.*`). It lists the flake's checks itself, so a new check
-is part of the gate the moment it is added. Two `nix build`s share the
+is part of the gate the moment it is added. Omasnap's smoke suite, whose
+steps wait at most 5 s each, builds first and on its own: under the load of
+the other builds it once missed one. Then two `nix build`s share the
 packages: first the systems, the matched XPS and NVIDIA stacks, the source
 checks and the smaller VM tests; then the desktop VM tests of up to 8 GiB,
 three at a time (their names are in the workflow; put a new one of that size
-there). Both use `--keep-going`, and the second runs after a failed first, so
-one run reports every failing check. The job also checks what machines would
+there). Each build uses `--keep-going` and runs after a failed one before it,
+so one run reports every failing check. The job also checks what machines would
 compile. The image job builds the ISO, checks it against the source and
 installs it twice, plain and encrypted, in two VMs at once.
 

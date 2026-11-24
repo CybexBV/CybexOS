@@ -50,23 +50,32 @@ jobs:
         id: choose
         run: |
           set -euo pipefail
+          # Omasnap's smoke suite waits at most 5 s for each step; under the
+          # first build's load it once missed one, so it builds on its own.
+          alone=(omasnap)
           desktop=(hyprland-pointer screenshots session-restarts passwordless-sudo dictation pointer
                    lock-terminal wayland-scale browser-1password settings-audit)
           nix eval --json .#checks.x86_64-linux --apply builtins.attrNames > "$RUNNER_TEMP/checks.json"
-          python3 -I -B - "$RUNNER_TEMP/checks.json" "${desktop[@]}" >> "$GITHUB_ENV" <<'PYTHON'
+          python3 -I -B - "$RUNNER_TEMP/checks.json" "${#alone[@]}" "${alone[@]}" "${desktop[@]}" >> "$GITHUB_ENV" <<'PYTHON'
           import json, sys
           names = json.load(open(sys.argv[1]))
-          desktop = sys.argv[2:]
-          missing = sorted(set(desktop) - set(names))
+          alone = sys.argv[3:3 + int(sys.argv[2])]
+          desktop = sys.argv[3 + int(sys.argv[2]):]
+          missing = sorted(set(alone + desktop) - set(names))
           if missing:
               sys.exit(f'nixos.yml names checks the flake does not have: {missing}')
-          first = [name for name in names if name not in desktop]
-          print('CHECKS_FIRST=' + ' '.join(f'.#checks.x86_64-linux.{name}' for name in first))
-          print('CHECKS_DESKTOP=' + ' '.join(f'.#checks.x86_64-linux.{name}' for name in desktop))
+          first = [name for name in names if name not in alone + desktop]
+          for key, chosen in (('ALONE', alone), ('FIRST', first), ('DESKTOP', desktop)):
+              print(f'CHECKS_{key}=' + ' '.join(f'.#checks.x86_64-linux.{name}' for name in chosen))
           PYTHON
+      - name: Build the checks that need a quiet runner
+        run: |
+          read -ra checks <<< "$CHECKS_ALONE"
+          nix build -L --no-link --keep-going "${checks[@]}"
       # The systems, the matched XPS and NVIDIA stacks and the other VM tests
       # (at most 12 + 4 + 4 + 2 GiB of the runner's 32 at once).
       - name: Build the systems, the matched XPS and NVIDIA stacks and the VM tests
+        if: ${{ !cancelled() && steps.choose.outcome == 'success' }}
         run: |
           read -ra checks <<< "$CHECKS_FIRST"
           nix build -L --no-link --keep-going "${checks[@]}"
