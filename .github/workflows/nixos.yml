@@ -173,9 +173,11 @@ jobs:
       - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 24
       - name: Upgrade the previous release to this commit with its own updater
         env:
-          # Raises the API rate limit for the runner's own GitHub requests;
-          # the guest never sees it.
+          # Raises the API rate limit for the runner's own GitHub requests,
+          # and for the guest's reads of this repository through the stand-in
+          # (scripts/qualify-upgrade); the token itself never enters the guest.
           GITHUB_TOKEN: ${{ github.token }}
+          CYBEXOS_UPGRADE_PROXY_TOKEN: ${{ github.token }}
           FROM: ${{ inputs.from }}
         run: |
           set -euo pipefail

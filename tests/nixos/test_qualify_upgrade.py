@@ -175,5 +175,20 @@ class StandInTests(unittest.TestCase):
                                                          server_hostname='api.github.com')
 
 
+
+class TokenTests(unittest.TestCase):
+    def test_the_stand_in_lends_its_token_only_to_reads_of_this_repository(self):
+        for method, path in (('GET', '/repos/CybexBV/CybexOS/contents/flake.lock?ref=abc'),
+                             ('GET', '/repos/CybexHQ/CybexOS/tarball/abc'),
+                             ('HEAD', '/repos/CybexBV/CybexOS'),
+                             ('GET', '/repositories/1438845778/releases?per_page=30&page=2')):
+            self.assertTrue(upgrade.lends_token(method, path), path)
+        for method, path in (('POST', '/repos/CybexBV/CybexOS/issues'),
+                             ('GET', '/repos/CybexBV/private-thing/contents/x'),
+                             ('GET', '/repos/CybexBV/CybexOS-fork/contents/x'),
+                             ('GET', '/repositories/1/contents/secret'),
+                             ('GET', '/user'), ('GET', '/user/repos')):
+            self.assertFalse(upgrade.lends_token(method, path), path)
+
 if __name__ == '__main__':
     unittest.main()

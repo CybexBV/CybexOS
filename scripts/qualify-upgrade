@@ -15,8 +15,11 @@ API unchanged, so the commit under test must be pushed.
     qualify-upgrade run ISO --from TAG  install TAG's ISO, upgrade it to HEAD (or --to TAG)
 
 `run` requires qemu-system-x86_64, OVMF, openssl and Python pexpect (nix develop).
-A GITHUB_TOKEN in the environment raises the API rate limit; it is used only
-on this host, for requests to api.github.com, and never reaches the guest.
+A GITHUB_TOKEN or GH_TOKEN in the environment raises the rate limit of this
+host's own API requests. The stand-in lends a token to the guest's read
+requests for Cybex OS's repository only when CYBEXOS_UPGRADE_PROXY_TOKEN names
+one (CI sets it to the job's read-only token): a developer's broader token
+never answers the guest.
 """
 import argparse
 import hashlib
@@ -153,6 +156,15 @@ def root_input(lock, name):
 
 # -- GitHub, from this host ---------------------------------------------------
 
+def lends_token(method, path):
+    """Whether the stand-in may add its token to a guest request it passes on:
+    reads of Cybex OS's own repository, and the release pages GitHub links by
+    repository id; nothing else."""
+    route = urllib.parse.urlsplit(path).path
+    return method in ('GET', 'HEAD') and bool(re.match(
+        r'/(?:repos/(?:CybexBV|CybexHQ)/CybexOS(?:/|$)|repositories/[0-9]+/releases$)', route))
+
+
 def github(path, accept='application/vnd.github+json'):
     headers = {'Accept': accept, 'User-Agent': 'cybexos-qualify-upgrade', 'X-GitHub-Api-Version': '2022-11-28'}
     token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
@@ -241,7 +253,7 @@ class StandIn(ThreadingHTTPServer):
         self.context.load_cert_chain(certificate, key)
         self.listing = json.dumps(served_listing(releases, target)).encode()
         self.target = target
-        self.token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+        self.token = os.environ.get('CYBEXOS_UPGRADE_PROXY_TOKEN')
         self.nonce = os.urandom(8).hex()
         self.requests, self.lock = [], threading.Lock()
         super().__init__(('127.0.0.1', 0), StandInHandler)
@@ -325,7 +337,8 @@ class StandInHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length') or 0)
         body = self.rfile.read(length) if length else None
         headers = {name: value for name, value in self.headers.items() if name.lower() not in HOP_BY_HOP}
-        if self.server.token and not any(name.lower() == 'authorization' for name in headers):
+        if (self.server.token and lends_token(self.command, self.path)
+                and not any(name.lower() == 'authorization' for name in headers)):
             headers['Authorization'] = 'Bearer ' + self.server.token
         connection = http.client.HTTPSConnection('api.github.com', timeout=120, context=ssl.create_default_context())
         try:
