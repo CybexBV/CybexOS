@@ -331,7 +331,7 @@ class Engine:
                               lambda m: m[1] + 'github:NixOS/nixpkgs/' + ref + m[2], flake.read_text())
         if count != 1:
             raise Failure('Machine flake must declare one literal nixpkgs.url. Keep personal modules in local/.')
-        atomic(flake, text.encode())
+        atomic(flake, text.encode(), flake.stat().st_mode & 0o777)
 
     @classmethod
     def move_nixpkgs(cls, config, old, pinned):
