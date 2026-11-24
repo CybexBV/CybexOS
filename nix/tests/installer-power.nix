@@ -71,7 +71,9 @@ in pkgs.testers.runNixOSTest {
     import json
 
     def shutdown(kind):
-        machine.log(str(machine.execute("python3 ${client} " + kind)))
+        # The machine can go down before a shell command returns, so the
+        # request runs as a unit of its own; its answer goes to the journal.
+        machine.succeed(f"systemd-run --unit=power-request-{kind} --collect ${pkgs.python3}/bin/python3 ${client} {kind}")
         try:
             machine.wait_for_shutdown(timeout=dt.timedelta(seconds=45))
         except Exception:
