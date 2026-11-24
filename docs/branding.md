@@ -75,8 +75,8 @@ they are VM qualification, not of physical displays.
 The Control Center button ends the bar's right column by default; moved to
 the left section, its drawer opens on that side instead. Settings ->
 Bar & Control Center -> Control Center -> Button icon chooses its icon: the
-Cybex OS mark (the default), the operating system's logo (NixOS), or any Nerd
-Font icon, searched by name in `desktop/quickshell/assets/nerd-icons`
+Cybex OS mark (the default), the operating system's logo (NixOS), or any
+Nerd Font icon, searched by name in `desktop/quickshell/assets/nerd-icons`
 (regenerate with `scripts/update-nerd-icons` when Nixpkgs moves to a new
 Nerd Fonts release). On the bar the Cybex X is two-tone, so it does not read
 as a window's close button: at rest its short stroke takes 55 % of the bar's

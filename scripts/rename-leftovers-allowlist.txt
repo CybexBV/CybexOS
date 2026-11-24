@@ -13,3 +13,4 @@ desktop/quickshell/Ui/PanelSectionHeader.qml :: JetBrainsMono Nerd  # upstream f
 desktop/quickshell/Common/SettingsHelpers.js :: Nerd Font  # upstream font family
 desktop/quickshell/Common/Theme.qml :: Nerd Font  # upstream font family
 tests/quickshell/* :: Nerd Font  # upstream font family assertions
+* :: ^(?!.*(?i:nerdos))(?=.*(?i:nerd[ -]?fonts?|nerd-icons))  # the upstream Nerd Fonts family, its icon names and the catalogue of them; never the retired product name
