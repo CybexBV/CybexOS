@@ -230,8 +230,9 @@ class MaintenanceTests(unittest.TestCase):
             entry = next(d for d in plan['deployments'] if d['id'] == tx.name)
             self.assertFalse(entry['eligible'], tx.name)
             self.assertIn(reason, entry['reasons'])
-        # The failed trial's boot entry goes; the running system's stays.
-        self.assertEqual(plan['generations'].get('11'), trial)
+        # Boot entries stay: the failed trial's system could also be the one
+        # of a generation kept for another reason, and the running system's.
+        self.assertNotIn('11', plan['generations'])
         self.assertNotIn('10', plan['generations'])
         self.maintenance.clean(plan['id'], plan['token'])
         for tx in released:

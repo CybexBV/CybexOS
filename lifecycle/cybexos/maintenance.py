@@ -216,7 +216,12 @@ class Maintenance:
                                 'retired': record['retired'], 'eligible': eligible, 'reasons': reasons})
         # A kept transaction can reference an older system as its fallback.
         candidates = {r['id'] for r in deployments if r['eligible']}
-        disposable_systems = {value for r in records if r['id'] in candidates
+        # Only confirmed deployments retire boot generations. An abandoned
+        # preview or failed trial releases its own roots, but the system it
+        # names can be the very system of a generation kept for another reason
+        # (the installer's, a personal rebuild's): the record can't tell its own
+        # trial generation from that one, so generations stay, as before.
+        disposable_systems = {value for r in records if r['id'] in candidates and r.get('good')
                               for value in (r.get('system'), r.get('previousSystem')) if value} - protected_systems
         generations = {}
         for path in self.profiles.glob('system-*-link'):

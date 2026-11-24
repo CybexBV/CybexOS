@@ -151,7 +151,8 @@ releases its input and system roots and retires it, as long as a confirmed
 deployment matches this boot. Three days leave time to read its log, retry
 over a weekend or prepare it again with its downloads still in the store;
 the weekly cleanup then stops last week's abandoned previews from keeping
-gigabytes reachable. A failed trial's system generation goes with it. Its
+gigabytes reachable. A failed trial's boot generation stays: its system can
+also be that of a generation kept for another reason. Its
 record, log, `failed.json` and retry permission stay, so a system that
 failed health checks still needs `cybex update retry-failed`. A rolled-back
 confirmed deployment then follows the confirmed-deployment retention above.

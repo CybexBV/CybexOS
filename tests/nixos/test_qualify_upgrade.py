@@ -37,6 +37,10 @@ class FakeFetcher:
     def __init__(self, listing, target):
         self.listing, self.target = listing, target
 
+    def page(self, url, limit=0, accept='application/vnd.github+json'):
+        """One page of the listing: the stand-in serves it whole, with no next page."""
+        return self.get(url, limit, accept), ''
+
     def get(self, url, limit=0, accept='application/vnd.github+json'):
         path = url.removeprefix('https://api.github.com')
         kind = upgrade.route('GET', path, accept, self.target['version'])
