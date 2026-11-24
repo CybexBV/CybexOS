@@ -140,6 +140,7 @@ var ROWS = [
     { page: "workspaces", pageLabel: "Workspaces & dock", group: "Dock", label: "Dock auto-hide", key: "dockAutoHide", terms: "dock hide reveal bottom edge" },
 
     // Bar widgets and their options
+    { page: "plugins", pageLabel: "Plugins", group: "Cybex OS plugins", label: "Cybex OS plugins", key: "", terms: "model usage claude codex kimi quota github pull requests issues t3 code hermes agent fusebox remote server ssh widget install" },
     { page: "plugins", pageLabel: "Plugins", group: "Add a plugin", label: "Browse plugins", key: "", terms: "plugins.omarchy.org directory marketplace community find discover website" },
     { page: "plugins", pageLabel: "Plugins", group: "Add a plugin", label: "Source", key: "", terms: "install git url local path add omarchy plugin add command paste trust" },
     { page: "plugins", pageLabel: "Plugins", group: "Installed", label: "Installed plugins", key: "", terms: "enable disable update preview clone remove omarchy manage" },

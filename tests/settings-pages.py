@@ -379,6 +379,8 @@ def main():
                               ('security', None), ('accounts', None), ('assistant', 'wiz'), ('applications', None),
                               ('region', None), ('backup', 'backups')):
                 show(page, tab)
+            show('plugins')
+            screenshot('16-plugins.png')
             show('keyboard', 'layouts')
             ipc('settings-test', 'showTab', 'keyboard', 'shortcuts')
             wait(lambda: state().get('shortcuts'), 'Keyboard › Shortcuts')
