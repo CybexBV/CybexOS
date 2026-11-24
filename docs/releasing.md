@@ -293,7 +293,8 @@ small HTTPS stand-in for api.github.com runs on the runner; the guest trusts
 its throwaway test CA and reaches it through `/etc/hosts`, until the next
 boot. It serves the release listing with this commit's `VERSION` as the
 newest release (replacing a published one of that version) and that tag's
-commit; every other request, such as a release's `flake.lock` or a source
+commit. A machine on beta meets it as a prerelease, as `release/publish`
+publishes it; a stable one as a promoted release; every other request, such as a release's `flake.lock` or a source
 tarball, goes on to GitHub unchanged, so the job needs the pushed commit.
 
 In the guest, `cybex update check` must offer the release, then the updater

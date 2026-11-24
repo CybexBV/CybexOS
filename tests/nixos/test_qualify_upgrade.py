@@ -72,9 +72,16 @@ class ReleaseChoiceTests(unittest.TestCase):
         self.assertEqual(served[0], {'tag_name': 'v1.0.32', 'name': 'Cybex OS 1.0.32', 'draft': False,
                                      'prerelease': False, 'body': TARGET['notes'], 'target_commitish': REVISION})
         self.assertTrue(served[1]['prerelease'])
+        # For a machine on beta the release under test is a prerelease, as published.
+        self.assertTrue(upgrade.served_listing(LISTING, TARGET | {'prerelease': True})[0]['prerelease'])
         # Newer releases than the one under test are left out.
         older = upgrade.served_listing(LISTING, TARGET | {'version': '1.0.30'})
         self.assertEqual([item['tag_name'] for item in older][:2], ['v1.0.30', 'v1.0.26'])
+
+    def test_a_beta_machine_discovers_the_release_under_test_as_a_prerelease(self):
+        fetch = FakeFetcher(upgrade.served_listing(LISTING, TARGET | {'prerelease': True}), TARGET)
+        found = discover(fetch, 'beta', '1.0.31')
+        self.assertEqual((found['version'], found['releases']), ('1.0.32', ['1.0.32']))
 
     def test_an_installed_updater_discovers_the_release_under_test_on_either_channel(self):
         fetch = FakeFetcher(upgrade.served_listing(LISTING, TARGET), TARGET)

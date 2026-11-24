@@ -45,7 +45,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'lifecycle'))
 from cybexos.inputs import branch_order  # noqa: E402
-from cybexos.trust import version  # noqa: E402
+from cybexos.trust import next_page, version  # noqa: E402
 
 REPO = 'CybexBV/CybexOS'
 # The repository under its current and former names: updaters before 1.0.32
@@ -93,13 +93,15 @@ def served_listing(listing, target):
     """The real listing below the release under test, with that release as the newest.
 
     A published release of the same version (an ordinary branch's VERSION) is
-    replaced. The release under test is not a prerelease, so both channels
-    see it, as they do once it is promoted.
+    replaced. The release under test comes as the machine first meets it:
+    a beta machine as a prerelease, as `release/publish` publishes it; a
+    stable machine once promoted, as a release (target['prerelease']).
     """
     key = version(target['version'])
     kept = [item for release, item in published(listing) if release < key]
     entry = {'tag_name': 'v' + target['version'], 'name': 'Cybex OS ' + target['version'], 'draft': False,
-             'prerelease': False, 'body': target['notes'], 'target_commitish': target['revision']}
+             'prerelease': target.get('prerelease') is True, 'body': target['notes'],
+             'target_commitish': target['revision']}
     return [entry] + kept
 
 
@@ -189,8 +191,21 @@ def github(path, accept='application/vnd.github+json'):
         return response.read()
 
 
-def listing():
-    return json.loads(github(f'/repos/{REPO}/releases?per_page=100'))
+def listing(pages=20):
+    """Every published release, page by page along GitHub's Link header."""
+    url, releases = f'https://api.github.com/repos/{REPO}/releases?per_page=100', []
+    for _ in range(pages):
+        headers = {'Accept': 'application/vnd.github+json', 'User-Agent': 'cybexos-qualify-upgrade',
+                   'X-GitHub-Api-Version': '2022-11-28'}
+        token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+        if token:
+            headers['Authorization'] = 'Bearer ' + token
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as response:
+            releases += json.loads(response.read())
+            url = next_page(response.headers.get('Link', ''))
+        if not url:
+            return releases
+    raise ValueError(f'The release listing has more than {pages} pages')
 
 
 def revision_of(reference):
@@ -616,6 +631,8 @@ def run(args):
     releases = listing()
     target = resolve_target(args.to, releases)
     source = resolve_source(args.source, releases, target['version'])
+    # A beta machine meets the release as a prerelease, a stable one once promoted.
+    target['prerelease'] = source['prerelease']
     iso = args.iso.resolve()
     with iso.open('rb') as handle:
         iso_sha256 = hashlib.file_digest(handle, 'sha256').hexdigest()
