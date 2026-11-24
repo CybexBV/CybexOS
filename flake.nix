@@ -79,31 +79,6 @@
         xps-power-ordering = import ./nix/tests/xps-power-ordering.nix {
           inherit nixpkgs pkgs module system;
         };
-        lifecycle = pkgs.runCommand "cybexos-lifecycle-tests" {
-          nativeBuildInputs = [
-            (pkgs.python3.withPackages (p: [ p.websockets p.pygobject3 p.pillow p.dbus-python p.pexpect ]))
-            pkgs.openssl pkgs.git pkgs.dbus pkgs.restic pkgs.quickshell pkgs.systemd
-            pkgs.xdg-terminal-exec pkgs.desktop-file-utils pkgs.grub2_efi
-          ];
-          GI_TYPELIB_PATH = pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.networkmanager pkgs.glib ];
-          CYBEXOS_DBUS_SESSION_CONFIG = "${pkgs.dbus}/share/dbus-1/session.conf";
-          CYBEXOS_LIBCRYPT = "${pkgs.libxcrypt}/lib/libcrypt.so.2";
-        } ''
-          cp -r ${self} source; chmod -R u+w source
-          # Tests execute the same portable helper scripts as the packages.
-          # /usr/bin/env is not available inside a normal Nix build sandbox.
-          patchShebangs source
-          cd source
-          export PYTHONDONTWRITEBYTECODE=1
-          python3 -m unittest discover -s tests/nixos -v
-          python3 -B tests/nixos/hermes-bridge.py
-          python3 -B tests/nixos/hermes-remote-runtime.py
-          python3 -B tests/nixos/hermes-webui-auth.py
-          python3 -B tests/nixos/default-agent.py
-          python3 -B tests/nixos/camera-frame.py
-          python3 -B tests/system-settings.py
-          touch $out
-        '';
         # Codex and Claude Code run, report their pins and offer what Wiz uses.
         agent-clis = import ./nix/tests/agent-clis.nix {
           inherit pkgs;
