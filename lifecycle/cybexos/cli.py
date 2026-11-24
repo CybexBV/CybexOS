@@ -484,7 +484,8 @@ def request():
         for tx in sorted((state / 'transactions').glob('*')):
             if (tx / 'deployment.json').exists():
                 records.append(read(tx / 'deployment.json') | {'good': (tx / 'good.json').exists(), 'failed': read(tx / 'failed.json'),
-                                                               'retired': (tx / 'retired.json').exists()})
+                                                               'retired': (tx / 'retired.json').exists(),
+                                                               'outcome': read(tx / 'outcome.json')})
         print(json.dumps(records)); return
     print(json.dumps(enqueue_update(state, action, values)))
 

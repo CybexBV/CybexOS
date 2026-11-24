@@ -15,6 +15,13 @@ import uuid
 from .common import Failure, atomic, locked, parse, read, syncdir
 
 DEFAULT_POLICY = {'automatic': True, 'keepConfirmed': 5, 'keepDays': 30}
+# How long an unconfirmed transaction that ended (discarded, failed,
+# superseded, interrupted or rolled back) keeps its GC roots. Long enough to
+# read its log, retry it over a weekend or let a person prepare it again with
+# a warm store; short enough that the weekly cleanup releases last week's
+# abandoned previews instead of keeping gigabytes for good. Its record, log
+# and retry permissions stay.
+ABANDONED = 3 * 86400
 STORE = re.compile(r'/nix/store/[a-z0-9]{32}-[^/\s]+')
 ID = re.compile(r'[a-f0-9]{32}')
 
@@ -118,6 +125,22 @@ class Maintenance:
                 result[str(path)] = str(path.resolve())
         return result
 
+    @staticmethod
+    def ended(tx):
+        """When an unconfirmed transaction ended (engine.conclude, failed.json), or None."""
+        times = []
+        for name in ('outcome.json', 'failed.json'):
+            try:
+                value = read(tx / name, {})
+            except Failure:
+                # Unreadable: no known ending, so its roots stay.
+                return None
+            if isinstance(value, dict) and type(value.get('at')) is int:
+                times.append(value['at'])
+            elif value:
+                return None
+        return min(times) if times else None
+
     def snapshot(self, require_confirmation=False):
         self.guard()
         chosen = policy(read(self.policy_path, DEFAULT_POLICY))
@@ -135,7 +158,8 @@ class Maintenance:
             if not record:
                 # An incomplete stage is unresolved and keeps all its roots.
                 records.append({'id': tx.name, 'createdAt': 0, 'good': False, 'incomplete': True,
-                                'roots': self.roots(tx), 'retired': False})
+                                'ended': self.ended(tx), 'roots': self.roots(tx),
+                                'retired': (tx / 'retired.json').exists()})
                 continue
             # Device-only updates own no Nix generation or configuration roots.
             if record.get('scope') == 'firmware' and record.get('id') == tx.name:
@@ -147,7 +171,7 @@ class Maintenance:
             records.append(record | {'good': (tx / 'good.json').exists(),
                                      'failed': (tx / 'failed.json').exists(),
                                      'retired': (tx / 'retired.json').exists(),
-                                     'roots': self.roots(tx)})
+                                     'ended': self.ended(tx), 'roots': self.roots(tx)})
         confirmed = sorted((r for r in records if r.get('good') and not r['retired']),
                            key=lambda r: (r['createdAt'], r['id']), reverse=True)
         active = next((r for r in confirmed if r['system'] == current), None)
@@ -157,16 +181,29 @@ class Maintenance:
         keep = {r['id'] for r in confirmed[:chosen['keepConfirmed']]} | set(pins) | ({active['id']} if active else {r['id'] for r in records})
         selected_paths = [self.engine.working.resolve(), (self.state / 'deployed').resolve()]
         cutoff = self.now - chosen['keepDays'] * 86400
+        live = read(self.engine.status_path, {}).get('transaction')
         deployments, retired_roots, all_roots, protected_systems = [], {}, {}, {current, booted, active['previousSystem'] if active else current}
         for record in records:
             tx = self.state / 'transactions' / record['id']
             reasons = []
             if active is None: reasons.append('No confirmed recovery point matches this boot; references retained')
             if record['id'] in keep: reasons.append('Confirmed, pinned or retained by count')
-            if record['createdAt'] >= cutoff: reasons.append('Within retention period')
-            if not record.get('good') or record.get('failed'): reasons.append('Unresolved or failed deployment')
+            # An unconfirmed transaction that ended is no recovery point. Once
+            # it is ABANDONED old its roots go; the confirmed deployment for
+            # this boot (active) keeps the running system and its fallback.
+            # The current preview or result, whatever its state, stays whole.
+            unresolved = not record.get('good') or record.get('failed')
+            abandoned = (unresolved and active is not None and record['id'] != live
+                         and record.get('ended') is not None and record['ended'] <= self.now - ABANDONED)
+            # A rolled-back confirmed deployment then follows recovery-point retention.
+            releasable = abandoned and not record.get('good')
+            if record['createdAt'] >= cutoff and not releasable: reasons.append('Within retention period')
+            if unresolved and not abandoned:
+                recent = (record.get('ended') is not None and record['id'] != live
+                          and record['ended'] > self.now - ABANDONED)
+                reasons.append('Ended recently' if recent else 'Unresolved or failed deployment')
             if any(path.is_relative_to(tx) for path in selected_paths): reasons.append('Selected personal configuration')
-            if record.get('system') in (current, booted) or record.get('previousSystem') == current:
+            if (record.get('system') in (current, booted) or record.get('previousSystem') == current) and not releasable:
                 reasons.append('References the running system')
             eligible = not reasons and not record['retired']
             all_roots.update(record['roots'])

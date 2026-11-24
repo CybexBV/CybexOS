@@ -1077,6 +1077,39 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(Failure):
             self.engine.apply(first['id'], first['reviewToken'])
 
+    def test_transactions_record_how_they_ended(self):
+        # Storage cleanup releases an ended preview's roots after a few days.
+        outcome = lambda record: (read(self.engine.tx(record['id']) / 'outcome.json') or {}).get('outcome')
+        first = self.engine.stage('upstream')
+        self.assertIsNone(outcome(first))
+        # A failed attempt to prepare again ends; the prepared one stays.
+        self.runner.fail = lambda args: args[:2] == ('nix', 'build') and '--dry-run' not in args
+        with self.assertRaises(Failure):
+            self.engine.stage('both')
+        attempt = read(self.engine.status_path)['replacement']
+        self.assertIsNone(outcome(first))
+        failed = [tx for tx in (self.engine.state / 'transactions').iterdir() if tx.name != first['id']]
+        self.assertEqual([read(tx / 'outcome.json')['outcome'] for tx in failed], ['failed'])
+        self.assertEqual(attempt['state'], 'failed')
+        self.runner.fail = None
+        # A successful replacement supersedes it; a discard ends the new one.
+        second = self.engine.stage('both')
+        self.assertEqual(outcome(first), 'superseded')
+        self.engine.discard(second['id'])
+        self.assertEqual(outcome(second), 'discarded')
+        # A personal preview over nothing prepared; an interruption ends it.
+        third = self.engine.stage('local')
+        self.engine.status(state='building')
+        self.engine.recover()
+        self.assertEqual(outcome(third), 'interrupted')
+        self.engine.discard(third['id'])
+        self.assertEqual(outcome(third), 'interrupted', 'The first ending stays')
+        # A confirmed deployment follows recovery-point retention instead.
+        fourth = self.engine.stage('upstream')
+        atomic(self.engine.tx(fourth['id']) / 'good.json', {'at': 1})
+        self.engine.stage('local')
+        self.assertIsNone(outcome(fourth))
+
     def test_personal_changes_are_not_kept_over_by_a_failed_update(self):
         # Only a prepared update is kept; a prepared personal change is the
         # person's own and preparing an update over it behaves as before.
