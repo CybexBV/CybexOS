@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-from subprocess import TimeoutExpired
 from tempfile import TemporaryDirectory
 import time
 import uuid

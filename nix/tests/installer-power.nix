@@ -58,6 +58,11 @@ in pkgs.testers.runNixOSTest {
       serviceConfig.ExecStart = "${pkgs.systemd}/bin/systemd-inhibit --what=shutdown --mode=block --who=installer-test ${pkgs.coreutils}/bin/sleep infinity";
     };
     environment.systemPackages = [ pkgs.python3 ];
+    # As on the installation medium: logind asks polkit before it lets
+    # anyone, root included, ignore another program's shutdown block, and the
+    # medium's rule allows the installer's reboot and power-off.
+    security.polkit.enable = true;
+    security.polkit.extraConfig = builtins.readFile ../../installer/power-ignore-inhibitors.rules;
     virtualisation = { memorySize = 1024; cores = 2; qemu.options = [ "-no-user-config" ]; };
     system.stateVersion = "26.05";
   };
@@ -66,7 +71,9 @@ in pkgs.testers.runNixOSTest {
     import json
 
     def shutdown(kind):
-        machine.log(str(machine.execute("python3 ${client} " + kind)))
+        # The machine can go down before a shell command returns, so the
+        # request runs as a unit of its own; its answer goes to the journal.
+        machine.succeed(f"systemd-run --unit=power-request-{kind} --collect ${pkgs.python3}/bin/python3 ${client} {kind}")
         try:
             machine.wait_for_shutdown(timeout=dt.timedelta(seconds=45))
         except Exception:

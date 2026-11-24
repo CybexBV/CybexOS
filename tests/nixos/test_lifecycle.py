@@ -4,8 +4,6 @@ import re
 import contextlib
 import hashlib
 import http.server
-import importlib.util
-import importlib.machinery
 import io
 import json
 import os
@@ -22,7 +20,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'lifecycle'))
-from cybexos.common import CommandFailure, Failure, Runner, atomic, digest, locked, parse, read, syncdir
+from cybexos.common import CommandFailure, Failure, Runner, atomic, locked, read, syncdir
 from cybexos import inputs, trust
 from cybexos.engine import Engine, NotPrebuilt, config_digest, configuration_paths, copy_config
 from cybexos.health import (USER_UNIT, baseline, preexisting_arguments, reported, system_services,

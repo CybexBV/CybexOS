@@ -314,8 +314,8 @@ class Daemon:
         # The default profiles' system features follow their selection.
         chosen = [p['id'] for p in self.catalogue['profiles'] if p['default']]
         region = read_json(ETC / 'installer-region.json', {}) or {}
-        layout = region.get('desktopKeyboard') if region.get('desktopKeyboard') in {l[0] for l in LAYOUTS} else 'us'
-        locale = region.get('locale') if region.get('locale') in {l[0] for l in LANGUAGES} else 'en_US.UTF-8'
+        layout = region.get('desktopKeyboard') if region.get('desktopKeyboard') in {entry[0] for entry in LAYOUTS} else 'us'
+        locale = region.get('locale') if region.get('locale') in {entry[0] for entry in LANGUAGES} else 'en_US.UTF-8'
         saved = read_json(RUNTIME / 'draft.json', {}) or {}
         self.nvidia_edited = saved.get('nvidiaEdited') is True
         self.draft = {'screen': 'welcome', 'disk': '', 'encrypted': True, 'fullName': '', 'username': '',

@@ -329,3 +329,7 @@ first view.
   state system, the action tiers and Home's narrow-column reflow.
 - `tests/settings-runtime.py` is the installed-VM audit of every page and tab;
   see [the settings audit](measurements/settings-audit-2026-10-27.md).
+  `checks.x86_64-linux.settings-audit` runs its preferences suite, and
+  `tests/omarchy-runtime.py` after it, in a disposable desktop VM on every full
+  check; the extended cases (network, VPN, hotspot and display trials, backups)
+  stay manual.

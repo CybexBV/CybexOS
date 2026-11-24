@@ -602,7 +602,7 @@ def main():
             keyboard.wait(timeout=5)
             screenshot('shortcuts-recorder-protected.png')
             keyboard = start(['wtype', '-s', '300', '-k', 'Return', '-s', '200'], 'lock-accept.log')
-            replaced = wait(lambda: (s := state()).get('lock', {}).get('keys') == ['SUPER + O', 'SUPER + L'] and s,
+            wait(lambda: (s := state()).get('lock', {}).get('keys') == ['SUPER + O', 'SUPER + L'] and s,
                             'Replace kept the default')
             keyboard.wait(timeout=5)
             assert ipc('shortcut-test', 'apply') == 'true'

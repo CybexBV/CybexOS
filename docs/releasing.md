@@ -95,12 +95,15 @@ Development commits may be pushed directly to `main`. To publish a release:
    pass. One check covers the release and the work merged into it: prepare
    `VERSION` and the notes first, then check. Once it passes, move `main` to
    exactly that commit with `git push origin COMMIT:main`. When `main` moved
-   in the meantime the push fails: merge again and check again.
+   in the meantime the push fails: merge again and check again. The push
+   starts the full check on `main` once more; publishing needn't wait for it,
+   since the branch's run already checked that commit.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
    the notes, refuses a tag on another commit, refuses a commit without a
-   passing dispatched `nixos.yml` run, creates and pushes the annotated
-   `vVERSION` tag and creates the GitHub release with `gh` as a prerelease:
+   passing `nixos.yml` run (dispatched, or started by a push to `main`),
+   creates and pushes the annotated `vVERSION` tag and creates the GitHub
+   release with `gh` as a prerelease:
    it reaches beta machines only. Pass asset paths (an ISO and its checksum)
    to upload them with the release, or `--dry-run` to only report the result.
    `--stable` publishes straight to both channels and marks the release as
@@ -241,18 +244,34 @@ updater cannot install. Installed machines refuse a release that changes
 
 The **NixOS qualification** workflow (`.github/workflows/nixos.yml`) is the
 full check. It gates every release: `release/publish` and `release/promote`
-refuse a commit without a successful dispatched run. Start it with
-`gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; it does not
-run automatically on pushes, pull requests or releases, and there is no
-nightly run. Run it on a branch before merging changes to the updater, the
-Nix modules, the installer, the release scripts, qualification or workflows.
+refuse a commit without a successful run for exactly that commit, either
+dispatched or started by a push to `main`. Both kinds check out the commit
+they were started for (each job verifies it); a pull request's run would
+check a merge commit, so it never counts.
 
-It has three jobs that run side by side. The checks job runs the source
-tests, then builds the systems, the matched XPS stack and the VM tests in a
-single `nix build`, so packages both need build once, and checks what
-machines would compile. The image job builds the ISO, checks it against the
-source and installs it twice, plain and encrypted, in two VMs at once. The
-upgrade job takes the path people take ([below](#the-upgrade-job)).
+It runs by itself on every push to `main`, and a newer push replaces a run
+still going on `main`. Start it on a branch with
+`gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; it does not
+run on pull requests or releases, and there is no nightly run. Run it on a
+branch before merging changes to the updater, the Nix modules, the installer,
+the release scripts, qualification or workflows.
+
+It has three jobs that run side by side. The checks job runs the source tests
+(`tests/run`, which includes the linters in `tests/lint`: Ruff, ShellCheck
+and actionlint), the shell tests (`tests/shell-checks`: QML lint and every
+headless Quickshell test) and then builds **every** flake check
+(`checks.x86_64-linux.*`). It lists the flake's checks itself, so a new check
+is part of the gate the moment it is added. Omasnap's smoke suite, whose
+steps wait at most 5 s each, builds first and on its own: under the load of
+the other builds it once missed one. Then two `nix build`s share the
+packages: first the systems, the matched XPS and NVIDIA stacks, the source
+checks and the smaller VM tests; then the desktop VM tests of up to 8 GiB,
+three at a time (their names are in the workflow; put a new one of that size
+there). Each build uses `--keep-going` and runs after a failed one before it,
+so one run reports every failing check. The job also checks what machines would
+compile. The image job builds the ISO, checks it against the source and
+installs it twice, plain and encrypted, in two VMs at once. The upgrade job
+takes the path people take ([below](#the-upgrade-job)).
 
 ### The upgrade job
 

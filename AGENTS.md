@@ -27,13 +27,18 @@
   ends with the failing step's last lines; the whole log is in `.git/fast-test/`.
 - A failing test runs once more before it counts as failing (fast-test does this itself). Never skip or weaken a test
   to make it pass.
-- **The full check** is the `nixos.yml` workflow on The Beast's runner: a checks job, an image job and an upgrade
-  job side by side; the upgrade job moves a VM on the previous release to this commit with that release's own
-  updater ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). About 35 minutes. Start it with
-  `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with `gh run watch`. Never run it
-  on The Dragon. Run it on your branch before you merge a change to `lifecycle/`, `nix/`, `installer/`, `release/`,
-  `scripts/qualify-installations`, `scripts/qualify-upgrade` or `.github/`, and on the release commit before every
-  release. There is no nightly run.
+- `tests/run` includes the linters (`tests/lint`: Ruff, ShellCheck and actionlint, with the settings in
+  `pyproject.toml`, `.shellcheckrc` and `.github/actionlint.yaml`). `tests/shell-checks` runs the QML lint and every
+  headless shell test (Settings, Software, Software Update, Welcome, shortcuts, wallpapers and more).
+- **The full check** is the `nixos.yml` workflow on The Beast's runners: three jobs side by side, about 55 minutes.
+  The checks job runs the source tests, the linters and the shell tests and builds every flake check
+  (`checks.x86_64-linux.*`, VM tests included). The image job installs this commit's ISO, plain and encrypted. The
+  upgrade job moves a VM on the previous release to this commit with that release's own updater
+  ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). It runs by itself on every push to `main`; start it on a
+  branch with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with `gh run watch`.
+  Never run it on The Dragon. Run it on your branch before you merge a change to `lifecycle/`, `nix/`, `installer/`,
+  `release/`, `scripts/qualify-installations`, `scripts/qualify-upgrade` or `.github/`, and on the release commit
+  before every release; the run on `main` catches what other changes break. There is no nightly run.
 
 ## Git workflow
 
@@ -81,8 +86,8 @@ sub-agent in a worktree):
     what the release brings) and push it to a `release-X.Y.Z` branch, not to
     `main`. Run the full check on that branch; one run covers the release
     and the merged work. `release/publish` refuses a commit without a
-    passing dispatched `nixos.yml` run. When it fails, fix forward and run it
-    again.
+    passing `nixos.yml` run (dispatched, or started by a push to `main`).
+    When it fails, fix forward and run it again.
   - Once it passes, move `main` to exactly that commit:
     `git push origin <commit>:main`. If `main` moved meanwhile, the push
     fails: merge again and check again.

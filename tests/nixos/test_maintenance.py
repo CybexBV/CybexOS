@@ -1,6 +1,5 @@
 """Retention, review freshness and restartable cleanup command-boundary tests."""
 import json
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 

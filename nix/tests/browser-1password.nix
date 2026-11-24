@@ -238,6 +238,9 @@ in pkgs.testers.runNixOSTest {
         return {c["address"].removeprefix("0x"): c["class"] or machine.execute(f"cat /proc/{c['pid']}/comm")[1].strip()
                 for c in json.loads(user("hyprctl -i 0 -j clients"))}
 
+    def titles():
+        return {c["address"].removeprefix("0x"): c["title"] for c in json.loads(user("hyprctl -i 0 -j clients"))}
+
     def layers():
         return {layer.get("namespace") for monitor in json.loads(user("hyprctl -i 0 -j layers")).values()
                 for level in monitor.get("levels", {}).values() for layer in level}
@@ -375,13 +378,27 @@ in pkgs.testers.runNixOSTest {
     assert user("cybexos-runtime ipc welcome connect password").strip() == "ok"
     retry(lambda _: APP_ID in classes(), timeout_seconds=120)
     reporter = welcome()["connectWindows"]
-    machine.log("windows: " + json.dumps(clients()) + ", the guide's: " + json.dumps(reporter))
+    shown = titles()
+    machine.log("windows: " + json.dumps(clients()) + ", the guide's: " + json.dumps(reporter) + ", titles: " + json.dumps(shown))
     assert reporter and all(clients().get(address) == APP_ID for address in reporter), (reporter, clients())
     machine.screenshot("connect-1password")
     assert user("cybexos-runtime ipc welcome open connect").strip() == "ok"
     # 1Password then goes on starting, and its dialog about the added row
-    # steps the guide aside as any new window does.
-    retry(lambda _: not set(reporter) & set(clients()) and APP_ID in classes(), timeout_seconds=30)
+    # steps the guide aside as any new window does. 1Password 8.12.46 may
+    # show that dialog in the reporter's own window: then the window stays
+    # and its title changes.
+    def reporter_closed():
+        now = titles()
+        return all(address not in now or now[address] != shown.get(address) for address in reporter)
+    try:
+        retry(lambda _: reporter_closed() and APP_ID in classes(), timeout_seconds=30)
+        machine.log("after Resume: " + json.dumps(titles()))
+    except Exception:
+        machine.screenshot("connect-resumed-failed")
+        machine.log("windows: " + json.dumps(clients()) + ", titles: " + json.dumps(titles()) + ", guide: " + json.dumps(welcome()))
+        machine.log(machine.execute("ps -eo pid,args | grep -i [1]password | cut -c1-200;"
+                                    " journalctl -b --no-pager -o cat | grep -i 1password | tail -n 40")[1])
+        raise
     assert user("cybexos-runtime ipc welcome open connect").strip() == "ok"
     retry(lambda _: not welcome()["aside"], timeout_seconds=15)
     # A window the person opens while the guide shows is theirs.

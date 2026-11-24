@@ -9,7 +9,7 @@ source, already in the store, so Nix resolves both offline. Only release
 discovery, input updates and device firmware are stand-ins; evaluation, the
 prebuilt check, the build, its failure and the fallback are the real ones.
 
-Skipped where Nix can't build (the Nix build sandbox of checks.lifecycle).
+Skipped where Nix can't build (no Nix daemon, as in a Nix build sandbox).
 """
 import hashlib
 import json
@@ -71,7 +71,7 @@ def nix(*args):
 
 
 def usable():
-    # A Nix build sandbox (checks.lifecycle) has no daemon to build with.
+    # A Nix build sandbox has no daemon to build with.
     if not shutil.which('nix') or not Path('/nix/var/nix/daemon-socket/socket').exists():
         return False
     try:

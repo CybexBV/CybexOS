@@ -113,11 +113,11 @@ def installed_source_transfer(base):
 
 def native_inputs(base):
     upstream = repository(base / 'upstream', stamp('upstream-one'))
-    upstream_one = commit(upstream)
+    commit(upstream)
     dependency = repository(base / 'dependency', stamp('dependency-one'))
     commit(dependency)
     personal = repository(base / 'personal', stamp('personal-one'))
-    personal_one = commit(personal)
+    commit(personal)
     vendor = repository(base / 'vendor', '''{
   inputs.nixpkgs.url = UPSTREAM;
   inputs.vendorlib.url = DEPENDENCY;
@@ -156,7 +156,7 @@ def native_inputs(base):
     # All remotes advance, including the unrelated personal branch. Only named
     # update scopes may advance its locked graph.
     (upstream / 'flake.nix').write_text(stamp('upstream-two'))
-    upstream_two = commit(upstream)
+    commit(upstream)
     (personal / 'flake.nix').write_text(stamp('personal-two'))
     commit(personal)
     (dependency / 'flake.nix').write_text(stamp('dependency-two'))
