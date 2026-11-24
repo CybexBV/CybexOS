@@ -340,7 +340,7 @@ New menubars leave the optional widgets (Model Usage, Hermes Agent, Remote
 Server, T3 Code, GitHub and Fusebox) available but off; turn them on in
 Settings -> Bar. Their code and the Hermes bridge run only while they are on.
 Installing connected-service support does not enable them. Saved widget
-choices remain personal: a menubar from before 1.0.33 that showed Model Usage
+choices remain personal: a menubar from before 1.0.32 that showed Model Usage
 by default keeps it. LAN
 discovery is enabled by default: Avahi browses and publishes local addresses,
 `.local` resolution is available, and the firewall admits the discovery and

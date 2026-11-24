@@ -34,16 +34,16 @@ combination Cybex OS already built; only personal modules are new to it.
   also rewrites the literal `nixpkgs.url` in the machine flake, so the lock
   stays what the flake declares. Stable branches before 26.11 are refused.
 - A machine whose Nixpkgs is newer than a release's (moved by an updater
-  before 1.0.33, or by hand) keeps its own until a release pins a newer one.
+  before 1.0.32, or by hand) keeps its own until a release pins a newer one.
 
-The first step still goes the old way. An updater before 1.0.33 installs
-1.0.33 with the channel head as it did before, so that update can still meet
-a package NixOS hasn't built; updaters before 1.0.32 then don't fall back to
-the release alone for a build that fails. If preparing it fails, run
-`cybex update stage cybexos` once to prepare the release on its own. From
-then on the installed updater takes only release revisions, and a machine
-that got ahead of the pinned revision that way stays on its own Nixpkgs
-until a release passes it.
+The first step still goes the old way. An updater before 1.0.32 installs
+1.0.32 with the channel head as it did before, so that update can still meet
+a package NixOS hasn't built, and it doesn't fall back to the release alone
+for a build that fails. If preparing it fails, run `cybex update stage
+cybexos` once to prepare the release on its own. From then on the installed
+updater takes only release revisions. A machine that got ahead of the pinned
+revision that way stays on its own Nixpkgs until a release passes it, which
+is why 1.0.32 pins the channel head of the day it was checked.
 
 Cybex OS moves its pinned Nixpkgs once a week on the `nixpkgs-update`
 branch that gets the full check before it is merged and released
