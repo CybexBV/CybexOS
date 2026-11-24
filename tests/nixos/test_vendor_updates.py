@@ -1,4 +1,4 @@
-"""scripts/vendor-pins and release/automatic with recorded upstream answers, a
+"""scripts/vendor-pins and release/vendor-branch with recorded upstream answers, a
 throwaway Git origin and a recording release/publish; no network."""
 import base64
 import importlib.machinery
@@ -272,42 +272,33 @@ class SignatureTests(unittest.TestCase):
             pins.signed(b'manifest', b'signature', b'key', self.fingerprint)
 
 
-# A recording release/publish: it succeeds unless PUBLISH_FAIL is set.
-FAKE_PUBLISH = """#!/bin/sh
-printf '%s\\n' "$*" >> "$PUBLISH_LOG"
-"""
-
-
-class AutomaticReleaseTests(unittest.TestCase):
+class VendorBranchTests(unittest.TestCase):
+    """release/vendor-branch: verified pins go to a branch, never to main or a release."""
     def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix='cybexos-automatic-')
+        directory = tempfile.TemporaryDirectory(prefix='cybexos-vendor-branch-')
         self.addCleanup(directory.cleanup)
         base = Path(directory.name)
-        self.origin, self.work, self.log = base / 'origin.git', base / 'work', base / 'publish.log'
-        self.other = base / 'other'
+        self.origin, self.work = base / 'origin.git', base / 'work'
         self.git('init', '--quiet', '--bare', '--initial-branch=main', str(self.origin), cwd=base)
         self.git('init', '--quiet', '--initial-branch=main', str(self.work), cwd=base)
-        self.configure(self.work)
+        for name, value in (('user.name', 'Release Test'), ('user.email', 'release@example.invalid')):
+            self.git('config', name, value)
         (self.work / 'release').mkdir()
-        shutil.copy2(ROOT / 'release/automatic', self.work / 'release/automatic')
-        (self.work / 'release/publish').write_text(FAKE_PUBLISH)
+        shutil.copy2(ROOT / 'release/vendor-branch', self.work / 'release/vendor-branch')
+        # A publish that must never run.
+        (self.work / 'release/publish').write_text('#!/bin/sh\necho published >> "$PUBLISH_LOG"\nexit 1\n')
         (self.work / 'release/publish').chmod(0o755)
-        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.27\n')
         (self.work / 'VERSION').write_text('1.0.27\n')
         for name, version in (('codex', '0.166.0'), ('claude-code', '2.1.311')):
             (self.work / 'nix/packages' / name).mkdir(parents=True)
             (self.work / 'nix/packages' / name / 'release.json').write_text(json.dumps({'version': version}) + '\n')
         self.git('add', '.')
         self.git('commit', '--quiet', '-m', 'Release fixture')
-        self.git('tag', 'v1.0.27')
         self.git('remote', 'add', 'origin', str(self.origin))
-        self.git('push', '--quiet', 'origin', 'main', 'v1.0.27')
-        self.changes = base / 'changes.json'
+        self.git('push', '--quiet', 'origin', 'main')
+        self.main = self.git('rev-parse', 'HEAD').strip()
+        self.changes, self.log = base / 'changes.json', base / 'publish.log'
         self.environment = os.environ | {'PUBLISH_LOG': str(self.log)}
-
-    def configure(self, path):
-        for name, value in (('user.name', 'Release Test'), ('user.email', 'release@example.invalid')):
-            self.git('config', name, value, cwd=path)
 
     def git(self, *arguments, cwd=None):
         return subprocess.run(['git', *arguments], cwd=cwd or self.work, check=True, capture_output=True, text=True).stdout
@@ -322,62 +313,42 @@ class AutomaticReleaseTests(unittest.TestCase):
                             'checks': [], 'notes': notes})
         self.changes.write_text(json.dumps(changes))
 
-    def automatic(self, *arguments):
-        return subprocess.run([str(self.work / 'release/automatic'), str(self.changes), *arguments],
+    def branch(self, *arguments):
+        return subprocess.run([str(self.work / 'release/vendor-branch'), str(self.changes), *arguments],
                               cwd=self.work, env=self.environment, capture_output=True, text=True)
 
     def both(self):
         self.update(('codex', 'Codex', '0.167.0', 'Codex moves to 0.167.0.'),
                     ('claude-code', 'Claude Code', '2.1.322', 'Claude Code moves to 2.1.322.'))
 
-    def test_every_updated_pin_reaches_beta_in_one_release(self):
+    def test_verified_pins_go_to_a_branch_and_never_to_main_or_a_release(self):
         self.both()
-        result = self.automatic()
+        result = self.branch()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.git('log', '--format=%s', 'origin/main', '-4').splitlines(), [
-            'Prepare Cybex OS 1.0.28 release', 'Update Claude Code to 2.1.322', 'Update Codex to 0.167.0',
-            'Release fixture'])
-        self.assertEqual(self.git('show', 'origin/main:VERSION'), '1.0.28\n')
-        self.assertEqual(self.git('show', 'origin/main:release/notes.md'), (
-            '# Cybex OS 1.0.28\n\nCodex moves to 0.167.0.\n\nClaude Code moves to 2.1.322.\n\n'
-            'This is a source update with no new ISO. Installation, boot, physical hardware and '
-            'staged-updater qualification are separate from source tests and package builds.\n'))
-        self.assertEqual(self.git('show', '--stat', '--format=', 'origin/main~1').split()[0],
+        branch = result.stdout.strip()
+        self.assertRegex(branch, r'^vendor-update/\d{4}-\d{2}-\d{2}$')
+        self.assertEqual(self.git('log', '--format=%s', 'origin/' + branch, '-3').splitlines(), [
+            'Update Claude Code to 2.1.322', 'Update Codex to 0.167.0', 'Release fixture'])
+        self.assertIn('Claude Code moves to 2.1.322.', self.git('log', '--format=%b', '-1', 'origin/' + branch))
+        self.assertEqual(self.git('show', '--stat', '--format=', 'origin/' + branch).split()[0],
                          'nix/packages/claude-code/release.json')
-        self.assertEqual(self.log.read_text(), '1.0.28\n')
-
-    def test_a_single_pin_keeps_the_release_shape(self):
-        self.update(('codex', 'Codex', '0.167.0', 'Codex moves to 0.167.0.'))
-        result = self.automatic()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.git('show', 'origin/main:release/notes.md').split('\n\n')[1], 'Codex moves to 0.167.0.')
-
-    def test_it_rebases_onto_main_and_takes_the_next_version(self):
-        self.git('clone', '--quiet', str(self.origin), str(self.other), cwd=self.work.parent)
-        self.configure(self.other)
-        (self.other / 'VERSION').write_text('1.0.28\n')
-        self.git('commit', '--quiet', '-am', 'Prepare Cybex OS 1.0.28 release', cwd=self.other)
-        self.git('push', '--quiet', 'origin', 'main', cwd=self.other)
-        self.both()
-        result = self.automatic()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.git('show', 'origin/main:VERSION'), '1.0.29\n')
-        self.assertEqual(self.git('log', '--format=%s', 'origin/main', '-4').splitlines()[1:], [
-            'Update Claude Code to 2.1.322', 'Update Codex to 0.167.0', 'Prepare Cybex OS 1.0.28 release'])
-
-    def test_dry_run_pushes_and_publishes_nothing(self):
-        self.both()
-        result = self.automatic('--dry-run')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('publish 1.0.28 to beta', result.stdout)
-        self.assertIn('Claude Code moves to 2.1.322.', result.stdout)
-        self.assertEqual(self.git('rev-parse', 'origin/main'), self.git('rev-parse', 'v1.0.27'))
+        self.assertEqual(self.git('rev-parse', 'origin/main').strip(), self.main)
+        self.assertEqual(self.git('show', 'origin/' + branch + ':VERSION'), '1.0.27\n')
+        self.assertEqual(self.git('ls-remote', '--tags', 'origin'), '')
         self.assertFalse(self.log.exists())
+
+    def test_dry_run_pushes_nothing(self):
+        self.both()
+        result = self.branch('--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Update Claude Code to 2.1.322', result.stdout)
+        self.assertEqual(self.git('ls-remote', '--heads', 'origin').count('\n'), 1)
+        self.assertEqual(self.git('rev-parse', 'origin/main').strip(), self.main)
 
     def test_unexpected_input_or_changes_are_refused(self):
         self.both()
         (self.work / 'VERSION').write_text('9.9.9\n')
-        result = self.automatic()
+        result = self.branch()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('may be changed', result.stderr)
         self.git('checkout', '--quiet', 'VERSION')
@@ -386,12 +357,11 @@ class AutomaticReleaseTests(unittest.TestCase):
                                  ([{'file': 'nix/packages/codex/release.json', 'title': 'Codex', 'to': '1',
                                     'notes': ''}], 'incomplete change')):
             self.changes.write_text(json.dumps(changes))
-            result = self.automatic()
+            result = self.branch()
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(message, result.stderr)
-        self.assertEqual(self.git('rev-parse', 'origin/main'), self.git('rev-parse', 'v1.0.27'))
+        self.assertEqual(self.git('ls-remote', '--heads', 'origin').count('\n'), 1)
         self.assertEqual(self.git('log', '--format=%s', '-1'), 'Release fixture\n')
-        self.assertFalse(self.log.exists())
 
 
 if __name__ == '__main__':

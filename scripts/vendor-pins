@@ -19,7 +19,7 @@ moves only with a reviewed kernel/camera stack, never automatically.
   scripts/vendor-pins update NAME...  rewrite auto pins to upstream's latest
                                       release once every one of them checks
                                       out; prints the changes as a JSON list
-                                      (release/automatic's input)
+                                      (release/vendor-branch's input)
 """
 import base64
 import json
