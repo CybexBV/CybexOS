@@ -32,6 +32,13 @@ SettingsGroup {
     readonly property int tileGap: Theme.scaled(10)
     readonly property real tileWidth: (width - tileGap * 2) / 3
     readonly property int swatch: Theme.scaled(44)
+    readonly property int tileRadius: Theme.chipRadius + 3
+    // A focus ring sits inside a chosen tile's 2 px border, so both show.
+    readonly property int ringInset: Theme.selectedBorderWidth + 1
+    // Terminals draw the Cybex OS mark from Cybex OS Symbols, the one-glyph
+    // font Cybex OS installs (docs/branding.md). The preview uses the same
+    // font when it is there, so it shows exactly what fish will.
+    readonly property bool symbolsFont: Qt.fontFamilies().indexOf("Cybex OS Symbols") !== -1
 
     function choose(value) {
         Settings.set("controlIcon", value);
@@ -104,23 +111,33 @@ SettingsGroup {
                         }
                     }
 
+                    // A chosen tile is the shared selected tile (accent tint,
+                    // 2 px accent border; docs/shell-states.md); keyboard
+                    // focus is only the ring below, never the border or a fill.
                     Rectangle {
                         anchors.fill: parent
-                        radius: Theme.chipRadius + 3
-                        color: tile.selected ? Theme.chip : Theme.cardFill
-                        border.width: tile.selected ? 2 : 1
-                        border.color: tile.selected ? Theme.accent
-                            : tile.activeFocus ? Theme.accentText : Theme.hairline
+                        radius: root.tileRadius
+                        color: tile.selected ? Theme.selectedFill : Theme.cardFill
+                        border.width: tile.selected ? Theme.selectedBorderWidth : 1
+                        border.color: tile.selected ? Theme.selectedMark : Theme.hairline
 
                         StateLayer {
                             anchors.fill: parent
                             radius: parent.radius
                             hovered: tileMouse.containsMouse
                             pressed: tileMouse.pressed
-                            focused: tile.activeFocus
                             tint: Theme.textHi
                             pressPoint: Qt.point(tileMouse.mouseX, tileMouse.mouseY)
                         }
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: root.ringInset
+                        radius: Theme.concentricRadius(root.tileRadius, root.ringInset)
+                        color: "transparent"
+                        visible: border.width > 0
+                        border.width: Theme.focusWidth(tile.activeFocus)
+                        border.color: Theme.focusRing
                     }
 
                     Rectangle {
@@ -233,9 +250,9 @@ SettingsGroup {
                     width: grid.cell
                     height: grid.cell
                     radius: Theme.chipRadius
-                    color: selected ? Theme.chip : Theme.cardFill
-                    border.width: selected ? 2 : cell.activeFocus ? 1 : 0
-                    border.color: selected ? Theme.accent : Theme.accentText
+                    color: selected ? Theme.selectedFill : Theme.cardFill
+                    border.width: selected ? Theme.selectedBorderWidth : 0
+                    border.color: Theme.selectedMark
                     activeFocusOnTab: true
                     Accessible.role: Accessible.RadioButton
                     Accessible.name: ControlIconHelpers.title(modelData.name)
@@ -255,9 +272,17 @@ SettingsGroup {
                         radius: parent.radius
                         hovered: cellMouse.containsMouse
                         pressed: cellMouse.pressed
-                        focused: cell.activeFocus
                         tint: Theme.textHi
                         pressPoint: Qt.point(cellMouse.mouseX, cellMouse.mouseY)
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: cell.selected ? root.ringInset : 0
+                        radius: Theme.concentricRadius(cell.radius, anchors.margins)
+                        color: "transparent"
+                        visible: border.width > 0
+                        border.width: Theme.focusWidth(cell.activeFocus)
+                        border.color: Theme.focusRing
                     }
 
                     Text {
@@ -342,22 +367,26 @@ SettingsGroup {
                                 anchors.centerIn: parent
                                 readonly property string text: ControlIconHelpers.promptText(
                                     Settings.controlIcon, Settings.controlIconPrompt)
+                                readonly property bool cybex: text.codePointAt(0) === ControlIconHelpers.CYBEX_CODEPOINT
                                 width: Theme.scaled(16)
                                 height: width
+                                // Without the symbols font (a development
+                                // host), the mark's own white artwork: drawn
+                                // as an image, with no tint effect that a
+                                // software-rendered window leaves blank
+                                // (2026-11-24 review: an empty segment).
                                 BrandIcon {
                                     anchors.fill: parent
-                                    visible: promptIcon.text.codePointAt(0) === ControlIconHelpers.CYBEX_CODEPOINT
+                                    visible: promptIcon.cybex && !root.symbolsFont
                                     name: "cybexos"
-                                    colorized: true
-                                    tint: "#f8f8f2"
-                                    normalizeTintSource: true
+                                    highlighted: true
                                 }
                                 Text {
                                     anchors.centerIn: parent
-                                    visible: promptIcon.text.codePointAt(0) !== ControlIconHelpers.CYBEX_CODEPOINT
+                                    visible: !promptIcon.cybex || root.symbolsFont
                                     text: promptIcon.text === ControlIconHelpers.PROMPT_OS
                                         ? ControlIconHelpers.glyph(ControlIconHelpers.NIXOS_CODE) : promptIcon.text
-                                    font.family: Theme.fontNerdIcons
+                                    font.family: promptIcon.cybex ? "Cybex OS Symbols" : Theme.fontNerdIcons
                                     font.pixelSize: promptLines.textSize
                                     color: "#f8f8f2"
                                 }

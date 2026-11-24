@@ -22,6 +22,11 @@ import "LocalTime.js" as LocalTime
 // its action, and below ~560 px of column (`compact`) the page reflows
 // rather than eliding — the update state moves under the identity, the
 // readings go two by two and wrap, and attention items stack.
+//
+// 2026-11-24 review: a row carries at most one pill, and a pill takes colour
+// only when the person has something to do (a restart, a change to review,
+// backups to set up, a problem). Suggestions, work in progress and verdicts
+// stay neutral, and a mere suggestion never leads with the primary.
 SettingsPage {
     id: page
     objectName: "settingsHomePage"
@@ -54,55 +59,63 @@ SettingsPage {
         ? SysInfoHelpers.formatIecBytes(Math.round(SysInfo.memTotalBytes / 1073741824) * 1073741824) : ""
 
     // One short line for the update state, most urgent first.
+    // "Updates not checked yet" rather than "Not checked yet": the system
+    // check's row below can say the same words about something else.
     readonly property string updateLabel: Updates.rebootRecommended ? I18n.tr("Restart to finish")
         : Updates.ready ? (Updates.deployment.changeKind === "update" ? I18n.tr("Update ready to install")
             : I18n.tr("System change ready"))
         : Updates.runActive ? I18n.tr("Preparing…")
         : Updates.hasUpdates ? I18n.tr("Updates available")
         : Updates.sourcesLoaded ? I18n.tr("Up to date")
-        : I18n.tr("Not checked yet")
+        : I18n.tr("Updates not checked yet")
     readonly property string updateTone: Updates.rebootRecommended || Updates.ready || Updates.hasUpdates
-        || Updates.runActive ? "info" : Updates.sourcesLoaded ? "ok" : "neutral"
+        ? "info" : "neutral"
 
     // What Home lists under "Needs attention", most urgent first. Each entry
-    // carries its words and the one action that settles it.
+    // carries its words, the one action that settles it, and whether that
+    // action is needed (`needed`) or only suggested. The header's Changes chip
+    // steps back on Home (SettingsView), so the waiting changes' Review is
+    // here alone; their title already says they are not applied, so they
+    // carry no pill.
     readonly property var attention: {
         const list = [];
         const changes = SettingsChanges.count;
         if (SettingsChanges.deploymentState === "restart")
-            list.push({ id: "restart", tone: "info", status: I18n.tr("Restart needed"),
+            list.push({ id: "restart", tone: "info", status: I18n.tr("Restart needed"), needed: true,
                 title: I18n.tr("Restart to finish the system change"),
                 detail: I18n.tr("It is built and checked. The previous system stays as a recovery point."),
                 action: I18n.tr("Software Update…") });
         else if (SettingsChanges.deploymentState === "review")
-            list.push({ id: "review", tone: "info", status: I18n.tr("Ready"),
+            list.push({ id: "review", tone: "info", status: I18n.tr("Ready"), needed: true,
                 title: I18n.tr("A system change is ready to review"),
                 detail: I18n.tr("Review it in Software Update, then restart to use it."),
                 action: I18n.tr("Review…") });
         else if (SettingsChanges.deploymentState === "preparing")
-            list.push({ id: "preparing", tone: "amber", status: I18n.tr("In progress"),
+            list.push({ id: "preparing", tone: "neutral", status: I18n.tr("In progress"), needed: false,
                 title: I18n.tr("Preparing a system change"),
                 detail: Updates.runPhaseLabel || I18n.tr("You can keep working or close Settings."), action: "" });
         if (changes > 0)
-            list.push({ id: "changes", tone: "info", status: I18n.tr("Not applied"),
+            list.push({ id: "changes", tone: "neutral", status: "", needed: true,
                 title: changes === 1 ? I18n.tr("1 change waiting to be applied")
                     : I18n.format("%1 changes waiting to be applied", [changes]),
                 detail: SettingsChanges.pages.map(id => Settings.pageInfo(id).label).join(", "),
                 action: I18n.tr("Review…") });
         if (Backup.status.valid && !Backup.configured)
-            list.push({ id: "backup", tone: "amber", status: I18n.tr("Not set up"),
+            list.push({ id: "backup", tone: "amber", status: I18n.tr("Not set up"), needed: true,
                 title: I18n.tr("Personal files aren’t backed up"),
                 detail: I18n.tr("Back up to a drive or an SSH server, protected by a recovery key."),
                 action: I18n.tr("Set up…") });
         for (const check of Doctor.attention)
-            list.push({ id: "check:" + check.id, tone: check.state === "problem" ? "red" : "amber",
+            list.push({ id: "check:" + check.id, tone: check.state === "problem" ? "red" : "neutral",
                 status: check.state === "problem" ? I18n.tr("Problem") : I18n.tr("Suggestion"),
+                needed: check.state === "problem",
                 title: Doctor.sentence(check), detail: I18n.tr("Found by the system check"),
                 action: page.checkAction(check.id) });
         return list;
     }
-    // The group's one primary: the most urgent item that has an action.
-    readonly property int leadAttention: attention.findIndex(item => item.action !== "")
+    // The group's one primary: the most urgent item whose action is needed.
+    // A suggestion's action stays secondary even when it is the only one.
+    readonly property int leadAttention: attention.findIndex(item => item.action !== "" && item.needed)
     // One way into Software Update at a time: while an attention item's
     // action already opens it (a restart, a ready change, firmware), the
     // hero keeps only its status pill (2026-11 council review: two
@@ -600,7 +613,9 @@ SettingsPage {
             }
             // The check itself reads like the items it finds: a pill with its
             // verdict, and a sentence for anything longer (a failed run's
-            // reason), so nothing has to elide in a narrow column.
+            // reason), so nothing has to elide in a narrow column. The pill
+            // stays neutral: what the check found is listed above, in its
+            // own colour, and only a run that failed asks for "Check again".
             AttentionRow {
                 width: parent.width
                 property string searchAnchor: "home-checks"
@@ -610,8 +625,7 @@ SettingsPage {
                     : Doctor.attention.length === 0 ? I18n.tr("Everything looks good")
                     : Doctor.attention.length === 1 ? I18n.tr("1 thing to look at")
                     : I18n.format("%1 things to look at", [Doctor.attention.length])
-                tone: Doctor.running || Doctor.report === null ? "neutral"
-                    : Doctor.attention.length > 0 ? "amber" : "ok"
+                tone: !Doctor.running && Doctor.report === null && Doctor.error !== "" ? "amber" : "neutral"
                 detail: Doctor.report !== null
                     ? I18n.tr("Read-only; nothing leaves this computer. Checked ")
                         + LocalTime.fromText(Doctor.report.checkedAt, page.nowMs, Settings.clock24, "")

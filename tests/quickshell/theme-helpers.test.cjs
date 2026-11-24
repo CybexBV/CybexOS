@@ -339,7 +339,10 @@ test("Appearance leads with the theme gallery and keeps saving out of sight", ()
     assert.equal(page.indexOf('title: "Theme"') < gallery, true);
     assert.match(page, /ThemeGallery \{[\s\S]{0,120}references: page\.themeReferences/);
     assert.match(page, /resetKeys: ThemeHelpers\.RESET_KEYS/);
-    assert.match(page, /text: "Save current as theme…"/);
+    // Saving is the gallery's last tile, once: no second button on the
+    // Theme row (2026-11-24 review).
+    assert.doesNotMatch(page, /text: "Save current as theme…"/);
+    assert.match(page, /onSaveRequested: \{\s+page\.savingTheme = !page\.savingTheme;/);
     assert.match(page, /id: saveThemeReveal[^]*?reveal: page\.savingTheme[^]*?FieldRow \{/);
     assert.doesNotMatch(page, /Component\.onCompleted:/);
     assert.doesNotMatch(page, /barColorMode|barCustomHue/, "bar keys stay on the Bar page");
@@ -352,6 +355,7 @@ test("Appearance leads with the theme gallery and keeps saving out of sight", ()
     assert.match(tiles, /Accessible\.role: Accessible\.RadioButton[\s\S]{0,120}Accessible\.checked: tile\.selected/);
     assert.match(tiles, /ThemeHelpers\.preview\(modelData, root\.references\)/);
     assert.match(tiles, /signal saveRequested\(\)/);
+    assert.match(tiles, /Accessible\.name: "Save current as theme…"\s+Accessible\.onPressAction: root\.saveRequested\(\)/);
 });
 
 test("a theme preview draws its own surfaces and falls back to the shell's", () => {

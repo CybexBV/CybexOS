@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Quickshell
 import "../Common"
 import "../Common/SettingsHelpers.js" as SettingsHelpers
 import "../Popovers"
@@ -453,16 +454,46 @@ SettingsPage {
         spacing: Theme.settingsGroupSpacing
 
         // ---- not on this computer ------------------------------------------------------------------
-        SettingsGroup {
-            visible: !Dictation.available
+        // What is missing and the way to add it (2026-11-24 review: one
+        // sentence with no next step). Features are part of the computer's
+        // configuration, not a shell setting: the installer writes
+        // `features.developer` into /etc/nixos/machine.nix, and a changed
+        // configuration is prepared like an update (docs/customization.md).
+        // There is no switch for it here, so the page gives the steps.
+        StatusPlaceholder {
+            shown: !Dictation.available
             width: parent.width
-            title: I18n.tr("Dictation")
+            glyph: "mic_off"
+            title: Dictation.cpuSupported ? I18n.tr("Dictation isn't installed")
+                : I18n.tr("Dictation can't run on this processor")
+            detail: Dictation.cpuSupported
+                ? I18n.tr("It comes with the developer tools, which were left out when Cybex OS was installed on this computer.")
+                : I18n.tr("Dictation needs a processor with AVX2 (Intel from 2013, AMD from 2015 on).")
+        }
+        SettingsGroup {
+            visible: !Dictation.available && Dictation.cpuSupported
+            width: parent.width
+            title: I18n.tr("Add the developer tools")
 
             SettingsHint {
                 width: parent.width
-                text: Dictation.cpuSupported
-                    ? I18n.tr("Dictation comes with the developer tools feature, which this installation does not have.")
-                    : I18n.tr("Dictation needs a processor with AVX2 (Intel from 2013, AMD from 2015 on).")
+                text: I18n.tr("An administrator can add them. In /etc/nixos/machine.nix, change features.developer = false; to true;. Then run the command below and review the change in Software Update. Compilers and other programming tools come with them.")
+            }
+            ValueRow {
+                width: parent.width
+                label: "cybex update stage local" // i18n: untranslated (a command)
+                labelMono: true
+                SettingsAction {
+                    text: I18n.tr("Copy")
+                    glyph: "content_copy"
+                    Accessible.name: I18n.tr("Copy the command")
+                    onTriggered: Quickshell.execDetached(["wl-copy", "--", "cybex update stage local"])
+                }
+                SettingsAction {
+                    text: I18n.tr("Software Update…")
+                    secondary: true
+                    onTriggered: Updates.show()
+                }
             }
         }
 

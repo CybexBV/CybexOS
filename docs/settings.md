@@ -36,10 +36,15 @@ how it is organised since the October 2026 redesign; the code is
   state on disk, so this lasts for the session.
 - **Header.** It holds Back (also Alt+Left), then the page and what it is
   about, the save state ("Saving… / Saved", with Undo after a reset), the
-  **Changes** chip and Close. While the chip shows, it is the only status:
+  **Changes** chip and Close. While changes wait, the chip is the only status:
   "Saved" beside "1 change waiting" read as if the waiting change were saved,
   so the brief saving note steps back. Errors and Undo still show. Back walks the pages visited since the window
-  opened. Closing the window forgets that trail.
+  opened, and shows only while there is a page to go back to; on the first
+  page the title takes its place. Closing the window forgets that trail.
+  The chip's **Review** is a secondary action: a page's own Apply or
+  **Prepare change** is that screen's one primary. Home lists the same
+  waiting changes under Needs attention with their own Review, so the chip
+  steps back there and the page keeps one way in.
 - **Tabs.** A page that holds more than one view shows underlined tabs above its
   content:
   - **Keyboard:** Layouts and Shortcuts.
@@ -56,7 +61,9 @@ Home replaces About. From top to bottom it shows:
    status pill over a secondary **Software Update…** action. While an item
    under Needs attention already opens Software Update (a restart, a ready
    change, firmware updates), the hero keeps only its pill, so the page has
-   one way into Software Update at a time.
+   one way into Software Update at a time. The pill takes the accent only
+   when there is something to do (updates, a change to review, a restart);
+   "Up to date" and "Updates not checked yet" stay neutral.
 2. One strip with storage, battery (memory on a desktop), backups and network.
    Storage and backups open Backup & storage, network opens Network and
    battery opens Power. Memory has no page, so it is plain text, not a button.
@@ -68,9 +75,15 @@ Home replaces About. From top to bottom it shows:
    - backups that are not set up;
    - the [system check](system-check.md)'s problems and suggestions.
 
-   Each item has a status pill (a dot and a word or two) beside its one
-   action. The most urgent item's action is the group's only primary, and the
-   others are secondary. The system check row runs `cybex doctor` again.
+   An item has at most one status pill (a dot and a word or two) beside its
+   one action, and the pill takes a colour only when the person has
+   something to do: a restart, a change to review, backups to set up, or a
+   problem. Suggestions, a change being prepared and the system check's
+   verdict stay neutral. Waiting changes carry no pill, because their title
+   already says they are not applied. The most urgent item whose action is
+   needed leads with the group's only primary; a suggestion's action, such as
+   **Software Update…** for firmware, stays secondary even when it is the only
+   one. The system check row runs `cybex doctor` again.
 4. **Recently changed**. These are the settings changed in this window, each
    with Show and Undo.
 5. **About this computer**. This holds shell health, the Welcome guide and the
@@ -87,8 +100,27 @@ eliding. The update state moves under the identity, the four readings go two
 by two and wrap, and an attention item puts its pill and action on a line
 under its title. An attention item also stacks when its title would not fit
 beside them. The theme and pointer galleries mark the chosen tile with a 2 px
-`textHi` frame and an accent check. In a narrow column the theme previews drop
-to 72 px, and Appearance keeps its order.
+`textHi` frame and an accent check. Saving the current look as a theme is the
+theme gallery's last tile, **Save current…**; the Theme row below holds no
+second save button. In a narrow column the theme previews drop to 72 px, and
+Appearance keeps its order.
+
+Other choice tiles (the Control Center button's icon, the wallpaper grid) use
+the shared selected tile: an accent tint where the tile has a surface, and a
+2 px accent border. Keyboard focus is only the shared ring, drawn inside a
+chosen tile's border with a concentric corner (`Theme.concentricRadius`). In
+the wallpaper grid the border marks the picture being previewed and an accent
+check the one in use; the preview's button then reads **In use** and rests.
+
+A row's explanation is one plain sentence. A tool's own message (a failed
+pointer download's Nix error, a keybindings parser error) waits behind a
+**Details** disclosure under it, in the mono face.
+
+A widget's options in the Bar page open in a sheet with one scroll: the
+option pages inside it are embedded (`SettingsPage.embedded`), so they share
+its right-hand edge and add no scroll, clip or fade of their own. Under the
+sheet's **Show on bar** switch, the status line keeps only what the switch
+does not already say ("Needs a location", not "On your bar").
 
 Recently changed keeps at most eight entries in
 `~/.local/state/cybexos/shell/settings-recent.json`. It records only settings
@@ -173,6 +205,9 @@ without Apply, and the next login starts with it.
     collection.
   - `scripts/check-prebuilt` fails a release whose recorded paths
     cache.nixos.org does not hold.
+  - A download that cannot reach the cache says "Couldn't download *name*.
+    Check your connection and try again." under Pointer style, and leaves
+    the pointer as it was. Nix's own message is under **Details**.
   - The previews ship with the shell. `scripts/render-pointer-previews` redraws
     them from the catalogue's packages after a catalogue or Nixpkgs change.
 - **Applying.** `Common/Pointer.qml` resolves the choice:

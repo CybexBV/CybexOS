@@ -21,8 +21,10 @@ Item {
     property int spacing: segmented ? Theme.scaled(2) : Theme.panelRowSpacing
     signal picked(var value)
     readonly property bool anySelected: model.some(item => item.value === current)
-    // The track's inset around the options.
+    // The track's inset around the options, and the track's corner: the
+    // options inside take the concentric corner (Theme.concentricRadius).
     readonly property int inset: segmented ? Theme.scaled(2) : 0
+    readonly property int trackRadius: Theme.chipRadius + inset
     // The width the options want on one line, track included — what a row
     // uses to right-align the control without stretching it.
     readonly property real naturalWidth: {
@@ -45,7 +47,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: root.segmented
-        radius: Theme.chipRadius + root.inset
+        radius: root.trackRadius
         color: Theme.chip
         border.width: 1
         border.color: Theme.hairlineSoft
@@ -69,13 +71,17 @@ Item {
                 required property int index
                 readonly property bool selected: modelData.value === root.current
 
+                readonly property bool ringShown: Theme.focusWidth(activeFocus) > 0
+
                 width: Math.min(flow.width, pillText.implicitWidth + root.padH * 2)
                 height: root.pillHeight
-                radius: Theme.chipRadius
+                radius: root.segmented ? Theme.concentricRadius(root.trackRadius, root.inset) : Theme.chipRadius
                 color: !pill.selected ? "transparent"
                     : root.segmented ? Theme.segmentSelected : Theme.chipHover
-                border.width: activeFocus ? 1 : pill.selected && root.segmented ? 1 : 0
-                border.color: activeFocus ? Theme.accentText : Theme.hairline
+                // Keyboard focus is the shared ring, shown for the keyboard
+                // only; the raised segment keeps its hairline otherwise.
+                border.width: ringShown ? Theme.focusRingWidth : pill.selected && root.segmented ? 1 : 0
+                border.color: ringShown ? Theme.focusRing : Theme.hairline
                 activeFocusOnTab: pill.selected || (!root.anySelected && index === 0)
                 Accessible.role: Accessible.RadioButton
                 Accessible.name: pill.modelData.label
@@ -117,7 +123,6 @@ Item {
                     radius: parent.radius
                     hovered: pillMouse.containsMouse
                     pressed: pillMouse.pressed
-                    focused: pill.activeFocus
                     tint: pill.selected ? Theme.accent : Theme.textHi
                     pressPoint: Qt.point(pillMouse.mouseX, pillMouse.mouseY)
                 }

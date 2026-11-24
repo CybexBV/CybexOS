@@ -135,8 +135,8 @@ test("bar popouts use the quick detached motion profile", () => {
     assert.match(theme, /popoutOpenDuration:\s*reducedMotion \? 0 : 250/);
     assert.match(theme, /popoutCloseDuration:\s*reducedMotion \? 0 : 165/);
     assert.match(theme, /popoutMorphDuration:\s*reducedMotion \? 0 : 320/);
-    assert.match(theme, /popoutFadeInDuration:\s*reducedMotion \? 0 : 170/);
-    assert.match(theme, /popoutFadeOutDuration:\s*reducedMotion \? 0 : 120/);
+    assert.match(theme, /popoutFadeInDuration:\s*reducedMotion \? 120 : 170/);
+    assert.match(theme, /popoutFadeOutDuration:\s*reducedMotion \? 90 : 120/);
     assert.match(theme, /popoutContentFadeDuration:\s*reducedMotion \? 0 : 150/);
     assert.match(theme, /popoutInitialScale:\s*reducedMotion \? 1 : 0\.975/);
     assert.match(theme, /popoutTravel:\s*reducedMotion \? 0 : 10/);
@@ -423,7 +423,9 @@ test("settings geometry accommodates wide menu fonts and focused rows", () => {
         "44 header + 656 body: room for Home and the rail's three groups of six without scrolling");
     // The gutter is unconditional: making it depend on scrollbarVisible
     // loops (narrower content re-wraps taller and flips the scrollbar).
-    assert.match(page, /scrollGutter:\s*8/);
+    // An embedded page (options inside the Bar page's sheet) leaves the
+    // gutter to the page around it: a static property, not a loop.
+    assert.match(page, /scrollGutter:\s*embedded \? 0 : 8/);
     assert.doesNotMatch(page, /scrollGutter:\s*scrollbarVisible/);
     assert.match(page, /width:\s*Math\.min\(root\.maxContentWidth, Math\.max\(0, root\.width - root\.scrollGutter\)\)/,
         "a page's column is bounded and centered rather than stretched across the pane");
@@ -644,8 +646,13 @@ test("dialog chrome carries the menubar's grammar rather than a card stack", () 
         "the taken option is raised out of its track, not an accent tint");
     assert.match(pills, /visible: root\.segmented\s+radius:[^\n]*\n\s+color: Theme\.chip/,
         "settings choices share one track so they read as a single control");
-    assert.match(pills, /radius:\s*Theme\.chipRadius/,
-        "segments take the bar's chip corner rather than a pill");
+    assert.match(pills, /trackRadius: Theme\.chipRadius \+ inset/);
+    assert.match(pills, /radius: root\.segmented \? Theme\.concentricRadius\(root\.trackRadius, root\.inset\) : Theme\.chipRadius/,
+        "segments take the bar's chip corner, concentric with their track, rather than a pill");
+    // Keyboard focus is the shared ring, not a 1 px accent border or a tint.
+    assert.match(pills, /border\.width: ringShown \? Theme\.focusRingWidth/);
+    assert.match(pills, /border\.color: ringShown \? Theme\.focusRing : Theme\.hairline/);
+    assert.doesNotMatch(pills, /focused: pill\.activeFocus|activeFocus \? Theme\.accentText/);
     assert.doesNotMatch(pills, /Theme\.accentAlpha/,
         "broad selected controls must not paint the accent");
 

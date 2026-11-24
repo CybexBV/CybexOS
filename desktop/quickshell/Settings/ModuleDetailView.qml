@@ -1183,7 +1183,7 @@ SettingsPage {
         id: controlOptions
         DrawerPage {
             height: contentHeight
-            interactive: false
+            embedded: true
         }
     }
 

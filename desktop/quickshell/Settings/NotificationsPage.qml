@@ -435,7 +435,12 @@ SettingsPage {
         from: 1; to: 0
         duration: Settings.notifDuration * 1000
         loops: Animation.Infinite
-        running: Settings.notifProgress && page.visible
+        // An ambient loop: reduced motion holds the preview's bar full.
+        running: Settings.notifProgress && page.visible && !Theme.reducedMotion
+        onRunningChanged: {
+            if (!running)
+                page.previewProgress = 1;
+        }
     }
 
     Connections {

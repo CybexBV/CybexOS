@@ -7,15 +7,23 @@ import "../Common"
 // change was prepared it follows it — preparing, ready to review, restart
 // to finish — and opens Software Update, which owns that review. In the
 // narrow window it keeps only the dot, the count and its action.
+//
+// Its action is secondary (2026-11-24 review): the chip shows on every page,
+// beside a page's own Apply or Prepare change, which is that screen's one
+// primary. The accent dot is what draws the eye. `hidden` lets a page that
+// lists the same changes with their action (Home) keep one way in.
 Item {
     id: root
 
     property bool compact: false
+    property bool hidden: false
     signal reviewRequested()
 
     readonly property int count: SettingsChanges.count
     readonly property string deployment: SettingsChanges.deploymentState
-    readonly property bool shown: count > 0 || deployment !== ""
+    // Something waits, whether or not this chip is the one saying so.
+    readonly property bool pending: count > 0 || deployment !== ""
+    readonly property bool shown: pending && !hidden
     readonly property string text: count > 0
         ? (count === 1 ? I18n.tr("1 change waiting") : I18n.format("%1 changes waiting", [count]))
         : deployment === "restart" ? I18n.tr("Restart to finish")
@@ -77,14 +85,18 @@ Item {
                 font.weight: Theme.weightMedium
                 color: Theme.textHi
             }
-            // While preparing, the chip says so and takes no action.
+            // While preparing, the chip says so and takes no action. The
+            // action is a secondary: a raised step and a hairline, never the
+            // accent fill a page's own primary wears.
             Rectangle {
                 visible: root.actionText !== ""
                 anchors.verticalCenter: parent.verticalCenter
                 width: actionLabel.implicitWidth + Theme.scaled(18)
                 height: chip.height - Theme.scaled(8)
                 radius: height / 2
-                color: Theme.accent
+                color: Theme.segmentSelected
+                border.width: 1
+                border.color: Theme.hairline
                 Text {
                     id: actionLabel
                     anchors.centerIn: parent
@@ -92,7 +104,7 @@ Item {
                     font.family: Theme.fontMenu
                     font.pixelSize: Theme.typography.secondary
                     font.weight: Theme.weightSemibold
-                    color: Theme.textOnAccent
+                    color: Theme.textHi
                 }
             }
         }

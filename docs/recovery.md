@@ -129,7 +129,11 @@ silently downgrade a newer database or unknown preference schema.
 
 Open **Settings → Backup & storage**: **Disk space** shows store filesystem
 capacity and reviews cleanup; **Recovery points** sets retention and pins
-confirmed recovery points. Manual cleanup
+confirmed recovery points. That tab calls them recovery points throughout:
+**Recovery points to keep** counts confirmed deployments, and **Going back**
+says what a recovery point restores and that the boot menu lists them; the
+terms "confirmed deployment" and "NixOS system generation" appear only in
+those rows' secondary lines. Manual cleanup
 requires authentication and a current review token. Pin/configuration/history
 changes invalidate an earlier review. Estimates count uncompressed NAR bytes;
 shared paths and filesystem compression can make reclaimed disk space differ.

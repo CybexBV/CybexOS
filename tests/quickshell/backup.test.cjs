@@ -197,7 +197,14 @@ test("recovery points live on one tab: the list, then how long they are kept, th
     assert.ok(listAt > 0 && retentionAt > listAt && generationsAt > retentionAt, "list, retention, generations");
     assert.match(page, /property string searchAnchor: "recoveryPoints"/, "search's Recovery points row lands here");
     assert.match(page, /title: "Retention"[\s\S]{0,120}changeTag: "restart"/, "retention says it builds a system change");
-    assert.match(read("Settings/RecoveryGroup.qml"), /title: "System generations"[\s\S]*ValueRow \{\s*width: parent\.width/);
+    assert.match(read("Settings/RecoveryGroup.qml"), /title: "Going back"[\s\S]*ValueRow \{\s*width: parent\.width/);
+    // One plain name in what the tab shows (2026-11-24 review): "recovery
+    // points"; the technical terms only in secondary lines.
+    for (const heading of ["System generations", "View generations", "Confirmed deployments to keep"]) {
+        assert.ok(!page.includes(`"${heading}"`), heading);
+        assert.ok(!read("Settings/RecoveryGroup.qml").includes(`"${heading}"`), heading);
+    }
+    assert.match(page, /label: "Recovery points to keep"\s+hint: "[^"]*\(confirmed deployments\)\."/);
     // Home took over from About and holds no recovery points either.
     assert.doesNotMatch(read("Settings/HomePage.qml"), /RecoveryGroup|Recovery points/);
 });
