@@ -244,7 +244,7 @@ class MaintenanceTests(unittest.TestCase):
         for tx in kept:
             self.assertTrue((tx / 'roots/configuration').is_symlink(), tx.name)
             self.assertFalse((tx / 'retired.json').exists())
-        self.assertFalse((self.profiles / 'system-11-link').exists())
+        self.assertTrue((self.profiles / 'system-11-link').is_symlink(), 'the failed trial\'s boot entry stays')
         self.assertTrue((self.profiles / 'system-10-link').is_symlink())
         self.assertTrue((self.engine.tx(self.records[-1]['id']) / 'roots/system').is_symlink())
         # Released transactions are not offered again.

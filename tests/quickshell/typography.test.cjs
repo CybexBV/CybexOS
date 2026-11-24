@@ -274,7 +274,6 @@ test("only the classic floating bar and internal glows draw shadows", () => {
     // hence the allow-list rather than a blanket ban.
     const insideASurface = [
         "Bar/Bar.qml",               // the screenshot's floating slab shadow
-        "Bar/T3Chip.qml",            // the running dot's bloom, inside the bar
         "Settings/ModulesPage.qml",  // the drag proxy, over an opaque page
         "NotificationToasts.qml"     // the toast's shadow, with glass off only
     ];
@@ -405,20 +404,9 @@ test("no surface paints an accent field where a chip belongs", () => {
         // the current day, which is the calendar's workspace pill
         "Popovers/CalendarPopover.qml",
         // T3 and GitHub carry their own reviewed treatment
-        "Popovers/T3Composer.qml",
-        "Popovers/T3ThreadPage.qml",
-        "Popovers/T3InboxPage.qml",
-        "Popovers/T3ModelPicker.qml",
-        "Popovers/T3RequestCard.qml",
-        "Popovers/T3InlineSelect.qml",
-        "Popovers/T3Picker.qml",
-        "Popovers/T3NewThreadPage.qml",
-        "Popovers/T3CodePopover.qml",
-        "Popovers/GitHubPopover.qml",
         // the bar's own workspace pill and status marks
         "Bar/Workspaces.qml",
         "Bar/BarIcon.qml",
-        "Bar/T3Chip.qml",
         "Bar/Modules/Indicators.qml"
     ]);
     const walk = dir => {

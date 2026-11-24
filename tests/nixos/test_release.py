@@ -200,6 +200,15 @@ class PublishTests(unittest.TestCase):
             '--notes-file release/notes.md --prerelease --latest=false'])
         self.assertEqual(self.git('tag', '--list', 'v1.0.1').strip(), '', 'no new local tag is made')
 
+    def test_a_release_must_be_newer_than_every_published_one(self):
+        self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.2', 'prerelease': True, 'draft': False}])
+        for arguments in (('1.0.1',), ('1.0.1', '--stable')):
+            result = self.publish(*arguments)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('it is not newer than v1.0.2', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertNotIn('v1.0.1', self.git('ls-remote', '--tags', 'origin'))
+
     def test_no_release_drops_a_nixos_branch_the_newest_one_lists(self):
         # 1.0.0 (a beta) lists unstable and 26.11; 1.0.1 lists 26.11 only.
         compatibility = json.loads((self.work / 'release/compatibility.json').read_text())

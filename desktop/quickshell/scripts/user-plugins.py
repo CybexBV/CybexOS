@@ -605,6 +605,8 @@ def main() -> int:
     merge.add_argument("id")
     merge.add_argument("value")
     merge.add_argument("--instance")
+    merge.add_argument("--only-missing", action="store_true",
+                       help="Keep every setting the plugin already has; add only the absent keys")
     instance = commands.add_parser("instance", help="Create or configure a named widget instance")
     instance.add_argument("id")
     instance.add_argument("name")
@@ -894,7 +896,8 @@ def main() -> int:
                     patch = json.loads(args.value)
                     if not isinstance(patch, dict):
                         raise ValueError("Settings patch must be a JSON object")
-                    settings.update({key: item for key, item in patch.items() if key != "id"})
+                    settings.update({key: item for key, item in patch.items() if key != "id"
+                                     and not (args.only_missing and key in settings)})
                 else:
                     settings[args.key] = json.loads(args.value)
                 options(entry)

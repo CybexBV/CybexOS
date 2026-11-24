@@ -120,10 +120,10 @@ class WifiDefaultsTests(unittest.TestCase):
                 self.assertEqual(modify.call_args.args, ('new-wifi', tool.provider_configuration(provider, '9.9.9.9')))
 
     def test_hotspots_and_vpns_do_not_override_the_first_wifi_default(self):
-        hotspot = {**self.profile('Automatic'), 'connectionType': '802-11-wireless', 'ipv4Method': 'shared'}
-        vpn = {**self.profile('Automatic'), 'connectionType': 'wireguard'}
-        google = {**self.profile('Google'), 'connectionType': '802-11-wireless', 'ipv4Method': 'shared'}
-        self.assertEqual(self.inherit([google, vpn]).call_args.args[1]['provider'], 'Automatic')
+        # Neither one's provider (Google here) is a person's Wi-Fi choice.
+        hotspot = {**self.profile('Google'), 'connectionType': '802-11-wireless', 'ipv4Method': 'shared'}
+        vpn = {**self.profile('Google'), 'connectionType': 'wireguard'}
+        self.assertEqual(self.inherit([hotspot, vpn]).call_args.args[1]['provider'], 'Automatic')
 
     def test_mixed_existing_dns_is_preserved(self):
         self.inherit([self.profile('Automatic'), self.profile('Custom')]).assert_not_called()

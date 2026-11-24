@@ -169,9 +169,10 @@ def discover(fetch, channel, installed):
             raise Failure('Invalid release listing')
         # GitHub lists releases by creation date, not by version: a release
         # published after a higher version (a draft finished later) can sit
-        # on an earlier page. Only a page with nothing newer than the
-        # installed version ends the walk.
-        reached = True
+        # on an earlier page. Only a page with releases, none of them newer
+        # than the installed version, ends the walk: drafts and other tags
+        # say nothing either way.
+        reached, versioned = True, False
         for item in listing:
             if not isinstance(item, dict) or item.get('draft') is not False:
                 continue
@@ -184,11 +185,12 @@ def discover(fetch, channel, installed):
                 continue
             if not isinstance(item.get('prerelease'), bool):
                 raise Failure('Invalid release listing')
-            reached = reached and key <= current
+            reached, versioned = reached and key <= current, True
             if channel == 'stable' and (item['prerelease'] or '-' in tag):
                 continue
             notes = item.get('body') if isinstance(item.get('body'), str) else ''
             eligible.append((key, tag, notes[:100000]))
+        reached = reached and versioned
     if not eligible:
         raise NoPublishedRelease('No Cybex OS release has been published for this channel yet.')
     key, tag, notes = max(eligible)

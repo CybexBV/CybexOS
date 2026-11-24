@@ -630,7 +630,8 @@ class UnchangedBoot(unittest.TestCase):
 
 def check_prebuilt():
     """scripts/check-prebuilt as a module; its main() does not run."""
-    import importlib.machinery, importlib.util
+    import importlib.machinery
+    import importlib.util
     path = lifecycle.ROOT / 'scripts/check-prebuilt'
     loader = importlib.machinery.SourceFileLoader('check_prebuilt', str(path))
     module = importlib.util.module_from_spec(importlib.util.spec_from_loader('check_prebuilt', loader))

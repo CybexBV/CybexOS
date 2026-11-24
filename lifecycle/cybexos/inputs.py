@@ -36,7 +36,7 @@ def supported_branch(ref):
 
 
 def release_name(ref):
-    """release.json's "nixos" value for a branch: "unstable" or "26.11"."""
+    """A branch's short name, as release/compatibility.json lists it: "unstable" or "26.11"."""
     if not supported_branch(ref):
         raise Failure(f'Unsupported NixOS branch: {ref}')
     return ref.removeprefix('nixos-')

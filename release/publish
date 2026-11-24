@@ -94,9 +94,12 @@ import importlib.machinery, importlib.util, json, sys
 loader = importlib.machinery.SourceFileLoader("promote", "release/promote")
 promote = importlib.util.module_from_spec(importlib.util.spec_from_loader("promote", loader))
 loader.exec_module(promote)
-candidate, stable = sys.argv[1], sys.argv[2] == "1"
+candidate, stable, wanted_version = sys.argv[1], sys.argv[2] == "1", promote.version(sys.argv[3])
 listing = promote.releases()
 newest = max(listing, key=lambda item: item["key"], default=None)
+if newest and wanted_version <= newest["key"]:
+    print("it is not newer than " + newest["tag_name"] + ", which machines already have; take the next version")
+    sys.exit()
 current = max((item for item in listing if promote.stable(item)), key=lambda item: item["key"], default=None)
 for item in {newest["tag_name"] if newest else None, current["tag_name"] if current and stable else None} - {None}:
     promote.run("git", "fetch", "--quiet", "origin", "refs/tags/" + item + ":refs/tags/" + item)
@@ -110,7 +113,7 @@ if newest:
 problems = promote.compatible(candidate, current["tag_name"]) if stable and current else []
 if problems:
     print("stable machines on " + current["tag_name"] + " cannot install it: " + "; ".join(problems))
-' "$revision" "$stable") || fail 'cannot check what machines can install; nothing was published'
+' "$revision" "$stable" "$version") || fail 'cannot check what machines can install; nothing was published'
 [[ -z $problems ]] || fail "$problems"
 drafts=0
 if [[ -n $tagged ]]; then

@@ -172,13 +172,18 @@ def root_input(lock, name):
 
 # -- GitHub, from this host ---------------------------------------------------
 
-def lends_token(method, path):
+def lends_token(method, path, repository_id=None):
     """Whether the stand-in may add its token to a guest request it passes on:
     reads of Cybex OS's own repository, and the release pages GitHub links by
-    repository id; nothing else."""
+    that repository's id; nothing else. A path that could step out of the
+    repository (dot segments, encoded or not) gets none."""
     route = urllib.parse.urlsplit(path).path
-    return method in ('GET', 'HEAD') and bool(re.match(
-        r'/(?:repos/(?:CybexBV|CybexHQ)/CybexOS(?:/|$)|repositories/[0-9]+/releases$)', route))
+    if method not in ('GET', 'HEAD') or '..' in urllib.parse.unquote(route) or '%' in route:
+        return False
+    if re.fullmatch(r'/repos/(?:cybexbv|cybexhq)/cybexos(?:/[^/]+)*/?', route, re.IGNORECASE):
+        return True
+    match = re.fullmatch(r'/repositories/([0-9]+)/releases', route)
+    return bool(match) and repository_id is not None and int(match[1]) == repository_id
 
 
 def github(path, accept='application/vnd.github+json'):
@@ -283,6 +288,8 @@ class StandIn(ThreadingHTTPServer):
         self.listing = json.dumps(served_listing(releases, target)).encode()
         self.target = target
         self.token = os.environ.get('CYBEXOS_UPGRADE_PROXY_TOKEN')
+        # GitHub links following release pages by repository id.
+        self.repository_id = json.loads(github(f'/repos/{REPO}'))['id'] if self.token else None
         self.nonce = os.urandom(8).hex()
         self.requests, self.lock = [], threading.Lock()
         super().__init__(('127.0.0.1', 0), StandInHandler)
@@ -335,7 +342,14 @@ class StandInHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.respond()
 
-    do_HEAD = do_POST = do_GET
+    do_HEAD = do_GET
+
+    def refuse(self):
+        """Updaters and Nix only read: the stand-in passes nothing else on."""
+        self.send(405, b'', [('Allow', 'GET, HEAD')])
+        self.server.record(method=self.command, path=self.path, route='refused', status=405)
+
+    do_POST = do_PUT = do_PATCH = do_DELETE = refuse
 
     def send(self, status, body, headers=()):
         self.send_response(status)
@@ -366,7 +380,7 @@ class StandInHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length') or 0)
         body = self.rfile.read(length) if length else None
         headers = {name: value for name, value in self.headers.items() if name.lower() not in HOP_BY_HOP}
-        if (self.server.token and lends_token(self.command, self.path)
+        if (self.server.token and lends_token(self.command, self.path, self.server.repository_id)
                 and not any(name.lower() == 'authorization' for name in headers)):
             headers['Authorization'] = 'Bearer ' + self.server.token
         connection = http.client.HTTPSConnection('api.github.com', timeout=120, context=ssl.create_default_context())

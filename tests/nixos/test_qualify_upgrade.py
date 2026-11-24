@@ -174,11 +174,11 @@ class StandInTests(unittest.TestCase):
             port = standin.server_address[1]
             context = ssl.create_default_context(cafile=str(standin.ca))
 
-            def get(path, accept='application/vnd.github+json'):
+            def get(path, accept='application/vnd.github+json', method='GET'):
                 connection = http.client.HTTPSConnection('api.github.com', context=context, timeout=10)
                 connection.sock = context.wrap_socket(socket.create_connection(('127.0.0.1', port), 10),
                                                       server_hostname='api.github.com')
-                connection.request('GET', path, headers={'Accept': accept})
+                connection.request(method, path, headers={'Accept': accept})
                 response = connection.getresponse()
                 body = response.read()
                 connection.close()
@@ -189,8 +189,11 @@ class StandInTests(unittest.TestCase):
             self.assertEqual(get('/repos/CybexBV/CybexOS/commits/v1.0.32', 'application/vnd.github.sha'),
                              (200, REVISION.encode()))
             self.assertEqual(get('/cybexos-upgrade-test/python'), (200, f'cybexos-upgrade-test {standin.nonce}\n'.encode()))
+            # Writes are never passed on to GitHub.
+            self.assertEqual(get('/repos/CybexBV/CybexOS/issues', method='POST')[0], 405)
             self.assertEqual([(row['route'], row['count'], row['status']) for row in standin.summary()],
-                             [('listing', 1, [200]), ('revision', 1, [200]), ('probe', 1, [200])])
+                             [('listing', 1, [200]), ('revision', 1, [200]), ('probe', 1, [200]),
+                              ('refused', 1, [405])])
             # Without the test CA it is not api.github.com.
             with self.assertRaises(ssl.SSLCertVerificationError):
                 ssl.create_default_context().wrap_socket(socket.create_connection(('127.0.0.1', port), 10),
@@ -200,17 +203,24 @@ class StandInTests(unittest.TestCase):
 
 class TokenTests(unittest.TestCase):
     def test_the_stand_in_lends_its_token_only_to_reads_of_this_repository(self):
+        own = 1438845778
         for method, path in (('GET', '/repos/CybexBV/CybexOS/contents/flake.lock?ref=abc'),
                              ('GET', '/repos/CybexHQ/CybexOS/tarball/abc'),
+                             ('GET', '/repos/cybexbv/cybexos/commits/v1.0.32'),
                              ('HEAD', '/repos/CybexBV/CybexOS'),
                              ('GET', '/repositories/1438845778/releases?per_page=30&page=2')):
-            self.assertTrue(upgrade.lends_token(method, path), path)
+            self.assertTrue(upgrade.lends_token(method, path, own), path)
         for method, path in (('POST', '/repos/CybexBV/CybexOS/issues'),
                              ('GET', '/repos/CybexBV/private-thing/contents/x'),
                              ('GET', '/repos/CybexBV/CybexOS-fork/contents/x'),
-                             ('GET', '/repositories/1/contents/secret'),
+                             ('GET', '/repos/CybexBV/CybexOS/../../other/private/contents/x'),
+                             ('GET', '/repos/CybexBV/CybexOS/%2e%2e/%2e%2e/other/private'),
+                             ('GET', '/repositories/1/releases'),
+                             ('GET', '/repositories/1438845778/contents/secret'),
                              ('GET', '/user'), ('GET', '/user/repos')):
-            self.assertFalse(upgrade.lends_token(method, path), path)
+            self.assertFalse(upgrade.lends_token(method, path, own), path)
+        # Without the repository's id, no page by id gets the token.
+        self.assertFalse(upgrade.lends_token('GET', '/repositories/1438845778/releases'))
 
 if __name__ == '__main__':
     unittest.main()

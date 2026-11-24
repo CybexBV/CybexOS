@@ -202,7 +202,8 @@ class Maintenance:
                 recent = (record.get('ended') is not None and record['id'] != live
                           and record['ended'] > self.now - ABANDONED)
                 reasons.append('Ended recently' if recent else 'Unresolved or failed deployment')
-            if any(path.is_relative_to(tx) for path in selected_paths): reasons.append('Selected personal configuration')
+            # Both sides resolved: a state path through a symlink must still match.
+            if any(path.is_relative_to(tx.resolve()) for path in selected_paths): reasons.append('Selected personal configuration')
             if (record.get('system') in (current, booted) or record.get('previousSystem') == current) and not releasable:
                 reasons.append('References the running system')
             eligible = not reasons and not record['retired']

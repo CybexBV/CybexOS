@@ -110,7 +110,7 @@ def declared(tag, name):
 
 def nixos(tag):
     """The NixOS branch a release follows ("unstable", "26.11"): the Nixpkgs
-    of its own flake.lock, as its release.json names it (nix/modules/default.nix)."""
+    of its own flake.lock, in compatibility.json's short form."""
     try:
         return release_name(pin(json.loads(source(tag, 'flake.lock')))['ref'])
     except (Failure, ValueError) as error:

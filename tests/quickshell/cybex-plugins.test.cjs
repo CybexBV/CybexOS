@@ -145,6 +145,13 @@ test("Install merges the built-in widget's saved options into the plugin's setti
         assert.equal(listed.width, 140);
         const saved = JSON.parse(fs.readFileSync(path.join(base, "config/plugins.json"), "utf8"));
         assert.deepEqual(saved.plugins["digitalpals.t3code"].settings, options);
+        // The plugin's own later choice survives removal and a reinstall
+        // that brings the old options again.
+        run("python3", [helper, "set", "digitalpals.t3code", "showLabel", "true"], { env });
+        run("python3", [helper, "remove", "digitalpals.t3code"], { env });
+        run(command, args, { env });
+        const again = JSON.parse(fs.readFileSync(path.join(base, "config/plugins.json"), "utf8"));
+        assert.equal(again.plugins["digitalpals.t3code"].settings.showLabel, true);
         // Nothing to import: no merge.
         assert.doesNotMatch(P.installCommand(helper, plugin, {}).join(" "), /merge/);
         assert.doesNotMatch(P.installCommand(helper, plugin, null).join(" "), /merge/);

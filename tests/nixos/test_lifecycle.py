@@ -396,6 +396,13 @@ class TrustTests(unittest.TestCase):
         with self.assertRaisesRegex(Failure, 'Invalid release listing'):
             trust.discover(looping, 'stable', '1.0.10')
 
+    def test_a_page_of_drafts_and_other_tags_does_not_end_the_walk(self):
+        pages = [listing(('v1.0.35', False, False)),
+                 listing(('v1.0.40', False, True), ('nightly', False, False)),
+                 listing(('v1.0.36', False, False), ('v1.0.30', False, False))]
+        found = trust.discover(self.fetch(pages), 'stable', '1.0.30')
+        self.assertEqual((found['version'], found['releases']), ('1.0.36', ['1.0.36', '1.0.35']))
+
     def test_a_higher_version_created_earlier_on_a_later_page_is_found(self):
         # GitHub orders by creation: 1.0.36's draft was made before 1.0.35
         # and published after it, so it sits on page 2.

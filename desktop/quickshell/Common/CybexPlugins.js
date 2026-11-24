@@ -69,7 +69,9 @@ function installCommand(helper, plugin, options) {
     }
     if (options && typeof options === "object" && Object.keys(options).length) {
         args.push(JSON.stringify(options));
-        line += ' && python3 "$1" merge "$3" "$' + args.length + '"';
+        // Only what the plugin has no setting for yet: a reinstall keeps the
+        // settings it saved since (removal keeps them).
+        line += ' && python3 "$1" merge --only-missing "$3" "$' + args.length + '"';
     }
     return ["sh", "-c", line, "sh"].concat(args);
 }
