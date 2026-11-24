@@ -108,7 +108,9 @@ Singleton {
         firmwareRestart: Helpers.firmwareRestart(deployment)})
     readonly property string problem: Helpers.problem({statusLoaded: statusLoaded, state: deployment.state})
     readonly property var review: Helpers.summary(deployment)
+    // Packages a newer release pins come only with it (Helpers.scope).
     readonly property bool upstreamOnlyAvailable: deployment.state === "failed" && deployment.scope === "both"
+        && sourcesLoaded && Helpers.scope(sources, ["upstream"]) === "upstream"
         && sourcesLoaded && sources.upstream.state === "available"
     readonly property string error: [...new Set([requestError, statusError, checkError,
         Helpers.replacementRequest(deployment) || nixosPending ? "" : (deployment.request || {}).error || "",

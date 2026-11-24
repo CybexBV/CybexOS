@@ -49,7 +49,7 @@ for file in "${files[@]}"; do exclude+=(":(exclude)$file"); done
 [[ -z $(git status --porcelain -- . "${exclude[@]}") ]] || fail "only ${files[*]} may be changed"
 
 branch=vendor-update
-git switch --quiet --create "$branch"
+git switch --quiet --force-create "$branch"
 while IFS=$'\t' read -r file title to notes; do
     git add -- "$file"
     git commit --quiet -m "Update $title to $to" -m "$notes" \

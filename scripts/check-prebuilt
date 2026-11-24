@@ -54,7 +54,7 @@ def nix(*arguments):
     return result.stdout
 
 
-def evaluate(nvidia, packages, profile=None, xps=False):
+def evaluate(nvidia, packages, profile=None, xps=False, hardware=None):
     expression = '''
       let
         flake = builtins.getFlake (toString %(root)s);
@@ -65,7 +65,8 @@ def evaluate(nvidia, packages, profile=None, xps=False):
             cybexos.hardware.nvidia = %(nvidia)s;
             cybexos.hardware.profile = builtins.fromJSON %(profile)s;
             cybexos.software.packages = builtins.fromJSON %(packages)s;
-          }) ] ++ (if %(xps)s then [ { cybexos.hardware.xps = { enable = true; sku = "0DB9"; camera = false; }; } ] else [ ]);
+          }) { cybexos.hardware = builtins.fromJSON %(hardware)s; } ]
+            ++ (if %(xps)s then [ { cybexos.hardware.xps = { enable = true; sku = "0DB9"; camera = false; }; } ] else [ ]);
         };
       in { root = system.config.system.build.toplevel.drvPath;
            expected = system.config.system.build.cybexosExpectedBuilds;
@@ -74,7 +75,7 @@ def evaluate(nvidia, packages, profile=None, xps=False):
            pointers = system.config.system.build.cybexosPointerDownloads; }
     ''' % {'root': json.dumps(str(ROOT)), 'nvidia': 'true' if nvidia else 'false',
            'packages': json.dumps(json.dumps(packages)), 'profile': json.dumps(json.dumps(profile)),
-           'xps': 'true' if xps else 'false'}
+           'xps': 'true' if xps else 'false', 'hardware': json.dumps(json.dumps(hardware or {}))}
     return json.loads(nix('eval', '--impure', '--json', '--expr', expression))
 
 
@@ -129,7 +130,16 @@ def main():
         catalogue = json.loads((ROOT / 'desktop/software/catalogue.json').read_text())
         apps = {app['id']: app for app in catalogue['apps']}
         packages = sorted({apps[i]['attribute'] for p in catalogue['profiles'] for i in p['apps']})
-    info = evaluate(arguments.nvidia, packages, arguments.profile, arguments.xps)
+    hardware = {}
+    if arguments.profile:
+        # What the installer sets with the profile: a profile alone doesn't
+        # enable the XPS or ZBook stacks it was written for.
+        catalogue = json.loads((ROOT / 'lifecycle/cybexos/hardware-profiles.json').read_text())
+        found = next((p for p in catalogue['profiles'] if p['id'] == arguments.profile and p.get('approved')), None)
+        if not found:
+            sys.exit(f'{arguments.profile} is not an approved hardware profile')
+        hardware = (found.get('configuration') or {}).get('existingOptions') or {}
+    info = evaluate(arguments.nvidia, packages, arguments.profile, arguments.xps, hardware)
     found, configured, local = walk(info['root'], info['expected'], info['vendor'], info['declared'])
     print(f'{local} derivations build locally; {len(info["expected"])} expected local builds allowed.', file=sys.stderr)
     if configured:

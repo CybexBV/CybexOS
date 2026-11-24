@@ -94,11 +94,19 @@ jobs:
           python3 -I -B scripts/github-issue open --label nixpkgs-update \
             --title "Nixpkgs update ready for its full check: ${{ steps.update.outputs.after }}" --body-file "$RUNNER_TEMP/issue.md"
 
+      - name: Close a failure report once a run succeeds
+        if: success()
+        run: python3 -I -B scripts/github-issue close --label nixpkgs-update-failed --comment "The weekly Nixpkgs update runs again."
+
       - name: Report a failed run
         if: failure()
         run: |
           {
-            echo "The weekly Nixpkgs update did not finish, so no update branch or full check was started."
+            if [ "${{ steps.update.outputs.changed }}" = true ]; then
+              echo "The weekly Nixpkgs update pushed \`${{ steps.update.outputs.branch }}\` but could not start its full check or report it; start the full check on that branch by hand."
+            else
+              echo "The weekly Nixpkgs update did not finish, so no update branch or full check was started."
+            fi
             echo
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } > "$RUNNER_TEMP/failure.md"

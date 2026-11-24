@@ -1116,7 +1116,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result['upstream'], {
             'state': 'available', 'installed': REV_OLD, 'available': REV_NEW, 'release': '1.0.0',
             'detail': 'Cybex OS 1.0.0 was checked with these NixOS packages. '
-                      'Stage upstream to build and review actual package changes.'})
+                      'Prepare them to build and review the actual package changes.'})
         self.assertFalse([args for args in self.runner.calls if args[:3] == ('nix', 'flake', 'metadata')])
         # Never backwards: a machine already past the release's revision stays.
         data = lock(); data['nodes']['nixpkgs']['locked'].update(rev='3' * 40, lastModified=3000)

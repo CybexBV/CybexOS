@@ -11,7 +11,8 @@
   `/data/t3-worktrees/CybexOS/<name>` (also reached as `~/.t3/worktrees/CybexOS`).
 - When a check fails, fix it and try again, at most 3 rounds.
 - When you change what people see, add before and after screenshots.
-- Commit in small commits, merge your branch into `main` here (`git merge --no-ff`) and push `main`.
+- Commit in small commits, merge your branch into `main` here (`git merge --no-ff`) and push `main`, unless you are a
+  workflow sub-agent or delegated task (see Git workflow).
 - Landing on `main` is not a release. Releases are a separate, deliberate step (see Releases below).
 - Once your work is merged, remove your worktree and branch.
 - Never publish to the stable channel, build an ISO for testing or release, or touch installed machines unless John

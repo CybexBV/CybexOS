@@ -297,10 +297,11 @@ the desktop has no separate firmware button or terminal launch.
 release before evaluation, snapshots the entire personal configuration and
 updates only the chosen inputs. Cybex OS-only updates include its source-declared
 vendor dependency graph while preserving root upstream/personal inputs. They
-never select code from a moving branch. After a failed combined preview, select
-only the available NixOS package source
-to retain installed Cybex OS; that combination must build and pass candidate
-checks too. The equivalent CLI action is `cybex update stage upstream`.
+never select code from a moving branch. A failed combined preview normally
+prepares the release alone at once. NixOS packages alone (`cybex update stage
+upstream`) are only the installed release's revision; packages a newer release
+pins come only with it, so Software Update offers them only together and the
+CLI refuses them alone.
 
 Every stage/apply/discard/rollback/confirm request returns `accepted`, a
 `requestId` and its `cybexos-update@ID.service` unit. Acceptance means the request

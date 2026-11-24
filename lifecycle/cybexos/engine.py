@@ -401,7 +401,7 @@ class Engine:
             return {'state': 'current', 'installed': installed, 'available': installed}
         return {'state': 'available', 'installed': installed, 'available': pinned['rev'], 'release': source,
                 'detail': f'Cybex OS {source} was checked with these NixOS packages. '
-                          'Stage upstream to build and review actual package changes.'}
+                          'Prepare them to build and review the actual package changes.'}
 
     def components(self, system):
         # A system built before the manifest existed simply lists no components.
@@ -656,7 +656,7 @@ class Engine:
                     self.keep_prepared(previous, scope, request_id, candidate, error)
                     raise
                 self.status(state='failed', phase='Staging failed; working system retained', error=str(error),
-                            retry='Stage upstream explicitly to retain the installed Cybex OS version.' if scope == 'both' else 'Correct the failure and stage again.')
+                            retry='Stage cybexos to install the release on the NixOS packages in use.' if scope == 'both' else 'Correct the failure and stage again.')
                 raise
             finally:
                 self.run.log = None

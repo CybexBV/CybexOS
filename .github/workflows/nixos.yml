@@ -61,8 +61,8 @@ jobs:
           python3 -I -B scripts/check-prebuilt
           python3 -I -B scripts/check-prebuilt --nvidia
           python3 -I -B scripts/check-prebuilt --catalogue
-          # Hardware variants: what machines with them must not compile.
-          python3 -I -B scripts/check-prebuilt --xps
+          # Hardware variants (each profile with the options the installer
+          # sets for it): what machines with them must not compile.
           # A list that can't be read must fail, not check nothing.
           profiles=$(python3 -I -c 'import json; print(" ".join(p["id"] for p in json.load(open("lifecycle/cybexos/hardware-profiles.json"))["profiles"] if p.get("approved")))')
           test -n "$profiles"
