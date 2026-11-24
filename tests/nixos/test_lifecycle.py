@@ -16,6 +16,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from unittest.mock import Mock, patch
 
@@ -196,14 +197,24 @@ class TrustTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
 
+    FIRST = API + '/releases?per_page=30'
+    PAGE = 'https://api.github.com/repositories/1438845778/releases?per_page=30&page={}'
+
     def fetch(self, releases, commits=None):
-        api = self.API
+        """Serves a listing, or a list of listing pages linked as GitHub links them."""
+        api, first, page = self.API, self.FIRST, self.PAGE
+        pages = releases if isinstance(releases, list) else [releases]
+        urls = [first] + [page.format(number) for number in range(2, len(pages) + 1)]
         class Fetch:
             requests = []
+            def page(inner, url, limit=None, accept='application/vnd.github+json'):
+                inner.requests.append((url, accept))
+                if url in urls:
+                    index = urls.index(url)
+                    return pages[index], urls[index + 1] if index + 1 < len(urls) else ''
+                raise AssertionError('Unexpected request ' + url)
             def get(inner, url, limit=None, accept='application/vnd.github+json'):
                 inner.requests.append((url, accept))
-                if url == api + '/releases?per_page=100':
-                    return releases
                 tag = url.removeprefix(api + '/commits/')
                 if tag != url and accept == 'application/vnd.github.sha':
                     return (commits or {}).get(tag, REV_NEW).encode()
@@ -261,7 +272,7 @@ class TrustTests(unittest.TestCase):
         with self.assertRaises(trust.NoPublishedRelease):
             trust.discover(self.fetch(listing(('v1.1.0-beta.1', True, False), ('v1.2.0', False, True))), 'stable', '1.0.0')
         class Missing:
-            def get(self, url, limit=None, accept=None):
+            def page(self, url, limit=None, accept=None):
                 raise trust.EndpointNotFound('gone')
         with self.assertRaisesRegex(Failure, 'repository is unavailable'):
             trust.discover(Missing(), 'stable', '1.0.0')
@@ -289,7 +300,7 @@ class TrustTests(unittest.TestCase):
         redirected.__enter__ = Mock(return_value=redirected); redirected.__exit__ = Mock(return_value=False)
         with patch('cybexos.trust.urllib.request.urlopen', return_value=redirected), \
                 self.assertRaisesRegex(Failure, 'outside the trusted GitHub endpoints'):
-            trust.Fetcher(self.base / 'cache').get(self.API + '/releases?per_page=100')
+            trust.Fetcher(self.base / 'cache').get(self.API + '/releases?per_page=30')
 
     def test_interrupted_chunked_metadata_retains_cache_and_independent_upstream_result(self):
         class Interrupted(http.server.BaseHTTPRequestHandler):
@@ -304,7 +315,7 @@ class TrustTests(unittest.TestCase):
                 self.close_connection = True
             def log_message(self, *args):
                 pass
-        endpoint = 'https://api.github.com/repos/CybexBV/CybexOS/releases?per_page=100'
+        endpoint = 'https://api.github.com/repos/CybexBV/CybexOS/releases?per_page=30'
         requests = []
         real_urlopen = urllib.request.urlopen
         with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Interrupted) as server:
@@ -341,6 +352,92 @@ class TrustTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 thread.join(timeout=5)
+
+    def test_the_listing_is_read_page_by_page_back_to_the_installed_version(self):
+        # 1.0.65 to 1.0.36 on page 1 are beta; 1.0.20 on page 2 is the newest stable.
+        tags = [('v1.0.%d' % number, number not in (20, 10, 5), False)
+                for number in range(65, 0, -1)]
+        pages = [listing(*tags[start:start + 30]) for start in range(0, len(tags), 30)]
+        self.assertEqual(len(pages), 3)
+        fetch = self.fetch(pages)
+        def read():
+            return [url for url, _ in fetch.requests if '/releases' in url]
+        stable = trust.discover(fetch, 'stable', '1.0.10')
+        self.assertEqual((stable['version'], stable['releases']), ('1.0.20', ['1.0.20']))
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2)], 'page 3 is older than the installed version')
+        fetch.requests.clear()
+        # An up-to-date beta machine reads one page.
+        self.assertEqual(trust.discover(fetch, 'beta', '1.0.60')['releases'], ['1.0.65', '1.0.64', '1.0.63', '1.0.62', '1.0.61'])
+        self.assertEqual(read(), [self.FIRST])
+        fetch.requests.clear()
+        # Combined notes span the pages back to the installed version.
+        behind = trust.discover(fetch, 'beta', '1.0.30')
+        self.assertEqual(behind['releases'], ['1.0.%d' % number for number in range(65, 30, -1)])
+        self.assertIn('## From Cybex OS 1.0.36\n\nNotes for v1.0.36', behind['notes'])
+        self.assertIn('## From Cybex OS 1.0.31\n\nNotes for v1.0.31', behind['notes'])
+        self.assertNotIn('1.0.30\n', behind['notes'])
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2)])
+        fetch.requests.clear()
+        # The walk is bounded. A machine further behind still gets the
+        # newest release, with the notes the pages it read hold; a channel
+        # with no release in reach is reported, not taken for none at all.
+        with patch('cybexos.trust.MAX_PAGES', 1):
+            far = trust.discover(fetch, 'beta', '1.0.1')
+            self.assertEqual((far['version'], far['releases'][-1]), ('1.0.65', '1.0.36'))
+            with self.assertRaisesRegex(Failure, 'No stable release is among the newest 30') as raised:
+                trust.discover(fetch, 'stable', '1.0.1')
+            self.assertNotIsInstance(raised.exception, trust.NoPublishedRelease)
+        # A listing that links back to a page it already read is refused.
+        looping = self.fetch(pages[:1])
+        looping.page = lambda url, limit=None, accept=None: (pages[0], self.FIRST)
+        with self.assertRaisesRegex(Failure, 'Invalid release listing'):
+            trust.discover(looping, 'stable', '1.0.10')
+
+    def test_listing_pages_follow_only_trusted_links_and_keep_their_own_cache(self):
+        first = self.API + '/releases?per_page=30'
+        second = 'https://api.github.com/repositories/1438845778/releases?per_page=30&page=2'
+        responses, sent = {}, []
+
+        class Response(io.BytesIO):
+            def __init__(self, url, data, headers):
+                super().__init__(data)
+                self.url, self.headers = url, headers
+
+        def transport(request, timeout=30):
+            sent.append((request.full_url, request.get_header('If-none-match')))
+            status, data, headers = responses[request.full_url]
+            if status == 304:
+                raise urllib.error.HTTPError(request.full_url, 304, 'Not Modified', headers, None)
+            return Response(request.full_url, data, headers)
+
+        fetcher = trust.Fetcher(self.base / 'cache')
+        responses[first] = (200, b'[1]', {'ETag': '"one"', 'Link': f'<{second}>; rel="next", <{second}>; rel="last"'})
+        responses[second] = (200, b'[2]', {'ETag': '"two"', 'Link': f'<{first}>; rel="prev", <{first}>; rel="first"'})
+        with patch('cybexos.trust.urllib.request.urlopen', side_effect=transport):
+            self.assertEqual(fetcher.page(first), (b'[1]', second))
+            self.assertEqual(fetcher.page(second), (b'[2]', ''))
+            # Unchanged pages answer 304, each from its own cached body and link.
+            responses[first], responses[second] = (304, b'', {}), (304, b'', {})
+            self.assertEqual(fetcher.page(first), (b'[1]', second))
+            self.assertEqual(fetcher.page(second), (b'[2]', ''))
+            self.assertEqual(fetcher.get(first), b'[1]')
+            self.assertEqual(sent[2:], [(first, '"one"'), (second, '"two"'), (first, '"one"')])
+            # A next link that leaves the release listing on api.github.com is refused.
+            for link in ('https://example.com/repos/CybexBV/CybexOS/releases?page=2',
+                         'http://api.github.com/repositories/1438845778/releases?page=2',
+                         'https://api.github.com/repos/someone/else/releases?page=2',
+                         'https://api.github.com/repositories/1438845778/contents/flake.lock',
+                         'https://user:token@api.github.com/repositories/1/releases?page=2'):
+                responses[first] = (200, b'[3]', {'ETag': '"three"', 'Link': f'<{link}>; rel="next"'})
+                with self.subTest(link=link), self.assertRaisesRegex(Failure, 'outside the trusted GitHub endpoints'):
+                    fetcher.page(first)
+            # The refused page left the previous cached page and link in place.
+            responses[first] = (304, b'', {})
+            self.assertEqual(fetcher.page(first), (b'[1]', second))
+        self.assertEqual(trust.next_page('<https://api.github.com/repos/CybexHQ/CybexOS/releases?page=2>; rel="next"'),
+                         'https://api.github.com/repos/CybexHQ/CybexOS/releases?page=2')
+        self.assertEqual(trust.next_page(''), '')
+        self.assertEqual(trust.next_page(f'<{second}>; rel="last"'), '')
 
     def test_release_source_declares_its_version_and_requirements(self):
         trust.validate_source('1.1.0\n', COMPATIBILITY, release(), INSTALLED)
