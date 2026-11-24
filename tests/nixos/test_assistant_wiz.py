@@ -8,7 +8,6 @@ import asyncio
 import contextlib
 import datetime
 import json
-import os
 from pathlib import Path
 import sys
 import tempfile
@@ -20,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cybexos_assistant import changes, desktop, mcp, policy, prompt, routines, steps  # noqa: E402
 from cybexos_assistant.turn import Turn  # noqa: E402
-from test_assistant import Client, Harness, ServiceTest  # noqa: E402
+from test_assistant import Client, ServiceTest  # noqa: E402
 
 
 class FakeShell:

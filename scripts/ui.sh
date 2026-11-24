@@ -1,6 +1,8 @@
 # Shared terminal UI helpers for the XPS NixOS wrapper scripts.
 # Source this file; do not execute it.
 # shellcheck shell=bash
+# The palette is for the scripts that source this file; not all use every colour.
+# shellcheck disable=SC2034
 #
 # v2 — Dracula truecolor palette (matches assets/EDM115-newline2.omp.json),
 # gradient banner, rich-style progress bars, recap box. The v1 API

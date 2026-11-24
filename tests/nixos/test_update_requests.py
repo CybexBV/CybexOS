@@ -1,7 +1,6 @@
 """Real request/state/review code with isolated files and a fake system manager."""
 import hashlib
 import json
-from pathlib import Path
 import subprocess
 from types import SimpleNamespace
 import unittest

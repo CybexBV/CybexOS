@@ -8,7 +8,6 @@ private values real machines have; none of them may reach the report.
 import contextlib
 import importlib.machinery
 import importlib.util
-import io
 import json
 import os
 from pathlib import Path

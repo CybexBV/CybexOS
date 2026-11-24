@@ -6,7 +6,6 @@ requested output directory; every process, copied runtime and HOME is private
 and removed in finally. Two live API requests (listing/details) are allowed.
 """
 from __future__ import annotations
-import importlib.util
 import atexit
 import json
 import os

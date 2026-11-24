@@ -419,7 +419,8 @@ class CatalogueAndCheckTests(unittest.TestCase):
             software.check(['gimp'], config=self.config, run=Nix(fail=lambda args: args[:2] == ('nix', 'eval')))
 
     def test_cli_serves_catalogue_and_check(self):
-        import io, sys
+        import io
+        import sys
         from contextlib import redirect_stdout
         from cybexos import cli
         for argv, function, expected in ((['cybex', 'software', 'catalogue'], 'catalogue', ()),

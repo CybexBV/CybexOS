@@ -6,3 +6,10 @@ extend-exclude = ["tests/model-usage"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
+# Short statements share a line (`a = 1; b = 2`, `if x: return`) and small
+# helpers are named lambdas throughout the code base: a style choice, not a fault.
+ignore = ["E701", "E702", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests put the source tree on sys.path before they import it.
+"tests/**" = ["E402"]

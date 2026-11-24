@@ -26,6 +26,8 @@ done
 node_jobs=$((jobs / 4))
 ((node_jobs < 1)) && node_jobs=1
 ((node_jobs > 8)) && node_jobs=8
+check tests/lint tests/lint
+
 check tests/quickshell node --test "--test-concurrency=$node_jobs" tests/quickshell/*.test.cjs
 
 for script in model-usage.py plugin-packages.py theme-packs.py system-settings.py settings-ownership.py \

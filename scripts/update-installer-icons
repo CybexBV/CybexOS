@@ -100,8 +100,10 @@ def main():
     slint += '        return "";\n    }\n'
     (KIOSK / "ui/icons.slint").write_text(slint + "}\n")
 
+    def svg(parts):
+        return ''.join(f'<path d="{d}"/>' for d in parts)
     entries = ",\n".join(
-        f"  {REFERENCE_KEYS.get(name, name)}: '{''.join(f'<path d=\"{d}\"/>' for d in parts)}'"
+        f"  {REFERENCE_KEYS.get(name, name)}: '{svg(parts)}'"
         for name, parts in paths.items())
     html, count = REFERENCE_BLOCK.subn(lambda m: m.group(1) + entries + m.group(2), REFERENCE.read_text())
     if count != 1:
