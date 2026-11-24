@@ -23,6 +23,10 @@ import "Settings" as SettingsUi
 // While the sheet is open it also holds Keybindings, only to mark rows that
 // were changed in Settings (a filled dot) or come from user.lua (a ring).
 // "Edit shortcuts" closes the sheet and opens Settings on that page.
+//
+// A failed read says so in plain words, with the command's own reason in a
+// smaller line under it and Try again below (2026-11-24 review: the
+// sheet showed only "hyprctl exited with status 1").
 PanelWindow {
     id: root
 
@@ -65,7 +69,7 @@ PanelWindow {
         opacity: Session.keysOpen ? 1 : 0
 
         Behavior on opacity {
-            NumberAnimation { duration: Theme.panelFadeDuration + 80; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Theme.panelFadeDuration; easing.type: Easing.OutCubic }
         }
 
         MouseArea {
@@ -103,7 +107,8 @@ PanelWindow {
             border.width: 1
             border.color: Theme.stroke
             opacity: scrim.opacity
-            scale: Session.keysOpen ? 1 : 0.96
+            // Reduced motion keeps only the fade: no scale or rise.
+            scale: Session.keysOpen || Theme.reducedMotion ? 1 : 0.96
 
             Behavior on scale {
                 NumberAnimation {
@@ -117,7 +122,7 @@ PanelWindow {
             // transform. Animating y directly is silently overridden by the
             // anchor and leaves only the scale animation visible.
             transform: Translate {
-                y: Session.keysOpen ? 0 : 16
+                y: Session.keysOpen || Theme.reducedMotion ? 0 : 16
 
                 Behavior on y {
                     NumberAnimation {
@@ -182,7 +187,7 @@ PanelWindow {
                         width: Math.min(implicitWidth, body.width * 0.4)
                         elide: Text.ElideRight
                         anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Live from Hyprland · press Esc to close")
+                        text: I18n.tr("Your current shortcuts · press Esc to close")
                         font.family: Theme.fontMenu
                         font.pixelSize: Theme.typography.section
                         font.weight: Theme.weightBold
@@ -198,19 +203,44 @@ PanelWindow {
                     }
                 }
 
-                Text {
+                // Reading, failed or empty; nothing once there are rows. A
+                // retry reads again, so it shows Reading until it settles.
+                Column {
                     id: sheetStatus
+                    readonly property string phase: Session.shortcutGroups.length > 0 ? ""
+                        : Session.shortcutsLoading ? "loading"
+                        : Session.shortcutsError !== "" ? "error" : "empty"
                     width: parent.width
-                    visible: text !== ""
-                    wrapMode: Text.Wrap
-                    text: Session.shortcutsError !== ""
-                        ? "Could not read the keybindings: " + Session.shortcutsError
-                        : Session.shortcutGroups.length > 0 ? ""
-                        : Session.shortcutsLoading ? "Reading keybindings…"
-                        : "No keybindings have a description yet."
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.primary
-                    color: Session.shortcutsError !== "" ? Theme.redText : Theme.textMid
+                    visible: phase !== ""
+                    spacing: Theme.iconTextSpacing
+
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.Wrap
+                        text: sheetStatus.phase === "error" ? I18n.tr("Couldn't read your shortcuts right now.")
+                            : sheetStatus.phase === "loading" ? I18n.tr("Reading your shortcuts…")
+                            : I18n.tr("There are no shortcuts to show yet.")
+                        font.family: Theme.fontMenu
+                        font.pixelSize: Theme.typography.primary
+                        color: sheetStatus.phase === "error" ? Theme.redText : Theme.textMid
+                    }
+                    // The technical reason, smaller: "hyprctl exited with status 1".
+                    Text {
+                        width: parent.width
+                        visible: sheetStatus.phase === "error"
+                        wrapMode: Text.Wrap
+                        text: Session.shortcutsError
+                        font.family: Theme.fontMenu
+                        font.pixelSize: Theme.typography.secondary
+                        color: Theme.textFaint
+                    }
+                    SettingsUi.SettingsAction {
+                        visible: sheetStatus.phase === "error"
+                        secondary: true
+                        text: I18n.tr("Try again")
+                        glyph: "refresh"
+                        onTriggered: Session.refreshShortcuts()
+                    }
                 }
 
                 Row {
@@ -378,7 +408,7 @@ PanelWindow {
                                                                 visible: combo.index > 0
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 rightPadding: Theme.iconTextSpacing - combo.spacing
-                                                                text: "or"
+                                                                text: I18n.tr("or")
                                                                 font.family: Theme.fontMenu
                                                                 font.pixelSize: Theme.typography.secondary
                                                                 color: Theme.textFaint
@@ -427,8 +457,8 @@ PanelWindow {
                     visible: Session.shortcutGroups.length > 0
                     wrapMode: Text.Wrap
                     text: root.marked
-                        ? I18n.tr("A dot marks a shortcut changed in Settings, a ring one set in ~/.config/cybexos/hypr/user.lua. Bindings you add there appear here when they have a description.")
-                        : I18n.tr("Bindings you add in ~/.config/cybexos/hypr/user.lua appear here when they have a description.")
+                        ? I18n.tr("A dot marks a shortcut changed in Settings, a ring one you wrote by hand. Hand-written shortcuts in ~/.config/cybexos/hypr/user.lua show here when they have a description.")
+                        : I18n.tr("Hand-written shortcuts in ~/.config/cybexos/hypr/user.lua show here when they have a description.")
                     font.family: Theme.fontMenu
                     font.pixelSize: Theme.typography.secondary
                     color: Theme.textFaint
@@ -438,4 +468,8 @@ PanelWindow {
             ScrollChrome { anchors.fill: scroll; target: scroll }
         }
     }
+
+    // Pointer vs keyboard modality for focus rings (Common/FocusModality):
+    // the sheet takes the keyboard, and Tab reaches its actions.
+    FocusModalityObserver {}
 }

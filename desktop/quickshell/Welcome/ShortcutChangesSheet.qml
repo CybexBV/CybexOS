@@ -17,7 +17,7 @@ KioskSheet {
     title: root.recovering ? I18n.tr("Reset your shortcuts?") : I18n.tr("Apply your shortcut changes?")
     subtitle: root.recovering
         ? I18n.tr("Apply replaces keybindings.json with the defaults. The broken file is kept beside it as keybindings.json.invalid-<time>.")
-        : I18n.tr("Apply reloads Hyprland with them. Discard keeps the shortcuts you had.")
+        : I18n.tr("Applying reloads your shortcuts. Open windows stay as they are. Discard keeps the shortcuts you had.")
     onClosed: if (!root.applying) Welcome.closeSheet()
     Connections {
         target: Keybindings

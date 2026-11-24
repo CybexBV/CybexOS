@@ -389,7 +389,8 @@ test('the Shortcuts page keeps one search field and a compact toolbar above the 
         assert.ok(page.includes(`"${anchor}"`), anchor);
     // Reset all: under the read-only banner, else at the foot.
     assert.match(page, /ResetRows \{\s+width: parent\.width\s+visible: page\.readOnly\s+\}[\s\S]*id: toolbar/);
-    assert.match(page, /ResetRows \{\s+width: parent\.width\s+visible: !page\.readOnly\s+\}\s+SettingsHint \{[\s\S]{0,120}keybindings\.json/);
+    // The foot's note leads with plain words; the files are its detail line.
+    assert.match(page, /ResetRows \{\s+width: parent\.width\s+visible: !page\.readOnly\s+\}\s+(?:\/\/[^\n]*\n\s+)?SettingsHint \{\s+width: parent\.width\s+text: I18n\.tr\("[^"~]+"\)\s+detail: I18n\.tr\("[^"]*keybindings\.json/);
     // The narrow window's search tip is a tip, not a second field.
     const view = fs.readFileSync(path.join(shell, 'Settings/SettingsView.qml'), 'utf8');
     const tip = view.slice(view.indexOf('id: searchHint'), view.indexOf('id: hintCopy'));
@@ -522,4 +523,47 @@ test('numbered action labels translate through their stem, everywhere the editor
     for (const name of ['Settings/ShortcutRow.qml', 'Settings/ShortcutKeyboardMap.qml', 'Settings/ShortcutRecorder.qml',
         'ShortcutsOverlay.qml', 'Welcome/ShortcutsStep.qml'])
         assert.doesNotMatch(fs.readFileSync(path.join(shell, name), 'utf8'), /I18n\.tr\([\w.]*\.label\)/, name);
+});
+
+test('the recorder never takes a key from another shortcut by default (2026-11-24 review)', () => {
+    const recorder = fs.readFileSync(path.join(root, 'desktop/quickshell/Settings/ShortcutRecorder.qml'), 'utf8');
+    // Focus starts on Record again while another shortcut holds the key, and
+    // Enter on the capture surface does not take it either.
+    assert.match(recorder, /const next = decision\.kind === "free" \|\| decision\.kind === "maybe" \? useButton : againButton;/);
+    assert.match(recorder, /command === "accept"\) \{[\s\S]*?if \(root\.verdict\.kind !== "replace"\)\s+root\.accept\(\);/);
+    // The question names the keys and both shortcuts.
+    assert.match(recorder, /"%1 is used by %2\. Use it for %3 instead\? %2 will lose it\.",\s+\[comboText, owners\(verdict\.replace\), targetName\]/);
+    assert.match(recorder, /comboText: combo === "" \? "" : Editor\.display\(combo\)\.join\(" \+ "\)/);
+    // One primary: Record again while the key is taken, the answer otherwise.
+    assert.match(recorder, /id: againButton[\s\S]*?primary: !useButton\.visible \|\| root\.verdict\.kind === "replace"/);
+    assert.match(recorder, /id: useButton[\s\S]*?primary: root\.verdict\.kind !== "replace"\s+secondary: root\.verdict\.kind === "replace"/);
+    // The buttons sit below the scrolling body, and the scrim and card cover
+    // the whole window while the recorder stays where its host put it.
+    assert.match(recorder, /id: cardScroll[\s\S]*?anchors\.bottom: footer\.top/);
+    assert.match(recorder, /id: footer\s+anchors\.right: parent\.right[\s\S]*?anchors\.bottom: parent\.bottom/);
+    assert.match(recorder, /id: layer\s+parent: root\.QsWindow\.contentItem \?\? root/);
+    assert.match(recorder, /id: layer[\s\S]*?color: Theme\.scrim/);
+});
+
+test('rows, map and sheet mark protection once and speak plainly (2026-11-24 review)', () => {
+    const shell = path.join(root, 'desktop/quickshell');
+    const read = name => fs.readFileSync(path.join(shell, name), 'utf8');
+    const row = read('Settings/ShortcutRow.qml');
+    assert.doesNotMatch(row, /glyph: "lock"/, 'the lock sits on the caps it protects, not in the Disable column too');
+    assert.doesNotMatch(row.slice(row.indexOf('hint:'), row.indexOf('hintTone:')), /Protected/, 'no sentence per protected row');
+    assert.match(row, /tooltip: root\.entry\.custom \? I18n\.tr\("Edit shortcut"\) : I18n\.tr\("Change shortcut"\)/);
+    assert.match(row, /tooltip: root\.entry\.custom \? I18n\.tr\("Remove shortcut"\) : I18n\.tr\("Disable shortcut"\)/);
+    const page = read('Settings/ShortcutsPage.qml');
+    assert.match(page, /Helpers\.lockedKeys\(row\)\.length > 0\)\s+text: I18n\.tr\("Keys with a lock/, 'one lock note per group');
+    assert.match(page, /visible: applyBar\.shown && !SettingsChanges\.reviewOpen && !form\.opened/, 'one primary while the Add form is open');
+    assert.match(read('Settings/ShortcutKeyboardMap.qml'), /type: "url", label: I18n\.tr\("A website"\), glyph: "world"/);
+    const sheet = read('ShortcutsOverlay.qml');
+    assert.match(sheet, /I18n\.tr\("Couldn't read your shortcuts right now\."\)/);
+    assert.match(sheet, /text: Session\.shortcutsError\s/, 'the technical reason stays, as the smaller line');
+    assert.match(sheet, /onTriggered: Session\.refreshShortcuts\(\)/);
+    assert.match(sheet, /FocusModalityObserver \{\}\s*\}\s*$/);
+    for (const name of ['Settings/ShortcutsPage.qml', 'Settings/ShortcutRecorder.qml', 'Settings/ShortcutRow.qml',
+        'Settings/ShortcutKeyboardMap.qml', 'Settings/ShortcutCustomForm.qml', 'ShortcutsOverlay.qml',
+        'Welcome/ShortcutChangesSheet.qml', 'Welcome/ShortcutsStep.qml'])
+        assert.doesNotMatch(read(name), /I18n\.(?:tr|format)\("[^"]*Hyprland/, `${name} names the compositor in visible copy`);
 });

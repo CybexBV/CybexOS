@@ -18,6 +18,12 @@ import "../Common/ShortcutEditor.js" as Helpers
 // Add on one line, then the page's one search field with the filters beside
 // it, wrapping under it when the column is narrow. Reset all sits at the
 // page's foot, as every page's reset does.
+//
+// One primary at a time (2026-11-24 review): while the Add form is open its
+// Add shortcut is the page's next step, so the Apply bar steps back (keeping
+// its inset, so nothing reflows). Apply would not save the open form anyway.
+// A group with protected shortcuts says once what their lock means, rather
+// than every protected row repeating it.
 SettingsPage {
     id: page
     objectName: "shortcutsPage"
@@ -120,11 +126,14 @@ SettingsPage {
             id: applyBar
             pending: Keybindings.dirty
             title: I18n.tr("Shortcut changes not applied yet")
+            // Applying reloads the compositor's configuration: bindings
+            // change, windows stay open.
             detail: page.message !== "" ? page.message
                 : page.recovering ? I18n.tr("Apply replaces keybindings.json with the defaults. The broken file is kept beside it as keybindings.json.invalid-<time>.")
-                : I18n.tr("Apply reloads Hyprland. Your user.lua still loads last.")
+                : I18n.tr("Applying reloads your shortcuts. Open windows stay as they are.")
             busy: Keybindings.backend.busy
             applyEnabled: Keybindings.loaded
+            visible: applyBar.shown && !SettingsChanges.reviewOpen && !form.opened
             onApply: { page.problem = ""; Keybindings.apply(); }
             onDiscard: { page.problem = ""; Keybindings.discard(); }
         },
@@ -287,7 +296,7 @@ SettingsPage {
             visible: page.view === "list" && Keybindings.loaded && page.groups.length === 0
             text: page.query.trim() !== "" ? I18n.tr("No shortcuts match your search.")
                 : page.filter === "conflicts" ? I18n.tr("No shortcuts share a key.")
-                : page.filter === "user" ? I18n.tr("There are no hand-written shortcuts in your user.lua.")
+                : page.filter === "user" ? I18n.tr("You have no hand-written shortcuts.")
                 : I18n.tr("Nothing has changed.")
         }
 
@@ -330,6 +339,12 @@ SettingsPage {
                         }
                     }
                 }
+                // What the locks on this group's keys mean, said once.
+                SettingsHint {
+                    width: parent.width
+                    visible: group.modelData.rows.some(row => !row.readOnly && Helpers.lockedKeys(row).length > 0)
+                    text: I18n.tr("Keys with a lock always stay with their shortcut. You can add other keys.")
+                }
             }
         }
 
@@ -339,9 +354,11 @@ SettingsPage {
             visible: !page.readOnly
         }
 
+        // Plain words first; the files are the detail line.
         SettingsHint {
             width: parent.width
-            text: I18n.tr("Changes are saved in ~/.config/cybexos/keybindings.json. Bindings in ~/.config/cybexos/hypr/user.lua load afterwards and win.")
+            text: I18n.tr("Shortcuts you write by hand load after these and win.")
+            detail: I18n.tr("Saved in ~/.config/cybexos/keybindings.json. Hand-written shortcuts live in ~/.config/cybexos/hypr/user.lua.")
         }
     }
 

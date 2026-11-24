@@ -55,7 +55,7 @@ Item {
         if (root.readOnly) return I18n.tr("Shortcuts cannot be changed until keybindings.json is reset.");
         if (key.free) return I18n.tr("This key is free. Settings can make it open an app, a website or a command.");
         if (key.reservedBy) return I18n.tr("A protected shortcut always keeps this key.");
-        if (key.owner.source === "user") return I18n.tr("Set in ~/.config/cybexos/hypr/user.lua. Change it there.");
+        if (key.owner.source === "user") return I18n.tr("Hand-written in ~/.config/cybexos/hypr/user.lua. Change it there.");
         if (key.shared) return key.owners.map(owner => map.label(owner)).join(", ");
         if (key.protected) return I18n.format("%1 always keeps this key. You can give it other keys as well.", [map.label(key.owner)]);
         if (!key.owner.editable) return I18n.tr("This shortcut cannot be changed here.");

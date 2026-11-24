@@ -127,7 +127,9 @@ bind(mainMod .. " + BACKSPACE", hl.dsp.window.set_prop({ prop = "alpha", value =
 -- In-process through Quickshell's global shortcut, like the launcher; the
 -- `overview` IPC target serves the touchpad gesture.
 bind(mainMod .. " + TAB", hl.dsp.global("quickshell:overviewToggle"), { description = "Windows: Overview" }, "windows.overview")
-bind(mainMod .. " + SHIFT + M", hl.dsp.exit(), { description = "Shell: Exit Hyprland" }, "shell.exit")
+-- The Control Center's Log out (cybexos-session-action logout), without its
+-- question; named in the shell's words, not the compositor's (2026-11-24).
+bind(mainMod .. " + SHIFT + M", hl.dsp.exit(), { description = "Shell: Log out" }, "shell.exit")
 bind(mainMod .. " + L", hl.dsp.exec_cmd("cybexos-session-action lock"),
   { description = "Shell: Lock screen" }, "shell.lock")
 -- Effects, gaps and idle lock off for games; the helper notifies and the
