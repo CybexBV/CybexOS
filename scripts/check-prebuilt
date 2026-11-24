@@ -27,6 +27,8 @@ package it would compile is still reported.
     scripts/check-prebuilt                       # the default product system
     scripts/check-prebuilt --nvidia              # with NVIDIA drivers
     scripts/check-prebuilt --catalogue           # plus every Software profile app
+    scripts/check-prebuilt --xps                 # the XPS stack (checks.xps-system)
+    scripts/check-prebuilt --profile ID          # an approved hardware profile
 """
 import argparse
 import json
@@ -52,7 +54,7 @@ def nix(*arguments):
     return result.stdout
 
 
-def evaluate(nvidia, packages):
+def evaluate(nvidia, packages, profile=None, xps=False):
     expression = '''
       let
         flake = builtins.getFlake (toString %(root)s);
@@ -61,8 +63,9 @@ def evaluate(nvidia, packages):
           modules = [ flake.nixosModules.default (%(root)s + "/nix/tests/machine.nix") ({ lib, ... }: {
             cybexos.features = { proprietary = lib.mkForce true; steam = lib.mkForce true; docker = lib.mkForce true; };
             cybexos.hardware.nvidia = %(nvidia)s;
+            cybexos.hardware.profile = builtins.fromJSON %(profile)s;
             cybexos.software.packages = builtins.fromJSON %(packages)s;
-          }) ];
+          }) ] ++ (if %(xps)s then [ { cybexos.hardware.xps = { enable = true; sku = "0DB9"; camera = false; }; } ] else [ ]);
         };
       in { root = system.config.system.build.toplevel.drvPath;
            expected = system.config.system.build.cybexosExpectedBuilds;
@@ -70,7 +73,8 @@ def evaluate(nvidia, packages):
            declared = system.config.system.build.cybexosDeclaredBuilds;
            pointers = system.config.system.build.cybexosPointerDownloads; }
     ''' % {'root': json.dumps(str(ROOT)), 'nvidia': 'true' if nvidia else 'false',
-           'packages': json.dumps(json.dumps(packages))}
+           'packages': json.dumps(json.dumps(packages)), 'profile': json.dumps(json.dumps(profile)),
+           'xps': 'true' if xps else 'false'}
     return json.loads(nix('eval', '--impure', '--json', '--expr', expression))
 
 
@@ -117,13 +121,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--nvidia', action='store_true', help='include NVIDIA drivers')
     parser.add_argument('--catalogue', action='store_true', help='add every Software profile app')
+    parser.add_argument('--profile', metavar='ID', help='an approved hardware profile (lifecycle/cybexos/hardware-profiles.json)')
+    parser.add_argument('--xps', action='store_true', help='the XPS stack, as checks.xps-system builds it')
     arguments = parser.parse_args()
     packages = []
     if arguments.catalogue:
         catalogue = json.loads((ROOT / 'desktop/software/catalogue.json').read_text())
         apps = {app['id']: app for app in catalogue['apps']}
         packages = sorted({apps[i]['attribute'] for p in catalogue['profiles'] for i in p['apps']})
-    info = evaluate(arguments.nvidia, packages)
+    info = evaluate(arguments.nvidia, packages, arguments.profile, arguments.xps)
     found, configured, local = walk(info['root'], info['expected'], info['vendor'], info['declared'])
     print(f'{local} derivations build locally; {len(info["expected"])} expected local builds allowed.', file=sys.stderr)
     if configured:

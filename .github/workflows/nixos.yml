@@ -67,6 +67,12 @@ jobs:
           python3 -I -B scripts/check-prebuilt
           python3 -I -B scripts/check-prebuilt --nvidia
           python3 -I -B scripts/check-prebuilt --catalogue
+          # Hardware variants: what machines with them must not compile.
+          python3 -I -B scripts/check-prebuilt --xps
+          for profile in $(python3 -I -c 'import json; print(" ".join(p["id"] for p in json.load(open("lifecycle/cybexos/hardware-profiles.json"))["profiles"] if p.get("approved")))'); do
+            echo "== $profile"
+            python3 -I -B scripts/check-prebuilt --profile "$profile"
+          done
   vm:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
