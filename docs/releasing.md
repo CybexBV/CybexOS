@@ -116,7 +116,7 @@ Development commits may be pushed directly to `main`. To publish a release:
    - its `release/compatibility.json` suits the current stable release:
      `minUpdater` at most that release's updater API, the same schema,
      configuration and plugin APIs, all of its architectures and its NixOS
-     branch.
+     branch (the one that release's own `flake.lock` follows).
 
    Stable machines skip the beta releases in between, so their What's New
    should cover those too. Promotion proposes combined notes, the release's

@@ -353,8 +353,9 @@ Settings → Appearance → Pointer ([Settings](settings.md#pointer)) applies to
 desktop from the next login on. The login screen keeps Bibata.
 
 The ISO retains its tested flake input sources. A fresh machine's first lock
-starts with that exact Nixpkgs revision and content hash, retaining
-nixos-unstable as its upstream update source. Installation never resolves a newer
+starts with that exact Nixpkgs revision and content hash, and its flake
+follows the branch that lock names (nixos-unstable, or a stable NixOS branch
+from 26.11 on). Installation never resolves a newer
 branch head implicitly. Later upstream-only updates advance this machine-owned
 input independently of Cybex OS. This does not make installation fully offline:
 packages not bundled on the medium require internet.
@@ -373,7 +374,7 @@ Its layout and minimum disk size come from the shared Nix module contract.
 
 `nixos-generate-config` records actual hardware and filesystems. DMI/PCI/ACPI/
 EDID detection selects narrowly scoped XPS/NVIDIA declarations. The machine
-flake follows the nixos-unstable Nixpkgs input and pins the medium's exact Cybex OS
+flake follows the medium's NixOS branch and pins the medium's exact Cybex OS
 revision/NAR identity. The complete target is built and installed through the
 shared modules. First login installs missing vendor-skill discovery symlinks
 and never overwrites a pre-existing personal skill.
