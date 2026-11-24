@@ -13,17 +13,15 @@ let
 
     [ipv4]
     method=auto
-    dns=8.8.8.8;8.8.4.4;
-    ignore-auto-dns=true
 
     [ipv6]
     method=auto
-    dns=2001:4860:4860::8888;2001:4860:4860::8844;
-    ignore-auto-dns=true
   '';
 in {
-  # The installation medium uses the same editable Google DNS default, so a
-  # broken DHCP resolver cannot stop release authentication or downloads.
+  # Wired connections use the DNS the network advertises (company resolvers,
+  # captive portals), as the network menu's Automatic choice does. Google is
+  # the fallback only when no network names a resolver, and stays one click
+  # away in the network menu. The installation medium uses the same default.
   config = lib.mkIf ((config.cybexos.enable || config.cybexos.installationMedium) && config.networking.networkmanager.enable) {
     # A single DNS manager accepts per-link settings from both NetworkManager
     # and Tailscale. Do not force --accept-dns=false or overwrite VPN choices.
@@ -32,7 +30,7 @@ in {
       "8.8.8.8" "8.8.4.4" "2001:4860:4860::8888" "2001:4860:4860::8844"
     ];
     systemd.services.cybexos-network-defaults = {
-      description = "Initialize editable Google DNS defaults on a fresh network";
+      description = "Initialize the editable wired network default on a fresh system";
       wantedBy = [ "NetworkManager.service" ];
       before = [ "NetworkManager.service" ];
       unitConfig.ConditionPathExists = "!/var/lib/cybexos-network/defaults-initialized";

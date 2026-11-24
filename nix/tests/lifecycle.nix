@@ -89,25 +89,27 @@ in pkgs.testers.runNixOSTest {
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("display-manager.service")
     machine.wait_for_unit("cybexos-lid-guard.service")
-    # Fresh connections use Google, with one resolver shared by NM and VPNs.
-    # The editable profile must survive restarts and retain an Automatic choice.
+    # Fresh connections use the network's own DNS, with one resolver shared
+    # by NM and VPNs. The editable profile must survive restarts and retain a
+    # Google choice made in the network menu.
     machine.wait_for_unit("cybexos-network-defaults.service")
     machine.wait_for_unit("systemd-resolved.service")
     assert machine.succeed("readlink -f /etc/resolv.conf").strip().endswith("stub-resolv.conf")
-    assert machine.succeed("nmcli --escape no -g ipv4.dns connection show 'Cybex OS Wired'").strip() == "8.8.8.8,8.8.4.4"
-    assert machine.succeed("nmcli --escape no -g ipv6.dns connection show 'Cybex OS Wired'").strip() == "2001:4860:4860::8888,2001:4860:4860::8844"
+    assert machine.succeed("nmcli -g ipv4.ignore-auto-dns connection show 'Cybex OS Wired'").strip() == "no"
+    assert machine.succeed("nmcli -g ipv6.ignore-auto-dns connection show 'Cybex OS Wired'").strip() == "no"
+    assert not machine.succeed("nmcli -g ipv4.dns connection show 'Cybex OS Wired'").strip()
     assert json.loads(machine.succeed("tailscale status --json"))["BackendState"] == "NeedsLogin"
     helper = "/etc/cybexos/runtime/quickshell/scripts/network-tool.py"
-    machine.succeed("printf '%s\\n' '{\"provider\":\"Automatic\"}' | python3 " + helper + " dns")
+    machine.succeed("printf '%s\\n' '{\"provider\":\"Google\"}' | python3 " + helper + " dns")
     profile_before = machine.succeed("sha256sum /etc/NetworkManager/system-connections/cybexos-wired.nmconnection")
     machine.succeed("systemctl restart cybexos-network-defaults.service NetworkManager.service")
     assert machine.succeed("sha256sum /etc/NetworkManager/system-connections/cybexos-wired.nmconnection") == profile_before
-    assert machine.succeed("nmcli -g ipv4.ignore-auto-dns connection show 'Cybex OS Wired'").strip() == "no"
-    assert not machine.succeed("nmcli -g ipv4.dns connection show 'Cybex OS Wired'").strip()
+    assert machine.succeed("nmcli -g ipv4.ignore-auto-dns connection show 'Cybex OS Wired'").strip() == "yes"
+    assert machine.succeed("nmcli --escape no -g ipv4.dns connection show 'Cybex OS Wired'").strip() == "8.8.8.8,8.8.4.4"
     # Even without its marker the initializer preserves existing profiles.
     machine.succeed("rm /var/lib/cybexos-network/defaults-initialized; systemctl restart cybexos-network-defaults.service")
     assert machine.succeed("sha256sum /etc/NetworkManager/system-connections/cybexos-wired.nmconnection") == profile_before
-    machine.succeed("printf '%s\\n' '{\"provider\":\"Google\"}' | python3 " + helper + " dns")
+    machine.succeed("printf '%s\\n' '{\"provider\":\"Automatic\"}' | python3 " + helper + " dns")
     # Recovery is intentionally ordered after these services. Waiting only
     # for multi-user.target can observe it before the first worker invocation.
     machine.wait_until_succeeds("test -n \"$(systemctl show cybexos-recover.service -p ExecMainExitTimestamp --value)\"")

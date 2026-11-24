@@ -70,8 +70,11 @@ in {
     };
     networking.firewall = {
       enable = lib.mkDefault true;
-      allowedTCPPorts = [ 53317 ] ++ lib.optionals (cfg.features.localNetworkServices && cfg.features.steam) [ 27015 27036 27037 ];
-      allowedUDPPorts = [ 53317 ] ++ lib.optional cfg.features.localNetworkServices 5353
+      # LocalSend (53317) receives from the local network only when local
+      # network services are on, like mDNS; sending works either way.
+      allowedTCPPorts = lib.optional cfg.features.localNetworkServices 53317
+        ++ lib.optionals (cfg.features.localNetworkServices && cfg.features.steam) [ 27015 27036 27037 ];
+      allowedUDPPorts = lib.optionals cfg.features.localNetworkServices [ 53317 5353 ]
         ++ lib.optionals (cfg.features.localNetworkServices && cfg.features.steam) [ 27015 10400 10401 ];
       allowedUDPPortRanges = lib.optional (cfg.features.localNetworkServices && cfg.features.steam) { from = 27031; to = 27036; };
     };

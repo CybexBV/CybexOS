@@ -281,9 +281,13 @@ chosen by hand; **Detect again** asks once more.
 
 ### Network
 
-The medium and fresh installed systems start with Google DNS (`8.8.8.8`,
-`8.8.4.4` and their IPv6 equivalents); the initial wired profile ignores DNS
-advertised by DHCP, and Wi-Fi joined in the installer inherits it. The worker
+The medium and fresh installed systems use the DNS servers the network
+advertises (the network menu's **Automatic** choice), on the initial wired
+profile and on the first Wi-Fi network alike, so company resolvers and
+captive portals work. Google (`8.8.8.8`, `8.8.4.4` and their IPv6
+equivalents) is systemd-resolved's fallback when no network names a resolver,
+and one click away in the network menu; a later Wi-Fi network inherits the
+provider chosen there. The worker
 checks verified HTTPS access to the download service before setup and again
 before erasing the disk. A failure stops before any disk change and offers a
 retry; the private log records the resolver stub, upstream servers, routing

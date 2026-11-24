@@ -881,10 +881,11 @@ def parse_added_uuid(output: str) -> str:
 
 
 def inherit_dns_for_new_profile(profile_uuid: str, previous_profiles: list[dict[str, Any]]) -> None:
-    # The first Wi-Fi connection also uses Google on Wi-Fi-only hardware.
-    # Once a person has chosen a provider, including Automatic, inherit it.
+    # The first Wi-Fi connection uses the network's own DNS, as wired does,
+    # so captive portals and company resolvers work. Once a person has chosen
+    # a provider, including Google, inherit it.
     targets = [profile for profile in previous_profiles if target_profile(profile)]
-    state = aggregate_dns_state(targets) if targets else {"provider": "Google", "servers": [], "mixed": False}
+    state = aggregate_dns_state(targets) if targets else {"provider": "Automatic", "servers": [], "mixed": False}
     if state["mixed"]:
         return
     configuration = provider_configuration(state["provider"], state["servers"])
