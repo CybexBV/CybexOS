@@ -345,6 +345,11 @@ run('loginPam', ['cat', '/etc/pam.d/sddm'])
 run('keyringState', prefix + ['busctl', '--user', 'get-property', 'org.freedesktop.secrets',
     '/org/freedesktop/secrets/collection/login', 'org.freedesktop.Secret.Collection', 'Locked'])
 run('keyringJournal', ['journalctl', '--no-pager', '-g', 'gkr-pam|gnome-keyring', '-n', '40'])
+# Which daemon answers for secrets, and whether the session bus or the user's
+# service manager restarted after the login: a second daemon is locked.
+run('keyringProcesses', ['ps', '-o', 'pid,ppid,lstart,cgroup:60,args', '-C', 'gnome-keyring-daemon'])
+run('secretsOwner', prefix + ['busctl', '--user', 'status', 'org.freedesktop.secrets'])
+run('userManagerJournal', ['journalctl', '-b', '--no-pager', '-o', 'short-monotonic', '-n', '60', '_UID=1000'])
 print(json.dumps(output))
 QA_DIAGNOSTIC'''
         try:
