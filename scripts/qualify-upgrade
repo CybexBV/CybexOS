@@ -1,0 +1,651 @@
+#!/usr/bin/env python3
+"""Upgrade a machine running a published release to a newer one with its own updater.
+
+The path people take: install the previous release's ISO in a disposable VM,
+then let that release's (old, unchangeable) updater discover, prepare, apply,
+trial-boot and confirm the release under test. The old updater asks
+api.github.com which release is newest, so this script answers that one
+question at the network: a small HTTPS stand-in on this host, trusted by the
+guest through a throwaway test CA and reached through the guest's /etc/hosts,
+serves the release listing with the release under test as the newest release
+and its tag's commit. Everything else is passed through to the real GitHub
+API unchanged, so the commit under test must be pushed.
+
+    qualify-upgrade previous            the release before this source's VERSION
+    qualify-upgrade run ISO --from TAG  install TAG's ISO, upgrade it to HEAD (or --to TAG)
+
+`run` requires qemu-system-x86_64, OVMF, openssl and Python pexpect (nix develop).
+A GITHUB_TOKEN in the environment raises the API rate limit; it is used only
+on this host, for requests to api.github.com, and never reaches the guest.
+"""
+import argparse
+import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import http.client
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import ssl
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'lifecycle'))
+from cybexos.trust import version  # noqa: E402
+
+REPO = 'CybexBV/CybexOS'
+# The repository under its current and former names: updaters before 1.0.32
+# ask for CybexHQ/CybexOS, which GitHub redirects.
+OWNERS = ('cybexbv/cybexos', 'cybexhq/cybexos')
+TAG = re.compile(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:beta|rc)\.[1-9][0-9]*)?')
+# Updaters from 1.0.27 fall back to the release alone for a package hold;
+# from 1.0.32 for any failure, and they take the release's pinned Nixpkgs
+# (docs/updates.md, "Nixpkgs comes with the release").
+FALLBACK_FOR_HOLDS = version('1.0.27')
+RELEASE_PINNED = version('1.0.32')
+# The stand-in answers its own probes under this path.
+PROBE = '/cybexos-upgrade-test/'
+
+
+def release_version(tag):
+    """A release tag's version key, or None for a tag that is not a release."""
+    if not isinstance(tag, str) or not TAG.fullmatch(tag):
+        return None
+    return version(tag[1:])
+
+
+def published(listing):
+    """(version key, release) for every published release with a release tag."""
+    return [(key, item) for item in listing if isinstance(item, dict) and item.get('draft') is False
+            and (key := release_version(item.get('tag_name'))) is not None]
+
+
+def previous_release(listing, current):
+    """The newest published release older than `current`, prereleases included.
+
+    On a release branch, whose VERSION is the next version, that is the newest
+    release; on any other branch, whose VERSION is the newest release's, it is
+    the one before.
+    """
+    older = [(key, item) for key, item in published(listing) if key < version(current)]
+    if not older:
+        raise ValueError(f'No published release is older than {current}')
+    return max(older, key=lambda pair: pair[0])[1]
+
+
+def served_listing(listing, target):
+    """The real listing below the release under test, with that release as the newest.
+
+    A published release of the same version (an ordinary branch's VERSION) is
+    replaced. The release under test is not a prerelease, so both channels
+    see it, as they do once it is promoted.
+    """
+    key = version(target['version'])
+    kept = [item for release, item in published(listing) if release < key]
+    entry = {'tag_name': 'v' + target['version'], 'name': 'Cybex OS ' + target['version'], 'draft': False,
+             'prerelease': False, 'body': target['notes'], 'target_commitish': target['revision']}
+    return [entry] + kept
+
+
+def route(method, path, accept, target_version):
+    """What the stand-in does with a request: answer it itself, or pass it on."""
+    parts = urllib.parse.urlsplit(path)
+    segments = [urllib.parse.unquote(part) for part in parts.path.split('/')[1:]]
+    if parts.path.startswith(PROBE):
+        return 'probe'
+    if method in ('GET', 'HEAD') and len(segments) >= 4 and segments[0] == 'repos' \
+            and '/'.join(segments[1:3]).lower() in OWNERS:
+        rest = segments[3:]
+        if rest == ['releases']:
+            return 'listing'
+        if rest == ['commits', 'v' + target_version] and 'application/vnd.github.sha' in accept:
+            return 'revision'
+    return 'proxy'
+
+
+def stage_scope(source_version, discovery):
+    """What the installed release's updater prepares, as a person would ask for it.
+
+    1.0.25 and 1.0.26 don't fall back to the release alone at all, so their
+    people prepare it alone (`cybex update stage cybexos`, docs/updates.md).
+    Later updaters are given what Software Update offers for the discovery.
+    """
+    if version(source_version) < FALLBACK_FOR_HOLDS:
+        return 'cybexos'
+    return 'both' if discovery.get('upstream', {}).get('state') == 'available' else 'cybexos'
+
+
+def fallback_scope(source_version, scope, status):
+    """The release alone after a failed combined update, for an updater that doesn't do so itself."""
+    if scope == 'both' and status.get('state') == 'failed' and version(source_version) < RELEASE_PINNED:
+        return 'cybexos'
+    return None
+
+
+def expected_nixpkgs(source_version, scope, before, staged, pinned):
+    """The Nixpkgs revision the upgraded machine must run.
+
+    The release alone keeps the machine's. With NixOS packages, an updater
+    from 1.0.32 moves to the release's pinned revision when it is newer; an
+    older one takes the channel head of the day, so whatever it staged.
+    """
+    if scope == 'cybexos':
+        return before['rev']
+    if version(source_version) >= RELEASE_PINNED:
+        return pinned['rev'] if pinned['lastModified'] > before['lastModified'] else before['rev']
+    return staged['rev']
+
+
+def root_input(lock, name):
+    node = lock['nodes'][lock['nodes'][lock['root']]['inputs'][name]]
+    return {'locked': node['locked'], 'original': node.get('original', {})}
+
+
+# -- GitHub, from this host ---------------------------------------------------
+
+def github(path, accept='application/vnd.github+json'):
+    headers = {'Accept': accept, 'User-Agent': 'cybexos-qualify-upgrade', 'X-GitHub-Api-Version': '2022-11-28'}
+    token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
+    request = urllib.request.Request('https://api.github.com' + path, headers=headers)
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.read()
+
+
+def listing():
+    return json.loads(github(f'/repos/{REPO}/releases?per_page=100'))
+
+
+def revision_of(reference):
+    revision = github(f'/repos/{REPO}/commits/{urllib.parse.quote(reference)}',
+                      accept='application/vnd.github.sha').decode().strip()
+    if not re.fullmatch('[0-9a-f]{40}', revision):
+        raise ValueError(f'{reference} does not name a commit')
+    return revision
+
+
+def resolve_source(tag, releases, target_version):
+    if not tag:
+        item = previous_release(releases, target_version)
+    else:
+        item = next((item for _, item in published(releases) if item['tag_name'] == tag), None)
+        if item is None:
+            raise ValueError(f'{tag} is not a published release')
+    if version(item['tag_name'][1:]) >= version(target_version):
+        raise ValueError(f'{item["tag_name"]} is not older than {target_version}')
+    return {'tag': item['tag_name'], 'version': item['tag_name'][1:], 'prerelease': item['prerelease'] is True,
+            'revision': revision_of(item['tag_name'])}
+
+
+def resolve_target(reference, releases):
+    """HEAD (this pushed commit, its VERSION and notes) or a published release tag."""
+    if reference == 'HEAD':
+        revision = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], check=True,
+                                  capture_output=True, text=True).stdout.strip()
+        try:
+            revision_of(revision)
+        except urllib.error.HTTPError as error:
+            raise ValueError(f'{revision} is not on GitHub: push it first; the guest fetches it from there') from error
+        return {'reference': 'HEAD', 'version': (ROOT / 'VERSION').read_text().strip(), 'revision': revision,
+                'notes': (ROOT / 'release/notes.md').read_text(), 'lock': json.loads((ROOT / 'flake.lock').read_text())}
+    item = next((item for _, item in published(releases) if item['tag_name'] == reference), None)
+    if item is None:
+        raise ValueError(f'{reference} is not a published release')
+    revision = revision_of(reference)
+    lock = json.loads(github(f'/repos/{REPO}/contents/flake.lock?ref={revision}', accept='application/vnd.github.raw+json'))
+    return {'reference': reference, 'version': reference[1:], 'revision': revision,
+            'notes': item.get('body') or '', 'lock': lock}
+
+
+# -- The stand-in for api.github.com ------------------------------------------
+
+HOP_BY_HOP = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer',
+              'transfer-encoding', 'upgrade', 'host', 'content-length'}
+
+
+def test_certificates(directory):
+    """A throwaway CA and its certificate for api.github.com, valid for two days."""
+    def openssl(*args):
+        subprocess.run(['openssl', *args], check=True, capture_output=True, cwd=directory)
+    openssl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '2',
+            '-keyout', 'ca.key', '-out', 'ca.pem', '-subj', '/CN=Cybex OS upgrade qualification CA',
+            '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
+    openssl('req', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
+            '-keyout', 'server.key', '-out', 'server.csr', '-subj', '/CN=api.github.com')
+    (directory / 'server.ext').write_text('subjectAltName=DNS:api.github.com\nbasicConstraints=critical,CA:FALSE\n'
+                                          'keyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\n'
+                                          'subjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\n')
+    openssl('x509', '-req', '-in', 'server.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial',
+            '-days', '2', '-extfile', 'server.ext', '-out', 'server.pem')
+    return directory / 'ca.pem', directory / 'server.pem', directory / 'server.key'
+
+
+class StandIn(ThreadingHTTPServer):
+    """api.github.com for the guest: the listing and tag under test, the rest passed on."""
+    daemon_threads = True
+
+    def __init__(self, directory, releases, target):
+        self.ca, certificate, key = test_certificates(directory)
+        self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        self.context.load_cert_chain(certificate, key)
+        self.listing = json.dumps(served_listing(releases, target)).encode()
+        self.target = target
+        self.token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+        self.nonce = os.urandom(8).hex()
+        self.requests, self.lock = [], threading.Lock()
+        super().__init__(('127.0.0.1', 0), StandInHandler)
+        self.thread = threading.Thread(target=self.serve_forever, daemon=True)
+
+    def finish_request(self, request, client_address):
+        # The handshake happens in the request's own thread, not the listener's.
+        request.settimeout(60)
+        try:
+            secure = self.context.wrap_socket(request, server_side=True)
+        except (ssl.SSLError, OSError):
+            return
+        try:
+            super().finish_request(secure, client_address)
+        finally:
+            secure.close()
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exception):
+        self.shutdown()
+        self.server_close()
+
+    def record(self, **entry):
+        with self.lock:
+            self.requests.append(entry)
+
+    def summary(self):
+        """Each distinct request once, with how often it came and its statuses."""
+        with self.lock:
+            counted = {}
+            for entry in self.requests:
+                row = counted.setdefault((entry['method'], entry['path'], entry['route']),
+                                         {**entry, 'count': 0, 'status': []})
+                row['count'] += 1
+                if entry['status'] not in row['status']:
+                    row['status'].append(entry['status'])
+            return list(counted.values())
+
+
+class StandInHandler(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
+    timeout = 120
+
+    def log_message(self, format, *args):
+        pass
+
+    def do_GET(self):
+        self.respond()
+
+    do_HEAD = do_POST = do_GET
+
+    def send(self, status, body, headers=()):
+        self.send_response(status)
+        for name, value in headers:
+            self.send_header(name, value)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        if self.command != 'HEAD':
+            self.wfile.write(body)
+
+    def respond(self):
+        server = self.server
+        kind = route(self.command, self.path, self.headers.get('Accept', ''), server.target['version'])
+        if kind == 'probe':
+            status = 200
+            self.send(status, f'cybexos-upgrade-test {server.nonce}\n'.encode(), [('Content-Type', 'text/plain')])
+        elif kind == 'listing':
+            status = 200
+            self.send(status, server.listing, [('Content-Type', 'application/json; charset=utf-8')])
+        elif kind == 'revision':
+            status = 200
+            self.send(status, server.target['revision'].encode(), [('Content-Type', 'application/vnd.github.sha')])
+        else:
+            status = self.proxy()
+        server.record(method=self.command, path=self.path, route=kind, status=status)
+
+    def proxy(self):
+        length = int(self.headers.get('Content-Length') or 0)
+        body = self.rfile.read(length) if length else None
+        headers = {name: value for name, value in self.headers.items() if name.lower() not in HOP_BY_HOP}
+        if self.server.token and not any(name.lower() == 'authorization' for name in headers):
+            headers['Authorization'] = 'Bearer ' + self.server.token
+        connection = http.client.HTTPSConnection('api.github.com', timeout=120, context=ssl.create_default_context())
+        try:
+            connection.request(self.command, self.path, body=body, headers=headers)
+            response = connection.getresponse()
+            # Redirects (tarballs, renamed repositories) go back to the guest as they are.
+            data = response.read()
+            self.send(response.status, data,
+                      [(name, value) for name, value in response.getheaders() if name.lower() not in HOP_BY_HOP])
+            return response.status
+        except (OSError, http.client.HTTPException) as error:
+            self.send(502, f'Stand-in could not reach api.github.com: {type(error).__name__}\n'.encode())
+            return 502
+        finally:
+            connection.close()
+
+
+# In the guest: api.github.com:443 on loopback, forwarded to the stand-in on
+# the host, which QEMU's user network reaches as 10.0.2.2.
+FORWARDER = r'''import socket, sys, threading
+target = (sys.argv[1], int(sys.argv[2]))
+listener = socket.create_server(('127.0.0.1', 443))
+def pipe(source, destination):
+    try:
+        while data := source.recv(65536):
+            destination.sendall(data)
+    except OSError:
+        pass
+    try:
+        destination.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+def serve(client):
+    try:
+        upstream = socket.create_connection(target, timeout=30)
+    except OSError:
+        client.close()
+        return
+    upstream.settimeout(None)
+    other = threading.Thread(target=pipe, args=(client, upstream), daemon=True)
+    other.start()
+    pipe(upstream, client)
+    other.join()
+    client.close()
+    upstream.close()
+while True:
+    connection, _ = listener.accept()
+    threading.Thread(target=serve, args=(connection,), daemon=True).start()
+'''
+
+
+# -- The guest ----------------------------------------------------------------
+
+def load_harness():
+    path = ROOT / 'scripts/qualify-installations'
+    loader = importlib.machinery.SourceFileLoader('qualify_installations', str(path))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+def write_file(vm, path, text):
+    import base64
+    encoded = base64.b64encode(text.encode()).decode()
+    vm.command('rm -f /run/qa-file.b64')
+    for start in range(0, len(encoded), 2048):
+        vm.command('printf %s ' + encoded[start:start + 2048] + ' >> /run/qa-file.b64')
+    vm.command(f'base64 -d /run/qa-file.b64 > {shlex.quote(path)}\nrm -f /run/qa-file.b64')
+
+
+def guest_json(vm, script):
+    """JSON a guest command writes, carried in base64 past the serial console."""
+    import base64
+    return json.loads(base64.b64decode(vm.command('(' + script + ') | base64 -w0', timeout=600).strip()))
+
+
+def machine_inputs(vm):
+    lock = guest_json(vm, 'cat /etc/nixos/flake.lock')
+    return {name: root_input(lock, name) for name in ('nixpkgs', 'cybexos')}
+
+
+def redirect(vm, standin):
+    """Trust the test CA and send api.github.com to the stand-in, until the next boot.
+
+    The bundles and /etc/hosts are NixOS-managed links; the next activation
+    of a booted generation puts them back.
+    """
+    write_file(vm, '/run/qa-github-ca.pem', standin.ca.read_text())
+    write_file(vm, '/run/qa-github-forward.py', FORWARDER)
+    port = standin.server_address[1]
+    vm.command(f'''for bundle in /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-bundle.crt /etc/pki/tls/certs/ca-bundle.crt; do
+  test -e "$bundle" || continue
+  cat "$bundle" /run/qa-github-ca.pem > /run/qa-bundle
+  rm -f "$bundle"
+  install -m 0644 /run/qa-bundle "$bundle"
+done
+{{ grep -v 'api\\.github\\.com' /etc/hosts; echo '127.0.0.1 api.github.com'; }} > /run/qa-hosts
+rm -f /etc/hosts
+install -m 0644 /run/qa-hosts /etc/hosts
+systemd-run --unit=qa-github-forward --collect "$(command -v python3)" -I /run/qa-github-forward.py 10.0.2.2 {port}
+for n in $(seq 1 30); do python3 -c 'import socket; socket.create_connection(("127.0.0.1", 443), 2)' 2>/dev/null && exit 0; sleep 1; done
+exit 1''')
+    # The updater's Python and Nix's own downloads both reach and trust it.
+    expected = f'cybexos-upgrade-test {standin.nonce}'
+    python = vm.command("python3 -I -c 'import urllib.request; "
+                        f"print(urllib.request.urlopen(\"https://api.github.com{PROBE}python\", timeout=30).read().decode().strip())'").strip()
+    nix = vm.command("nix --extra-experimental-features nix-command eval --raw --impure --expr "
+                     f"'builtins.readFile (builtins.fetchurl \"https://api.github.com{PROBE}nix\")'").strip()
+    if python != expected or nix != expected:
+        raise RuntimeError(f'The guest did not reach the stand-in: python {python!r}, nix {nix!r}')
+    return {'result': 'passed', 'port': port, 'checks': ['Python urllib trusts the test CA', 'Nix downloads trust it']}
+
+
+def status(vm):
+    return guest_json(vm, 'cybex update status')
+
+
+def prepare(harness, vm, scope):
+    """Ask the installed updater to prepare `scope` and wait until it is ready or failed."""
+    previous = harness.stage_request(vm, scope)
+    harness.wait_state(vm, ('ready', 'failed'), timeout=10800, previous=previous)
+    return status(vm)
+
+
+def summary(value):
+    """A status without its long review fields."""
+    return {key: value.get(key) for key in ('state', 'scope', 'transaction', 'phase', 'error', 'notPrebuilt',
+                                              'installedVersion', 'availableVersion', 'inputs', 'changeKind')
+            if key in value}
+
+
+def apply_update(harness, vm, prepared):
+    """Install the prepared update and finish it the way the updater chose.
+
+    A changed boot (kernel, early-boot image, options, login screen or
+    session) waits for a trial boot that the signed-in desktop confirms. An
+    unchanged one is activated at once and, once healthy, made the boot
+    default; the next restart, which people make sooner or later, must start it.
+    """
+    vm.command('cybex update apply ' + shlex.quote(prepared['transaction']) + ' ' + shlex.quote(prepared['reviewToken']))
+    harness.wait_state(vm, ('awaiting-boot', 'done'), timeout=900)
+    applied = status(vm)
+    steps = {'apply': {'result': 'passed', 'transaction': prepared['transaction'], 'state': applied['state'],
+                       'phase': applied.get('phase')}}
+    if applied['state'] == 'awaiting-boot':
+        harness.check_trial_selection(vm)
+        harness.authenticated_boot(vm, False)
+        steps['trialBoot'] = {'result': 'passed'}
+        harness.confirm(vm)
+        steps['confirm'] = {'result': 'passed', 'by': 'the signed-in desktop after the trial boot'}
+        return steps
+    system = vm.command('readlink -f /run/current-system').strip()
+    if harness.boot_selection(vm).get('saved_entry') != harness.grub_selection(system):
+        raise RuntimeError('The update activated without a restart did not become the boot default')
+    vm.command('test ! -e /var/lib/cybexos/pending.json')
+    vm.reboot(False)
+    vm.login_desktop()
+    booted = vm.command('readlink -f /run/current-system').strip()
+    if booted != system:
+        raise RuntimeError(f'The restart started {booted}, not the activated {system}')
+    steps['restart'] = {'result': 'passed', 'system': system,
+                        'checks': ['activated without a trial boot', 'boot default', 'the restart starts it',
+                                   'desktop sign-in']}
+    return steps
+
+
+def upgrade(harness, iso, source, target, base, evidence, *, standin, applications, memory_gib, cpus):
+    steps = evidence['steps']
+    case = base / 'upgrade'
+    case.mkdir()
+    disk = case / 'disk.qcow2'
+    subprocess.run(['qemu-img', 'create', '-f', 'qcow2', str(disk), '80G'], check=True, capture_output=True)
+    vm = harness.VM(case, disk, iso, memory_mib=memory_gib * 1024, cpus=cpus)
+    try:
+        vm.start()
+        vm.login(live=True)
+        medium = json.loads(vm.command('cat /etc/cybexos/release.json').strip())
+        if medium.get('version') != source['version'] or medium.get('revision') != source['revision']:
+            raise RuntimeError(f'The ISO is not {source["tag"]}: ' + json.dumps(medium))
+        steps['medium'] = {'result': 'passed', 'release': medium}
+        harness.install_plan(vm, harness.installation_plan(False, applications))
+        vm.process.sendline('systemctl poweroff')
+        vm.process.expect(harness.pexpect.EOF, timeout=90)
+        vm.stop()
+        vm.iso = None
+        vm.start()
+        vm.login()
+        # Deterministic: the person prepares the update below, not the timer.
+        vm.command('cybex update automatic prepare off')
+        vm.login_desktop()
+        installed = json.loads(vm.command('cat /etc/cybexos/release.json').strip())
+        if installed.get('version') != source['version']:
+            raise RuntimeError('The installed release differs from the ISO: ' + json.dumps(installed))
+        # A machine on a beta release follows beta.
+        if source['prerelease']:
+            vm.command('cybex update channel beta')
+        before = machine_inputs(vm)
+        steps['installed'] = {'result': 'passed', 'applications': applications, 'release': installed,
+                              'channel': guest_json(vm, 'cybex update channel'), 'inputs': before}
+
+        steps['standIn'] = redirect(vm, standin)
+        discovery = guest_json(vm, 'cybex update check')
+        vendor = discovery.get('cybexos', {})
+        if (vendor.get('state') != 'available' or vendor.get('available') != target['version']
+                or vendor.get('revision') != target['revision']):
+            raise RuntimeError('The installed updater did not offer the release under test: ' + json.dumps(discovery)[:4000])
+        steps['discovery'] = {'result': 'passed', 'cybexos': {key: vendor.get(key) for key in
+                              ('state', 'installed', 'available', 'revision', 'releases', 'channel')},
+                              'upstream': discovery.get('upstream')}
+
+        scope = stage_scope(source['version'], discovery)
+        attempts = []
+        prepared = prepare(harness, vm, scope)
+        attempts.append({'scope': scope, **summary(prepared)})
+        if (alone := fallback_scope(source['version'], scope, prepared)):
+            # What the release notes tell people on this updater to do.
+            scope = alone
+            prepared = prepare(harness, vm, scope)
+            attempts.append({'scope': scope, **summary(prepared)})
+        steps['prepare'] = {'result': 'passed' if prepared.get('state') == 'ready' else 'failed', 'attempts': attempts}
+        if prepared.get('state') != 'ready':
+            raise RuntimeError('The installed updater could not prepare the release under test: '
+                               + json.dumps(attempts)[:4000])
+
+        steps.update(apply_update(harness, vm, prepared))
+
+        release = json.loads(vm.command('cat /etc/cybexos/release.json').strip())
+        after = machine_inputs(vm)
+        cybexos = after['cybexos']['locked']
+        pinned = root_input(target['lock'], 'nixpkgs')['locked']
+        staged = (prepared.get('inputs') or {}).get('nixpkgs') or {}
+        final_scope = prepared.get('scope') or scope
+        expected = expected_nixpkgs(source['version'], final_scope, before['nixpkgs']['locked'], staged, pinned)
+        problems = []
+        if release.get('version') != target['version'] or release.get('revision') != target['revision']:
+            problems.append('/etc/cybexos/release.json names ' + json.dumps({k: release.get(k) for k in ('version', 'revision')}))
+        if (cybexos.get('type') != 'github' or cybexos.get('rev') != target['revision']
+                or f"{cybexos.get('owner')}/{cybexos.get('repo')}".lower() not in OWNERS):
+            problems.append('flake.lock pins Cybex OS as ' + json.dumps(cybexos))
+        if after['nixpkgs']['locked'].get('rev') != expected:
+            problems.append(f'flake.lock pins Nixpkgs {after["nixpkgs"]["locked"].get("rev")}, expected {expected}')
+        if staged.get('rev') and after['nixpkgs']['locked'].get('rev') != staged['rev']:
+            problems.append('flake.lock differs from the Nixpkgs the updater prepared')
+        vm.command('cybexos-health desktop-required', timeout=180)
+        steps['upgraded'] = {'result': 'failed' if problems else 'passed', 'problems': problems, 'release': release,
+                             'scope': final_scope, 'inputs': after, 'expectedNixpkgs': expected,
+                             'releasePinnedNixpkgs': pinned.get('rev'), 'desktopHealth': 'passed'}
+        if problems:
+            raise RuntimeError('The upgraded machine does not run the release under test: ' + '; '.join(problems))
+    except Exception:
+        evidence['failureDiagnostics'] = vm.failure_diagnostics()
+        raise
+    finally:
+        vm.stop()
+
+
+def run(args):
+    harness = load_harness()
+    releases = listing()
+    target = resolve_target(args.to, releases)
+    source = resolve_source(args.source, releases, target['version'])
+    iso = args.iso.resolve()
+    with iso.open('rb') as handle:
+        iso_sha256 = hashlib.file_digest(handle, 'sha256').hexdigest()
+    evidence = {'kind': 'release-upgrade-evidence', 'result': 'running',
+                'from': {**source, 'isoSha256': iso_sha256},
+                'to': {key: target[key] for key in ('reference', 'version', 'revision')},
+                'steps': {}}
+    if args.work_dir:
+        args.work_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='cybexos-upgrade-', dir=args.work_dir) as temporary:
+        base = Path(temporary)
+        (base / 'stand-in').mkdir()
+        with StandIn(base / 'stand-in', releases, target) as standin:
+            started = time.monotonic()
+            try:
+                upgrade(harness, iso, source, target, base, evidence, standin=standin, applications=args.applications,
+                        memory_gib=args.memory_gib, cpus=args.cpus)
+                evidence['result'] = 'passed'
+                evidence['scope'] = ('the installed release\'s own updater: discovery through a GitHub API stand-in, '
+                                     'preparation, application, GRUB trial boot, desktop sign-in and confirmation '
+                                     'in a disposable VM; no physical hardware')
+            except Exception as error:
+                evidence.update(result='failed', error=str(error)[-6000:])
+            evidence['minutes'] = round((time.monotonic() - started) / 60, 1)
+            evidence['standInRequests'] = standin.summary()
+    data = json.dumps(evidence, indent=2) + '\n'
+    if args.output:
+        args.output.write_text(data)
+    print(data)
+    return 0 if evidence['result'] == 'passed' else 1
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest='command', required=True)
+    previous = commands.add_parser('previous', help="Print the tag of the newest release older than VERSION")
+    previous.add_argument('--version', default=None, help="Instead of this source's VERSION")
+    upgrade_command = commands.add_parser('run', help='Install a release ISO and upgrade it with its own updater')
+    upgrade_command.add_argument('iso', type=Path, help="The --from release's ISO")
+    upgrade_command.add_argument('--from', dest='source', default='',
+                                 help='The installed release (a tag such as v1.0.25); default: the previous release')
+    upgrade_command.add_argument('--to', default='HEAD', help='HEAD (this pushed commit) or a published release tag')
+    upgrade_command.add_argument('--output', type=Path)
+    upgrade_command.add_argument('--work-dir', type=Path, help='Parent for the disposable VM files')
+    upgrade_command.add_argument('--applications', choices=('standard', 'minimal'), default='standard')
+    upgrade_command.add_argument('--memory-gib', type=int, default=16)
+    upgrade_command.add_argument('--cpus', type=int, default=12)
+    args = parser.parse_args()
+    if args.command == 'previous':
+        current = args.version or (ROOT / 'VERSION').read_text().strip()
+        print(previous_release(listing(), current)['tag_name'])
+        return 0
+    for name, value in (('--from', args.source), ('--to', args.to)):
+        if value and value != 'HEAD' and not TAG.fullmatch(value):
+            parser.error(f'{name} must be a release tag such as v1.0.25')
+    if args.source == 'HEAD':
+        parser.error('--from must be a release tag')
+    return run(args)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
