@@ -73,7 +73,8 @@ class PublishTests(unittest.TestCase):
         self.environment['GH_PASSED'] = '0'
         self.assert_refused('the full check has not passed for ' + revision, '1.0.1')
         self.assertIn(f'run list --repo CybexHQ/CybexOS --workflow nixos.yml --commit {revision} '
-                      '--event workflow_dispatch --status success', self.runs.read_text())
+                      '--status success --limit 100 --json event --jq [.[] | select(.event == "workflow_dispatch" '
+                      'or .event == "push")] | length', self.runs.read_text())
         self.environment['GH_PASSED'] = ''
         self.assert_refused('the full check has not passed', '1.0.1', '--dry-run')
 
@@ -313,6 +314,25 @@ class PromoteTests(unittest.TestCase):
         result = self.promote('1.0.3', '--yes', GH_IGNORE_EDIT='1')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('still lists v1.0.3 as a prerelease', result.stderr)
+
+
+class FullCheckRunTests(unittest.TestCase):
+    """Which nixos.yml runs count for a commit, with the filter the scripts give gh."""
+
+    @unittest.skipUnless(shutil.which('jq'), 'jq is not installed')
+    def test_dispatched_and_push_runs_count_and_pull_requests_do_not(self):
+        runs = [{'event': 'pull_request'}, {'event': 'schedule'}]
+        for name in ('release/publish', 'release/promote'):
+            source = (ROOT / name).read_text()
+            start = source.index('[.[] | select(')
+            query = source[start:source.index('length', start) + len('length')]
+            def count(listing):
+                return subprocess.run(['jq', query], input=json.dumps(listing), capture_output=True,
+                                      text=True, check=True).stdout.strip()
+            with self.subTest(name):
+                self.assertEqual(count(runs), '0')
+                self.assertEqual(count(runs + [{'event': 'workflow_dispatch'}]), '1')
+                self.assertEqual(count(runs + [{'event': 'push'}, {'event': 'workflow_dispatch'}]), '2')
 
 
 if __name__ == '__main__':
