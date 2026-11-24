@@ -14,6 +14,8 @@ Column {
     property string text: ""
     property color color: Theme.textHi
     property bool plain: false
+    // A code block's corner; the box passes its inner corner.
+    property real blockRadius: Theme.cardRadius
     readonly property var blocks: plain ? [{ kind: "text", text: text }] : AssistantHelpers.markdownBlocks(text)
     // The link under the pointer in any prose block, for the cursor.
     property string hoveredLink: ""
@@ -63,7 +65,7 @@ Column {
                 Rectangle {
                     width: block.width
                     height: codeHeader.height + codeText.contentHeight + Theme.scaled(16)
-                    radius: Theme.scaled(9)
+                    radius: root.blockRadius
                     color: Theme.well
                     border.width: 1
                     border.color: Theme.hairline

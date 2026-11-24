@@ -120,3 +120,84 @@ test('the desktop ships the installer faces and the wordmark', () => {
     assert.deepEqual(fs.readFileSync(path.join(shellDir, 'Welcome/assets/cybexos-logo.svg')),
         fs.readFileSync(path.join(root, 'installer/kiosk/assets/logo.svg')));
 });
+
+// 2026-11-24 UI council review: one primary per screen, choices that read as
+// what they are, focus rings for the keyboard only, and every finding on
+// Ready with somewhere to go.
+test('each step has one primary button, and Connect\'s sign-ins are secondary', () => {
+    const steps = ['ConnectStep.qml', 'WallpaperStep.qml', 'StyleStep.qml', 'FinishStep.qml'];
+    for (const name of steps) {
+        const source = read('Welcome/' + name);
+        const primaries = (source.match(/kind: "primary"/g) || []).length + (source.match(/KioskFooter \{/g) || []).length;
+        assert.equal(primaries, 1, name);
+    }
+    assert.match(read('Welcome/FinishStep.qml'), /kind: "primary"\s*text: I18n\.tr\("Start using Cybex OS"\)/);
+    const connect = read('Welcome/ConnectStep.qml');
+    assert.match(connect, /recommended: true/, 'the assistant card is marked, not filled');
+    assert.doesNotMatch(connect, /AI assistant · recommended/);
+});
+
+test('Connect turns its sign-ins off while known to be offline, and names only the offered agents', () => {
+    const connect = read('Welcome/ConnectStep.qml');
+    assert.match(connect, /readonly property bool offline: NetworkStatus\.known && !root\.online/);
+    assert.match(connect, /objectName: "connectPassword"[\s\S]*?enabled: Welcome\.passwordSignedIn \|\| !root\.offline/);
+    assert.match(connect, /objectName: "connectGoogle"[\s\S]*?enabled: Welcome\.googleSignedIn \|\| !root\.offline/);
+    assert.match(connect, /objectName: "connectAgent-" \+ modelData[\s\S]*?\(ready \|\| !root\.offline\)/);
+    assert.match(connect, /I18n\.tr\("Signing in needs the internet\."\)/);
+    assert.match(connect, /visible: root\.offline/, 'the banner follows the same rule');
+    // "Claude Code or Codex" only when both are installed (or neither is).
+    assert.doesNotMatch(connect, /I18n\.tr\("[^"]*Claude Code or Codex/);
+    assert.match(connect, /agentNames: \(root\.installed\.length > 0 \? root\.installed : AssistantHelpers\.AGENT_IDS\)/);
+    assert.match(connect, /I18n\.format\("Sign in with %1\. Your assistant/);
+    assert.match(connect, /I18n\.format\("Your sign-in stays with %1;/);
+});
+
+test('Ready gives each finding its place and Ask Wiz as the secondary way', () => {
+    const finish = read('Welcome/FinishStep.qml');
+    assert.match(finish, /case "firmware-updates": return I18n\.tr\("Software Update…"\);/);
+    assert.match(finish, /if \(id === "firmware-updates"\) \{\s*Welcome\.stepAside\(false\);\s*Updates\.show\(\);/);
+    assert.match(finish, /checkPages: \(\{storage: "storage", battery: "power", audio: "sound", time: "region"\}\)/);
+    assert.match(finish, /onClicked: root\.openPlace\(finding\.modelData\.id\)/);
+    // Ask Wiz is a plain (ghost) button: no kind, so not a second primary.
+    const ask = finish.match(/KioskButton \{\s*objectName: "readyAskAssistant"[\s\S]*?\n {24}\}/);
+    assert.ok(ask, 'readyAskAssistant');
+    assert.doesNotMatch(ask[0], /kind:/);
+    assert.match(ask[0], /text: I18n\.tr\("Ask Wiz"\)/);
+    assert.match(ask[0], /Welcome\.stepAside\(false\);\s*Assistant\.checkSystem\(\);/);
+    // Wiz stands in the check's card; the recaps carry no step numbers.
+    assert.match(finish, /KioskCard \{\s*id: check[\s\S]*?Character\.Wiz \{\s*id: wiz\s*objectName: "readyWiz"/);
+    assert.doesNotMatch(finish, /"0[1-4]"/);
+    assert.match(finish, /anchors\.top: parent\.top\s*anchors\.topMargin: Kiosk\.px\(22\)/, 'recap text starts at one height');
+});
+
+test('the wallpaper colours ask for a wallpaper instead of reading forever, and the Space hint sits under the preview', () => {
+    const swatches = read('Welcome/WallpaperSwatches.qml');
+    assert.match(swatches, /Welcome\.wallpaperSource === "none" \? I18n\.tr\("Pick a wallpaper to take its colours\."\)/);
+    for (const name of ['WallpaperStep.qml', 'StyleStep.qml']) {
+        const source = read('Welcome/' + name);
+        const footer = source.slice(source.indexOf('KioskFooter {'));
+        assert.doesNotMatch(footer, /Spacebar/, `${name} keeps the Space hint out of its footer`);
+        assert.match(source, /text: I18n\.tr\("Spacebar"\)/, name);
+    }
+});
+
+test('switches have a 3:1 off edge, single choices a radio dot, and focus rings follow the keyboard', () => {
+    const toggle = read('Welcome/KioskToggle.qml');
+    assert.match(toggle, /color: checked \? Kiosk\.accent : Kiosk\.switchOffTrack/);
+    assert.match(toggle, /border\.width: checked \? 0 : Math\.max\(1, Kiosk\.px\(1\)\)\s*border\.color: Kiosk\.fog/);
+    const radio = read('Welcome/KioskRadio.qml');
+    assert.doesNotMatch(radio, /name: "check"/, 'a radio is a dot, not a tick');
+    assert.match(radio, /border\.color: checked \? Kiosk\.accent : Kiosk\.faint/);
+    // Dark and Light are chosen by a fill, not a second ring.
+    const style = read('Welcome/StyleStep.qml');
+    assert.match(style, /color: chosen \? Kiosk\.accentSoft : Kiosk\.card/);
+    assert.doesNotMatch(style, /Kiosk\.accentRing/);
+    assert.match(read('Welcome/KioskFocusRing.qml'), /opacity: FocusModality\.keyboard \? 1 : 0/);
+    assert.match(style, /visible: option\.activeFocus && FocusModality\.keyboard/);
+    assert.match(read('WelcomeWindow.qml'), /FocusModalityObserver \{\}/);
+});
+
+test('the guide\'s fades use Theme tokens', () => {
+    for (const name of ['WelcomeWindow.qml', 'Welcome/WelcomeView.qml'])
+        assert.doesNotMatch(read(name), /duration: \d/, name);
+});

@@ -5,8 +5,10 @@ import "../Common" as Common
 
 // The colours Matugen reads from the current wallpaper, as round swatches,
 // from the page tone up to the accent. Palette runs only while the colours
-// follow the wallpaper; otherwise this says so. Qualified as Common.Palette:
-// a bare `Palette` is QtQuick's own palette type.
+// follow the wallpaper; otherwise this says so. With no wallpaper there is
+// nothing to read, so it asks for one rather than waiting (it read "Reading
+// its colours…" forever on a fresh installation). Qualified as
+// Common.Palette: a bare `Palette` is QtQuick's own palette type.
 Item {
     id: root
     property real size: 22
@@ -39,6 +41,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: !root.shown
         text: Settings.paletteMode !== "wallpaper" ? I18n.tr("Your colours are fixed for now.")
+            : Welcome.wallpaperSource === "none" ? I18n.tr("Pick a wallpaper to take its colours.")
             : String(Common.Palette.error || "") || I18n.tr("Reading its colours…")
         size: 13
         tone: "faint"

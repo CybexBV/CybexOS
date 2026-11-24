@@ -31,6 +31,7 @@ Singleton {
     readonly property color redLine: "#59ff6b57"
     readonly property color amber: "#f2c14e"
     readonly property color amberTint: "#1ff2c14e"
+    readonly property color switchOffTrack: "#4d8f918a"
     readonly property color scrim: "#9e0a0a0b"
     readonly property color boot: "#0d0d0d"
     // From the design reference's CSS (installer/ui-reference/index.html):

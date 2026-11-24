@@ -332,6 +332,25 @@ test("a click opens a new conversation unless the last one still needs the perso
     assert.match(history, /onTriggered: Assistant\.confirmingClear = true/);
     assert.match(history, /objectName: "assistantClearHistory"[\s\S]*?onTriggered: Assistant\.clearHistory\(\)/);
     assert.match(history, /onTriggered: Assistant\.undoDelete\(\)/);
+    // A list cut by the box's room fades at its cut edge (2026-11-24 review).
+    assert.match(history, /EdgeFade \{ anchors\.bottom: parent\.bottom; shown: listFlick\.contentY \+ listFlick\.height < listFlick\.contentHeight - 1 \}/);
+    assert.match(history, /EdgeFade \{ anchors\.top: parent\.top; shown: listFlick\.contentY > 1; fromTop: true \}/);
     assert.match(read("Settings/AssistantPage.qml"), /settingKey: "assistantHistory"/);
     assert.match(repo("desktop/assistant/cybexos_assistant/history.py"), /RETENTION = \("month", "forever", "session"\)/);
+});
+
+test("the box keeps one family of corners and keyboard-only focus rings", () => {
+    // 2026-11-24 review: one card mixed 16, 12, 10, 9, 7 and pill corners.
+    const surface = read("Assistant/AssistantSurface.qml");
+    assert.match(surface, /radius: Theme\.panelRadius/);
+    assert.match(surface, /readonly property int innerRadius: Theme\.concentricRadius\(radius, padding\)/);
+    for (const name of ["AssistantComposer", "AssistantHistory", "AssistantReply", "AssistantWorking", "AssistantApproval",
+        "AssistantChanges", "AssistantConversationRow", "AssistantMenuRow", "AssistantMarkdown"]) {
+        const source = read(`Assistant/${name}.qml`);
+        assert.doesNotMatch(source, /radius: Theme\.scaled\(/, `${name} takes its corner from Theme`);
+        assert.doesNotMatch(source, /radius: height \/ 2/, `${name} has no pills`);
+    }
+    assert.match(read("AssistantWindow.qml"), /FocusModalityObserver \{\}/);
+    assert.match(read("Assistant/AssistantConversationRow.qml"),
+        /color: root\.hovered \|\| root\.activeFocus && FocusModality\.keyboard \? Theme\.chipHover : "transparent"/);
 });

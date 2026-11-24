@@ -136,6 +136,7 @@ AssistantSurface {
         delegate: AssistantApproval {
             required property var modelData
             width: root.width - root.padding * 2
+            radius: root.innerRadius
             approval: modelData
         }
     }
@@ -150,7 +151,7 @@ AssistantSurface {
             anchors.right: parent.right
             width: Math.min(parent.width * 0.85, sideQuestion.implicitWidth + Theme.scaled(20))
             height: sideQuestion.implicitHeight + Theme.scaled(12)
-            radius: Theme.scaled(10)
+            radius: root.innerRadius
             color: Theme.chip
 
             Text {
@@ -176,7 +177,7 @@ AssistantSurface {
                 anchors.verticalCenter: parent.verticalCenter
                 width: badge.implicitWidth + Theme.scaled(12)
                 height: Theme.scaled(20)
-                radius: Theme.scaled(5)
+                radius: Theme.chipRadius
                 color: Theme.chip
 
                 Text {
@@ -229,6 +230,7 @@ AssistantSurface {
             AssistantMarkdown {
                 id: sideAnswer
                 width: sideFlick.width
+                blockRadius: root.innerRadius
                 plain: root.side !== null && root.side.status === "failed"
                 text: !root.side ? "" : root.side.status === "failed" ? root.side.error || ""
                     : root.side.text || ""
@@ -242,7 +244,7 @@ AssistantSurface {
         width: parent.width
         visible: root.queued !== null
         height: visible ? queueColumn.implicitHeight + Theme.scaled(14) : 0
-        radius: Theme.scaled(10)
+        radius: root.innerRadius
         color: "transparent"
         border.width: 1
         border.color: Theme.hairline
@@ -312,7 +314,7 @@ AssistantSurface {
         width: parent.width
         visible: !Assistant.waiting && !(Assistant.queue !== null && Assistant.sideBusy)
         height: visible ? Math.max(Theme.scaled(38), asideInput.contentHeight + Theme.scaled(14)) : 0
-        radius: Theme.scaled(10)
+        radius: root.innerRadius
         color: Theme.well
         border.width: 1
         border.color: asideInput.activeFocus ? Theme.accent : Theme.hairline

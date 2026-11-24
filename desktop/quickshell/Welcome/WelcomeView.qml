@@ -83,7 +83,7 @@ FocusScope {
         anchors.fill: parent
         enabled: !root.sheetOpen
         opacity: root.peeking ? 0 : 1
-        Behavior on opacity { NumberAnimation { duration: 140 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.popoutFadeInDuration } }
         KioskTopBar {
             id: topBar
             width: parent.width
@@ -97,7 +97,8 @@ FocusScope {
             height: parent.height - y
             source: ({hello: "HelloStep.qml", connect: "ConnectStep.qml", wallpaper: "WallpaperStep.qml",
                 style: "StyleStep.qml", shortcuts: "ShortcutsStep.qml", finish: "FinishStep.qml"})[Welcome.step]
-            NumberAnimation { id: fade; target: content; property: "opacity"; from: 0; to: 1; duration: 160 }
+            // A fade only, so it stays (shorter) under reduced motion.
+            NumberAnimation { id: fade; target: content; property: "opacity"; from: 0; to: 1; duration: Theme.popoutFadeInDuration }
         }
     }
     Loader {

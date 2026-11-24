@@ -696,6 +696,10 @@ PanelWindow {
         }
     }
 
+    // Pointer vs keyboard modality for focus rings (Common/FocusModality):
+    // a click in the box leaves no ring, the first Tab shows one.
+    FocusModalityObserver {}
+
     // The resize handle follows the setting when it changes elsewhere.
     Connections {
         target: Settings

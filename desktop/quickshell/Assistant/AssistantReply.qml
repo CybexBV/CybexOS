@@ -115,6 +115,7 @@ AssistantSurface {
         AssistantMarkdown {
             id: body
             width: bodyFlick.width
+            blockRadius: root.innerRadius
             plain: root.failed
             text: root.failed ? (root.turn.error || I18n.tr("Something went wrong."))
                 : root.turn ? root.turn.text || "" : ""
@@ -146,7 +147,7 @@ AssistantSurface {
             width: parent.width
             visible: root.staged
             height: visible ? stagedColumn.implicitHeight + Theme.scaled(18) : 0
-            radius: Theme.scaled(12)
+            radius: root.innerRadius
             color: Theme.cardFill
             border.width: 1
             border.color: Theme.hairline
@@ -222,7 +223,7 @@ AssistantSurface {
                 required property var modelData
                 width: extras.width
                 height: routineColumn.implicitHeight + Theme.scaled(16)
-                radius: Theme.scaled(10)
+                radius: root.innerRadius
                 color: Theme.cardFill
 
                 Column {
@@ -292,6 +293,7 @@ AssistantSurface {
         // Everything the answer changed, each with its own Undo.
         AssistantChanges {
             width: parent.width
+            radius: root.innerRadius
             changes: root.changes
         }
 
@@ -310,7 +312,7 @@ AssistantSurface {
                 required property var modelData
                 width: extras.width
                 height: Theme.scaled(40)
-                radius: Theme.scaled(10)
+                radius: root.innerRadius
                 color: Theme.cardFill
 
                 Sym {

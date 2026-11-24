@@ -286,7 +286,7 @@ AssistantSurface {
                         anchors.right: parent.right
                         width: Math.min(parent.width * 0.85, question.implicitWidth + Theme.scaled(20))
                         height: question.implicitHeight + Theme.scaled(12)
-                        radius: Theme.scaled(10)
+                        radius: root.innerRadius
                         color: Theme.chip
 
                         Text {
@@ -305,6 +305,7 @@ AssistantSurface {
 
                     AssistantMarkdown {
                         width: parent.width
+                        blockRadius: root.innerRadius
                         visible: text !== ""
                         plain: exchange.failed || exchange.active
                         text: exchange.failed ? (exchange.modelData.error || I18n.tr("Something went wrong."))
@@ -341,7 +342,7 @@ AssistantSurface {
         width: parent.width
         height: visible ? Theme.scaled(46) : 0
         visible: Assistant.screenAttached && !Assistant.setupRequired
-        radius: Theme.chipRadius
+        radius: root.innerRadius
         color: Theme.chip
 
         Row {
@@ -353,7 +354,7 @@ AssistantSurface {
             Rectangle {
                 width: Theme.scaled(56)
                 height: Theme.scaled(34)
-                radius: 4
+                radius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
                 color: Theme.well
                 clip: true
 
@@ -412,7 +413,7 @@ AssistantSurface {
                 required property var modelData
                 height: Theme.scaled(26)
                 width: Math.min(attachmentFlow.width, chipRow.implicitWidth + Theme.scaled(8))
-                radius: Theme.scaled(7)
+                radius: Theme.chipRadius
                 color: Theme.chip
                 border.width: 1
                 border.color: Theme.hairline
@@ -469,7 +470,7 @@ AssistantSurface {
         visible: !Assistant.setupRequired
         width: parent.width
         height: Math.max(Theme.scaled(44), inputArea.height + Theme.scaled(14))
-        radius: Theme.scaled(12)
+        radius: root.innerRadius
         color: Theme.well
         border.width: 1
         border.color: input.activeFocus || root.listening ? Theme.accent : Theme.hairline
@@ -695,7 +696,7 @@ AssistantSurface {
                 readonly property bool moment: !!chip.modelData.reason
                 width: Math.min(suggestionFlow.width, chipContent.implicitWidth + Theme.scaled(18))
                 height: Theme.scaled(26)
-                radius: height / 2
+                radius: Theme.chipRadius
                 color: chipMouse.containsMouse ? Theme.chipHover : Theme.chip
                 border.width: moment ? 1 : 0
                 border.color: chip.modelData.warn ? Theme.amber : Theme.accentText
@@ -802,6 +803,7 @@ AssistantSurface {
                 required property var modelData
                 required property int index
                 width: root.width - root.padding * 2
+                radius: root.innerRadius
                 row: modelData
                 showPreview: index === 0
                 onOpened: Assistant.openConversation(modelData.id)
@@ -840,7 +842,7 @@ AssistantSurface {
             anchors.verticalCenter: parent.verticalCenter
             width: agentRow.implicitWidth + Theme.scaled(14)
             height: Theme.scaled(22)
-            radius: height / 2
+            radius: Theme.chipRadius
             color: agentMouse.containsMouse || root.modelMenuOpen ? Theme.chipHover : Theme.chip
             Accessible.role: Accessible.Button
             Accessible.name: I18n.format("Answered by %1 · %2. Change the agent or model.",
@@ -923,7 +925,7 @@ AssistantSurface {
         width: parent.width
         visible: root.modelMenuOpen && !Assistant.setupRequired
         height: visible ? menuColumn.implicitHeight + Theme.scaled(10) : 0
-        radius: Theme.scaled(10)
+        radius: root.innerRadius
         color: Theme.cardFill
         border.width: 1
         border.color: Theme.hairline
@@ -953,6 +955,7 @@ AssistantSurface {
                     required property string modelData
                     readonly property var status: Assistant.agents[modelData] || {}
                     width: menuColumn.width
+                    radius: Theme.concentricRadius(modelMenu.radius, menuColumn.x)
                     glyphBrand: AssistantHelpers.AGENT_ICONS[modelData]
                     label: AssistantHelpers.AGENT_LABELS[modelData]
                     // A conversation continues with the agent it started with.
@@ -997,6 +1000,7 @@ AssistantSurface {
                 delegate: AssistantMenuRow {
                     required property var modelData
                     width: menuColumn.width
+                    radius: Theme.concentricRadius(modelMenu.radius, menuColumn.x)
                     label: modelData.value === "default" ? I18n.tr("Default") : modelData.label
                     detail: modelData.value === "default"
                         ? I18n.format("%1's own", [Assistant.askAgentLabel]) : ""

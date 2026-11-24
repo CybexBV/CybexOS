@@ -14,7 +14,8 @@ Rectangle {
     signal chosen()
 
     height: Theme.scaled(28)
-    radius: Theme.scaled(6)
+    // The composer's menu sets the corner concentric with its own.
+    radius: Theme.concentricRadius(Theme.cardRadius, Theme.scaled(5))
     color: mouse.containsMouse && enabled ? Theme.chipHover : "transparent"
     opacity: enabled ? 1 : 0.5
     Accessible.role: Accessible.RadioButton

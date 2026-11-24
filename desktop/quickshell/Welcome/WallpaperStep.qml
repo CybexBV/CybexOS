@@ -308,11 +308,11 @@ Item {
                         : OnlineWallpapers.error !== "" ? OnlineWallpapers.error
                         : I18n.tr("Choose a topic or search. Downloads happen only when you use a wallpaper.")
                 }
+                // Secondary: Continue is the step's one primary button.
                 KioskButton {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: root.online && !OnlineWallpapers.busy && (!OnlineWallpapers.searched || OnlineWallpapers.error !== "")
                     small: true
-                    kind: "primary"
                     text: OnlineWallpapers.error !== "" ? I18n.tr("Try again") : I18n.tr("Load wallpapers")
                     enabled: !OnlineWallpapers.paused
                     onClicked: root.runSearch()
@@ -386,21 +386,28 @@ Item {
         }
     }
 
+    // Under the preview, as on Style: the hint belongs to what it shows.
+    Row {
+        anchors.left: applied.left
+        anchors.top: applied.bottom
+        anchors.topMargin: Kiosk.px(14)
+        spacing: Kiosk.px(8)
+        KioskKeycap { anchors.verticalCenter: parent.verticalCenter; small: true; text: I18n.tr("Spacebar") }
+        KioskText { anchors.verticalCenter: parent.verticalCenter; text: I18n.tr("Hold to look at your desktop"); size: 14; tone: "faint" }
+    }
+
     KioskFooter {
         id: footer
         anchors.bottom: parent.bottom
         width: parent.width
         onNext: Welcome.move(1)
-        Row {
+        KioskText {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Kiosk.px(8)
-            KioskKeycap { anchors.verticalCenter: parent.verticalCenter; small: true; text: I18n.tr("Spacebar") }
-            KioskText {
-                anchors.verticalCenter: parent.verticalCenter
-                text: Welcome.error !== "" ? Welcome.error : I18n.tr("Hold to look at your desktop")
-                size: 14
-                tone: Welcome.error !== "" ? "red" : "faint"
-            }
+            width: parent.width
+            text: Welcome.error !== "" ? Welcome.error : I18n.tr("You will find it again in Settings, under Wallpaper.")
+            size: 14
+            tone: Welcome.error !== "" ? "red" : "faint"
+            elide: Text.ElideRight
         }
     }
 }

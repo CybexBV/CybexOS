@@ -81,7 +81,8 @@ or set up themselves.
 - **History.** The new box lists your three most recent conversations under
   the suggestions (fewer when the screen has no room); **History** opens them
   all in the box, grouped by day and searchable across questions and
-  answers. A conversation still running says **Working**, one waiting for
+  answers. A list longer than the box has room for scrolls, its cut edge
+  fading into the box. A conversation still running says **Working**, one waiting for
   you **Your move**. Picking one shows its questions and answers above the
   field; what you type continues it with the agent it started with, even if
   Settings now prefers the other. Its **⋯** button offers **Continue in a
@@ -89,6 +90,11 @@ or set up themselves.
   conversation**. History can be read while Wiz works on another question
   (the clock button on the working pill); a new question waits until he is
   free.
+- **Corners and focus.** The box takes the panels' corner (Settings →
+  Appearance → Panel corners); a field, card or row across its width takes
+  the concentric inner corner (`Theme.concentricRadius`), and chips and
+  buttons the chip corner. Focus rings show only while you use the keyboard
+  (`Common/FocusModality`): a click leaves none.
 - **Deleting and clearing.** Hovering a row in History shows its delete
   button; the conversation goes at once and **Undo** brings it back until the
   box closes or another is deleted. **Clear history…** asks once, inside the
