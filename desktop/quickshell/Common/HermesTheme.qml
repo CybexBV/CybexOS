@@ -60,6 +60,7 @@ Singleton {
     readonly property int controlRadius: Theme.chipRadius
     readonly property int iconButtonSize: Theme.chipHeight
     readonly property int rowHeight: Theme.listRowHeight
-    readonly property int fastDuration: 140
-    readonly property int normalDuration: 180
+    // Quick, like T3Theme's, and stopped under reduced motion.
+    readonly property int fastDuration: Theme.reducedMotion ? 0 : 140
+    readonly property int normalDuration: Theme.reducedMotion ? 0 : 180
 }

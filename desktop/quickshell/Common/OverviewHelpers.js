@@ -186,6 +186,22 @@ function fitAspect(width, height, aspect) {
     };
 }
 
+// A smaller box of the same shape inside `box`: at most `maxWidth` wide,
+// centred across the top of it so a label above still sits on its edge.
+// With no window open, the New workspace tile is a place to go, not a
+// preview, and this keeps it from outweighing the one action on screen.
+function compactBox(box, maxWidth) {
+    var bw = Math.max(0, finite(box && box.width, 0));
+    var bh = Math.max(0, finite(box && box.height, 0));
+    var width = Math.min(bw, Math.max(1, finite(maxWidth, bw)));
+    return {
+        x: Math.round(finite(box && box.x, 0) + (bw - width) / 2),
+        y: Math.round(finite(box && box.y, 0)),
+        width: Math.round(width),
+        height: bw > 0 ? Math.round(bh * width / bw) : 0
+    };
+}
+
 function pair(value) {
     return (Array.isArray(value) || value instanceof Array) && value.length >= 2
         && isFinite(Number(value[0])) && isFinite(Number(value[1]))
@@ -434,6 +450,7 @@ var exported = {
     workspaceEntries: workspaceEntries,
     gridLayout: gridLayout,
     fitAspect: fitAspect,
+    compactBox: compactBox,
     windowRects: windowRects,
     cellAt: cellAt,
     filterScores: filterScores,

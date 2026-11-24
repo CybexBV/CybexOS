@@ -96,6 +96,7 @@ Singleton {
 
     // T3 interactions are deliberately quick. Continuous state animation is
     // duty-cycled at the call site so idle windows do not repaint forever.
-    readonly property int fastDuration: 140
-    readonly property int normalDuration: 180
+    // Both stop under reduced motion, like the shared Theme tokens.
+    readonly property int fastDuration: Theme.reducedMotion ? 0 : 140
+    readonly property int normalDuration: Theme.reducedMotion ? 0 : 180
 }

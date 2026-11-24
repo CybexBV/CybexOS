@@ -111,7 +111,8 @@ PanelWindow {
         id: pill
 
         x: root.pad + (root.maxPillWidth - width) / 2
-        y: root.pad + (root.shown ? 0 : root.atTop ? -16 : 16)
+        // No travel under reduced motion: the fade-out must not start with a jump.
+        y: root.pad + (root.shown || Theme.reducedMotion ? 0 : root.atTop ? -16 : 16)
         opacity: root.shown ? 1 : 0
         width: Math.min(root.maxPillWidth, Math.max(Theme.scaled(220), content.implicitWidth + Theme.panelPadding * 2))
         implicitHeight: Math.max(Theme.controlHeight, content.implicitHeight + Theme.scaled(20))

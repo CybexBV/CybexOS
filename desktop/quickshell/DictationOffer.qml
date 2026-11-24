@@ -93,7 +93,8 @@ PanelWindow {
         id: card
 
         x: root.pad
-        y: root.pad + (root.shown ? 0 : root.atTop ? -16 : 16)
+        // No travel under reduced motion: the fade-out must not start with a jump.
+        y: root.pad + (root.shown || Theme.reducedMotion ? 0 : root.atTop ? -16 : 16)
         opacity: root.shown ? 1 : 0
         width: Math.min(Theme.scaled(460, Theme.typeScale), (root.screen ? root.screen.width : 1280) - 64)
         height: column.implicitHeight + Theme.scaled(40)
@@ -182,12 +183,17 @@ PanelWindow {
                         id: chip
                         required property var modelData
                         readonly property bool selected: root.secondary === modelData.value
+                        // The shared keyboard ring (docs/shell-states.md); on
+                        // the accent fill it is drawn in textHi, as on a
+                        // primary action, so it stays visible.
+                        readonly property bool ringShown: activeFocus && Theme.focusVisible
                         width: chipLabel.implicitWidth + Theme.scaled(22)
                         height: Theme.chipHeight
                         radius: height / 2
                         color: selected ? Theme.accent : chipMouse.containsMouse ? Theme.hoverFill : "transparent"
-                        border.width: 1
-                        border.color: selected ? Theme.accent : Theme.popBorder
+                        border.width: ringShown ? Theme.focusRingWidth : 1
+                        border.color: ringShown ? (selected ? Theme.textHi : Theme.focusRing)
+                            : selected ? Theme.accent : Theme.popBorder
                         activeFocusOnTab: true
                         Accessible.role: Accessible.RadioButton
                         Accessible.name: modelData.label
@@ -307,4 +313,7 @@ PanelWindow {
             }
         }
     }
+
+    // Pointer vs keyboard modality for focus rings (Common/FocusModality).
+    FocusModalityObserver {}
 }

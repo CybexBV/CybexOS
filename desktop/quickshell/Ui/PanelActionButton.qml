@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // Small (22×22 by default) icon button used at the right edge of panel rows
 // for inline actions — forget network, confirm passphrase, unpair device,
@@ -71,7 +72,7 @@ BorderSurface {
       : "transparent")
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 60 } }
+  Behavior on color { ColorAnimation { duration: Host.Theme.chipFadeDuration / 2 } }
 
   Text {
     textFormat: Text.PlainText

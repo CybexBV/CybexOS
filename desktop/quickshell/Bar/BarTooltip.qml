@@ -107,7 +107,11 @@ Item {
         id: tip
         implicitWidth: label.implicitWidth + 20
         implicitHeight: Theme.tooltipHeight
-        radius: Math.min(Theme.panelRadius, height / 2)
+        // One shape for every tip in the shell, whatever the window rounding:
+        // the rounded rectangle Settings and the assistant's tips use. Taking
+        // it from panelRadius made this a pill on some setups and a box on
+        // others (2026-11-24 review).
+        radius: Theme.chipRadius
         color: Theme.surfaceMenu
         border.width: Theme.surfaceBorderWidth
         border.color: Theme.surfaceBorderColor

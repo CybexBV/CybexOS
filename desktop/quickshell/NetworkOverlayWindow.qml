@@ -73,7 +73,8 @@ PanelWindow {
             border.width: 1
             border.color: Theme.stroke
             opacity: scrim.opacity
-            scale: NetworkOverlayState.open ? 1 : 0.96
+            // Reduced motion fades the card without scaling it.
+            scale: NetworkOverlayState.open || Theme.reducedMotion ? 1 : 0.96
 
             Behavior on scale {
                 NumberAnimation {
@@ -895,4 +896,7 @@ PanelWindow {
         }
         return { success: false, error: label + " returned unreadable output." };
     }
+
+    // Pointer vs keyboard modality for focus rings (Common/FocusModality).
+    FocusModalityObserver {}
 }

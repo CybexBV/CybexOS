@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 Item {
   id: root
@@ -64,7 +65,7 @@ Item {
 
     Behavior on width {
       enabled: !root.dragging
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Host.Theme.pressDuration; easing.type: Easing.OutCubic }
     }
   }
 
@@ -91,15 +92,15 @@ Item {
     borderSpec: Border.flat(root.bar ? root.bar.background : "#101315", Math.max(1, Style.space(2)))
     anchors.verticalCenter: track.verticalCenter
     x: Math.max(0, Math.min(track.width - width, track.width * root.progress - width / 2))
-    scale: root._hot ? 1.15 : 1.0
+    scale: root._hot && !Host.Theme.reducedMotion ? 1.15 : 1.0
 
     Behavior on x {
       enabled: !root.dragging
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Host.Theme.pressDuration; easing.type: Easing.OutCubic }
     }
 
     Behavior on scale {
-      NumberAnimation { duration: 110; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Host.Theme.pressDuration; easing.type: Easing.OutCubic }
     }
   }
 

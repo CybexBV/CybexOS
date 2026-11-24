@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 // Bare on/off switch: a track with a sliding knob and no label. This is the
 // switch `Toggle` parks at the end of its labeled row, factored out so panel
@@ -68,11 +69,13 @@ Item {
   implicitWidth: trackWidth + _pad * 2
   implicitHeight: trackHeight + _pad * 2
 
+  // The cursor ring stands `_pad` clear of the track, so a round track gets
+  // a ring whose corner shares its centre (concentric corners, 2026-11-24).
   BorderSurface {
     anchors.fill: parent
     visible: root.cursorRing && root.hot
     color: "transparent"
-    radius: Style.cornerRadius
+    radius: track.radius > 0 ? track.radius + root._pad : Style.cornerRadius
     borderSpec: Border.controlSpec("hover-cursor", root.foreground, root.accent)
   }
 
@@ -87,7 +90,7 @@ Item {
       : Style.normalFillFor(root.foreground, root.accent)
     borderSpec: Border.controlSpec(root.checked ? "selected" : "normal", root.foreground, root.accent)
 
-    Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on color { ColorAnimation { duration: Host.Theme.chipFadeDuration } }
 
     Rectangle {
       width: root.knobSize
@@ -97,8 +100,8 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       color: root.checked ? Style.selectedStateColor(root.foreground, root.accent) : Qt.darker(root.foreground, 1.25)
 
-      Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-      Behavior on color { ColorAnimation { duration: 120 } }
+      Behavior on x { NumberAnimation { duration: Host.Theme.pressDuration; easing.type: Easing.OutCubic } }
+      Behavior on color { ColorAnimation { duration: Host.Theme.chipFadeDuration } }
     }
   }
 

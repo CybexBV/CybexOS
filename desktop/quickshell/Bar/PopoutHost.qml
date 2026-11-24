@@ -560,9 +560,11 @@ Item {
         }
     }
 
+    // Outlasts the fade as well as the motion: under reduced motion the
+    // movement is instant but the card still fades out.
     Timer {
         id: closeTimer
-        interval: Theme.popoutCloseDuration + 60
+        interval: Math.max(Theme.popoutCloseDuration, Theme.popoutFadeOutDuration) + 60
         onTriggered: {
             // A host handoff closes the old output while the shell-wide
             // popout remains open on the new one. That inactive host must

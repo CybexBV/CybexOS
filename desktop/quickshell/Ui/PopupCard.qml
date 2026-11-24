@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 PopupWindow {
   id: root
@@ -171,7 +172,10 @@ PopupWindow {
     opacity: root.open ? 1.0 : 0
 
     Behavior on opacity {
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation {
+        duration: root.open ? Host.Theme.popoutFadeInDuration : Host.Theme.popoutFadeOutDuration
+        easing.type: Easing.OutCubic
+      }
     }
 
     Item {

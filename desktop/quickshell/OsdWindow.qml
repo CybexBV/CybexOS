@@ -61,6 +61,8 @@ PanelWindow {
     // fill advances block-by-block rather than sliding.
     property real shown: value
 
+    // Brisker than any shared token on purpose: the level has to keep up
+    // with a held key.
     Behavior on shown {
         NumberAnimation {
             duration: Theme.reducedMotion ? 0 : 140
@@ -72,7 +74,9 @@ PanelWindow {
         id: pill
 
         x: root.pad
-        y: root.pad + (Osd.active ? 0 : root.atTop ? -16 : 16)
+        // Reduced motion keeps the pill where it rests, so a fade-out never
+        // starts with a jump.
+        y: root.pad + (Osd.active || Theme.reducedMotion ? 0 : root.atTop ? -16 : 16)
         opacity: Osd.active ? 1 : 0
         implicitWidth: row.implicitWidth + Theme.panelPadding * 2
         implicitHeight: Math.max(Theme.controlHeight, row.implicitHeight + Theme.scaled(20))
@@ -81,20 +85,22 @@ PanelWindow {
         border.width: 1
         border.color: root.muted ? Theme.redBorder : Theme.popBorder
 
+        // The OSD answers a key press, so it keeps the launcher's brisk
+        // timing rather than a panel's (2026-11-24 review): a fade of at most
+        // 110 ms and a short decelerating slide from the edge it sits
+        // against, with no overshoot to wait for.
         Behavior on opacity {
             NumberAnimation {
-                duration: Theme.panelFadeDuration
+                duration: Osd.active ? Theme.launcherFadeInDuration : Theme.popoutFadeOutDuration
                 easing.type: Easing.OutCubic
             }
         }
 
-        // Springs in from the screen edge it sits against, like every other
-        // surface the shell raises.
         Behavior on y {
             NumberAnimation {
-                duration: Theme.panelMotionDuration
+                duration: Osd.active ? Theme.launcherOpenDuration : Theme.launcherCloseDuration
                 easing.type: Easing.BezierSpline
-                easing.bezierCurve: Theme.springCurve
+                easing.bezierCurve: Osd.active ? Theme.launcherEnterCurve : Theme.launcherExitCurve
             }
         }
 

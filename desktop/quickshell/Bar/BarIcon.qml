@@ -153,8 +153,8 @@ Rectangle {
 
     // Press feedback. The design scales a round button harder than a chip;
     // both spring back, which is what makes a click feel answered rather than
-    // merely registered.
-    scale: mouse.pressed ? (round ? 0.88 : 0.95) : 1
+    // merely registered. Reduced motion keeps the press tint, not the shrink.
+    scale: mouse.pressed && !Theme.reducedMotion ? (round ? 0.88 : 0.95) : 1
 
     Behavior on scale {
         NumberAnimation {

@@ -125,7 +125,8 @@ PanelWindow {
     Rectangle {
         id: card
 
-        y: root.shown ? 0 : (root.atBottom ? 12 : -12)
+        // No travel under reduced motion: the fade-out must not start with a jump.
+        y: root.shown || Theme.reducedMotion ? 0 : (root.atBottom ? 12 : -12)
         opacity: root.shown ? 1 : 0
         width: Math.min(Theme.scaled(460, Theme.typeScale), (root.screen ? root.screen.width : 1280) - 24)
         height: column.implicitHeight + Theme.scaled(24)
@@ -568,4 +569,7 @@ PanelWindow {
             }
         }
     }
+
+    // Pointer vs keyboard modality for focus rings (Common/FocusModality).
+    FocusModalityObserver {}
 }

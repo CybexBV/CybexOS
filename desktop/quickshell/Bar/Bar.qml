@@ -58,6 +58,20 @@ PanelWindow {
     // The Indicators revealer owns its width spring while opening or closing;
     // its Cluster wrapper yields so the two animations do not compound.
     property bool indicatorDisclosureAnimating: false
+    // Focus has one mark on the menubar (2026-11-24 review: the clock-side
+    // action and the bell both lit up blue). The clock-side Focus action
+    // carries it while it is on show, since it says when Focus ends and turns
+    // it off in one click; the notifications bell carries it otherwise.
+    readonly property bool focusOnClockSide: {
+        if (Settings.modOpts.indicators.enabled.indexOf("dnd") === -1)
+            return false;
+        for (const col of ["left", "center", "right"]) {
+            const entry = Settings.mods[col].find(candidate => candidate.id === "indicators");
+            if (entry)
+                return moduleShown(entry);
+        }
+        return false;
+    }
     property point tooltipPointerPosition: Qt.point(-1, -1)
     readonly property int safetyGutter: 8
     readonly property int closedHeight: Theme.barTopMargin + Theme.barHeight + 34

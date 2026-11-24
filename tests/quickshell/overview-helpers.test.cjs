@@ -122,6 +122,17 @@ test("a monitor of another shape is letterboxed inside its cell", () => {
     assert.equal(wide.y, Math.round((225 - 112.5) / 2));
 });
 
+test("a compact box keeps the shape, centres across the top and never grows", () => {
+    // The New workspace tile beside an empty desktop (2026-11-24 review).
+    assert.deepEqual(H.compactBox({ x: 10, y: 4, width: 432, height: 270 }, 176),
+        { x: 138, y: 4, width: 176, height: 110 });
+    assert.deepEqual(H.compactBox({ x: 0, y: 0, width: 120, height: 75 }, 176),
+        { x: 0, y: 0, width: 120, height: 75 }, "a box already small enough is left alone");
+    assert.deepEqual(H.compactBox({ x: 0, y: 0, width: 0, height: 0 }, 176),
+        { x: 0, y: 0, width: 0, height: 0 });
+    assert.deepEqual(H.compactBox(null, 176), { x: 0, y: 0, width: 0, height: 0 });
+});
+
 // ---- windows inside a tile ----------------------------------------------
 
 const monitor = { x: 1920, y: 0, width: 1920, height: 1080 };

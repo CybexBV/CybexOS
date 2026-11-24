@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../Common" as Host
 
 Item {
   id: root
@@ -71,7 +72,7 @@ Item {
   implicitHeight: fixedHeight > 0 ? fixedHeight : (vertical ? Math.max(12, label.implicitHeight + scaledVerticalPadding * 2) : barSize)
 
   Behavior on opacity {
-    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Host.Theme.chipFadeDuration; easing.type: Easing.OutCubic }
   }
 
   Text {
@@ -90,7 +91,7 @@ Item {
 
     Behavior on color {
       enabled: !root.bar || root.bar.foregroundAnimationEnabled
-      ColorAnimation { duration: 160 }
+      ColorAnimation { duration: Host.Theme.chipFadeDuration }
     }
   }
 

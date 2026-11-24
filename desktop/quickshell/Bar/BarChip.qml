@@ -104,7 +104,8 @@ Rectangle {
     radius: Theme.chipRadius
     color: held ? hoverFill : restFill
     anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-    scale: pressFeedback && mouse.pressed ? 0.96 : 1
+    // Reduced motion keeps the press tint but not the shrink.
+    scale: pressFeedback && mouse.pressed && !Theme.reducedMotion ? 0.96 : 1
 
     Behavior on scale {
         NumberAnimation {
