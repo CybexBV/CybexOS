@@ -1375,8 +1375,8 @@ test("schema 35 makes the connected-service widgets optional and keeps them for 
     const usage = file => H.merge(file).mods.right.find(entry => entry.id === "modelusage").on;
     assert.equal(usage({ v: 34, mods: partial }), true);
     assert.equal(usage({ v: 35, mods: partial }), false);
-    // So does a file from before versions; an empty one is a first run.
-    assert.equal(usage({ barStyle: "floating" }), true);
+    // A file without a version was written by a script, not the shell: new.
+    assert.equal(usage({ reducedMotion: true }), false);
     assert.equal(usage({}), false);
 });
 

@@ -77,11 +77,15 @@ Singleton {
             return;
         }
         // Nothing starts the bridge at login (nix/modules/desktop.nix): the
-        // widget does, as it turns on. Starting a running unit is a no-op,
-        // and the reconnect backoff covers the moment it takes to listen.
-        if (localBridge)
+        // widget does, once each time it turns on, and the reconnect backoff
+        // covers the moment it takes to listen. Retries leave systemd's own
+        // restart backoff alone. It runs until logout once started; stopping
+        // it would end a Hermes task it owns.
+        if (localBridge && !bridgeStarted) {
+            bridgeStarted = true;
             Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
                 "hermes-menubar-bridge.service"]);
+        }
         if (socketLoader.status !== Loader.Ready) {
             state = "offline";
             if (!retryTimer.running)
@@ -153,25 +157,15 @@ Singleton {
         return true;
     }
 
+    // Whether this turn-on started the bridge; the next turn-on starts it again.
+    property bool bridgeStarted: false
+
     onEnabledChanged: {
         if (enabled) {
             reconnect();
         } else {
+            bridgeStarted = false;
             disconnect();
-            // Turned off: the bridge has no one else to serve. A moment
-            // later, so a quick off and on can't stop it after the start.
-            if (localBridge)
-                bridgeStop.restart();
-        }
-    }
-
-    Timer {
-        id: bridgeStop
-        interval: 5000
-        onTriggered: {
-            if (!root.enabled && root.localBridge)
-                Quickshell.execDetached(["systemctl", "--user", "stop", "--no-block",
-                    "hermes-menubar-bridge.service"]);
         }
     }
 

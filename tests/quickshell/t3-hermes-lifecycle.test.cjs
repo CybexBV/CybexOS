@@ -89,25 +89,29 @@ test("Hermes derives its address from the environment only", () => {
     assert.deepEqual(Object.keys(SettingsHelpers.normalizeModOpts({
         hermes: { enabled: false, socketUrl: "ws://example.test/ws" },
     }).hermes).sort(), ["activityDetail", "showLabel"]);
-    assert.match(connection, /onEnabledChanged: \{\s*if \(enabled\) \{\s*reconnect\(\);\s*\} else \{\s*disconnect\(\);/);
+    assert.match(connection, /onEnabledChanged: \{\s*if \(enabled\) \{\s*reconnect\(\);\s*\} else \{[^}]*disconnect\(\);/);
     assert.doesNotMatch(connection, /onEndpointChanged/);
 });
 
-test("the Hermes bridge runs only while its widget wants it", () => {
+test("the Hermes bridge starts with its widget, once, and is never stopped by it", () => {
     const connection = read("Common/HermesConnection.qml");
-    // Nothing starts it at login; connecting starts it, turning off stops it.
+    // Nothing starts it at login; turning the widget on does, once.
     const unit = fs.readFileSync(path.join(__dirname, "../../nix/modules/desktop.nix"), "utf8")
         .split("systemd.user.services.hermes-menubar-bridge")[1].split("\n    };")[0];
     assert.doesNotMatch(unit, /wantedBy/);
     const connect = blockAfter(connection, "function connect() {");
     const guard = connect.indexOf("if (!enabled)");
-    const start = connect.indexOf('if (localBridge)\n            Quickshell.execDetached(["systemctl", "--user", "start"');
-    assert.ok(guard !== -1 && start > guard, "the bridge starts only past the enabled guard");
+    const sockets = connect.indexOf("if (websocketsMissing)");
+    const start = connect.indexOf("if (localBridge && !bridgeStarted) {");
+    assert.ok(guard !== -1 && sockets > guard && start > sockets,
+        "the bridge starts only past the enabled and socket guards");
+    assert.match(blockAfter(connect, "if (localBridge && !bridgeStarted) {"),
+        /bridgeStarted = true;\s*Quickshell\.execDetached\(\["systemctl", "--user", "start", "--no-block",/);
+    // Turning off lets the next turn-on start it again; nothing stops it
+    // (that would end a Hermes task it owns, and could race the start).
     const changed = blockAfter(connection, "onEnabledChanged: {");
-    assert.match(changed.split("} else {")[1], /if \(localBridge\)\s*bridgeStop\.restart\(\);/);
-    // It stops only if still off after a moment, so off-then-on can't race.
-    const stop = blockAfter(connection, "id: bridgeStop");
-    assert.match(stop, /if \(!root\.enabled && root\.localBridge\)\s*Quickshell\.execDetached\(\["systemctl", "--user", "stop", "--no-block",\s*"hermes-menubar-bridge.service"/);
+    assert.match(changed.split("} else {")[1], /bridgeStarted = false;/);
+    assert.doesNotMatch(connection, /"stop"/);
     // Only this computer's loopback endpoint is the bridge's.
     const local = connection.match(/localBridge: (\/.*\/)\.test\(endpoint\)/)[1];
     const pattern = eval(local);

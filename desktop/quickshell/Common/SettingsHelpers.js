@@ -1937,12 +1937,12 @@ function overrideKeys(raw) {
     return keys;
 }
 
-// A file from before schema 35 (or from before versions) that never chose a
-// layout: it shows the default layout of its day, with Model Usage on. An
-// empty file is a first run.
+// A file from before schema 35 that never chose a layout: it shows the
+// default layout of its day, with Model Usage on. The shell always writes a
+// version, so a file without one was written by something else (an
+// installation script) and is treated as new.
 function legacyDefaultLayout(raw) {
-    return !!raw && typeof raw === "object" && Object.keys(raw).length > 0
-        && (typeof raw.v !== "number" || raw.v < 35)
+    return !!raw && typeof raw === "object" && typeof raw.v === "number" && raw.v < 35
         && (raw.mods === undefined || staleModsLeftover(raw));
 }
 
