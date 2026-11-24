@@ -9,7 +9,9 @@ Development moved to `CybexHQ/CybexOS` from `DigitalPals/CybexOS` on
 2026-10-29 (the earlier history stays there) and to the `CybexBV`
 organization in November 2026. GitHub redirects the old name; machines
 installed from it keep `CybexHQ/CybexOS` in their flake until their next
-Cybex OS update writes the new name (`FORMER_REPOS`).
+Cybex OS update writes the new name (`FORMER_REPOS`). Updaters before 1.0.32
+look for releases under the old name, so the CybexHQ account stays, with no
+repository called CybexOS, until no machine runs one of them.
 
 The owner-supplied `cybex_white.svg` is preserved byte-for-byte under
 `assets/brand/source/`. Deployment variants use its outlined wordmark with

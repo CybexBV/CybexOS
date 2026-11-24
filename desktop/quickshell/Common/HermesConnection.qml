@@ -158,8 +158,18 @@ Singleton {
             reconnect();
         } else {
             disconnect();
-            // Turned off: the bridge has no one else to serve.
+            // Turned off: the bridge has no one else to serve. A moment
+            // later, so a quick off and on can't stop it after the start.
             if (localBridge)
+                bridgeStop.restart();
+        }
+    }
+
+    Timer {
+        id: bridgeStop
+        interval: 5000
+        onTriggered: {
+            if (!root.enabled && root.localBridge)
                 Quickshell.execDetached(["systemctl", "--user", "stop", "--no-block",
                     "hermes-menubar-bridge.service"]);
         }

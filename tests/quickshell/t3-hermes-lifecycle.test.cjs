@@ -104,8 +104,10 @@ test("the Hermes bridge runs only while its widget wants it", () => {
     const start = connect.indexOf('if (localBridge)\n            Quickshell.execDetached(["systemctl", "--user", "start"');
     assert.ok(guard !== -1 && start > guard, "the bridge starts only past the enabled guard");
     const changed = blockAfter(connection, "onEnabledChanged: {");
-    assert.match(changed.split("} else {")[1],
-        /if \(localBridge\)\s*Quickshell\.execDetached\(\["systemctl", "--user", "stop", "--no-block",\s*"hermes-menubar-bridge.service"/);
+    assert.match(changed.split("} else {")[1], /if \(localBridge\)\s*bridgeStop\.restart\(\);/);
+    // It stops only if still off after a moment, so off-then-on can't race.
+    const stop = blockAfter(connection, "id: bridgeStop");
+    assert.match(stop, /if \(!root\.enabled && root\.localBridge\)\s*Quickshell\.execDetached\(\["systemctl", "--user", "stop", "--no-block",\s*"hermes-menubar-bridge.service"/);
     // Only this computer's loopback endpoint is the bridge's.
     const local = connection.match(/localBridge: (\/.*\/)\.test\(endpoint\)/)[1];
     const pattern = eval(local);

@@ -92,6 +92,11 @@ sub-agent in a worktree):
   with John's explicit OK. `--stable`, `--now` and a shorter `--soak` are
   John's decision alone.
 - Never fix stable from a maintenance branch: fix forward on `main`.
+- The repository is `CybexBV/CybexOS`. Updaters before 1.0.32 still find
+  releases as `CybexHQ/CybexOS`, through GitHub's redirect. Keep the CybexHQ
+  account, and never create a repository called CybexOS under it, until no
+  machine runs an updater that old: the redirect would stop, or the name
+  would serve someone else's releases.
 - No workflow publishes releases or pushes `main` (owner's decision,
   2026-11-24, replacing the automatic vendor beta releases of 2026-11-07 and
   2026-11-10). They push branches and open issues; merge a branch after its
