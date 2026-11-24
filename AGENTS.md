@@ -30,8 +30,8 @@
 - `tests/run` includes the linters (`tests/lint`: Ruff, ShellCheck and actionlint, with the settings in
   `pyproject.toml`, `.shellcheckrc` and `.github/actionlint.yaml`). `tests/shell-checks` runs the QML lint and every
   headless shell test (Settings, Software, Software Update, Welcome, shortcuts, wallpapers and more).
-- **The full check** is the `nixos.yml` workflow on The Beast's runners: a checks job and an image job side by side.
-  The checks job runs the source tests, the linters and the shell tests and builds every flake check
+- **The full check** is the `nixos.yml` workflow on The Beast's runners: a checks job (about 55 minutes) and an
+  image job (about 30) side by side. The checks job runs the source tests, the linters and the shell tests and builds every flake check
   (`checks.x86_64-linux.*`, VM tests included). It runs by itself on every push to `main`; start it on a branch with
   `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with `gh run watch`. Never run it
   on The Dragon. Run it on your branch before you merge a change to `lifecycle/`, `nix/`, `installer/`, `release/`,
