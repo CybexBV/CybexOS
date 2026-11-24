@@ -240,6 +240,10 @@ in {
     cybexos.updates.expectedBuilds = [ libreswanPlugin ]
       # AppArmor references the original unfree download, outside its launcher.
       ++ lib.optional cfg.features.proprietary chatgpt
+      # ChatGPT's workspace runtime: a second unfree download of its own
+      # (Nixpkgs, November 2026), below ChatGPT rather than in the system's
+      # packages. Its inputs must still come prebuilt.
+      ++ lib.optional (cfg.features.proprietary && (chatgpt.primaryRuntime or null) != null) chatgpt.primaryRuntime
       ++ lib.optional config.programs.steam.enable config.programs.steam.package.run;
     services.libreswan.enable = lib.mkDefault true;
     environment.etc."cybexos/emoji-test.txt".source = "${pkgs.unicode-emoji}/share/unicode/emoji/emoji-test.txt";
