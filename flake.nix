@@ -154,6 +154,8 @@
         # Wiz on the disk unlock screen, the lock screen and in kitty.
         plymouth-unlock = import ./nix/tests/plymouth-unlock.nix { inherit pkgs; inherit (self.packages.${system}) plymouth; };
         lock-terminal = import ./nix/tests/lock-terminal.nix { inherit pkgs module; };
+        # Every Settings page and preference, and Omarchy plugin packages, in the installed desktop.
+        settings-audit = import ./nix/tests/settings-audit.nix { inherit pkgs module; source = self; };
         # Spotify on a 2x display: the product wrapper selects native Wayland
         # without session hints; compare sharpness and pointer with explicit X11.
         wayland-scale = import ./nix/tests/wayland-scale.nix {
