@@ -58,6 +58,9 @@ in pkgs.testers.runNixOSTest {
       serviceConfig.ExecStart = "${pkgs.systemd}/bin/systemd-inhibit --what=shutdown --mode=block --who=installer-test ${pkgs.coreutils}/bin/sleep infinity";
     };
     environment.systemPackages = [ pkgs.python3 ];
+    # As on the installation medium. logind asks polkit before it lets
+    # anyone, root included, ignore another program's shutdown block.
+    security.polkit.enable = true;
     virtualisation = { memorySize = 1024; cores = 2; qemu.options = [ "-no-user-config" ]; };
     system.stateVersion = "26.05";
   };
