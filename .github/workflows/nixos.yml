@@ -22,8 +22,8 @@ jobs:
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity
       - run: nix flake check --no-build
       - run: nix build .#checks.x86_64-linux.lifecycle -L
@@ -48,8 +48,8 @@ jobs:
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity
       - run: nix build .#checks.x86_64-linux.product -L
       - name: Build matched XPS stack and evaluate NVIDIA independently
@@ -83,8 +83,8 @@ jobs:
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity --vm
       - run: nix build .#checks.x86_64-linux.vm -L
       - run: nix build .#checks.x86_64-linux.boot -L
@@ -103,8 +103,8 @@ jobs:
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity --vm
       - name: Build and qualify the exact source image in isolated VMs
         run: |

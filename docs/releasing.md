@@ -237,7 +237,8 @@ single-job disposable x86_64 Linux VM with at least 256 GiB of disk, 32 GiB
 RAM, four CPU cores and accessible nested KVM. The preflight requires 160 GiB
 free for the Nix store plus 32 GiB for work (192 GiB when they share a
 filesystem), at least 24 GiB available memory, and KVM for VM/image jobs.
-Build concurrency is bounded to two builds and four cores per build.
+Nix runs up to four builds at once and lets each use every core of the
+runner (16 on The Beast's).
 Discard the runner, workspace and attached disks after each job. It must have
 no workstation data, persistent credentials, production network access or
 production PXE mount. Runner provisioning and isolation are owner-managed, not
