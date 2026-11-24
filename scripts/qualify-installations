@@ -6,6 +6,7 @@ The returned evidence is only for the actual ISO/source identities observed.
 It is not physical hardware or published-channel update qualification.
 """
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -201,8 +202,10 @@ class VM:
                'virtio-without-serial': (['virtio-blk-pci,drive=systemdisk'], '/dev/vda'),
                'emmc': (['sdhci-pci,sd-spec-version=3', 'emmc,drive=systemdisk'], '/dev/mmcblk0')}
 
-    def __init__(self, directory, disk, iso=None, *, extra_qemu_args=(), display=(1280, 800), target='virtio'):
+    def __init__(self, directory, disk, iso=None, *, extra_qemu_args=(), display=(1280, 800), target='virtio',
+                 memory_mib=12288, cpus=4):
         self.directory, self.disk, self.iso = directory, disk, iso
+        self.memory_mib, self.cpus = memory_mib, cpus
         self.display, self.target = display, target
         self.target_disk = self.TARGETS[target][1]
         self.root_partition = self.target_disk + ('p2' if self.target_disk[-1].isdigit() else '2')
@@ -225,7 +228,7 @@ class VM:
         self.control_directory = tempfile.TemporaryDirectory(prefix='ndvm.', dir='/tmp')
         self.qmp = Path(self.control_directory.name) / 'qmp.sock'
         args = ['-no-user-config','-machine','q35','-accel','kvm' if os.access('/dev/kvm',os.R_OK|os.W_OK) else 'tcg,thread=multi',
-                '-cpu','host' if os.access('/dev/kvm',os.R_OK|os.W_OK) else 'max', '-m','12288','-smp','4',
+                '-cpu','host' if os.access('/dev/kvm',os.R_OK|os.W_OK) else 'max', '-m',str(self.memory_mib),'-smp',str(self.cpus),
                 '-drive',f'if=pflash,format=raw,readonly=on,file={self.firmware / "OVMF_CODE.fd"}',
                 '-drive',f'if=pflash,format=raw,file={self.vars}',
                 '-drive',f'file={self.disk},if=none,id=systemdisk,format=qcow2',
@@ -1624,6 +1627,31 @@ unlink /run/cybexos-kernel-qa/readback''', timeout=300)
         'snapshot and rollback', 'zvol block I/O', 'scrub', 'export and import']}
 
 
+def installation_plan(encrypted, applications='minimal'):
+    """The QA installation plan: one disposable disk, the QA account, serial console."""
+    plan = {'disk': '/dev/vda', 'serial': 'CYBEXOS-QA-DISK', 'hostname': 'cybexos-qa', 'username': 'cybexqa',
+            'timezone': 'UTC', 'locale': 'en_US.UTF-8', 'keyboard': 'us', 'encrypted': encrypted, 'autoLogin': encrypted,
+            'secureBoot': False, 'nvidiaOpen': True, 'serialConsole': True,
+            'features': {'developer': False, 'proprietary': False, 'steam': False, 'docker': False, 'connectedWidgets': False}}
+    if applications == 'standard':
+        plan.pop('features')
+    return plan
+
+
+def install_plan(vm, plan):
+    """Install the plan from the live medium's own bundled source, without its screen."""
+    import base64
+    vm.command(f'printf %s {base64.b64encode(json.dumps(plan).encode()).decode()} | base64 -d > /run/qa-plan.json')
+    secrets = json.dumps({'password': PASSWORD})
+    try:
+        vm.command('systemctl stop cybexos-installer-ui.service cybexos-installerd.service\n'
+                   'for n in $(seq 1 30); do pgrep -f "[c]ybexos-install --json-ui" >/dev/null || exit 0; sleep 1; done; exit 1', timeout=90)
+        vm.command('cybexos-install --plan-file /run/qa-plan.json --secrets-fd 3 --development-source "$(cat /etc/cybexos/installer-source)" 3< <(printf %s '+shlex.quote(secrets)+')',timeout=10800)
+    except RuntimeError as error:
+        diagnostics = vm.command('tail -c 6000 /run/cybexos-installer.log 2>/dev/null || true')
+        raise RuntimeError(str(error) + '\nInstaller diagnostics (disposable QA guest):\n' + diagnostics) from error
+
+
 def qualify(iso, encrypted, base, lifecycle=True, evidence=None, *, interactive=False, applications='minimal', screenshots=None,
             display=(1280, 800), target='virtio'):
     evidence = {} if evidence is None else evidence
@@ -1631,15 +1659,7 @@ def qualify(iso, encrypted, base, lifecycle=True, evidence=None, *, interactive=
     case=base/('encrypted' if encrypted else 'plain');case.mkdir()
     disk=case/'disk.qcow2'
     subprocess.run(['qemu-img','create','-f','qcow2',str(disk),'80G'],check=True,capture_output=True)
-    plan={'disk':'/dev/vda','serial':'CYBEXOS-QA-DISK','hostname':'cybexos-qa','username':'cybexqa',
-          'timezone':'UTC','locale':'en_US.UTF-8','keyboard':'us','encrypted':encrypted,'autoLogin':encrypted,
-          'secureBoot':False,'nvidiaOpen':True,'serialConsole':True,
-          'features':{'developer':False,'proprietary':False,'steam':False,'docker':False,'connectedWidgets':False}}
-    if applications == 'standard':
-        plan.pop('features')
-    import base64
-    plan64=base64.b64encode(json.dumps(plan).encode()).decode()
-    secrets=json.dumps({'password':PASSWORD})
+    plan = installation_plan(encrypted, applications)
     if target != 'virtio' and not interactive:
         raise RuntimeError('A target without the fixed QA serial needs --interactive: the screen reads its identity')
     vm=VM(case,disk,iso,display=display,target=target)
@@ -1663,17 +1683,15 @@ def qualify(iso, encrypted, base, lifecycle=True, evidence=None, *, interactive=
             'networkDrivers': sorted({d['driver'] for d in live_hardware['assessment']['networkDevices'] if d.get('driver')}),
             'scope': 'virtual devices only; no physical qualification'}
         milestones['installerKernelAndZfs'] = qualify_installer_kernel(vm)
-        vm.command(f'printf %s {plan64} | base64 -d > /run/qa-plan.json')
-        try:
-            if interactive:
+        if interactive:
+            vm.command(f'printf %s {base64.b64encode(json.dumps(plan).encode()).decode()} | base64 -d > /run/qa-plan.json')
+            try:
                 milestones['nativeGuiAssertions'] = vm.graphical_install(encrypted, applications, screenshots)
-            else:
-                vm.command('systemctl stop cybexos-installer-ui.service cybexos-installerd.service\n'
-                           'for n in $(seq 1 30); do pgrep -f "[c]ybexos-install --json-ui" >/dev/null || exit 0; sleep 1; done; exit 1', timeout=90)
-                vm.command('cybexos-install --plan-file /run/qa-plan.json --secrets-fd 3 --development-source "$(cat /etc/cybexos/installer-source)" 3< <(printf %s '+shlex.quote(secrets)+')',timeout=10800)
-        except RuntimeError as error:
-            diagnostics = vm.command('tail -c 6000 /run/cybexos-installer.log 2>/dev/null || true')
-            raise RuntimeError(str(error) + '\nInstaller diagnostics (disposable QA guest):\n' + diagnostics) from error
+            except RuntimeError as error:
+                diagnostics = vm.command('tail -c 6000 /run/cybexos-installer.log 2>/dev/null || true')
+                raise RuntimeError(str(error) + '\nInstaller diagnostics (disposable QA guest):\n' + diagnostics) from error
+        else:
+            install_plan(vm, plan)
         milestones['installerCompleted'] = {'result': 'passed', 'interface': 'tty1 Slint screen with real QMP keyboard and pointer input' if interactive else 'JSON plan', 'applications': applications}
         vm.process.sendline('systemctl poweroff');vm.process.expect(pexpect.EOF,timeout=90);vm.stop()
         vm.iso=None;vm.start()
