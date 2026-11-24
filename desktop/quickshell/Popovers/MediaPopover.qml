@@ -514,6 +514,7 @@ Surface {
                 }
             }
 
+            // Started only without reduced motion (onTrackKeyChanged).
             ParallelAnimation {
                 id: heroSlide
 
@@ -522,7 +523,7 @@ Surface {
                     property: "y"
                     from: 12
                     to: 0
-                    duration: 340
+                    duration: Theme.expandDuration
                     easing.type: Easing.BezierSpline
                     easing.bezierCurve: Theme.springCurve
                 }
@@ -531,7 +532,7 @@ Surface {
                     property: "opacity"
                     from: 0
                     to: 1
-                    duration: 240
+                    duration: Theme.chipFadeDuration
                 }
             }
         }
@@ -572,7 +573,7 @@ Surface {
             color: Qt.rgba(Theme.textHi.r, Theme.textHi.g, Theme.textHi.b, 0.14)
 
             Behavior on height {
-                NumberAnimation { duration: 120 }
+                NumberAnimation { duration: Theme.reducedMotion ? 0 : 120 }
             }
 
             Rectangle {
@@ -593,7 +594,7 @@ Surface {
                 scale: seek.hovered ? 1 : 0
 
                 Behavior on scale {
-                    NumberAnimation { duration: 120 }
+                    NumberAnimation { duration: Theme.reducedMotion ? 0 : 120 }
                 }
             }
         }

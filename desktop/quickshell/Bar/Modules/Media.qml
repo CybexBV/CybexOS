@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Shapes
 import ".."
 import "../../Common"
@@ -112,7 +113,10 @@ BarModule {
         // ---- title --------------------------------------------------------
         // One line in the configured order, the title brighter than the
         // artist. A title too long for the chip ends in an ellipsis at rest
-        // and drifts through its full length while the pointer is on it.
+        // and drifts through its full length while the pointer is on it,
+        // its letters fading out at whichever edge still cuts them rather
+        // than being sliced there (2026-11-24 review). Reduced motion keeps
+        // the ellipsis: nothing drifts.
         Item {
             id: titleClip
 
@@ -129,6 +133,42 @@ BarModule {
             width: naturalWidth - cut
             height: fullTitle.implicitHeight
             clip: true
+            // Only while drifting: at rest the ellipsis ends the line.
+            layer.enabled: drifting
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: titleFade
+                // Follow the mask's alpha ramp instead of cutting at it.
+                // MultiEffect's lower edge ramps from t(1 + s) - s to
+                // t(1 + s); t 0.5 and s 1 make that the whole 0…1.
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1
+            }
+
+            // The fade: opaque where the title shows whole, ramping to clear
+            // over the last few pixels of an edge that cuts letters. The
+            // start's ramp opens as the title drifts away from it, and the
+            // end's closes as its last letters arrive.
+            Rectangle {
+                id: titleFade
+
+                readonly property real fade: Theme.scaled(14)
+                readonly property real span: Math.max(1, width)
+                readonly property real startFade: Math.min(fade, Math.max(0, -fullTitle.x)) / span
+                readonly property real endFade: Math.min(fade,
+                    Math.max(0, titleClip.overflow + fullTitle.x)) / span
+
+                anchors.fill: parent
+                visible: false
+                layer.enabled: titleClip.drifting
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: titleFade.startFade > 0 ? "transparent" : "white" }
+                    GradientStop { position: titleFade.startFade; color: "white" }
+                    GradientStop { position: 1 - titleFade.endFade; color: "white" }
+                    GradientStop { position: 1; color: titleFade.endFade > 0 ? "transparent" : "white" }
+                }
+            }
 
             Text {
                 id: fullTitle
@@ -161,6 +201,9 @@ BarModule {
                 }
             }
 
+            // The drift's pace follows the title's length, so it has no
+            // token; it only runs while hovered and never under reduced
+            // motion (drifting).
             SequentialAnimation {
                 running: titleClip.drifting
                 loops: Animation.Infinite
@@ -188,6 +231,7 @@ BarModule {
             }
 
             // A new track rises into place instead of replacing the old one.
+            // Never under reduced motion (onTrackKeyChanged).
             ParallelAnimation {
                 id: slideIn
 
@@ -196,7 +240,7 @@ BarModule {
                     property: "y"
                     from: 10
                     to: 0
-                    duration: 320
+                    duration: Theme.expandDuration
                     easing.type: Easing.BezierSpline
                     easing.bezierCurve: Theme.springCurve
                 }
@@ -205,7 +249,7 @@ BarModule {
                     property: "opacity"
                     from: 0
                     to: 1
-                    duration: 220
+                    duration: Theme.chipFadeDuration
                 }
             }
         }

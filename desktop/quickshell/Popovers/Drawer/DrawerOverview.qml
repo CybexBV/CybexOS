@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Services.Mpris
 import "../../Common"
+import "../../Common/UpdatesHelpers.js" as UpdatesHelpers
 import "DrawerFormat.js" as DrawerFormat
 import ".."
 
@@ -31,6 +32,30 @@ Column {
     readonly property bool restartPending: updateService.page === "restart"
     readonly property bool shutdownRequired: restartPending
         && !!(updateService.deployment.firmware || {}).needsShutdown
+    // The card would show only because something failed: no update, nothing
+    // installing or waiting (UpdatesHelpers.overviewVisible without the
+    // error). The Updates service passes Overview a bare request while
+    // NixOS packages are pending, and so does this.
+    readonly property bool updateErrorOnly: updateService.error !== ""
+        && !UpdatesHelpers.overviewVisible(updateService.hasUpdates,
+            updateService.nixosPending ? { request: updateService.deployment.request }
+                : updateService.deployment, "")
+    // A failure earns the Overview only once it is real (2026-11-24 review):
+    // the updater has answered this session and a check ran and failed, and
+    // none is running now. Before that — nothing checked yet, an updater
+    // that is not installed or never answered, a check still under way —
+    // the card used to read "Some update sources could not be checked · Not
+    // checked". Software Update still shows every error in full.
+    readonly property bool updateFailureReal: updateService.statusLoaded
+        && !updateService.busy
+    readonly property bool updateCardShown: updateService.overviewVisible
+        && (!updateErrorOnly || updateFailureReal)
+    // When sources were last read, in the clock's format; nothing before the
+    // first successful check, where "Not checked" only repeated the title.
+    readonly property string checkedLine: updateService.checkedAt
+        ? I18n.format("Last checked %1", [Qt.formatTime(updateService.checkedAt,
+            Settings.clock24 ? "HH:mm" : "h:mm AP")])
+        : ""
     // The Cybex OS release this update brings, when it brings one.
     readonly property string updateRelease: {
         const deployment = updateService.deployment || {};
@@ -53,6 +78,10 @@ Column {
     }
 
     // ---- quick toggles ---------------------------------------------------
+    // Named in full (2026-11-24 review): "Dark mode", "Night light" and "Stay
+    // awake" say what they do where "Dark", "Night" and "Awake" did not. At a
+    // larger text size or in a narrow drawer a name wraps onto two lines, and
+    // every tile in the row grows with it.
     Grid {
         visible: Settings.drawerOverview.tiles === true
         width: parent.width
@@ -61,19 +90,24 @@ Column {
         rowSpacing: Theme.scaled(6)
 
         readonly property real tileWidth: (width - columnSpacing * 3) / 4
+        readonly property real tileHeight: Math.max(darkTile.naturalHeight,
+            focusTile.naturalHeight, nightTile.naturalHeight, awakeTile.naturalHeight)
 
         DrawerTile {
+            id: darkTile
             width: parent.tileWidth
+            height: parent.tileHeight
             glyph: "dark_mode"
-            label: I18n.tr("Dark")
-            description: I18n.tr("Dark mode")
+            label: I18n.tr("Dark mode")
             on: Settings.themeMode === "dark"
             onToggled: Settings.set("themeMode",
                 Settings.themeMode === "dark" ? "light" : "dark")
         }
 
         DrawerTile {
+            id: focusTile
             width: parent.tileWidth
+            height: parent.tileHeight
             glyph: "do_not_disturb_on"
             label: I18n.tr("Focus")
             description: I18n.tr("Focus: silences notifications")
@@ -82,19 +116,21 @@ Column {
         }
 
         DrawerTile {
+            id: nightTile
             width: parent.tileWidth
+            height: parent.tileHeight
             glyph: "nightlight"
-            label: I18n.tr("Night")
-            description: I18n.tr("Night light")
+            label: I18n.tr("Night light")
             on: SysInfo.nightLight
             onToggled: SysInfo.toggleNightLight()
         }
 
         DrawerTile {
+            id: awakeTile
             width: parent.tileWidth
+            height: parent.tileHeight
             glyph: "coffee"
-            label: I18n.tr("Awake")
-            description: I18n.tr("Stay awake")
+            label: I18n.tr("Stay awake")
             on: SysInfo.idleInhibited
             onToggled: SysInfo.toggleIdleInhibited()
         }
@@ -140,8 +176,9 @@ Column {
         height: Math.max(Theme.scaled(64), mediaText.implicitHeight + Theme.scaled(20))
         radius: Theme.rowRadius + 2
         color: Theme.chip
-        border.width: 1
-        border.color: Theme.hairlineSoft
+        // Light mode's card edge; dark mode draws none (docs/shell-states.md).
+        border.width: Theme.cardEdgeWidth
+        border.color: Theme.cardEdge
 
         Item {
             id: art
@@ -291,23 +328,25 @@ Column {
 
     // ---- pending update --------------------------------------------------
     // One compact card with one action, shown by the updater's own rule
-    // (Updates.overviewVisible). A finished install asks to restart; the
+    // (Updates.overviewVisible), except for a failure that is not yet real
+    // (updateCardShown). A finished install asks to restart; the
     // pinned session row confirms it and then restarts through Session, as
     // Software Update's "Restart Now" does. Anything else opens Software
     // Update, which owns review, install and recovery.
     Rectangle {
         objectName: "overviewUpdates"
-        visible: Settings.drawerOverview.updates === true && root.updateService.overviewVisible
+        visible: Settings.drawerOverview.updates === true && root.updateCardShown
         width: parent.width
         height: Math.max(Theme.scaled(56),
             Math.max(updateCopy.implicitHeight, Theme.inlineActionHeight) + Theme.scaled(20))
         radius: Theme.rowRadius + 2
         color: Theme.chip
-        border.width: 1
-        border.color: Theme.hairlineSoft
+        // Light mode's card edge; dark mode draws none (docs/shell-states.md).
+        border.width: Theme.cardEdgeWidth
+        border.color: Theme.cardEdge
 
         Accessible.role: Accessible.StaticText
-        Accessible.name: updateTitle.text + ". " + updateDetail.text
+        Accessible.name: [updateTitle.text, updateDetail.text].filter(Boolean).join(". ")
 
         Rectangle {
             id: updatesBadge
@@ -365,7 +404,7 @@ Column {
                     : root.updateService.hasUpdates || root.updateService.ready
                         || root.updateService.runActive
                     ? root.updateService.scopeLabel
-                    : root.updateService.checkedLabel
+                    : root.checkedLine
                 font.family: Theme.fontMenu
                 font.pixelSize: Theme.typography.metadata
                 color: Theme.textMid

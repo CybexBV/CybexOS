@@ -377,10 +377,62 @@ test("the drawer list keeps Focus as a labelled switch on the shared state", () 
     assert.doesNotMatch(centre, /I18n\.tr\("On"\)|modeChoice/);
     assert.match(centre, /target:\s*Theme\.scaled\(24\)/);
     assert.match(centre, /closeAlways:\s*true/);
-    assert.match(centre, /onCloseRequested:\s*root\.dismiss\(recentCard\)/);
-    assert.match(centre, /function dismiss\(card\)[\s\S]*?Qt\.callLater\(\(\) => root\.focusCardAt\(index\)\)/,
+    assert.match(centre, /onCloseRequested:\s*root\.dismiss\(row\)/);
+    assert.match(centre, /function dismiss\(row\)[\s\S]*?Qt\.callLater\(\(\) => root\.focusCardAt\(index\)\)/,
         "focus returns to the neighbouring card after a keyboard dismiss");
-    assert.match(centre, /property bool fresh:\s*modelData\.arrived > root\.shownAt/);
+    assert.match(centre, /function shownCards\(\)[\s\S]*?if \(row && row\.visible\)\s*cards\.push\(row\.card\)/,
+        "the neighbour is a card on show, never a folded one");
+    assert.match(centre, /property bool fresh:\s*!older && modelData\.arrived > root\.shownAt/);
+});
+
+test("the drawer folds repeated notifications from one app; critical ones stay out", () => {
+    // 2026-11-24 review: the toast stack grouped by source while the
+    // drawer's history listed every card.
+    const chat = (key, extra = {}) => ({ key, appName: "Chat", desktopEntry: "chat", urgency: 1, ...extra });
+    const mail = key => ({ key, appName: "Mail", desktopEntry: "mail", urgency: 1 });
+    const entries = [chat("c3"), mail("m1"), chat("c2", { urgency: 2 }), chat("c1"), mail("m0")];
+
+    let result = P.historyFold(entries, {}, 2);
+    assert.deepEqual(result.entries.map(entry => entry.key), ["c3", "c1", "m1", "m0", "c2"],
+        "each source's run follows its newest, where its newest arrived");
+    const fold = result.fold;
+    assert.equal(fold.c3.lead, true);
+    assert.equal(fold.c3.count, 2);
+    assert.deepEqual(fold.c3.members.map(entry => entry.key), ["c3", "c1"]);
+    assert.equal(fold.c1.hidden, true, "a closed group shows only its newest");
+    assert.equal(fold.m0.hidden, true);
+    assert.equal(fold.c2.count, 1, "a critical notification keeps its own card");
+    assert.equal(fold.c2.hidden, false);
+    assert.equal(fold.c2.lead, true);
+
+    const chatKey = P.sourceKey(entries[0]);
+    result = P.historyFold(entries, { [chatKey]: true }, 2);
+    assert.equal(result.fold.c1.hidden, false, "an opened group shows every card");
+    assert.equal(result.fold.c3.open, true);
+    assert.equal(result.fold.m0.hidden, true, "other groups stay closed");
+    assert.deepEqual(P.historyFold([chat("solo")], { [chatKey]: true }, 2).fold.solo,
+        { source: chatKey, lead: true, count: 1, hidden: false, open: false, members: [chat("solo")] },
+        "one card is never a group, open or not");
+    const empty = P.historyFold([], null, 2);
+    assert.deepEqual(empty.entries, []);
+    assert.deepEqual(Object.keys(empty.fold), []);
+
+    // The tab: the models hold entries (so cards survive a refold), a closed
+    // group's card carries the count and opens on activation, and its ×
+    // clears the group.
+    const centre = read("Popovers/Drawer/DrawerNotifications.qml");
+    assert.match(centre, /recentFold: NotifPolicy\.historyFold\(recent, openGroups,\s*NotificationUrgency\.Critical\)/);
+    assert.match(centre, /earlierFold: NotifPolicy\.historyFold\(earlier, openGroups,\s*NotificationUrgency\.Critical\)/);
+    assert.match(centre, /values: root\.recentFold\.entries/);
+    assert.match(centre, /values: root\.earlierFold\.entries/);
+    assert.match(centre, /visible: !fold\.hidden/);
+    assert.match(centre, /groupCount: row\.folded \? row\.fold\.count : 1/);
+    assert.match(centre, /onActivated: \{\s*if \(row\.folded\)\s*root\.toggleGroup\(row\.fold\.source, null\);\s*else\s*Notifs\.activate\(rowCard\.entry\);/);
+    assert.match(centre, /const members = \(row\.folded \? row\.fold\.members : \[row\.modelData\]\)\.slice\(\);/);
+    assert.match(centre, /NotifButton \{[\s\S]{0,320}?text: I18n\.tr\("Show less"\)[\s\S]{0,80}?root\.toggleGroup\(row\.fold\.source, rowCard\)/,
+        "an open group closes from its header, with focus back on its card");
+    const card = read("Common/NotifCard.qml");
+    assert.match(card, /I18n\.format\("Dismiss %1 notifications from %2"/, "the group's × says it clears them all");
 });
 
 // ---- the welcome guide -------------------------------------------------------

@@ -122,7 +122,6 @@ Singleton {
     // An "ahead" source names its channel's older newest release, never an update.
     readonly property string projectVersion: ready ? deployment.availableVersion || ""
         : sources.cybexos.state !== "ahead" ? sources.cybexos.available || "" : ""
-    readonly property string checkedLabel: checkedAt ? "Checked " + Qt.formatTime(checkedAt, "HH:mm") : "Not checked"
     readonly property string scopeLabel: Helpers.scopeLabel(ready || runActive || rebootRecommended ? deployment.scope : selectedScope)
     readonly property bool overviewVisible: Helpers.overviewVisible(hasUpdates,
         nixosPending ? { request: deployment.request } : deployment, error)

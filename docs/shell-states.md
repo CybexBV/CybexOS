@@ -14,6 +14,7 @@ Software Update and the welcome guide — uses it. Plugins keep their own API
 | Hover | Neutral chip fill | `Theme.chip` / `chipHover` |
 | Selected (rail, list) | Accent tint + 3 px accent edge on the inline-start side + accent icon + `textHi` label | `selectedFill`, `selectedMark`, `selectedEdgeWidth` |
 | Selected (tile) | Accent tint + 2 px accent border | `selectedFill`, `selectedMark`, `selectedBorderWidth` |
+| On (quick toggle) | Solid accent fill, glyph and label in `accentFg`, as an on switch's track | `accent`, `accentFg` |
 | Selected (theme card) | 2 px `textHi` border + accent check badge | `textHi`, `accent` |
 | Selected (segmented control) | The neutral raised segment, no accent | `segmentSelected` |
 | Keyboard focus | 2 px ring, never a fill | `focusRing`, `Theme.focusWidth(activeFocus)` |
@@ -147,6 +148,23 @@ A status pill (dot and label) sits beside its action.
   the system summary, then processes. That order is also what stays above
   the fold at every text size, and the Overview section switches in Settings
   still hide any of them.
+- **Quick toggles:** Dark mode, Focus, Night light and Stay awake, named in
+  full. A toggle that is on is filled with the accent; an outline is only
+  ever keyboard focus, drawn in `accentFg` a step inside an on tile. A name
+  that does not fit wraps onto a second line, and every tile in the row
+  grows with it.
+- **Update card:** shown by the updater's own rule, except that a failed
+  check appears only once it is real: the updater has answered this session,
+  a check ran and failed, and none is running. Before any check, or with no
+  updater answering, the card stays away; Software Update shows every error.
+  With no update to name, its second line says when the sources were last
+  checked ("Last checked 14:02", in the clock's format), or nothing.
+- **Cards:** the summary, now playing, update and arrival cards, the tab
+  strip, the resting quick toggles and notification cards take light mode's
+  card edge (`cardEdgeWidth`, `cardEdge`). Something inset in a rounded
+  container takes `Theme.concentricRadius`: tab segments in the strip, a
+  focus ring inside an on tile, and the tab strip itself once the panel
+  corners are rounder than its own.
 - **Details:** the system summary shows the machine and one plain line of
   readings ("CPU 6% · Memory 34% · Disk 62%", amber or red when one needs
   attention). Its **Show details** reveals the usage meters, the system
@@ -178,6 +196,14 @@ A status pill (dot and label) sits beside its action.
   Clicking the body runs the default action and dismisses the card. Toasts
   never take keyboard focus; the keyboard path is the drawer's Notifications
   tab.
+- **Drawer list:** repeated notifications from one app fold into one row:
+  the newest card with the count. Clicking it, or Enter, shows them all under
+  a header with **Show less**; its × clears the whole group. A critical
+  notification never folds. Folding is presentation only, so unread counts,
+  the arrival strip and the critical banner are unchanged
+  (`NotifPolicy.historyFold`). Each state says one thing: "3 new", "Nothing
+  new" over older ones, or, with nothing kept, Wiz and "You're all caught
+  up." The × buttons are drawn at 24 px and answer to 32 px.
 - **Collision rule:** when the drawer is open on the output and side where
   toasts appear, and the Notifications tab is enabled, a new arrival does not
   toast (`NotifPolicy.drawerRoute`):

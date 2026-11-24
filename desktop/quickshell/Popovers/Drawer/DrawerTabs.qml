@@ -54,7 +54,10 @@ Rectangle {
     // The least room either side of a label; the layout shares out the rest.
     readonly property real tabPadding: Theme.scaled(4)
     readonly property real tabGap: 2
-    readonly property real innerWidth: Math.max(0, width - 6)
+    // The segments sit this far inside the strip, and their corners follow
+    // its corner (Theme.concentricRadius).
+    readonly property real stripInset: 3
+    readonly property real innerWidth: Math.max(0, width - stripInset * 2)
 
     // Measured in the selected weight, so selecting a tab never reflows the
     // strip. Reading the font ties the widths to the text size as well.
@@ -102,14 +105,19 @@ Rectangle {
         font.weight: Theme.weightSemibold
     }
 
-    height: segmentHeight * layout.rows + tabGap * (layout.rows - 1) + 6
-    radius: 10
+    height: segmentHeight * layout.rows + tabGap * (layout.rows - 1) + stripInset * 2
+    // The strip sits in the drawer's top corners: with rounder panel corners
+    // (Settings → Appearance) it follows them, concentric, instead of
+    // keeping a tighter curve inside a wide one (2026-11-24 review).
+    radius: Math.max(10, Theme.concentricRadius(Theme.panelRadius, Theme.panelPadding))
     color: Theme.chip
+    border.width: Theme.cardEdgeWidth
+    border.color: Theme.cardEdge
 
     Grid {
         id: tabGrid
-        x: 3
-        y: 3
+        x: root.stripInset
+        y: root.stripInset
         width: root.innerWidth
         columns: Math.max(1, root.layout.columns)
         columnSpacing: root.tabGap
@@ -131,7 +139,7 @@ Rectangle {
 
                 width: root.layout.widths[index] || 0
                 height: root.segmentHeight
-                radius: 8
+                radius: Theme.concentricRadius(root.radius, root.stripInset)
                 color: on ? Theme.selectedFill : "transparent"
                 border.width: Theme.focusWidth(activeFocus)
                 border.color: Theme.focusRing

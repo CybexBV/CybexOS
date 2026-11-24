@@ -57,8 +57,9 @@ test("notification history exposes primary, action, disclosure, dismiss, and cle
         "nonactivatable cards still need a keyboard entry point for code, links and snooze actions");
     assert.match(card, /Accessible\.role:\s*actionable \? Accessible\.Button : Accessible\.StaticText/);
     assert.match(card, /Qt\.Key_Delete[\s\S]*card\.closeRequested\(\)/);
+    // A card standing for a folded group says its × clears them all.
     assert.match(card,
-        /id:\s*closeButton[\s\S]*activeFocusOnTab:\s*card\.keyboardEnabled[\s\S]*Accessible\.name:[\s\S]{0,120}"Dismiss notification from %1"/);
+        /id:\s*closeButton[\s\S]*activeFocusOnTab:\s*card\.keyboardEnabled[\s\S]*Accessible\.name:\s*card\.groupCount > 1[\s\S]{0,240}"Dismiss %1 notifications from %2"[\s\S]{0,400}"Dismiss notification from %1"/);
     assert.match(card,
         /id:\s*textDisclosure[\s\S]*activeFocusOnTab:\s*visible && card\.keyboardEnabled[\s\S]*Accessible\.name:/);
     assert.match(actions,
@@ -152,6 +153,23 @@ test("reduced-motion mode stops infinite activity loops instead of busy-looping 
             assert.match(match[0], /running:[^\n]*(?:\n\s*)?[^\n]*!Theme\.reducedMotion/,
                 `${relative} has an infinite loop that ignores reduced motion`);
     }
+});
+
+test("the media chip's drifting title fades at its cut edges and never drifts under reduced motion", () => {
+    // 2026-11-24 review: a drifting title was sliced at the clip edge.
+    const chip = read("Bar/Modules/Media.qml");
+    assert.match(chip, /readonly property bool drifting: \(mediaChip\.hovered \|\| mediaChip\.held\)\s*&& overflow > 0 && !Theme\.reducedMotion/);
+    assert.match(chip, /elide: titleClip\.drifting \? Text\.ElideNone : Text\.ElideRight/,
+        "at rest, and under reduced motion, the title ends in an ellipsis");
+    assert.match(chip, /layer\.enabled: drifting\s*layer\.effect: MultiEffect \{\s*maskEnabled: true\s*maskSource: titleFade/);
+    // A soft ramp, not MultiEffect's default hard cut at any alpha above 0.
+    assert.match(chip, /maskThresholdMin: 0\.5\s*maskSpreadAtMin: 1\n/);
+    assert.match(chip, /startFade: Math\.min\(fade, Math\.max\(0, -fullTitle\.x\)\) \/ span/);
+    assert.match(chip, /endFade: Math\.min\(fade,\s*Math\.max\(0, titleClip\.overflow \+ fullTitle\.x\)\) \/ span/);
+    // A new track's rise uses the shared tokens and is skipped under reduced motion.
+    const slide = chip.slice(chip.indexOf("id: slideIn"), chip.indexOf("// ---- play / pause"));
+    assert.doesNotMatch(slide, /duration:\s*\d/);
+    assert.match(chip, /if \(!Theme\.reducedMotion && trackKey !== ""\)\s*slideIn\.restart\(\)/);
 });
 
 test("the reusable wallpaper picker exposes accessible selection and apply actions", () => {

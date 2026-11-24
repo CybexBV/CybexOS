@@ -49,10 +49,25 @@ test("notification widget shows an unread mark and compact glyph state", () => {
     // One name for Do Not Disturb everywhere (2026-11): Focus.
     assert.match(moduleSource, /I18n\.format\("Notifications · Focus · %1", \[Notifs\.count\]\)/);
     assert.doesNotMatch(moduleSource, /"[^"\n]*Do Not Disturb[^"\n]*"/);
-    assert.match(moduleSource,
-        /glyph:\s*Notifs\.dnd \? "notifications_off" : "notifications"/);
     assert.match(moduleSource, /alert:\s*Notifs\.hasUrgent/);
-    assert.match(moduleSource, /active:\s*Notifs\.dnd && !Notifs\.hasUrgent/);
+});
+
+test("Focus has one calm mark on the menubar", () => {
+    // 2026-11-24 review: the clock-side Focus action and an accent-filled
+    // bell both lit up. The clock-side action keeps the mark while it is on
+    // show; otherwise the bell carries it as a slashed accent glyph.
+    const bar = read("Bar/Bar.qml");
+    assert.match(bar, /readonly property bool focusOnClockSide: \{[\s\S]*?Settings\.modOpts\.indicators\.enabled\.indexOf\("dnd"\) === -1[\s\S]*?candidate\.id === "indicators"[\s\S]*?return moduleShown\(entry\);/);
+    assert.match(moduleSource,
+        /readonly property bool showsFocus: Notifs\.dnd\s*&& !\(root\.host !== null && root\.host\.focusOnClockSide\)/);
+    assert.match(moduleSource,
+        /glyph:\s*root\.showsFocus \? "notifications_off" : "notifications"/);
+    assert.match(moduleSource, /idleColor:\s*root\.showsFocus \? Theme\.barAccent : Theme\.barIcon/);
+    assert.doesNotMatch(moduleSource, /^\s*active:/m, "Focus is a state, not a pressed bell");
+    // The clock-side action is the one that says when Focus ends.
+    const indicators = read("Bar/Modules/Indicators.qml");
+    assert.match(indicators, /case "dnd": return Notifs\.dnd;/);
+    assert.match(indicators, /"Turn off Focus · " \+ Notifs\.dndStatus/);
 });
 
 test("opening notification history does not consume its retained entries", () => {
@@ -75,7 +90,7 @@ test("the retired bell id is not reused for the new widget", () => {
 test("an empty notification centre shows Wiz, asleep while Focus is on", () => {
     const centre = read("Popovers/Drawer/DrawerNotifications.qml");
     const empty = centre.slice(centre.indexOf("Nothing kept at all"),
-        centre.indexOf("Only older notifications"));
+        centre.indexOf("I18n.tr(\"EARLIER\")"));
 
     assert.match(centre, /import "\.\.\/\.\.\/Assistant"/);
     // Created only while nothing is kept, and still: idle blinks, asleep
@@ -83,9 +98,14 @@ test("an empty notification centre shows Wiz, asleep while Focus is on", () => {
     assert.match(empty, /Loader \{\s*active: Notifs\.count === 0/);
     assert.match(empty, /Wiz \{[\s\S]*?width: Theme\.scaled\(64\)[\s\S]*?pose: Notifs\.dnd \? "asleep" : "idle"/);
     assert.doesNotMatch(empty, /recording:|animated:|"thinking"|"working"/);
-    assert.match(empty, /I18n\.tr\("Nothing new"\)[\s\S]*?I18n\.tr\("You're all caught up\."\)/);
     assert.doesNotMatch(empty, /Sym \{/, "Wiz replaces the bell");
-    // Older notifications alone keep the quiet line and its glyph.
+    // One message per state (2026-11-24 review: "All clear", "Nothing new"
+    // and "You're all caught up." used to stack): Wiz's one line when nothing
+    // is kept, the header's "Nothing new" over older notifications only.
+    assert.equal((empty.match(/I18n\.tr\("/g) || []).length, 1, "one line under Wiz");
+    assert.match(empty, /I18n\.tr\("You're all caught up\."\)/);
     assert.match(centre,
-        /Item \{\s*visible: root\.recent\.length === 0 && Notifs\.count > 0[\s\S]*?name: "notifications_off"/);
+        /text: root\.recent\.length > 0\s*\? I18n\.format\("%1 new", \[root\.recent\.length\]\)\s*: Notifs\.count > 0 \? I18n\.tr\("Nothing new"\) : ""/);
+    assert.doesNotMatch(centre, /"All clear"|"Quiet hour"|notifications_off/);
+    assert.equal((centre.match(/I18n\.tr\("Nothing new"\)/g) || []).length, 1);
 });

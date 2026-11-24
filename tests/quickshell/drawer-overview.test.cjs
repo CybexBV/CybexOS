@@ -3,7 +3,7 @@ const { untranslated } = require("./shell.cjs");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { shellDir } = require("./shell.cjs");
+const { shellDir, load } = require("./shell.cjs");
 
 const read = rel => untranslated(fs.readFileSync(
     path.join(shellDir, "Popovers", "Drawer", rel), "utf8"));
@@ -151,17 +151,28 @@ test("unknown readings stay explicit and each metric has one accessible summary"
     assert.match(hero, /accessibleDescription:\s*SysInfo\.rootFsError/);
 });
 
-test("quick toggles keep their names and wear the selected-tile state", () => {
-    for (const [glyph, label] of [["dark_mode", "Dark"], ["do_not_disturb_on", "Focus"],
-        ["nightlight", "Night"], ["coffee", "Awake"]])
+test("quick toggles say what they do and show on as a filled switch", () => {
+    // 2026-11-24 review: "Dark", "Night" and "Awake" became full names, and
+    // a 2 px accent outline for "on" read as a keyboard focus ring.
+    for (const [glyph, label] of [["dark_mode", "Dark mode"], ["do_not_disturb_on", "Focus"],
+        ["nightlight", "Night light"], ["coffee", "Stay awake"]])
         assert.match(overview, new RegExp(`glyph: "${glyph}"\\s*label: "${label}"`));
     assert.match(overview, /"Focus: silences notifications"/);
-    assert.match(drawerTile, /color:\s*on \? Theme\.selectedFill : Theme\.chip/);
-    assert.match(drawerTile, /border\.width:\s*on \? Theme\.selectedBorderWidth : 0/);
-    assert.match(drawerTile, /border\.color:\s*Theme\.selectedMark/);
-    assert.match(drawerTile, /color:\s*root\.on \? Theme\.accentText : Theme\.textMid/,
-        "a selected tile's glyph is the accent text colour");
-    assert.match(drawerTile, /border\.width:\s*Theme\.focusWidth\(root\.activeFocus\)/);
+    assert.doesNotMatch(overview, /label: "(?:Dark|Night|Awake)"/);
+    // A name that wraps grows every tile in the row, not just its own.
+    assert.match(overview, /tileHeight: Math\.max\(darkTile\.naturalHeight,\s*focusTile\.naturalHeight, nightTile\.naturalHeight, awakeTile\.naturalHeight\)/);
+    assert.equal((overview.match(/height: parent\.tileHeight/g) || []).length, 4);
+    assert.match(drawerTile, /wrapMode: Text\.Wrap\s*maximumLineCount: 2\s*elide: Text\.ElideRight/);
+    // On is a switch's accent fill with accentFg ink; off is the chip with
+    // light mode's card edge.
+    assert.match(drawerTile, /color:\s*on \? Theme\.accent : Theme\.chip/);
+    assert.match(drawerTile, /readonly property color ink:\s*on \? Theme\.accentFg : Theme\.textMid/);
+    assert.match(drawerTile, /border\.width:\s*on \? 0 : Theme\.cardEdgeWidth\s*border\.color:\s*Theme\.cardEdge/);
+    assert.doesNotMatch(drawerTile, /Theme\.selectedMark|Theme\.selectedFill/, "an outline never means on");
+    // An outline is keyboard focus alone: accentFg a step inside an on tile,
+    // with a concentric corner.
+    assert.match(drawerTile,
+        /radius:\s*Theme\.concentricRadius\(root\.radius, inset\)[\s\S]{0,80}?border\.width:\s*Theme\.focusWidth\(root\.activeFocus\)\s*border\.color:\s*root\.on \? Theme\.accentFg : Theme\.focusRing/);
 });
 
 test("a slider without its device fades and says why, with a way to fix it", () => {
@@ -314,7 +325,21 @@ test("Sound, Network, Bluetooth and Power share one empty-state pattern", () => 
 });
 
 test("a pending update offers one action; restarting goes through the session row", () => {
-    assert.match(overview, /objectName: "overviewUpdates"\s*visible: Settings\.drawerOverview\.updates === true && root\.updateService\.overviewVisible/);
+    assert.match(overview, /objectName: "overviewUpdates"\s*visible: Settings\.drawerOverview\.updates === true && root\.updateCardShown/);
+    // 2026-11-24 review: a failed check shows only once it is real — the
+    // updater answered and a check ran and failed — never before anything
+    // was checked ("Some update sources could not be checked · Not checked").
+    assert.match(overview, /updateCardShown: updateService\.overviewVisible\s*&& \(!updateErrorOnly \|\| updateFailureReal\)/);
+    assert.match(overview, /updateFailureReal: updateService\.statusLoaded\s*&& !updateService\.busy/);
+    assert.match(overview,
+        /updateErrorOnly: updateService\.error !== ""\s*&& !UpdatesHelpers\.overviewVisible\(updateService\.hasUpdates,\s*updateService\.nixosPending \? \{ request: updateService\.deployment\.request \}\s*: updateService\.deployment, ""\)/,
+        "the same rule as Updates.overviewVisible, without the error");
+    const helpers = load("UpdatesHelpers.js");
+    assert.equal(helpers.overviewVisible(false, { state: "idle" }, "offline"), true);
+    assert.equal(helpers.overviewVisible(false, { state: "idle" }, ""), false, "an error alone is what is held back");
+    assert.equal(helpers.overviewVisible(true, { state: "idle" }, ""), true, "an update always shows");
+    assert.doesNotMatch(overview, /checkedLabel/, "no untranslated \"Not checked\" under the title");
+    assert.match(overview, /"Last checked %1", \[Qt\.formatTime\(updateService\.checkedAt,\s*Settings\.clock24 \? "HH:mm" : "h:mm AP"\)\]/);
     assert.match(overview, /restartPending: updateService\.page === "restart"/,
         "Restart… appears exactly where Software Update offers Restart Now");
     assert.match(overview, /"Cybex OS %1 is ready"/);
