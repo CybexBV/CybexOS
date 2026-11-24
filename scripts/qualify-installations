@@ -1188,6 +1188,11 @@ def grub_selection(system):
 def apply(vm, status):
     vm.command('cybex update apply ' + shlex.quote(status['transaction']) + ' ' + shlex.quote(status['reviewToken']))
     wait_state(vm, ('awaiting-boot',), timeout=300)
+    check_trial_selection(vm)
+
+
+def check_trial_selection(vm):
+    """GRUB keeps the previous system as default and boots the pending one once."""
     pending = json.loads(vm.command('cat /var/lib/cybexos/pending.json').strip())
     selection = boot_selection(vm)
     if selection.get('saved_entry') != grub_selection(pending['previousSystem']) or selection.get('next_entry') != grub_selection(pending['system']):

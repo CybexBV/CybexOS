@@ -263,7 +263,9 @@ In the guest, `cybex update check` must offer the release, then the updater
 prepares it as people would: 1.0.25 and 1.0.26 the release alone (`cybex
 update stage cybexos`), later ones what Software Update offers, and on an
 updater before 1.0.32 the release alone again when that fails. It applies
-the update, trial-boots it, signs in and confirms it. The machine must then
+the update. When the boot changed, it trial-boots, signs in and the desktop
+confirms it; when it didn't, the updater activates it at once and makes it
+the boot default, and the job restarts and signs in. The machine must then
 run this commit (`/etc/cybexos/release.json` and the `cybexos` lock), the
 Nixpkgs revision that updater should have chosen (the release's own from
 1.0.32 on), and a healthy desktop. The JSON evidence names both releases, the

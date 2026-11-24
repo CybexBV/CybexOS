@@ -457,6 +457,41 @@ def summary(value):
             if key in value}
 
 
+def apply_update(harness, vm, prepared):
+    """Install the prepared update and finish it the way the updater chose.
+
+    A changed boot (kernel, early-boot image, options, login screen or
+    session) waits for a trial boot that the signed-in desktop confirms. An
+    unchanged one is activated at once and, once healthy, made the boot
+    default; the next restart, which people make sooner or later, must start it.
+    """
+    vm.command('cybex update apply ' + shlex.quote(prepared['transaction']) + ' ' + shlex.quote(prepared['reviewToken']))
+    harness.wait_state(vm, ('awaiting-boot', 'done'), timeout=900)
+    applied = status(vm)
+    steps = {'apply': {'result': 'passed', 'transaction': prepared['transaction'], 'state': applied['state'],
+                       'phase': applied.get('phase')}}
+    if applied['state'] == 'awaiting-boot':
+        harness.check_trial_selection(vm)
+        harness.authenticated_boot(vm, False)
+        steps['trialBoot'] = {'result': 'passed'}
+        harness.confirm(vm)
+        steps['confirm'] = {'result': 'passed', 'by': 'the signed-in desktop after the trial boot'}
+        return steps
+    system = vm.command('readlink -f /run/current-system').strip()
+    if harness.boot_selection(vm).get('saved_entry') != harness.grub_selection(system):
+        raise RuntimeError('The update activated without a restart did not become the boot default')
+    vm.command('test ! -e /var/lib/cybexos/pending.json')
+    vm.reboot(False)
+    vm.login_desktop()
+    booted = vm.command('readlink -f /run/current-system').strip()
+    if booted != system:
+        raise RuntimeError(f'The restart started {booted}, not the activated {system}')
+    steps['restart'] = {'result': 'passed', 'system': system,
+                        'checks': ['activated without a trial boot', 'boot default', 'the restart starts it',
+                                   'desktop sign-in']}
+    return steps
+
+
 def upgrade(harness, iso, source, target, base, evidence, *, standin, applications, memory_gib, cpus):
     steps = evidence['steps']
     case = base / 'upgrade'
@@ -515,12 +550,7 @@ def upgrade(harness, iso, source, target, base, evidence, *, standin, applicatio
             raise RuntimeError('The installed updater could not prepare the release under test: '
                                + json.dumps(attempts)[:4000])
 
-        harness.apply(vm, prepared)
-        steps['apply'] = {'result': 'passed', 'transaction': prepared['transaction']}
-        harness.authenticated_boot(vm, False)
-        steps['trialBoot'] = {'result': 'passed'}
-        harness.confirm(vm)
-        steps['confirm'] = {'result': 'passed'}
+        steps.update(apply_update(harness, vm, prepared))
 
         release = json.loads(vm.command('cat /etc/cybexos/release.json').strip())
         after = machine_inputs(vm)
