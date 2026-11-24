@@ -23,6 +23,10 @@ class PublishTests(unittest.TestCase):
             self.git('config', name, value)
         (self.work / 'release').mkdir()
         shutil.copy2(ROOT / 'release/publish', self.work / 'release/publish')
+        # --stable runs release/promote's compatibility check.
+        shutil.copy2(ROOT / 'release/promote', self.work / 'release/promote')
+        shutil.copytree(ROOT / 'lifecycle/cybexos', self.work / 'lifecycle/cybexos',
+                        ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copy2(ROOT / 'release/compatibility.json', self.work / 'release/compatibility.json')
         (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n')
         (self.work / 'VERSION').write_text('1.0.1\n')
@@ -32,14 +36,20 @@ class PublishTests(unittest.TestCase):
         self.git('remote', 'add', 'origin', str(self.origin))
         self.git('push', '--quiet', 'origin', 'main')
         tools = base / 'bin'; tools.mkdir()
-        # Answers whether the full check passed (GH_PASSED, default yes) and
-        # logs everything else.
-        (tools / 'gh').write_text('#!/bin/sh\nif [ "$1 $2" = "run list" ]; then printf "%s\\n" "$*" >> "$GH_RUNS";'
-                                  ' echo "${GH_PASSED-1}"; exit; fi\nprintf "%s\\n" "$*" >> "$GH_LOG"\n')
+        # Answers whether the full check passed (GH_PASSED, default yes),
+        # serves the release listing (GH_LISTING) and the draft flags of the
+        # release's tag (GH_DRAFTS), and logs everything else.
+        (tools / 'gh').write_text(
+            '#!/bin/sh\nif [ "$1 $2" = "run list" ]; then printf "%s\\n" "$*" >> "$GH_RUNS";'
+            ' echo "${GH_PASSED-1}"; exit; fi\n'
+            'if [ "$1" = api ]; then printf "%s\\n" "$*" >> "$GH_API"; case "$*" in'
+            ' *--jq*) printf "%s" "${GH_DRAFTS-}" ;; *) printf "%s\\n" "${GH_LISTING-[]}" ;; esac; exit; fi\n'
+            'printf "%s\\n" "$*" >> "$GH_LOG"\n')
         (tools / 'gh').chmod(0o755)
-        self.runs = base / 'runs.log'
+        self.runs, self.api = base / 'runs.log', base / 'api.log'
         self.environment = os.environ | {'PATH': f'{tools}:{os.environ["PATH"]}', 'GH_LOG': str(self.log),
-                                         'GH_RUNS': str(self.runs), 'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS'}
+                                         'GH_RUNS': str(self.runs), 'GH_API': str(self.api),
+                                         'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS', 'PYTHONDONTWRITEBYTECODE': '1'}
 
     def git(self, *arguments, cwd=None):
         return subprocess.run(['git', *arguments], cwd=cwd or self.work, check=True, capture_output=True, text=True).stdout
@@ -127,15 +137,83 @@ class PublishTests(unittest.TestCase):
         self.assert_refused('compatibility.json is missing or invalid', '1.0.1')
 
     def test_a_published_version_is_never_reused(self):
-        self.git('tag', 'v1.0.1')
-        self.assert_refused('v1.0.1 already exists', '1.0.1')
+        # A tag on another commit is another release, local or on origin.
+        self.git('tag', 'v1.0.1', 'HEAD')
+        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n\nMore.\n')
+        self.git('commit', '--quiet', '-am', 'Later')
+        self.git('push', '--quiet', 'origin', 'main')
+        result = self.publish('1.0.1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('v1.0.1 already exists at', result.stderr)
         self.git('push', '--quiet', 'origin', 'v1.0.1')
         self.git('tag', '--delete', 'v1.0.1')
         result = self.publish('1.0.1')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('v1.0.1 already exists', result.stderr)
+        self.assertIn('v1.0.1 already exists at', result.stderr)
+        self.assertIn('a published version is never reused', result.stderr)
+        self.assertFalse(self.log.exists())
+        # So is a release that is already published, even at this commit.
+        self.git('push', '--quiet', '--force', 'origin', 'HEAD:refs/tags/v1.0.1')
+        self.environment['GH_DRAFTS'] = 'false\n'
+        result = self.publish('1.0.1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('v1.0.1 is already published', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.environment['GH_DRAFTS'] = 'true\ntrue\n'
+        result = self.publish('1.0.1')
+        self.assertIn('2 draft releases for v1.0.1', result.stderr)
         self.assertFalse(self.log.exists())
 
+    def test_a_publish_that_failed_after_its_tag_resumes(self):
+        revision = self.git('rev-parse', 'HEAD').strip()
+        # The push failed: the local tag is pushed and the release created.
+        self.git('tag', '--annotate', 'v1.0.1', '--message', 'Cybex OS 1.0.1')
+        result = self.publish('1.0.1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('ls-remote', 'origin', 'refs/tags/v1.0.1^{}').split()[0], revision)
+        self.assertFalse(self.api.exists(), 'a new tag has no release to look for')
+        self.log.unlink()
+        # gh failed before creating the release: it is created at the same tag.
+        self.git('tag', '--delete', 'v1.0.1')
+        result = self.publish('1.0.1', '--dry-run', 'cybexos.iso')
+        self.assertIn('Would finish publishing v1.0.1 at ' + revision, result.stdout)
+        self.assertFalse(self.log.exists())
+        result = self.publish('1.0.1', 'cybexos.iso')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Resuming: v1.0.1 already names ' + revision, result.stdout)
+        self.assertIn('api --paginate repos/CybexHQ/CybexOS/releases?per_page=100 --jq', self.api.read_text())
+        self.assertEqual(self.log.read_text().splitlines(), [
+            'release create v1.0.1 --repo CybexHQ/CybexOS --verify-tag --title Cybex OS 1.0.1 '
+            '--notes-file release/notes.md --prerelease --latest=false cybexos.iso'])
+        self.log.unlink()
+        # An upload failed and gh left a draft: its assets and release are completed.
+        self.environment['GH_DRAFTS'] = 'true\n'
+        result = self.publish('1.0.1', 'cybexos.iso')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.log.read_text().splitlines(), [
+            'release upload v1.0.1 --repo CybexHQ/CybexOS --clobber cybexos.iso',
+            'release edit v1.0.1 --repo CybexHQ/CybexOS --draft=false --title Cybex OS 1.0.1 '
+            '--notes-file release/notes.md --prerelease --latest=false'])
+        self.assertEqual(self.git('tag', '--list', 'v1.0.1').strip(), '', 'no new local tag is made')
+
+    def test_stable_needs_what_promotion_to_stable_needs(self):
+        # 1.0.0 is stable; 1.0.1 changes the configuration API it installed.
+        self.git('tag', '--annotate', 'v1.0.0', '--message', 'Cybex OS 1.0.0')
+        self.git('push', '--quiet', 'origin', 'v1.0.0')
+        self.git('tag', '--delete', 'v1.0.0')
+        compatibility = json.loads((self.work / 'release/compatibility.json').read_text())
+        (self.work / 'release/compatibility.json').write_text(json.dumps(compatibility | {'configurationApi': 2}))
+        self.git('commit', '--quiet', '-am', 'New configuration API')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.0', 'prerelease': False, 'draft': False}])
+        result = self.publish('1.0.1', '--stable')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('stable machines on v1.0.0 cannot install it: its configurationApi 2 differs', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertNotIn('v1.0.1', self.git('ls-remote', '--tags', 'origin'))
+        # Beta machines take it; promotion checks stable again later.
+        result = self.publish('1.0.1')
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 # A recording gh that serves the release listing as installed machines read it
@@ -148,7 +226,12 @@ arguments = sys.argv[1:]
 with open(os.environ['GH_LOG'], 'a') as log:
     log.write(' '.join(arguments) + '\n')
 if arguments[0] == 'api':
-    print(json.dumps(listing))
+    # GitHub's pages; gh prints them all with --paginate, one array each.
+    size = int(os.environ.get('GH_PAGE_SIZE', '100'))
+    pages = [listing[start:start + size] for start in range(0, len(listing), size)] or [[]] \
+        if isinstance(listing, list) else [listing]
+    for page in pages if '--paginate' in arguments else pages[:1]:
+        print(json.dumps(page))
 elif arguments[:2] == ['run', 'list']:
     print(os.environ.get('GH_PASSED', '1'))
 elif arguments[:2] == ['release', 'edit']:
@@ -253,6 +336,18 @@ class PromoteTests(unittest.TestCase):
         self.assertIn('including 1.0.2', result.stdout)
         self.assert_refused('already on the stable channel', '1.0.3', '--yes')
         self.assert_refused('not newer than the current stable release v1.0.3', '1.0.2', '--yes')
+
+    def test_the_whole_listing_is_read_beyond_its_first_page(self):
+        # With one release per page, the current stable 1.0.1 is on page 3.
+        self.environment['GH_PAGE_SIZE'] = '1'
+        result = self.promote('1.0.3', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Stable machines on v1.0.1 receive it, including 1.0.2.', result.stdout)
+        self.assertIn('since Cybex OS 1.0.1', self.published('1.0.3')['body'])
+        self.assertTrue(all('--paginate' in line for line in self.log.read_text().splitlines() if line.startswith('api')))
+        self.environment['GH_PAGE_SIZE'] = '100'
+        self.state.write_text('{"message": "Not Found"}')
+        self.assert_refused('invalid release listing', '1.0.3', '--yes')
 
     def test_a_single_release_keeps_its_own_notes(self):
         result = self.promote('1.0.2', '--yes')

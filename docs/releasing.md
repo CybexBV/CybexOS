@@ -53,7 +53,11 @@ update, since every stable release is on beta too.
 `cybex update check` and `cybex update stage cybexos` read the release listing
 and resolve the selected tag to its exact commit through the GitHub API: only
 `api.github.com`, with bounded responses and an ETag cache (GitHub does not
-count a conditional 304 against its anonymous rate limit). Staging then:
+count a conditional 304 against its anonymous rate limit). The listing comes
+in pages of 30, newest first: the updater follows GitHub's next-page links
+(only to the release listing on `api.github.com`) until it has a release on
+its channel and has reached its installed version, at most 20 pages. Updaters
+up to 1.0.32 read a single page of 100 releases (2 MiB at most). Staging then:
 
 1. downloads that commit once with `nix flake prefetch` and records the
    content hash of what it received;
@@ -94,14 +98,23 @@ Development commits may be pushed directly to `main`. To publish a release:
    in the meantime the push fails: merge again and check again.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
-   the notes, refuses an existing tag, refuses a commit without a passing
-   dispatched `nixos.yml` run, creates and pushes the annotated
+   the notes, refuses a tag on another commit, refuses a commit without a
+   passing dispatched `nixos.yml` run, creates and pushes the annotated
    `vVERSION` tag and creates the GitHub release with `gh` as a prerelease:
    it reaches beta machines only. Pass asset paths (an ISO and its checksum)
    to upload them with the release, or `--dry-run` to only report the result.
    `--stable` publishes straight to both channels and marks the release as
    the latest. Keep it for an urgent fix, or a release that needs no beta
-   period; a prerelease version refuses it.
+   period; a prerelease version refuses it, and so does a release that
+   machines on the current stable release cannot install (the compatibility
+   check `release/promote` makes, below).
+
+   When `gh` fails after the tag is pushed (a network failure, an
+   interrupted upload), run the same command again from the same commit: a
+   tag that already names this commit is kept, and the release is created,
+   or the draft `gh` left behind gets its assets and is published. A tag on
+   another commit, or a release already published, means another session
+   published that version first: take the next one.
 4. Once the release has proven itself on beta, run
    `release/promote VERSION`. It changes nothing about the release's source:
    it clears the prerelease flag, marks it as the latest and replaces its notes

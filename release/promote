@@ -54,11 +54,28 @@ def run(*arguments, check=True):
     return result
 
 
+def pages(text):
+    """Every page of a `gh api --paginate` listing as one list.
+
+    gh merges array pages into one array, or prints one array per page,
+    depending on its version.
+    """
+    decoder, position, listing = json.JSONDecoder(), 0, []
+    try:
+        while text[position:].strip():
+            position = len(text) - len(text[position:].lstrip())
+            page, position = decoder.raw_decode(text, position)
+            if not isinstance(page, list):
+                fail('GitHub returned an invalid release listing')
+            listing += page
+    except json.JSONDecodeError:
+        fail('GitHub returned an invalid release listing')
+    return listing
+
+
 def releases():
     """The release listing exactly as installed machines read it."""
-    listing = json.loads(run('gh', 'api', f'repos/{REPO}/releases?per_page=100').stdout)
-    if not isinstance(listing, list):
-        fail('GitHub returned an invalid release listing')
+    listing = pages(run('gh', 'api', '--paginate', f'repos/{REPO}/releases?per_page=100').stdout)
     found = []
     for item in listing:
         tag = item.get('tag_name') if isinstance(item, dict) else None

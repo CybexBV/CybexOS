@@ -85,8 +85,10 @@ sub-agent in a worktree):
     `git push origin <commit>:main`. If `main` moved meanwhile, the push
     fails: merge again and check again.
   - Run `release/publish X.Y.Z` from a clean `main` equal to `origin/main`.
-    When the tag already exists, another session published first: take the
-    next version.
+    When it says the tag already exists at another commit, or the release is
+    already published, another session published first: take the next
+    version. When your own run failed after pushing the tag, run it again
+    from the same commit: it finishes that release.
 - `release/promote VERSION` moves a beta release to stable after a week on
   beta, its passing full check and stable-updater compatibility, and only
   with John's explicit OK. `--stable`, `--now` and a shorter `--soak` are
