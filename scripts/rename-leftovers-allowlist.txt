@@ -1,5 +1,4 @@
 # Retired spelling exceptions are limited to history, the scanners and upstream font names.
-docs/rename-to-nerdos.md :: .  # archived report and artifacts for the previous rename
 docs/measurements/* :: .  # recorded evidence describes the revision actually exercised
 docs/branding.md :: NerdOS|Nerd Font  # explains the reverted identity
 scripts/check_leftovers.py :: (?i)nerdos|nerd  # scanner must recognize retired names

@@ -33,10 +33,6 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "85dc4abfd9e4014af95d682a1a860538c185c4ba732c0dee56e73ab6640eda0e"
     },
-    "web/public/cybexos.svg": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "85dc4abfd9e4014af95d682a1a860538c185c4ba732c0dee56e73ab6640eda0e"
-    },
     "installer/kiosk/assets/symbol.svg": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "85dc4abfd9e4014af95d682a1a860538c185c4ba732c0dee56e73ab6640eda0e"
@@ -44,14 +40,6 @@
     "desktop/quickshell/assets/cybexos-white.svg": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "a6869b4979f6fcba60287430ee1b0f134b4aceb49c2417b60d7cee6a25d7ff77"
-    },
-    "web/public/cybexos-white.svg": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "a6869b4979f6fcba60287430ee1b0f134b4aceb49c2417b60d7cee6a25d7ff77"
-    },
-    "web/public/cybexos-logo.svg": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "286131bac5a57323ae418feac0418b3ca5a9594730eeeb41cae6e626f0ef2002"
     },
     "installer/kiosk/assets/logo.svg": {
       "source": "assets/brand/source/cybex_white.svg",
@@ -109,15 +97,7 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "e95f26fc42bc7fcf8bba8c9a62a052c02382db4ec89c0c2231d0ae49ca414152"
     },
-    "web/public/favicon-16x16.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "e95f26fc42bc7fcf8bba8c9a62a052c02382db4ec89c0c2231d0ae49ca414152"
-    },
     "assets/brand/favicon/favicon-32x32.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "de8494dec639f9ef56f6ac9351bf164fab4956e318c9280785a571d7fe51170a"
-    },
-    "web/public/favicon-32x32.png": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "de8494dec639f9ef56f6ac9351bf164fab4956e318c9280785a571d7fe51170a"
     },
@@ -125,15 +105,7 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "e9d1e52216a236543926a135a967027a01fa403cee6f99d5108f3144b2e35233"
     },
-    "web/public/favicon-48x48.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "e9d1e52216a236543926a135a967027a01fa403cee6f99d5108f3144b2e35233"
-    },
     "assets/brand/favicon/apple-touch-icon.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "f0a9979d32aedafab9f625cd7a76db47f2557de07b9d9b81a314d4c5db98aa20"
-    },
-    "web/public/apple-touch-icon.png": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "f0a9979d32aedafab9f625cd7a76db47f2557de07b9d9b81a314d4c5db98aa20"
     },
@@ -141,15 +113,7 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "614b15865ee4718899c04a9bf50214f5e701ab601e30b76a2b335691e47e896b"
     },
-    "web/public/icon-192.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "614b15865ee4718899c04a9bf50214f5e701ab601e30b76a2b335691e47e896b"
-    },
     "assets/brand/favicon/icon-512.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "17b95ab4ab63dd7efd153fa3aacbc3e6708e76eec0b540d6fb016869b615aa81"
-    },
-    "web/public/icon-512.png": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "17b95ab4ab63dd7efd153fa3aacbc3e6708e76eec0b540d6fb016869b615aa81"
     },
@@ -157,15 +121,7 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "614b15865ee4718899c04a9bf50214f5e701ab601e30b76a2b335691e47e896b"
     },
-    "web/public/icon-maskable-192.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "614b15865ee4718899c04a9bf50214f5e701ab601e30b76a2b335691e47e896b"
-    },
     "assets/brand/favicon/icon-maskable-512.png": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "17b95ab4ab63dd7efd153fa3aacbc3e6708e76eec0b540d6fb016869b615aa81"
-    },
-    "web/public/icon-maskable-512.png": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "17b95ab4ab63dd7efd153fa3aacbc3e6708e76eec0b540d6fb016869b615aa81"
     },
@@ -178,18 +134,6 @@
       "sha256": "bef0d2a35144d5d7c3bfd9ba8effa3cc753dcc5d1fc9428dfed4416e771a0009"
     },
     "assets/brand/favicon/site.webmanifest": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "e1bdfae795923ae1cbecc3f5aed365c01c70b3ad1aa183ce289d96fb3b9822c4"
-    },
-    "web/public/favicon.svg": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "e98c681483e54f6fdab271f2ec526ab856376f469240bf3ca42059bedfcf61a1"
-    },
-    "web/public/favicon.ico": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "bef0d2a35144d5d7c3bfd9ba8effa3cc753dcc5d1fc9428dfed4416e771a0009"
-    },
-    "web/public/site.webmanifest": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "e1bdfae795923ae1cbecc3f5aed365c01c70b3ad1aa183ce289d96fb3b9822c4"
     },

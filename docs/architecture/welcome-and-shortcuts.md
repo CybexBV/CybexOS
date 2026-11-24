@@ -571,9 +571,9 @@ design rather than the shell theme:
   `KioskStepper`, `KioskKeycap` and the rest port
   `installer/kiosk/ui/widgets.slint` and the design reference
   (`installer/ui-reference/index.html`), including 2 px focus rings.
-- **Design reference.** `desktop/welcome-ui-reference/index.html` is the
-  approved interactive comp for the guide, in the installer reference's CSS.
-  Open it from the checkout. The shell is authoritative where they differ.
+- **Design reference.** The approved interactive comp for the guide was
+  `desktop/welcome-ui-reference/index.html`, removed on 2026-11-24 once built
+  (it remains in Git history). The shell is authoritative.
 - **Exceptions.** The shortcut recorder is the shared Settings recorder,
   drawn in the shell theme over the guide.
 

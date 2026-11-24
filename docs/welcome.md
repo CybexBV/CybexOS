@@ -154,7 +154,8 @@ cybexos-runtime ipc welcome connect password # Connect's buttons: password, goog
 
 For implementation and integration interfaces, see the
 [shared contract](architecture/welcome-and-shortcuts.md). The design comp the
-guide was built from is `desktop/welcome-ui-reference/index.html`.
+guide was built from was removed once it was built (2026-11-24); it is in Git
+history as `desktop/welcome-ui-reference/index.html`.
 
 ## Validation
 

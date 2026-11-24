@@ -41,13 +41,11 @@ class BrandAssets(unittest.TestCase):
         self.assertEqual(geometry('cybexos.svg')[1],
                          [p.attrib['d'] for p in master.findall('{http://www.w3.org/2000/svg}path')][4:6])
 
-    def test_installer_and_web_use_the_supplied_wordmark_geometry(self):
+    def test_installer_uses_the_supplied_wordmark_geometry(self):
         def paths(name):
             svg = ET.parse(ROOT / name).getroot()
             return svg.attrib['viewBox'], [p.attrib['d'] for p in svg.findall('{http://www.w3.org/2000/svg}path')]
-        source = paths('assets/brand/source/cybex_white.svg')
-        for name in ('installer/kiosk/assets/logo.svg', 'web/public/cybexos-logo.svg'):
-            self.assertEqual(paths(name), source)
+        self.assertEqual(paths('installer/kiosk/assets/logo.svg'), paths('assets/brand/source/cybex_white.svg'))
 
     def test_blue_buttons_have_accessible_charcoal_contrast(self):
         def luminance(rgb):
