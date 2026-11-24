@@ -64,12 +64,14 @@ class Audit:
         raise AssertionError('Timed out: ' + expression)
 
     # Views the audit names, as the 2026-10 pages and tabs hold them: About
-    # became Home, Keyboard shortcuts a Keyboard tab, and Storage & cleanup
-    # the Disk space and Recovery points tabs of Backup & storage.
+    # became Home, Keyboard shortcuts a Keyboard tab, Storage & cleanup the
+    # Disk space and Recovery points tabs of Backup & storage, and Dictation
+    # the second tab of Assistant (Wiz is its first).
     VIEWS = {'about': ('home', ''), 'shortcuts': ('keyboard', 'shortcuts'), 'keyboard': ('keyboard', 'layouts'),
-             'storage': ('backup', 'storage'), 'recovery': ('backup', 'recovery'), 'backup': ('backup', 'backups')}
+             'storage': ('backup', 'storage'), 'recovery': ('backup', 'recovery'), 'backup': ('backup', 'backups'),
+             'assistant': ('assistant', 'wiz'), 'dictation': ('assistant', 'dictation')}
     KINDS = {'bar': 'ModulesPage', 'shortcuts': 'ShortcutsPage', 'storage': 'StoragePage', 'recovery': 'StoragePage',
-             'about': 'HomePage'}
+             'about': 'HomePage', 'dictation': 'DictationPage'}
 
     def page(self, page):
         target, tab = self.VIEWS.get(page, (page, ''))
@@ -1135,7 +1137,7 @@ class Audit:
     def run(self, *, scalars=True):
         self.test('one managed shell before audit', self.guard)
         # Every page, and the second views of the tabbed ones.
-        pages = self.evaluate('Settings.validPages') + ['shortcuts', 'recovery', 'storage']
+        pages = self.evaluate('Settings.validPages') + ['shortcuts', 'recovery', 'storage', 'dictation']
         for page in pages:
             if self.test('page: '+page, lambda page=page:self.inventory(page)) and scalars:
                 rows = self.report['pages'][page]

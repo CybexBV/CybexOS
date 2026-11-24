@@ -45,14 +45,19 @@ in pkgs.testers.runNixOSTest {
     machine.wait_until_succeeds(f"runuser -u cybexqa -- env {session} systemctl --user is-active quickshell.service", timeout=600)
     machine.succeed("touch /run/cybexos-settings-audit")
 
+    failed = []
+
     def audit(name, command):
         status, output = machine.execute(f"cd /tmp && PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3.interpreter} -B {command} 2>&1")
         machine.log(output)
         if machine.execute(f"test -e /tmp/{name}.json")[0] == 0:
             machine.copy_from_machine(f"/tmp/{name}.json", "")
-        assert status == 0, f"{name} failed; see its report and the log above"
+        if status != 0:
+            failed.append(name)
 
+    # Both run, so one test reports every failure; the reports list each case.
     audit("settings-audit", "${source}/tests/settings-runtime.py --prepare --report /tmp/settings-audit.json")
     audit("omarchy-audit", "${source}/tests/omarchy-runtime.py --mpv ${mpv}/bin/mpv --report /tmp/omarchy-audit.json")
+    assert not failed, f"{', '.join(failed)} failed; see the reports and the log above"
   '';
 }
