@@ -381,7 +381,14 @@ in pkgs.testers.runNixOSTest {
     assert user("cybexos-runtime ipc welcome open connect").strip() == "ok"
     # 1Password then goes on starting, and its dialog about the added row
     # steps the guide aside as any new window does.
-    retry(lambda _: not set(reporter) & set(clients()) and APP_ID in classes(), timeout_seconds=30)
+    try:
+        retry(lambda _: not set(reporter) & set(clients()) and APP_ID in classes(), timeout_seconds=30)
+    except Exception:
+        machine.screenshot("connect-resumed-failed")
+        machine.log("windows: " + json.dumps(clients()) + ", guide: " + json.dumps(welcome()))
+        machine.log(machine.execute("ps -eo pid,args | grep -i [1]password | cut -c1-200;"
+                                    " journalctl -b --no-pager -o cat | grep -i 1password | tail -n 40")[1])
+        raise
     assert user("cybexos-runtime ipc welcome open connect").strip() == "ok"
     retry(lambda _: not welcome()["aside"], timeout_seconds=15)
     # A window the person opens while the guide shows is theirs.
