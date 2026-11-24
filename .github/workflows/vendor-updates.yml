@@ -171,7 +171,11 @@ jobs:
           {
             echo "Verified vendor updates are on \`$branch\`:"
             echo
-            python3 -I -c 'import json, sys; [print(f"- {c[\"title\"]} {c[\"from\"]} → {c[\"to\"]}") for c in json.load(open(sys.argv[1]))]' "$RUNNER_TEMP/changes.json"
+            python3 -I - "$RUNNER_TEMP/changes.json" <<'EOF'
+          import json, sys
+          for change in json.load(open(sys.argv[1])):
+              print(f"- {change['title']} {change['from']} → {change['to']}")
+          EOF
             echo
             echo "The full check runs on that branch. When it passes, merge it (\`git merge --no-ff origin/$branch\`), push \`main\` and take it into the next beta release; each commit message carries its release-notes paragraph."
             echo

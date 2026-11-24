@@ -56,6 +56,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch --create "$branch"
+          git add flake.lock
           git commit --quiet --message "Update Nixpkgs to ${after:0:12}" \
             --message "From ${before:0:12}, by the weekly Nixpkgs update workflow. Merge it once its full check passes."
           git push --quiet --force origin "$branch"
