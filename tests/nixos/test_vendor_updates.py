@@ -326,7 +326,7 @@ class VendorBranchTests(unittest.TestCase):
         result = self.branch()
         self.assertEqual(result.returncode, 0, result.stderr)
         branch = result.stdout.strip()
-        self.assertRegex(branch, r'^vendor-update/\d{4}-\d{2}-\d{2}$')
+        self.assertEqual(branch, 'vendor-update')
         self.assertEqual(self.git('log', '--format=%s', 'origin/' + branch, '-3').splitlines(), [
             'Update Claude Code to 2.1.322', 'Update Codex to 0.167.0', 'Release fixture'])
         self.assertIn('Claude Code moves to 2.1.322.', self.git('log', '--format=%b', '-1', 'origin/' + branch))

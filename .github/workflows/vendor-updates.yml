@@ -4,7 +4,7 @@ name: Vendor updates
 # Daily: when Brave Origin, Codex or Claude Code has a newer release, update
 # every such pin, build them, run the source tests and each pin's own checks
 # (Brave's 1Password browser check, the agent CLIs' check), then push them to
-# a vendor-update/DATE branch (release/vendor-branch), start the full check
+# the vendor-update branch (release/vendor-branch), start the full check
 # on it and keep a "vendor-update" issue. It never pushes main or publishes
 # (owner's decision, 2026-11-24): the branch is merged after its full check
 # and released with the next beta. A failed check pushes none of them. Pins
@@ -182,7 +182,7 @@ jobs:
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } > "$RUNNER_TEMP/branch.md"
           python3 -I -B scripts/github-issue open --label vendor-update \
-            --title "Vendor updates ready for their full check: ${branch#vendor-update/}" --body-file "$RUNNER_TEMP/branch.md"
+            --title "Vendor updates ready for their full check" --body-file "$RUNNER_TEMP/branch.md"
       - name: Report pins that need review
         if: always() && steps.pins.outcome == 'success'
         run: |

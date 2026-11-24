@@ -51,7 +51,7 @@ assistant integrations, vendor packages or hardware profiles. John lifts the fre
   shared branches or merge into `main` unless its task says so: the
   orchestrator merges. The exception is a direct instruction (next section).
 - Other sessions push to `main` too, and workflows push
-  `nixpkgs-update/*` and `vendor-update/*` branches; fetch before branching
+  the `nixpkgs-update` and `vendor-update` branches; fetch before branching
   and before choosing a version.
 
 ## Direct instructions: land on main
@@ -97,12 +97,12 @@ sub-agent in a worktree):
   2026-11-10). They push branches and open issues; merge a branch after its
   full check, like any change:
   - **Nixpkgs updates** (`nixpkgs-update.yml`, weekly): `flake.lock`'s
-    Nixpkgs moves on a `nixpkgs-update/<date>` branch
+    Nixpkgs moves on the `nixpkgs-update` branch
     ([docs/releasing.md](docs/releasing.md#nixpkgs-updates)). A failing one
     means the next Nixpkgs doesn't work with Cybex OS yet; machines are not
     affected, because they only take the revision a release pins.
   - **Vendor updates** (`vendor-updates.yml`, daily): one
-    `vendor-update/<date>` branch with a commit per verified pin update
+    `vendor-update` branch with a commit per verified pin update
     ([docs/releasing.md](docs/releasing.md#vendor-updates)).
 
 ## NixOS installation and lifecycle contract

@@ -9,6 +9,11 @@ on:
         default: ''
 permissions:
   contents: read
+# One run per branch at a time: a newer dispatch replaces the older one, so
+# daily update branches can't queue up on The Beast's single runner.
+concurrency:
+  group: nixos-${{ inputs.source_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   source:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]

@@ -1,7 +1,7 @@
 name: Nixpkgs update
 
 # Once a week, move flake.lock's Nixpkgs to the head of the branch flake.nix
-# follows, on a nixpkgs-update/<date> branch, and start the full check
+# follows, on the nixpkgs-update branch (replaced each time), and start the full check
 # (nixos.yml) on it. Releases pin that revision and machines take it only with
 # a release (docs/updates.md#nixpkgs-comes-with-the-release), so a revision
 # that breaks Cybex OS never reaches them. This workflow never pushes main or
@@ -52,7 +52,7 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          branch="nixpkgs-update/$(date -u +%Y-%m-%d)"
+          branch=nixpkgs-update
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch --create "$branch"
@@ -86,4 +86,15 @@ jobs:
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } > "$RUNNER_TEMP/issue.md"
           python3 -I -B scripts/github-issue open --label nixpkgs-update \
-            --title "Nixpkgs update ready for its full check: ${branch#nixpkgs-update/}" --body-file "$RUNNER_TEMP/issue.md"
+            --title "Nixpkgs update ready for its full check: ${{ steps.update.outputs.after }}" --body-file "$RUNNER_TEMP/issue.md"
+
+      - name: Report a failed run
+        if: failure()
+        run: |
+          {
+            echo "The weekly Nixpkgs update did not finish, so no update branch or full check was started."
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/failure.md"
+          python3 -I -B scripts/github-issue open --label nixpkgs-update-failed \
+            --title "Nixpkgs update failed" --body-file "$RUNNER_TEMP/failure.md"

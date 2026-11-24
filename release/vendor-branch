@@ -6,8 +6,8 @@
 #
 # CHANGES.json is `scripts/vendor-pins update NAME...` output: a list of
 # changes. From main, this commits each pin (`Update TITLE to VERSION`, with
-# its release-notes paragraph in the message) on a vendor-update/DATE branch
-# and pushes that branch, replacing the same day's. It never pushes main or
+# its release-notes paragraph in the message) on the vendor-update branch
+# and pushes it, replacing the one before. It never pushes main or
 # publishes: the branch is merged after its full check passes and released
 # with the next beta release, like any change (owner's decision, 2026-11-24).
 # It prints the branch name.
@@ -48,7 +48,7 @@ exclude=()
 for file in "${files[@]}"; do exclude+=(":(exclude)$file"); done
 [[ -z $(git status --porcelain -- . "${exclude[@]}") ]] || fail "only ${files[*]} may be changed"
 
-branch="vendor-update/$(date -u +%Y-%m-%d)"
+branch=vendor-update
 git switch --quiet --create "$branch"
 while IFS=$'\t' read -r file title to notes; do
     git add -- "$file"

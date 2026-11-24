@@ -45,7 +45,7 @@ then on the installed updater takes only release revisions, and a machine
 that got ahead of the pinned revision that way stays on its own Nixpkgs
 until a release passes it.
 
-Cybex OS moves its pinned Nixpkgs once a week on a `nixpkgs-update/<date>`
+Cybex OS moves its pinned Nixpkgs once a week on the `nixpkgs-update`
 branch that gets the full check before it is merged and released
 ([Nixpkgs updates](releasing.md#nixpkgs-updates)). Security fixes in Nixpkgs
 therefore arrive with a Cybex OS release.

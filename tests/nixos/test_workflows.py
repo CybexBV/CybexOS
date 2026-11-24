@@ -75,7 +75,7 @@ class NixpkgsUpdateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = dict(line.split('=', 1) for line in (self.base / 'output').read_text().splitlines())
         self.assertEqual(output['changed'], 'true')
-        self.assertRegex(output['branch'], r'^nixpkgs-update/\d{4}-\d{2}-\d{2}$')
+        self.assertEqual(output['branch'], 'nixpkgs-update')
         self.assertEqual((output['before'], output['after']), ('1' * 40, '2' * 40))
         pushed = self.git('show', f'{output["branch"]}:flake.lock', cwd=self.origin)
         self.assertEqual(json.loads(pushed)['nodes']['nixpkgs']['locked']['rev'], '2' * 40)
@@ -89,7 +89,7 @@ class NixpkgsUpdateTests(unittest.TestCase):
         result = self.run_step('1' * 40)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.base / 'output').read_text(), 'changed=false\n')
-        self.assertEqual(self.git('branch', '--list', 'nixpkgs-update/*', cwd=self.origin), '')
+        self.assertEqual(self.git('branch', '--list', 'nixpkgs-update', cwd=self.origin), '')
 
 
 class VendorReportTests(unittest.TestCase):

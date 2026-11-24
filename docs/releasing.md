@@ -161,7 +161,7 @@ daily on a GitHub-hosted runner:
   --no-build`, `tests/run` and each updated pin's checks, then
   `release/vendor-branch`: it commits each pin as `Update TITLE to VERSION`,
   with its release-notes paragraph in the message, on a
-  `vendor-update/DATE` branch, pushes that branch, starts the full check on
+  `vendor-update` branch (replacing the one before), pushes it, starts the full check on
   it and keeps a `vendor-update` issue. It never pushes `main` or publishes
   (owner's decision, 2026-11-24, replacing the automatic beta releases of
   2026-11-07 and 2026-11-10): merge the branch once its full check passes and
@@ -193,7 +193,7 @@ A release pins its Nixpkgs revision, and machines take a newer one only with a
 release ([updates](updates.md#nixpkgs-comes-with-the-release)). The
 **nixpkgs-update** workflow (`.github/workflows/nixpkgs-update.yml`) moves
 `flake.lock`'s Nixpkgs every Monday to the head of the branch `flake.nix`
-follows, on a `nixpkgs-update/<date>` branch, starts the full check on it and
+follows, on the `nixpkgs-update` branch (replaced each time), starts the full check on it and
 keeps a `nixpkgs-update` issue with the branch and what to do. It never
 pushes `main` or publishes.
 
