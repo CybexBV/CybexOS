@@ -101,10 +101,16 @@ test("the Hermes bridge runs only while its widget wants it", () => {
     assert.doesNotMatch(unit, /wantedBy/);
     const connect = blockAfter(connection, "function connect() {");
     const guard = connect.indexOf("if (!enabled)");
-    const start = connect.indexOf('"start", "--no-block",\n            "hermes-menubar-bridge.service"');
+    const start = connect.indexOf('if (localBridge)\n            Quickshell.execDetached(["systemctl", "--user", "start"');
     assert.ok(guard !== -1 && start > guard, "the bridge starts only past the enabled guard");
     const changed = blockAfter(connection, "onEnabledChanged: {");
-    assert.match(changed.split("} else {")[1], /"stop", "--no-block",\s*"hermes-menubar-bridge.service"/);
+    assert.match(changed.split("} else {")[1],
+        /if \(localBridge\)\s*Quickshell\.execDetached\(\["systemctl", "--user", "stop", "--no-block",\s*"hermes-menubar-bridge.service"/);
+    // Only this computer's loopback endpoint is the bridge's.
+    const local = connection.match(/localBridge: (\/.*\/)\.test\(endpoint\)/)[1];
+    const pattern = eval(local);
+    assert.ok(pattern.test("ws://127.0.0.1:9120/ws"));
+    assert.ok(!pattern.test("wss://hermes.example.com/ws"));
 });
 
 test("Settings → About reports an off integration without constructing it", () => {

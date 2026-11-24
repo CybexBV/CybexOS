@@ -1369,6 +1369,15 @@ test("schema 35 makes the connected-service widgets optional and keeps them for 
         chosen.right.find(entry => entry.id === "modelusage").on = on;
         assert.equal(H.merge({ v: 34, mods: chosen }).mods.right.find(entry => entry.id === "modelusage").on, on);
     }
+    // A layout of that age without a Model Usage entry showed it at its
+    // default; it still does. In a new file an absent entry is off.
+    const partial = { left: [{ id: "ws", on: true, detail: "auto" }], center: [], right: [] };
+    const usage = file => H.merge(file).mods.right.find(entry => entry.id === "modelusage").on;
+    assert.equal(usage({ v: 34, mods: partial }), true);
+    assert.equal(usage({ v: 35, mods: partial }), false);
+    // So does a file from before versions; an empty one is a first run.
+    assert.equal(usage({ barStyle: "floating" }), true);
+    assert.equal(usage({}), false);
 });
 
 test("resetting a layout removes widgets placed outside their default column", () => {

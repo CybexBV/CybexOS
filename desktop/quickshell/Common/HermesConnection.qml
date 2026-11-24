@@ -42,6 +42,9 @@ Singleton {
             ? rawEnvironment.trim() : "";
         return environment !== "" ? environment : "ws://127.0.0.1:9120/ws";
     }
+    // The bridge's user service is this computer's loopback endpoint; one set
+    // elsewhere (HERMES_MENUBAR_WS_URL) is not ours to start or stop.
+    readonly property bool localBridge: /^wss?:\/\/(127\.0\.0\.1|localhost|\[::1\]):9120\//.test(endpoint)
     readonly property bool websocketsMissing: socketLoader.status === Loader.Error
     readonly property int retryInSecs: retryTimer.running
         ? Math.max(1, Math.ceil(retryTimer.interval / 1000)) : 0
@@ -72,8 +75,9 @@ Singleton {
         // Nothing starts the bridge at login (nix/modules/desktop.nix): the
         // widget does, as it turns on. Starting a running unit is a no-op,
         // and the reconnect backoff covers the moment it takes to listen.
-        Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
-            "hermes-menubar-bridge.service"]);
+        if (localBridge)
+            Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
+                "hermes-menubar-bridge.service"]);
         if (websocketsMissing) {
             state = "offline";
             return;
@@ -155,8 +159,9 @@ Singleton {
         } else {
             disconnect();
             // Turned off: the bridge has no one else to serve.
-            Quickshell.execDetached(["systemctl", "--user", "stop", "--no-block",
-                "hermes-menubar-bridge.service"]);
+            if (localBridge)
+                Quickshell.execDetached(["systemctl", "--user", "stop", "--no-block",
+                    "hermes-menubar-bridge.service"]);
         }
     }
 
