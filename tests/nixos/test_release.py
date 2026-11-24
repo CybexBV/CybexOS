@@ -28,6 +28,8 @@ class PublishTests(unittest.TestCase):
         shutil.copytree(ROOT / 'lifecycle/cybexos', self.work / 'lifecycle/cybexos',
                         ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copy2(ROOT / 'release/compatibility.json', self.work / 'release/compatibility.json')
+        # --stable reads the stable release's NixOS branch from its flake.lock.
+        shutil.copy2(ROOT / 'flake.lock', self.work / 'flake.lock')
         (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n')
         (self.work / 'VERSION').write_text('1.0.1\n')
         (self.work / 'cybexos.iso').write_bytes(b'iso')
