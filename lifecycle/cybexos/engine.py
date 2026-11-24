@@ -1025,7 +1025,7 @@ class Engine:
                 self.status(state='awaiting-boot', phase='Restart when ready to finish updating.',
                             error=result['error'])
 
-    def restore(self, record, reason, preserve_working=False):
+    def restore(self, record, reason, preserve_working=False, switch=True):
         tx = self.tx(record['id'])
         self.run.log = tx / 'build.log'
         activation_error = read(tx / 'activation-error.json', {}).get('error', '')
@@ -1048,7 +1048,8 @@ class Engine:
                 copy_config(self.working, tx / 'personal-before-rollback')
             self.profile(record['previousSystem'])
             self.run('cybexos-boot-trial', '--restore', record['previousSystem'])
-            self.switch(record['previousSystem'], 'test')
+            if switch:
+                self.switch(record['previousSystem'], 'test')
             self.health(record['previousSystem'] + '/sw/bin/cybexos-health', 'system', record)
             if not preserve_working:
                 self.select_config(tx / 'previous-config', record['id'] + '-rollback', fresh=True)
@@ -1103,8 +1104,14 @@ class Engine:
                 return
             if boot_id == pending['bootId']:
                 return
-            if current != pending['system'] or str(self.booted_system.resolve()) != pending['system']:
-                self.restore(pending, 'Failed trial boot')
+            booted = str(self.booted_system.resolve())
+            if current != pending['system'] or booted != pending['system']:
+                # A new boot that booted and runs the previous generation needs
+                # no switch. Switching would only re-execute the system and user
+                # service managers just as automatic login starts the desktop,
+                # and the session's start-up then fails: no bar, keyring locked.
+                self.restore(pending, 'Failed trial boot',
+                             switch=not current == booted == pending['previousSystem'])
                 return
             if (self.tx(pending['id']) / 'good.json').is_file():
                 # Confirmation already passed health, committed the boot default

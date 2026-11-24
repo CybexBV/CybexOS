@@ -1482,9 +1482,27 @@ class EngineTests(unittest.TestCase):
         self.engine.recover() # restarting the worker before reboot does not consume the trial
         self.assertEqual(read(self.engine.status_path)['state'],'awaiting-boot')
         self.engine.boot_id=lambda: 'different-boot'
+        self.runner.calls.clear()
         self.engine.recover() # old system on a new boot means the trial did not boot
         self.assertEqual(read(self.engine.status_path)['state'],'rolled-back')
+        self.assertIn(('cybexos-boot-trial','--restore',OLD_SYSTEM),self.runner.calls)
+        # It already runs the previous generation: only its boot entry is
+        # installed (`boot` stops there). `test` would re-execute the service
+        # managers while automatic login starts the desktop.
+        switches=[c for c in self.runner.calls if c[0].endswith('/bin/switch-to-configuration')]
+        self.assertEqual(switches,[(OLD_SYSTEM+'/bin/switch-to-configuration','boot')])
         with self.assertRaises(Failure):self.engine.stage('upstream') # exact failed system quarantined
+
+    def test_failed_trial_on_another_generation_switches_back_to_the_previous_one(self):
+        record=self.engine.stage('upstream')
+        self.engine.apply(record['id'],record['reviewToken'])
+        self.engine.boot_id=lambda: 'different-boot'
+        other='/nix/store/'+'c'*32+'-nixos-system-other'
+        for link in (self.system,self.booted):
+            link.unlink();link.symlink_to(other)
+        self.engine.recover()
+        self.assertEqual(read(self.engine.status_path)['state'],'rolled-back')
+        self.assertIn((OLD_SYSTEM+'/bin/switch-to-configuration','test'),self.runner.calls)
 
     def test_safe_efi_default_is_set_before_installing_candidate_boot(self):
         record=self.engine.stage('upstream')
