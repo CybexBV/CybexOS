@@ -562,6 +562,17 @@ Singleton {
         drawerOverview = SettingsHelpers.normalizeDrawerOverview(next);
     }
 
+    // A retired widget's saved options (schema 36 keeps them in the file):
+    // what its Cybex OS plugin starts with when Settings installs it.
+    function retiredWidgetOptions(id) {
+        if (SettingsHelpers.PLUGIN_WIDGET_IDS.indexOf(id) === -1)
+            return null;
+        const parsed = SettingsHelpers.parse(storeText);
+        const options = parsed.status === "ok" && parsed.value.modOpts ? parsed.value.modOpts[id] : null;
+        return options && typeof options === "object" && !Array.isArray(options)
+            && Object.keys(options).length ? options : null;
+    }
+
     function modulePresetIds(name) {
         return name === "everything"
             ? SettingsHelpers.MODULE_IDS

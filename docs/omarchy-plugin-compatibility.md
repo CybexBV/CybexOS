@@ -191,11 +191,13 @@ cybex plugin add https://github.com/DigitalPals/cybexos-hermes
 cybex plugin enable digitalpals.hermes
 ```
 
-The settings these widgets had as built-ins are not carried over: the shell
-settings schema 36 drops their layout entries and options from
-`~/.config/cybexos/shell.json` on its next save, and each plugin asks for its
-own settings again. A `shell.json` that still names them loads as before,
-without them. The T3 Code desktop app stays part of the developer tools.
+Shell settings schema 36 drops these widgets' layout entries from
+`~/.config/cybexos/shell.json` on its next save and keeps their options
+there. Installing one from **Settings → Plugins** merges the options the
+built-in widget had saved into the plugin's settings (`cybex plugin merge`),
+so a Remote Server host, a Fusebox URL or a GitHub watch list carries over.
+From the command line, run `cybex plugin merge <id> '<json>'` yourself. A
+`shell.json` that still names them loads as before, without them. The T3 Code desktop app stays part of the developer tools.
 
 ## Host contract
 

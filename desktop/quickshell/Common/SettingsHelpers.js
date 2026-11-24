@@ -80,9 +80,10 @@ function controlIconIn(value, fallback) {
 // staleModsLeftover). Schema 36 retires the six connected-service widgets
 // (Model Usage, Fusebox, GitHub, T3 Code, Hermes Agent and Remote Server):
 // they are Cybex OS plugins now, installed from Settings -> Plugins
-// (docs/omarchy-plugin-compatibility.md). Their layout entries and options
-// are dropped from the file on its next save (dropRetired); a plugin asks
-// for its own settings again.
+// (docs/omarchy-plugin-compatibility.md). Their layout entries are dropped
+// from the file on its next save (dropRetired); their options stay in it,
+// untouched, so installing the plugin from Settings -> Plugins brings them
+// along (Settings.retiredWidgetOptions, CybexPlugins.installCommand).
 var MODULE_IDS = [
     "ws", "media", "indicators", "clock", "weather", "notes", "updates",
     "tray", "assistant",
@@ -91,6 +92,9 @@ var MODULE_IDS = [
 
 var RETIRED_MODULE_IDS = ["bell", "idle", "usage",
     "modelusage", "fusebox", "gh", "t3", "hermes", "remote"];
+// Retired widgets that live on as Cybex OS plugins: their saved options are
+// the plugin's settings to import, so the file keeps them.
+var PLUGIN_WIDGET_IDS = ["modelusage", "fusebox", "gh", "t3", "hermes", "remote"];
 
 var DETAIL_IDS = ["media", "weather", "clock", "updates",
     "notifications", "vol", "batt"];
@@ -1861,6 +1865,7 @@ function rebaseDocuments(base, desired, current, path) {
 
 // A retired widget's layout entries and options are not a newer schema's
 // fields to carry along: they belong to a widget this shell no longer has.
+// A widget that became a plugin keeps its options for the plugin to import.
 function dropRetired(document) {
     if (document.mods && typeof document.mods === "object") {
         ["left", "center", "right"].forEach(function(col) {
@@ -1873,7 +1878,8 @@ function dropRetired(document) {
     if (document.modOpts && typeof document.modOpts === "object"
             && !(Array.isArray(document.modOpts) || document.modOpts instanceof Array)) {
         RETIRED_MODULE_IDS.forEach(function(id) {
-            delete document.modOpts[id];
+            if (PLUGIN_WIDGET_IDS.indexOf(id) === -1)
+                delete document.modOpts[id];
         });
     }
     return document;
@@ -1924,6 +1930,7 @@ var exported = {
     PALETTE_MODES: PALETTE_MODES,
     MODULE_IDS: MODULE_IDS,
     RETIRED_MODULE_IDS: RETIRED_MODULE_IDS,
+    PLUGIN_WIDGET_IDS: PLUGIN_WIDGET_IDS,
     MODULE_GROUPS: MODULE_GROUPS,
     NOTIFICATION_GROUPS: NOTIFICATION_GROUPS,
     INDICATOR_ACTION_CHOICES: INDICATOR_ACTION_CHOICES,

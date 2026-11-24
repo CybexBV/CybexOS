@@ -11,18 +11,22 @@
 var PLUGINS = [
     {
         id: "digitalpals.model-usage",
+        // The built-in widget it replaces (schema 36), whose options it imports.
+        widget: "modelusage",
         name: "Model Usage",
         description: "Claude, Codex and Kimi quota limits, resets and cost estimates.",
         url: "https://github.com/DigitalPals/omarchy-modelusage"
     },
     {
         id: "digitalpals.github-inbox",
+        widget: "gh",
         name: "GitHub",
         description: "Pull requests, issues and workflow runs from the repositories you watch.",
         url: "https://github.com/DigitalPals/cybexos-github"
     },
     {
         id: "digitalpals.t3code",
+        widget: "t3",
         name: "T3 Code",
         description: "Follow and answer your T3 Code sessions from the bar.",
         url: "https://github.com/DigitalPals/cybexos-t3code",
@@ -31,18 +35,21 @@ var PLUGINS = [
     },
     {
         id: "digitalpals.hermes",
+        widget: "hermes",
         name: "Hermes Agent",
         description: "Talk to a Hermes Agent and follow what it is doing.",
         url: "https://github.com/DigitalPals/cybexos-hermes"
     },
     {
         id: "digitalpals.fusebox",
+        widget: "fusebox",
         name: "Fusebox",
         description: "Watch a Fusebox server: faults, live load, account health and requests.",
         url: "https://github.com/DigitalPals/cybexos-fusebox"
     },
     {
         id: "digitalpals.remote-server",
+        widget: "remote",
         name: "Remote Server",
         description: "CPU, memory, storage and network of a server you reach over SSH.",
         url: "https://github.com/DigitalPals/cybexos-remote-server"
@@ -51,11 +58,20 @@ var PLUGINS = [
 
 // The helper commands Install queues, as one shell line so `enable` runs
 // only after `add` succeeded: its own error would otherwise replace the
-// reason the install failed. A plugin's `width` is the bar slot it needs.
-function installCommand(helper, plugin) {
-    var enable = 'python3 "$1" enable "$3"' + (plugin.width ? ' --width "$4"' : "");
-    return ["sh", "-c", 'python3 "$1" add "$2" && ' + enable,
-        "sh", helper, plugin.url, plugin.id].concat(plugin.width ? [String(plugin.width)] : []);
+// reason the install failed. A plugin's `width` is the bar slot it needs;
+// `options`, the built-in widget's saved options, become its settings.
+function installCommand(helper, plugin, options) {
+    var args = [helper, plugin.url, plugin.id];
+    var line = 'python3 "$1" add "$2" && python3 "$1" enable "$3"';
+    if (plugin.width) {
+        args.push(String(plugin.width));
+        line += ' --width "$' + args.length + '"';
+    }
+    if (options && typeof options === "object" && Object.keys(options).length) {
+        args.push(JSON.stringify(options));
+        line += ' && python3 "$1" merge "$3" "$' + args.length + '"';
+    }
+    return ["sh", "-c", line, "sh"].concat(args);
 }
 
 function installed(plugins, id) {

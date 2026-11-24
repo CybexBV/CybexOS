@@ -48,12 +48,14 @@ SettingsPage {
     }
 
     // `cybex plugin add <url>`, then `cybex plugin enable <id>`: these are
-    // Cybex OS's own, so they start on.
+    // Cybex OS's own, so they start on, with the options the built-in widget
+    // they replace had saved.
     function installCybex(plugin) {
         if (UserPlugins.busy)
             return;
         actionTarget = "cybex:" + plugin.id;
-        UserPlugins.enqueue(CybexPlugins.installCommand(UserPlugins.helper, plugin));
+        UserPlugins.enqueue(CybexPlugins.installCommand(UserPlugins.helper, plugin,
+            Settings.retiredWidgetOptions(plugin.widget)));
     }
 
     // One numbered step of the how-to: a small number in a chip on the row

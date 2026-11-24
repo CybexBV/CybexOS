@@ -1220,7 +1220,8 @@ test("schema 34 ignores the layout leftovers an older reset kept", () => {
 test("schema 36 retires the connected-service widgets without breaking old files", () => {
     // Model Usage, Fusebox, GitHub, T3 Code, Hermes Agent and Remote Server
     // are Cybex OS plugins now. An older file that names them still loads:
-    // every other choice stays, theirs are dropped on the next save.
+    // every other choice stays, their layout entries are dropped on the next
+    // save and their options stay in the file for the plugins to import.
     const retired = ["modelusage", "fusebox", "gh", "t3", "hermes", "remote"];
     const raw = {
         v: 35,
@@ -1255,15 +1256,18 @@ test("schema 36 retires the connected-service widgets without breaking old files
     const keys = H.overrideKeys(raw);
     const saved = JSON.parse(H.serializeDocument(merged, raw, keys));
     assert.equal(saved.v, 36);
-    const text = JSON.stringify(saved);
-    for (const id of retired)
-        assert.ok(!text.includes(`"${id}"`), `${id} was written back`);
+    const layout = JSON.stringify(saved.mods || {});
+    for (const id of retired) {
+        assert.ok(!layout.includes(`"${id}"`), `${id} was written back to the layout`);
+        assert.deepEqual(saved.modOpts[id], raw.modOpts[id], `${id}'s options were not kept for its plugin`);
+    }
     assert.equal(saved.modOpts.vol.step, 3);
-    // Options alone for a retired widget are not kept as a newer schema's.
-    const sparse = { v: 35, modOpts: { hermes: { showLabel: false } },
+    // An unrelated save keeps them too, and a widget retired for good
+    // (no plugin) keeps nothing.
+    const sparse = { v: 35, modOpts: { hermes: { showLabel: false }, usage: { x: 1 } },
         mods: { right: [{ id: "gh", on: true }] } };
     assert.deepEqual(JSON.parse(H.serializeDocument(H.merge(sparse), sparse, H.overrideKeys(sparse))),
-        { v: 36 });
+        { v: 36, modOpts: { hermes: { showLabel: false } } });
     // A newer schema's unknown widget is still carried along.
     const future = { v: 35, mods: { right: [{ id: "future", on: true }, { id: "vol", on: false }] } };
     const kept = JSON.parse(H.serializeDocument(H.merge(future), future, H.overrideKeys(future)));

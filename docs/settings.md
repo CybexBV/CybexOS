@@ -120,8 +120,9 @@ The Bar page holds the built-in widgets. Model Usage, GitHub, T3 Code,
 Hermes Agent, Fusebox and Remote Server left it on 2026-11-24: they are Cybex
 OS plugins now, listed under **Plugins → Cybex OS plugins** with an Install
 button each, which runs `cybex plugin add <url>` and `cybex plugin enable <id>`
-([Omarchy plugins](omarchy-plugin-compatibility.md#cybex-os-plugins)). Their
-old bar settings are not carried over; the plugins ask again. The widget
+([Omarchy plugins](omarchy-plugin-compatibility.md#cybex-os-plugins)), and
+then `cybex plugin merge <id>` with the options the built-in widget had
+saved, which `shell.json` keeps for that. The widget
 presets are Focused and Everything.
 
 A widget's options in the Bar page open in a sheet with one scroll: the
