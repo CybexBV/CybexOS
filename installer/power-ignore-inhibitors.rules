@@ -1,0 +1,14 @@
+// The installer's Restart, Shut down and firmware buttons are explicit
+// actions on the live medium: cybexos-installerd (root) reboots or powers
+// off with systemctl --check-inhibitors=no, so no session or program on the
+// medium can veto them. Since systemd 257 logind lets root ignore another
+// program's shutdown block only when polkit allows it; this allows exactly
+// reboot and power-off, for root only (after systemd's own
+// 10-systemd-logind-root-ignore-inhibitors.rules.example).
+polkit.addRule(function (action, subject) {
+    if ((action.id == "org.freedesktop.login1.reboot-ignore-inhibit" ||
+         action.id == "org.freedesktop.login1.power-off-ignore-inhibit") &&
+        subject.user == "root") {
+        return polkit.Result.YES;
+    }
+});
