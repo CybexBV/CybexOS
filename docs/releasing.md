@@ -234,13 +234,46 @@ run automatically on pushes, pull requests or releases, and there is no
 nightly run. Run it on a branch before merging changes to the updater, the
 Nix modules, the installer, the release scripts, qualification or workflows.
 
-It has two jobs that run side by side. The checks job runs the source
+It has three jobs that run side by side. The checks job runs the source
 tests, then builds the systems, the matched XPS stack and the VM tests in a
 single `nix build`, so packages both need build once, and checks what
 machines would compile. The image job builds the ISO, checks it against the
-source and installs it twice, plain and encrypted, in two VMs at once.
+source and installs it twice, plain and encrypted, in two VMs at once. The
+upgrade job takes the path people take ([below](#the-upgrade-job)).
 
-Both jobs require a `cybexos-isolated` self-hosted runner;
+### The upgrade job
+
+The upgrade job installs the previous published release from its own ISO and
+lets that release's own updater move the machine to this commit, as if it
+were published as the next release (`scripts/qualify-upgrade`). The previous
+release is the newest published one older than `VERSION`: on a release
+branch the newest release, on any other branch the one before it. The
+`from` input of the workflow names another (`gh workflow run nixos.yml
+--ref <branch> -f from=v1.0.25`).
+
+The old updater can't be changed, so the job answers it at the network. A
+small HTTPS stand-in for api.github.com runs on the runner; the guest trusts
+its throwaway test CA and reaches it through `/etc/hosts`, until the next
+boot. It serves the release listing with this commit's `VERSION` as the
+newest release (replacing a published one of that version) and that tag's
+commit; every other request, such as a release's `flake.lock` or a source
+tarball, goes on to GitHub unchanged, so the job needs the pushed commit.
+
+In the guest, `cybex update check` must offer the release, then the updater
+prepares it as people would: 1.0.25 and 1.0.26 the release alone (`cybex
+update stage cybexos`), later ones what Software Update offers, and on an
+updater before 1.0.32 the release alone again when that fails. It applies
+the update, trial-boots it, signs in and confirms it. The machine must then
+run this commit (`/etc/cybexos/release.json` and the `cybexos` lock), the
+Nixpkgs revision that updater should have chosen (the release's own from
+1.0.32 on), and a healthy desktop. The JSON evidence names both releases, the
+ISO's checksum, each step and every request the stand-in answered.
+
+`scripts/qualify-upgrade run ISO --from TAG --to TAG` runs the same test
+outside the workflow, for example with `--to` a published release. A plain
+installation in one VM of 16 GiB and 12 cores.
+
+All three jobs require a `cybexos-isolated` self-hosted runner;
 standard hosted runners do not provide enough space for the complete desktop,
 build dependencies, ISO copies and installation VMs. Provision a fresh,
 single-job disposable x86_64 Linux VM with at least 256 GiB of disk, 32 GiB
