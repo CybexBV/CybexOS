@@ -167,6 +167,11 @@ def discover(fetch, channel, installed):
         listing = parse(data)
         if not isinstance(listing, list):
             raise Failure('Invalid release listing')
+        # GitHub lists releases by creation date, not by version: a release
+        # published after a higher version (a draft finished later) can sit
+        # on an earlier page. Only a page with nothing newer than the
+        # installed version ends the walk.
+        reached = True
         for item in listing:
             if not isinstance(item, dict) or item.get('draft') is not False:
                 continue
@@ -179,9 +184,7 @@ def discover(fetch, channel, installed):
                 continue
             if not isinstance(item.get('prerelease'), bool):
                 raise Failure('Invalid release listing')
-            # Older pages hold older releases: past the installed version
-            # they add nothing this update brings.
-            reached = reached or key <= current
+            reached = reached and key <= current
             if channel == 'stable' and (item['prerelease'] or '-' in tag):
                 continue
             notes = item.get('body') if isinstance(item.get('body'), str) else ''

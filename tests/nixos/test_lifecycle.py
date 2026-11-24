@@ -362,10 +362,15 @@ class TrustTests(unittest.TestCase):
             return [url for url, _ in fetch.requests if '/releases' in url]
         stable = trust.discover(fetch, 'stable', '1.0.10')
         self.assertEqual((stable['version'], stable['releases']), ('1.0.20', ['1.0.20']))
-        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2)], 'page 3 is older than the installed version')
+        # Page 2 still holds releases newer than 1.0.10; page 3 holds none.
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2), self.PAGE.format(3)])
         fetch.requests.clear()
-        # An up-to-date beta machine reads one page.
+        # A beta machine reads until a page holds nothing newer than it.
         self.assertEqual(trust.discover(fetch, 'beta', '1.0.60')['releases'], ['1.0.65', '1.0.64', '1.0.63', '1.0.62', '1.0.61'])
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2)])
+        fetch.requests.clear()
+        # An up-to-date one reads one page.
+        trust.discover(fetch, 'beta', '1.0.65')
         self.assertEqual(read(), [self.FIRST])
         fetch.requests.clear()
         # Combined notes span the pages back to the installed version.
@@ -374,7 +379,7 @@ class TrustTests(unittest.TestCase):
         self.assertIn('## From Cybex OS 1.0.36\n\nNotes for v1.0.36', behind['notes'])
         self.assertIn('## From Cybex OS 1.0.31\n\nNotes for v1.0.31', behind['notes'])
         self.assertNotIn('1.0.30\n', behind['notes'])
-        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2)])
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2), self.PAGE.format(3)])
         fetch.requests.clear()
         # The walk is bounded. A machine further behind still gets the
         # newest release, with the notes the pages it read hold; a channel
@@ -390,6 +395,16 @@ class TrustTests(unittest.TestCase):
         looping.page = lambda url, limit=None, accept=None: (pages[0], self.FIRST)
         with self.assertRaisesRegex(Failure, 'Invalid release listing'):
             trust.discover(looping, 'stable', '1.0.10')
+
+    def test_a_higher_version_created_earlier_on_a_later_page_is_found(self):
+        # GitHub orders by creation: 1.0.36's draft was made before 1.0.35
+        # and published after it, so it sits on page 2.
+        pages = [listing(('v1.0.35', False, False), ('v1.0.34', False, False)),
+                 listing(('v1.0.36', False, False), ('v1.0.33', False, False)),
+                 listing(('v1.0.32', False, False))]
+        fetch = self.fetch(pages)
+        found = trust.discover(fetch, 'stable', '1.0.34')
+        self.assertEqual((found['version'], found['releases']), ('1.0.36', ['1.0.36', '1.0.35']))
 
     def test_listing_pages_follow_only_trusted_links_and_keep_their_own_cache(self):
         first = self.API + '/releases?per_page=30'
