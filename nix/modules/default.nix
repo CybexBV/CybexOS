@@ -108,6 +108,10 @@ in {
       # libsqlite3-sys (LIBSQLITE3_SYS_USE_PKG_CONFIG) need theirs.
       buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.oniguruma pkgs.sqlite ];
       env = (old.env or { }) // { GGML_SSE42 = "ON"; GGML_AVX = "ON"; GGML_AVX2 = "ON"; GGML_FMA = "ON"; GGML_F16C = "ON"; GGML_BMI2 = "ON"; };
+      # Its test suite runs once, in the full check (flake.nix checks.voxtype),
+      # not in every machine's and every image's build: compiling the tests
+      # takes about four minutes.
+      doCheck = false;
     }); description = "Nixpkgs Voxtype with Vulkan acceleration, ONNX Runtime engines, an AVX2 CPU path and Cybex OS dictation fixes"; };
   };
   config = lib.mkMerge [ (mkIf (cfg.enable || cfg.installationMedium) {

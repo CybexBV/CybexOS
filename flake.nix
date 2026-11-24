@@ -161,6 +161,12 @@
         screenshots = import ./nix/tests/screenshots.nix { inherit pkgs module; };
         # Omasnap's own headless suite, which machines skip when they build it.
         omasnap = (pkgs.callPackage ./nix/packages/omasnap.nix {}).tests.smoke;
+        # Voxtype's test suite, with Cybex OS's dictation patch, which machines
+        # skip when they build it too.
+        voxtype = (nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [ module ./nix/tests/machine.nix ];
+        }).config.cybexos.dictationPackage.overrideAttrs { doCheck = true; };
         # Installing apps leaves the shell and the assistant running; their own changes still reach them.
         session-restarts = import ./nix/tests/session-restarts.nix { inherit pkgs module; };
         # Settings -> Security -> Sudo without password: Polkit, the helper and real sudo.

@@ -234,13 +234,20 @@ run automatically on pushes, pull requests or releases, and there is no
 nightly run. Run it on a branch before merging changes to the updater, the
 Nix modules, the installer, the release scripts, qualification or workflows.
 
-Full Nix/product/image jobs require a `cybexos-isolated` self-hosted runner;
+It has two jobs that run side by side. The checks job runs the source
+tests, then builds the systems, the matched XPS stack and the VM tests in a
+single `nix build`, so packages both need build once, and checks what
+machines would compile. The image job builds the ISO, checks it against the
+source and installs it twice, plain and encrypted, in two VMs at once.
+
+Both jobs require a `cybexos-isolated` self-hosted runner;
 standard hosted runners do not provide enough space for the complete desktop,
 build dependencies, ISO copies and installation VMs. Provision a fresh,
 single-job disposable x86_64 Linux VM with at least 256 GiB of disk, 32 GiB
 RAM, four CPU cores and accessible nested KVM. The preflight requires 160 GiB
 free for the Nix store plus 32 GiB for work (192 GiB when they share a
-filesystem), at least 24 GiB available memory, and KVM for VM/image jobs.
+filesystem), at least 24 GiB available memory (28 GiB for the image job's two
+installation VMs of 12 GiB), and KVM.
 Nix runs up to four builds at once and lets each use every core of the
 runner (16 on The Beast's).
 Discard the runner, workspace and attached disks after each job. It must have

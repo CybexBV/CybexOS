@@ -33,11 +33,11 @@ assistant integrations, vendor packages or hardware profiles. John lifts the fre
   ends with the failing step's last lines; the whole log is in `.git/fast-test/`.
 - A failing test runs once more before it counts as failing (fast-test does this itself). Never skip or weaken a test
   to make it pass.
-- **The full check** is the `nixos.yml` workflow on The Beast's runner: source, product, VM and image jobs, about two
-  hours. Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with
+- **The full check** is the `nixos.yml` workflow on The Beast's runner: a checks job and an image job side by side,
+  about 35 minutes. Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with
   `gh run watch`. Never run it on The Dragon. Run it on your branch before you merge a change to `lifecycle/`,
-  `nix/`, `installer/`, `release/`, `scripts/qualify-installations` or `.github/`, and on `main` before every
-  release. There is no nightly run.
+  `nix/`, `installer/`, `release/`, `scripts/qualify-installations` or `.github/`, and on the release commit before
+  every release. There is no nightly run.
 
 ## Git workflow
 

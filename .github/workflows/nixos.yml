@@ -9,7 +9,10 @@ concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  source:
+  # Two jobs side by side, as many as The Beast's memory runs at once. Each
+  # job starts on an empty disposable runner and builds Cybex OS's own
+  # packages itself, so this job builds them once for every check below.
+  checks:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -24,10 +27,9 @@ jobs:
           extra_nix_config: |
             max-jobs = 4
             cores = 0
-      - run: python3 -B scripts/check-ci-capacity
+      - run: python3 -B scripts/check-ci-capacity --vm
+      # The quick checks first, so a broken source fails within minutes.
       - run: nix flake check --no-build
-      - run: nix build .#checks.x86_64-linux.lifecycle -L
-      - run: nix build .#checks.x86_64-linux.parity -L
       - run: nix develop -c tests/run
       - run: python3 -B scripts/check_leftovers.py --repo . --allowlist scripts/rename-leftovers-allowlist.txt
       - run: nix develop -c tests/qml-lint
@@ -35,25 +37,15 @@ jobs:
       - run: nix develop -c python3 -B tests/assistant-overlay.py
       - run: nix develop -c python3 -B tests/media-player.py
       - run: nix develop -c python3 -B tests/nixos-native
-  product:
-    runs-on: [self-hosted, linux, x64, cybexos-isolated]
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: ${{ github.sha }}
-      # Every job checks the commit the run was started for, not whatever its
-      # branch points to by the time the job gets the runner: release/publish
-      # trusts this run for exactly that commit.
-      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
-        with:
-          extra_nix_config: |
-            max-jobs = 4
-            cores = 0
-      - run: python3 -B scripts/check-ci-capacity
-      - run: nix build .#checks.x86_64-linux.product -L
-      - name: Build matched XPS stack and evaluate NVIDIA independently
-        run: nix build .#checks.x86_64-linux.xps-system .#checks.x86_64-linux.nvidia-evaluation -L
+      # One build: shared packages build once and the VM tests run side by
+      # side (12 + 4 + 4 + 1 GiB of the runner's 32).
+      - name: Build the systems, the matched XPS stack and the VM tests
+        run: |
+          nix build -L --no-link \
+            .#checks.x86_64-linux.lifecycle .#checks.x86_64-linux.parity .#checks.x86_64-linux.voxtype \
+            .#checks.x86_64-linux.product .#checks.x86_64-linux.xps-system .#checks.x86_64-linux.nvidia-evaluation \
+            .#checks.x86_64-linux.vm .#checks.x86_64-linux.boot .#checks.x86_64-linux.firmware \
+            .#checks.x86_64-linux.lid-guard
       # A fresh machine's update builds only what the updater expects: a new
       # local build Cybex OS doesn't declare would hold every update.
       - name: Check that machines build only expected packages
@@ -70,26 +62,6 @@ jobs:
             echo "== $profile"
             python3 -I -B scripts/check-prebuilt --profile "$profile"
           done
-  vm:
-    runs-on: [self-hosted, linux, x64, cybexos-isolated]
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: ${{ github.sha }}
-      # Every job checks the commit the run was started for, not whatever its
-      # branch points to by the time the job gets the runner: release/publish
-      # trusts this run for exactly that commit.
-      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
-        with:
-          extra_nix_config: |
-            max-jobs = 4
-            cores = 0
-      - run: python3 -B scripts/check-ci-capacity --vm
-      - run: nix build .#checks.x86_64-linux.vm -L
-      - run: nix build .#checks.x86_64-linux.boot -L
-      - run: nix build .#checks.x86_64-linux.firmware -L
-      - run: nix build .#checks.x86_64-linux.lid-guard -L
   image:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -105,7 +77,8 @@ jobs:
           extra_nix_config: |
             max-jobs = 4
             cores = 0
-      - run: python3 -B scripts/check-ci-capacity --vm
+      # Two installation VMs of 12 GiB run side by side below.
+      - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 28
       - name: Build and qualify the exact source image in isolated VMs
         run: |
           set -euo pipefail
@@ -122,4 +95,16 @@ jobs:
           # The disposable runner has no PXE service. Local PXE delivery
           # separately requires the refresh/service/image-list checks in AGENTS.md.
           nix develop -c scripts/check-image-parity "$image" . --output "$staging/image-parity.json"
-          nix develop -c scripts/qualify-installations "$image" --output "$staging/installations.json"
+          # The plain and the encrypted installation are separate VMs with
+          # their own disks and sockets (4 vCPUs each): run them side by side.
+          # Each line of output names its installation.
+          pids=()
+          for case in plain encrypted; do
+            (set -o pipefail
+             nix develop -c scripts/qualify-installations "$image" --case "$case" \
+               --output "$staging/installations-$case.json" 2>&1 | sed -u "s/^/[$case] /") &
+            pids+=($!)
+          done
+          failed=0
+          for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
+          exit "$failed"
