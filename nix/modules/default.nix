@@ -171,19 +171,21 @@ in {
     in builtins.toJSON {
       inherit (cfg.release) version revision narHash;
       inherit (compatibility) configurationApi pluginApi;
-      # The Nixpkgs branch this release follows ("unstable", later "26.11"),
-      # from its pinned revision, compared with a release's declared "nixos"
-      # list; not the rolling 26.11 version number.
-      updaterApi = 1; nixos = lib.removePrefix "nixos-" pinned.original.ref;
+      # No "nixos" branch: this module can't know the one the machine runs.
+      # A flake input carries its revision, not its branch, and a release
+      # prepared alone keeps the machine's older Nixpkgs, also across a
+      # branch move. The updater reads the branch from the machine's own
+      # flake.lock (Engine.installed_branch); "nixpkgs" is the release's.
+      updaterApi = 1;
       architecture = pkgs.stdenv.hostPlatform.system;
       nixpkgs = { inherit (pinned.locked) rev narHash lastModified; inherit (pinned.original) ref; };
     };
   }) (mkIf cfg.enable {
     assertions = [
       { assertion = !cfg.autoLogin || cfg.encrypted; message = "Cybex OS automatic login requires verified LUKS encryption."; }
-      { assertion = lib.versionAtLeast config.system.nixos.release "26.11"; message = "Cybex OS follows nixos-unstable (NixOS 26.11 or newer); the machine's nixpkgs input must track nixos-unstable."; }
-      { assertion = lib.versionAtLeast config.programs.hyprland.package.version "0.56.2"; message = "The Cybex OS Lua desktop needs Hyprland >=0.56.2 from the machine's nixos-unstable Nixpkgs."; }
-      { assertion = lib.versionAtLeast pkgs.hypridle.version "0.1.8"; message = "Cybex OS idle locking needs hypridle >=0.1.8 from the machine's nixos-unstable Nixpkgs."; }
+      { assertion = lib.versionAtLeast config.system.nixos.release "26.11"; message = "Cybex OS needs NixOS 26.11 or newer: the machine's nixpkgs input must follow nixos-unstable or a stable NixOS branch from nixos-26.11 on."; }
+      { assertion = lib.versionAtLeast config.programs.hyprland.package.version "0.56.2"; message = "The Cybex OS Lua desktop needs Hyprland >=0.56.2 from the machine's Nixpkgs."; }
+      { assertion = lib.versionAtLeast pkgs.hypridle.version "0.1.8"; message = "Cybex OS idle locking needs hypridle >=0.1.8 from the machine's Nixpkgs."; }
     ];
     nixpkgs.config = mkIf (cfg.features.proprietary && options.nixpkgs.config.type.name != "unique") { allowUnfree = mkDefault true; };
     # Every glibc locale: NixOS prebuilds only this archive (pkgs.glibcLocales,

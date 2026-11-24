@@ -11,7 +11,7 @@ let
   });
   previewFlake = pkgs.writeText "cybexos-preview-flake.nix" ''
     {
-      inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+      inputs.nixpkgs.url = "github:NixOS/nixpkgs/${upstream.original.ref}";
       inputs.cybexos.url = "path:${../..}";
       inputs.cybexos.inputs.nixpkgs.follows = "nixpkgs";
       outputs = { nixpkgs, cybexos, ... }: {

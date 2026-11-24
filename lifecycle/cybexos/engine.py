@@ -309,13 +309,26 @@ class Engine:
             raise Failure('Downloaded release source has no valid content identity')
         validate_source(self.run('cat', store + '/VERSION', sensitive=True),
                         parse(self.run('cat', store + '/release/compatibility.json', sensitive=True)),
-                        candidate, installed)
+                        candidate, installed | {'nixos': self.installed_branch()})
         if self.replaced(candidate, installed, nar_hash != installed.get('narHash')):
             raise Failure('Published version was replaced with different source content. Update rejected.')
         # The Nixpkgs revision this release was checked with, from its own
         # content-addressed source: what the machine's Nixpkgs moves to.
         pinned = inputs.pin(parse(self.run('cat', store + '/flake.lock', sensitive=True)))
         return candidate | {'narHash': nar_hash, 'nixpkgs': pinned}
+
+    def installed_branch(self):
+        """The NixOS branch this machine's Nixpkgs follows ("unstable", "26.11").
+
+        Its own flake.lock, not its release's: a release prepared alone keeps
+        the machine's Nixpkgs, also when the release itself moved to a later
+        branch, so only the machine's lock knows the branch it runs.
+        """
+        try:
+            ref = inputs.resolved(read(self.working / 'flake.lock'), 'nixpkgs')['original'].get('ref')
+        except (KeyError, TypeError, AttributeError, ValueError, OSError) as error:
+            raise Failure('The machine configuration names no NixOS branch. Check /etc/nixos/flake.lock.') from error
+        return inputs.release_name(ref)
 
     def release_pin(self, revision):
         """The Nixpkgs revision a published release was checked with: its
@@ -351,7 +364,7 @@ class Engine:
                               lambda m: m[1] + 'github:NixOS/nixpkgs/' + ref + m[2], flake.read_text())
         if count != 1:
             raise Failure('Machine flake must declare one literal nixpkgs.url. Keep personal modules in local/.')
-        atomic(flake, text.encode())
+        atomic(flake, text.encode(), flake.stat().st_mode & 0o777)
 
     @classmethod
     def move_nixpkgs(cls, config, old, pinned):

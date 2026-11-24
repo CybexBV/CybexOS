@@ -913,6 +913,13 @@ class TestedNixpkgsTests(unittest.TestCase):
         self.assertEqual(node['original'], {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'ref': 'nixos-unstable'})
         self.assertRegex(node['locked']['rev'], '^[0-9a-f]{40}$')
 
+    def test_vendor_lock_on_a_stable_branch_is_accepted(self):
+        for ref in ('nixos-26.11', 'nixos-27.05'):
+            with self.subTest(ref):
+                lock = copy.deepcopy(VENDOR_LOCK)
+                lock['nodes'][lock['nodes'][lock['root']]['inputs']['nixpkgs']]['original']['ref'] = ref
+                self.assertEqual(installer.vendor_nixpkgs(self.source(lock))['original']['ref'], ref)
+
     def test_malformed_or_moving_vendor_nixpkgs_is_rejected(self):
         def changed(update):
             lock = copy.deepcopy(VENDOR_LOCK)
@@ -923,7 +930,9 @@ class TestedNixpkgsTests(unittest.TestCase):
             'version': changed(lambda lock, node: lock.update(version=6)),
             'follows': changed(lambda lock, node: lock['nodes'][lock['root']]['inputs'].update(nixpkgs=['other'])),
             'no root input': changed(lambda lock, node: lock['nodes'][lock['root']]['inputs'].pop('nixpkgs')),
-            'stable branch': changed(lambda lock, node: node['original'].update(ref='nixos-26.05')),
+            'stable branch before 26.11': changed(lambda lock, node: node['original'].update(ref='nixos-26.05')),
+            'not a NixOS branch': changed(lambda lock, node: node['original'].update(ref='nixpkgs-unstable')),
+            'other repository': changed(lambda lock, node: node['original'].update(repo='nixpkgs-fork')),
             'no branch': changed(lambda lock, node: node['original'].pop('ref')),
             'pinned selector': changed(lambda lock, node: node['original'].update(rev='a' * 40)),
             'fork': changed(lambda lock, node: node['locked'].update(owner='someone')),
@@ -962,6 +971,36 @@ class TestedNixpkgsTests(unittest.TestCase):
                 self.assertRaisesRegex(installer.Failure, 'No disk has been erased'):
             installer.install(choice, {'password': 'qualification-password-123'}, f'path:{source}', 'revision', 'nar', run, channel='beta')
         run.assert_not_called(); guard.assert_not_called()
+
+    def test_machine_flake_follows_the_medium_s_nixos_branch(self):
+        lock = copy.deepcopy(VENDOR_LOCK)
+        node = lock['nodes'][lock['nodes'][lock['root']]['inputs']['nixpkgs']]
+        node['original']['ref'] = 'nixos-26.11'
+        source = self.source(lock)
+        choice = plan(); choice.update(encrypted=False, autoLogin=False)
+        hardware = {'camera': False, 'nvidia': False, 'nvidiaPrime': {'enable': False}, 'xps': False}
+        create = tempfile.mkdtemp
+        seen = {}
+        def run(*args, **kwargs):
+            if args[0] == 'nixos-generate-config':
+                (Path(args[-1]) / 'hardware-configuration.nix').write_text('{}')
+            elif args[:3] == ('nix', 'flake', 'lock'):
+                config = Path(str(args[-1]).removeprefix('path:'))
+                seen['flake'] = (config / 'flake.nix').read_text()
+                seen['mode'] = (config / 'flake.nix').stat().st_mode & 0o777
+                nix_lock(config)
+            elif args[0] == 'nixos-install':
+                raise installer.Failure('stop before fixture system build')
+            return 'unused-credential-hash'
+        with patch.object(installer, 'mkdtemp', side_effect=lambda *a, **k: create(*a, **{x: y for x, y in k.items() if x != 'dir'})), \
+                patch.dict(os.environ, {'CYBEXOS_UPDATER_SHARE': str(ROOT / 'templates')}), self.efi(), patch.object(installer, 'disk_guard'), \
+                patch.object(installer, 'detect', return_value=hardware), \
+                self.assertRaisesRegex(installer.Failure, 'stop before fixture system build'):
+            installer.install(choice, {'password': 'qualification-password-123'}, f'path:{source}', 'revision', 'nar', run, channel='beta')
+        # The flake names the lock's own branch, so Nix reuses the seeded node.
+        self.assertIn('nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";', seen['flake'])
+        self.assertNotIn('nixos-unstable', seen['flake'])
+        self.assertEqual(seen['mode'], 0o644)
 
     def test_machine_lock_is_seeded_with_tested_nixpkgs_and_checked_after_locking(self):
         choice = plan(); choice.update(encrypted=False, autoLogin=False)

@@ -30,9 +30,12 @@ combination Cybex OS already built; only personal modules are new to it.
   release it would install (or the installed one) pins a newer revision. It
   reads the available release's `flake.lock` through the same GitHub API as
   the release listing (`Engine.release_pin`).
-- A release on another NixOS branch (from nixos-unstable to nixos-26.11)
-  also rewrites the literal `nixpkgs.url` in the machine flake, so the lock
-  stays what the flake declares. Stable branches before 26.11 are refused.
+- A release on a later NixOS branch (from nixos-unstable to nixos-26.11, or
+  from 26.11 to 27.05) also rewrites the literal `nixpkgs.url` in the machine
+  flake, so the lock stays what the flake declares. Branches only move
+  forward: nixos-unstable, then each stable branch in release order
+  (`inputs.branch_order`). A release on an earlier branch leaves the machine's
+  Nixpkgs where it is. Stable branches before 26.11 are refused.
 - A machine whose Nixpkgs is newer than a release's (moved by an updater
   before 1.0.32, or by hand) keeps its own until a release pins a newer one.
 
@@ -361,8 +364,12 @@ cannot use a lower semantic version as a normal update.
 Cybex OS follows nixos-unstable until it moves to the stable NixOS 26.11
 branch, and then each new stable release. A release that moves the branch
 names it in its pinned `flake.lock` and is qualified like an ISO release.
-Release metadata and `/etc/cybexos/release.json` name the branch
-(`"nixos": ["unstable"]`), not a version. Never change
+A release's `release/compatibility.json` lists the branches it supports
+(`"nixos": ["unstable"]`), not versions. The updater compares that list with
+the branch in the machine's own `flake.lock` (`Engine.installed_branch`), not
+with its release's: a release prepared alone keeps the machine's Nixpkgs, also
+across a branch move. `/etc/cybexos/release.json` names only the release's
+pinned Nixpkgs (`"nixpkgs"`, with its branch). Never change
 `system.stateVersion` as part of a routine update.
 
 ## Prebuilt packages only

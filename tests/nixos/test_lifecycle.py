@@ -1341,6 +1341,52 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(moved['nodes']['nixpkgs']['original']['ref'], 'nixos-26.11')
         self.assertEqual(moved['nodes']['nixpkgs']['locked']['rev'], REV_OLD)
 
+    def test_nixpkgs_branch_moves_only_forward(self):
+        def on(ref):
+            data = lock(); data['nodes']['nixpkgs']['original']['ref'] = ref
+            return data
+        # Much later commit dates never take a machine back to an earlier branch.
+        later = PIN_NEW | {'lastModified': 10 ** 9}
+        for installed, offered, moves in (
+                ('nixos-unstable', 'nixos-26.11', True),
+                ('nixos-unstable', 'nixos-27.05', True),
+                ('nixos-26.11', 'nixos-27.05', True),
+                ('nixos-27.05', 'nixos-27.11', True),
+                ('nixos-26.11', 'nixos-unstable', False),
+                ('nixos-27.05', 'nixos-unstable', False),
+                ('nixos-27.05', 'nixos-26.11', False),
+                ('nixos-27.11', 'nixos-27.05', False),
+                # Never to or from a branch Cybex OS doesn't support.
+                ('nixos-unstable', 'nixos-26.05', False),
+                ('nixos-26.05', 'nixos-26.11', False)):
+            with self.subTest(installed=installed, offered=offered):
+                self.assertIs(inputs.newer(later | {'ref': offered}, on(installed)), moves)
+                self.assertIs(inputs.newer(PIN_NEW | {'ref': offered, 'lastModified': 1}, on(installed)), moves)
+        order = ['nixos-unstable', 'nixos-26.11', 'nixos-27.05', 'nixos-27.11', 'nixos-30.05']
+        self.assertEqual(sorted(reversed(order), key=inputs.branch_order), order)
+        for ref in ('nixos-26.05', 'nixos-26.12', 'nixpkgs-unstable', 'master', None):
+            self.assertIsNone(inputs.branch_order(ref))
+        self.assertEqual(inputs.release_name('nixos-unstable'), 'unstable')
+        self.assertEqual(inputs.release_name('nixos-26.11'), '26.11')
+        with self.assertRaises(Failure):
+            inputs.release_name('nixos-26.05')
+
+    def test_a_release_on_an_earlier_nixos_branch_leaves_the_machine_where_it_is(self):
+        data = lock(); data['nodes']['nixpkgs']['original']['ref'] = 'nixos-26.11'
+        atomic(self.config / 'flake.lock', data)
+        (self.config / 'flake.nix').write_text(
+            'inputs = {\n  nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";\n'
+            '  cybexos.url = "github:CybexHQ/CybexOS/' + REV_OLD + '";\n};\n')
+        self.runner.pinned = PIN_NEW | {'ref': 'nixos-unstable', 'lastModified': 10 ** 9}
+        # A release on nixos-unstable that still supports 26.11 machines.
+        with patch.dict(COMPATIBILITY, {'nixos': ['unstable', '26.11']}):
+            record = self.engine.stage('both')
+        config = self.engine.tx(record['id']) / 'config'
+        self.assertIn('nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";', (config / 'flake.nix').read_text())
+        staged = read(config / 'flake.lock')
+        node = staged['nodes'][inputs.root_inputs(staged)['nixpkgs']]
+        self.assertEqual((node['original']['ref'], node['locked']['rev']), ('nixos-26.11', REV_OLD))
+
     def test_packages_alone_never_take_a_newer_release_s_nixpkgs(self):
         # The machine already runs its installed release's revision; a newer
         # release brings a newer one, which packages alone can't take.
@@ -1396,6 +1442,32 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(self.system.readlink(),Path(OLD_SYSTEM))
             self.assertFalse(self.engine.pending_path.exists())
             self.assertEqual(read(self.engine.status_path)['state'],'failed')
+
+    def test_release_compatibility_follows_the_branch_the_machine_runs(self):
+        # The machine's own lock names its branch, not release.json: a
+        # release prepared alone keeps the machine's Nixpkgs.
+        original = self.runner
+        def declaring(branches):
+            def run(*args, **kwargs):
+                if tuple(map(str, args[:2])) == ('cat', STORE_SOURCE + '/release/compatibility.json'):
+                    return json.dumps(COMPATIBILITY | {'nixos': branches})
+                return original(*args, **kwargs)
+            run.log = None
+            return run
+        atomic(self.release, read(self.release) | {'nixos': '26.11'})
+        self.assertEqual(self.engine.installed_branch(), 'unstable')
+        self.engine.run = declaring(['26.11'])
+        with self.assertRaisesRegex(Failure, 'NixOS branch'):
+            self.engine.stage('cybexos')
+        data = lock(); data['nodes']['nixpkgs']['original']['ref'] = 'nixos-26.11'
+        atomic(self.config / 'flake.lock', data)
+        atomic(self.release, read(self.release) | {'nixos': 'unstable'})
+        self.assertEqual(self.engine.installed_branch(), '26.11')
+        record = self.engine.stage('cybexos')
+        self.assertEqual(read(self.engine.status_path)['state'], 'ready', record)
+        self.engine.run = declaring(['unstable'])
+        with self.assertRaisesRegex(Failure, 'NixOS branch'):
+            self.engine.stage('cybexos')
 
     def test_release_source_disagreements_are_rejected_before_build(self):
         # The tag, the release's own VERSION and compatibility declaration and
