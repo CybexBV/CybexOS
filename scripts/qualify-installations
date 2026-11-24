@@ -282,6 +282,38 @@ class VM:
             raise RuntimeError('Guest command failed (exit '+self.process.match.group(1)+'): '+script[:160]+'\n'+body[-4000:])
         return body
 
+    def watch_secret_callers(self):
+        """From now on, record every Secret Service caller at each login (SECRET_CALLERS)."""
+        self.command('''home=/home/cybexqa
+install -d -m 700 "$home/.local/share/cybexos-qualification"
+install -d "$home/.config/systemd/user"
+cat > "$home/.local/share/cybexos-qualification/secret-callers.py" <<'QA_FILE'
+''' + SECRET_CALLERS + '''QA_FILE
+cat > "$home/.config/systemd/user/qualification-secret-callers.service" <<'QA_FILE'
+''' + SECRET_CALLERS_UNIT + '''QA_FILE
+chown -R cybexqa: "$home/.local/share/cybexos-qualification" "$home/.config/systemd"
+runuser -u cybexqa -- env XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \\
+  systemctl --user enable --now qualification-secret-callers.service''')
+
+    def secret_callers(self):
+        """Each Secret Service caller seen since watch_secret_callers, counted, and the
+        service's owner changes (a GNOME Keyring crash shows as its owner leaving)."""
+        try:
+            text = self.command('journalctl --no-pager -o cat _SYSTEMD_USER_UNIT=qualification-secret-callers.service | tail -n 2000', timeout=120)
+        except Exception as error:
+            return {'state': 'failed', 'error': str(error)[-1000:]}
+        calls, owners = {}, []
+        for line in text.splitlines():
+            event = line.partition(' ')[2]
+            if event.startswith('secrets owner'):
+                owners.append(event)
+            elif ' from :' in event:
+                # Bus names and process ids differ at every login; count the program.
+                member, _, caller = event.partition(' from ')
+                caller = re.sub(r'^:[0-9.]+ (pid [0-9]+ )?', '', caller)
+                calls[member + ' ' + caller] = calls.get(member + ' ' + caller, 0) + 1
+        return {'state': 'collected', 'calls': calls, 'ownerChanges': owners[-20:]}
+
     def failure_diagnostics(self):
         """Read bounded diagnostics only when a completed command left a shell.
 
@@ -355,6 +387,9 @@ run('secretsOwner', prefix + ['busctl', '--user', 'status', 'org.freedesktop.sec
 run('keyringCrash', ['sh', '-c', 'coredumpctl --no-pager list 2>&1 | grep -i keyring; '
     'coredumpctl --no-pager info 2>&1 | head -c 2800'])
 run('userManagerJournal', ['sh', '-c', 'journalctl -b --no-pager -o short-monotonic -n 120 _UID=1000 | grep -vE "^ {20,}"'])
+# Who called the Secret Service at this login (watch_secret_callers), with times since boot.
+run('secretCallers', ['journalctl', '-b', '--no-pager', '-o', 'cat', '-n', '60',
+    '_SYSTEMD_USER_UNIT=qualification-secret-callers.service'])
 print(json.dumps(output))
 QA_DIAGNOSTIC'''
         try:
@@ -1185,6 +1220,109 @@ def confirm(vm):
         raise RuntimeError('Confirmation did not make the trial generation the boot default')
 
 
+# Qualification only: a user unit in the test account's own configuration, so
+# it runs at every later login whatever generation boots. GNOME Keyring 50.0
+# aborts in OpenSession when the calling client is gone before the daemon
+# handles the call, and the daemon D-Bus then starts is locked
+# (olafkfreund/nixos_config#2746). This names the caller.
+SECRET_CALLERS = r'''"""Qualification only: name every process that calls the Secret Service.
+
+GNOME Keyring 50.0 aborts in OpenSession when the calling client is gone
+before the daemon handles the call, and the replacement daemon is locked.
+Each new connection to the session bus is resolved to its process as soon as
+it appears, so a caller that has already left by the time of its call is
+still named. One line per Secret Service call, plus the service's owner
+changes (a crash shows as the owner leaving).
+"""
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+try:
+    from gi.repository import Gio, GLib
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+except Exception:  # slower, but still names most callers
+    bus = None
+known, callers = {}, set()
+
+
+def process_id(name):
+    if bus is None:
+        result = subprocess.run(["busctl", "--user", "call", "org.freedesktop.DBus", "/org/freedesktop/DBus",
+                                 "org.freedesktop.DBus", "GetConnectionUnixProcessID", "s", name],
+                                capture_output=True, text=True, timeout=5)
+        return int(result.stdout.split()[1]) if result.returncode == 0 else None
+    try:
+        return bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                             "GetConnectionUnixProcessID", GLib.Variant("(s)", (name,)), GLib.VariantType("(u)"),
+                             Gio.DBusCallFlags.NONE, 2000, None).unpack()[0]
+    except GLib.Error:
+        return None
+
+
+def process(name):
+    pid = process_id(name)
+    if pid is None:
+        return "gone before it was named"
+    try:
+        command = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+        command = " ".join(part.decode(errors="replace") for part in command if part).replace("\n", " ")[:240]
+        unit = Path(f"/proc/{pid}/cgroup").read_text().strip().rsplit("/", 1)[-1]
+    except OSError:
+        command, unit = "?", "?"
+    return f"pid {pid} [{unit}] {command}"
+
+
+def say(text):
+    print(f"{time.clock_gettime(time.CLOCK_MONOTONIC):.3f} {text}", flush=True)
+
+
+monitor = subprocess.Popen(
+    ["busctl", "--user", "monitor", "--json=short",
+     "--match", "type='method_call',interface='org.freedesktop.Secret.Service'",
+     "--match", "type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged'"],
+    stdout=subprocess.PIPE, text=True)
+say("monitoring the Secret Service")
+for line in monitor.stdout:
+    try:
+        message = json.loads(line)
+    except ValueError:
+        continue
+    if message.get("member") == "NameOwnerChanged":
+        try:
+            name, old, new = message["payload"]["data"]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if name == "org.freedesktop.secrets":
+            say(f"secrets owner {old or '-'} -> {new or '-'} ({process(new) if new else 'none'})")
+        elif name.startswith(":") and new == name:
+            known[name] = process(name)
+        elif name.startswith(":") and not new:
+            known.pop(name, None)
+            if name in callers:
+                callers.discard(name)
+                say(f"left {name}")
+        continue
+    sender = message.get("sender") or "?"
+    known.setdefault(sender, process(sender))
+    callers.add(sender)
+    say(f"{message.get('member')} from {sender} {known[sender]}")
+sys.exit(monitor.wait())
+'''
+
+SECRET_CALLERS_UNIT = '''[Unit]
+Description=Qualification: name every Secret Service caller
+
+[Service]
+ExecStart=-/run/current-system/sw/bin/python3 -I %h/.local/share/cybexos-qualification/secret-callers.py
+
+[Install]
+WantedBy=default.target
+'''
+
+
 PERSONAL_MODULE = '''{ pkgs, ... }: {
   environment.systemPackages = [ pkgs.hello ];
   environment.etc."cybexos-qualification-generation".text = "baseline";
@@ -1596,6 +1734,7 @@ QA_SOURCE''').strip())
         milestones['desktopConfigurationCheck'] = {'result': 'passed'}
         vm.login_desktop()
         vm.command('cybexos-health desktop-required',timeout=180)
+        vm.watch_secret_callers()
         vm.check_desktop_defaults()
         # The first frame can follow desktop health by a compositor turn.
         deadline = time.monotonic() + 30
@@ -1666,6 +1805,7 @@ QA_SOURCE''').strip())
             raise RuntimeError(milestones['proprietaryApplications']['error'][-2000:])
         if milestones['flathubApps']['result'] != 'passed':
             raise RuntimeError('Flathub apps: ' + milestones['flathubApps']['error'][-2000:])
+        evidence['secretServiceCallers'] = vm.secret_callers()
         if not lifecycle:
             evidence.update(result='passed', scope='actual ISO install, installed boot/login, encryption; no update application')
         else:
@@ -1673,6 +1813,8 @@ QA_SOURCE''').strip())
         return evidence
     except Exception:
         evidence['failureDiagnostics'] = vm.failure_diagnostics()
+        if vm.command_ready and 'secretServiceCallers' not in evidence:
+            evidence['secretServiceCallers'] = vm.secret_callers()
         raise
     finally:
         vm.stop()
