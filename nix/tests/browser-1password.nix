@@ -185,6 +185,9 @@ in pkgs.testers.runNixOSTest {
   nodes.machine = { lib, ... }: {
     imports = [ module ];
     cybexos = { enable = true; primaryUser = "tester"; features = { proprietary = true; steam = false; docker = false; }; };
+    # Not what this checks, and its snap download made the check fail
+    # whenever a runner couldn't reach api.snapcraft.io (2026-11-11).
+    cybexos.applications.spotify = false;
     # Brave Origin as Software installs it.
     cybexos.software.packages = [ "brave-origin" ];
     systemd.user.services.cybexos-assistant.environment.CYBEXOS_ASSISTANT_CLAUDE = "${claude}";

@@ -3,18 +3,20 @@ name: Vendor updates
 # Keeps the vendor downloads Cybex OS pins itself current (scripts/vendor-pins).
 # Daily: when Brave Origin, Codex or Claude Code has a newer release, update
 # every such pin, build them, run the source tests and each pin's own checks
-# (Brave's 1Password browser check, the agent CLIs' check), then release them
-# together to the beta channel (release/automatic). Promotion to stable stays
-# a person's decision. A failed check releases none of them. Pins that need
-# review are listed in a "vendor-pins-behind" issue; a failed run opens a
-# "vendor-updates" issue.
+# (Brave's 1Password browser check, the agent CLIs' check), then push them to
+# the vendor-update branch (release/vendor-branch), start the full check
+# on it and keep a "vendor-update" issue. It never pushes main or publishes
+# (owner's decision, 2026-11-24): the branch is merged after its full check
+# and released with the next beta. A failed check pushes none of them. Pins
+# that need review are listed in a "vendor-pins-behind" issue; a failed run
+# opens a "vendor-updates" issue.
 on:
   schedule:
     - cron: "41 5 * * *"
   workflow_dispatch:
     inputs:
-      publish:
-        description: Release a verified update to beta
+      push:
+        description: Push a verified update to a vendor-update branch
         type: boolean
         default: true
       rehearse:
@@ -117,10 +119,10 @@ jobs:
           nix flake check --no-build
           nix develop -c tests/run
 
-      # Unfree vendor downloads (the Spotify snap in the 1Password check's
-      # system) come from the vendors, whose hosts GitHub's runners cannot
-      # always reach: fetch them first, from this workflow's cache when it
-      # has them, else with spaced attempts (scripts/vendor-downloads).
+      # Unfree vendor downloads in the checks' systems come from the vendors,
+      # whose hosts GitHub's runners cannot always reach: fetch them first,
+      # from this workflow's cache when it has them, else with spaced
+      # attempts (scripts/vendor-downloads).
       - name: Plan the vendor downloads
         id: downloads
         if: steps.plan.outputs.checks != ''
@@ -155,15 +157,32 @@ jobs:
         if: steps.plan.outputs.checks != ''
         run: nix build --no-link -L ${{ steps.plan.outputs.checks }}
 
-      - name: Release to beta
-        if: steps.pins.outputs.names != '' && (github.event_name == 'schedule' || inputs.publish)
+      - name: Push the update branch
+        id: branch
+        if: steps.pins.outputs.names != '' && (github.event_name == 'schedule' || inputs.push)
         run: |
           # The checks may leave untracked files; this checkout is disposable.
           git clean -ffdxq
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          release/automatic "$RUNNER_TEMP/changes.json"
-
+          branch=$(release/vendor-branch "$RUNNER_TEMP/changes.json")
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          gh workflow run nixos.yml --repo "$GITHUB_REPOSITORY" --ref "$branch"
+          {
+            echo "Verified vendor updates are on \`$branch\`:"
+            echo
+            python3 -I - "$RUNNER_TEMP/changes.json" <<'EOF'
+          import json, sys
+          for change in json.load(open(sys.argv[1])):
+              print(f"- {change['title']} {change['from']} → {change['to']}")
+          EOF
+            echo
+            echo "The full check runs on that branch. When it passes, merge it (\`git merge --no-ff origin/$branch\`), push \`main\` and take it into the next beta release; each commit message carries its release-notes paragraph."
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/branch.md"
+          python3 -I -B scripts/github-issue open --label vendor-update \
+            --title "Vendor updates ready for their full check" --body-file "$RUNNER_TEMP/branch.md"
       - name: Report pins that need review
         if: always() && steps.pins.outcome == 'success'
         run: |

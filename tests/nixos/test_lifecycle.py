@@ -1,5 +1,6 @@
 """Source regression fixtures. These are not installation qualification."""
 import copy
+import re
 import contextlib
 import hashlib
 import http.server
@@ -36,7 +37,8 @@ def lock():
     return {'version': 7, 'root': 'root', 'nodes': {
         'root': {'inputs': {'nixpkgs': 'nixpkgs', 'cybexos': 'cybexos', 'personal': 'personal'}},
         'nixpkgs': {'original': {'type':'github','owner':'NixOS','repo':'nixpkgs','ref':'nixos-unstable'},
-                    'locked': {'type':'github','owner':'NixOS','repo':'nixpkgs','rev':REV_OLD,'narHash':NAR_OLD}},
+                    'locked': {'type':'github','owner':'NixOS','repo':'nixpkgs','rev':REV_OLD,'narHash':NAR_OLD,
+                               'lastModified':1000}},
         'cybexos': {'inputs': {'nixpkgs':['nixpkgs'], 'lanzaboote':'lanzaboote'},
                    'original':{'type':'github','owner':'CybexHQ','repo':'CybexOS','rev':REV_OLD},
                    'locked':{'type':'github','owner':'CybexHQ','repo':'CybexOS','rev':REV_OLD,'narHash':NAR_OLD}},
@@ -46,6 +48,17 @@ def lock():
 
 
 STORE_SOURCE = '/nix/store/' + 'e' * 32 + '-source'
+# The Nixpkgs revision a release was checked with (its own flake.lock).
+PIN_NEW = {'rev': REV_NEW, 'narHash': NAR_NEW, 'lastModified': 2000, 'ref': 'nixos-unstable'}
+
+
+def release_lock(pinned=PIN_NEW):
+    """A release source's own flake.lock, pinning `pinned`."""
+    return {'version': 7, 'root': 'root', 'nodes': {
+        'root': {'inputs': {'nixpkgs': 'nixpkgs'}},
+        'nixpkgs': {'original': {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'ref': pinned['ref']},
+                    'locked': {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'rev': pinned['rev'],
+                               'narHash': pinned['narHash'], 'lastModified': pinned['lastModified']}}}}
 COMPATIBILITY = {'schema': 1, 'configurationApi': 1, 'pluginApi': 1, 'minUpdater': 1,
                  'architectures': ['x86_64-linux'], 'nixos': ['unstable']}
 INSTALLED = {'version': '1.0.0', 'architecture': 'x86_64-linux', 'nixos': 'unstable'}
@@ -176,7 +189,7 @@ class ConfigurationIdentityTests(unittest.TestCase):
 
 class TrustTests(unittest.TestCase):
     """Keyless release discovery: the GitHub repository is the trust root."""
-    API = 'https://api.github.com/repos/CybexHQ/CybexOS'
+    API = 'https://api.github.com/repos/CybexBV/CybexOS'
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -267,9 +280,9 @@ class TrustTests(unittest.TestCase):
                 trust.discover(self.fetch(listing(('v1.1.0', False, False)), {'v1.1.0': answer}), 'stable', '1.0.0')
 
     def test_only_the_github_api_is_contacted(self):
-        for url in ('https://example.com/releases', 'http://api.github.com/repos/CybexHQ/CybexOS/releases',
+        for url in ('https://example.com/releases', 'http://api.github.com/repos/CybexBV/CybexOS/releases',
                     'https://cybexhq.github.io/CybexOS/channels/stable.json',
-                    'https://user:token@api.github.com/repos/CybexHQ/CybexOS/releases'):
+                    'https://user:token@api.github.com/repos/CybexBV/CybexOS/releases'):
             with self.subTest(url=url), self.assertRaises(Failure):
                 trust.Fetcher(self.base / 'cache').get(url)
         redirected = Mock(); redirected.url = 'https://example.com/releases'
@@ -291,7 +304,7 @@ class TrustTests(unittest.TestCase):
                 self.close_connection = True
             def log_message(self, *args):
                 pass
-        endpoint = 'https://api.github.com/repos/CybexHQ/CybexOS/releases?per_page=100'
+        endpoint = 'https://api.github.com/repos/CybexBV/CybexOS/releases?per_page=100'
         requests = []
         real_urlopen = urllib.request.urlopen
         with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Interrupted) as server:
@@ -316,7 +329,8 @@ class TrustTests(unittest.TestCase):
                     working = self.base / 'configuration'; working.mkdir()
                     atomic(working / 'flake.lock', lock())
                     release_file = self.base / 'release.json'
-                    atomic(release_file, {'version': '1.0.0', 'architecture': 'x86_64-linux', 'nixos': 'unstable'})
+                    atomic(release_file, {'version': '1.0.0', 'architecture': 'x86_64-linux', 'nixos': 'unstable',
+                                          'nixpkgs': PIN_NEW})
                     policy = self.base / 'policy.json'; atomic(policy, {'channel': 'stable'})
                     engine = Engine(self.base / 'state', working, FakeRunner(), release_file, policy)
                     result = engine.check()
@@ -373,9 +387,15 @@ class InputTests(unittest.TestCase):
         inputs.validate_machine(lock())
         data=lock();data['nodes']['extra']=copy.deepcopy(data['nodes']['nixpkgs'])
         with self.assertRaises(Failure):inputs.validate_machine(data)
-        # Cybex OS follows nixos-unstable only; a stable branch is another OS base.
-        data=lock();data['nodes']['nixpkgs']['original']['ref']='nixos-26.05'
-        with self.assertRaises(Failure):inputs.validate_machine(data)
+        # nixos-unstable or a stable branch from 26.11 on; older ones lack
+        # what Cybex OS needs, and other forks are another OS base.
+        for ref, valid in (('nixos-26.11', True), ('nixos-27.05', True), ('nixos-26.05', False),
+                           ('nixos-26.12', False), ('master', False), ('nixpkgs-unstable', False)):
+            data=lock();data['nodes']['nixpkgs']['original']['ref']=ref
+            with self.subTest(ref=ref):
+                if valid: inputs.validate_machine(data)
+                else:
+                    with self.assertRaises(Failure):inputs.validate_machine(data)
         data=lock();data['nodes']['cybexos']['inputs']['nixpkgs']='nixpkgs'
         with self.assertRaises(Failure):inputs.validate_machine(data)
 
@@ -398,7 +418,7 @@ class InputTests(unittest.TestCase):
 class FakeRunner:
     """Command-boundary fixture; deliberately not called end-to-end evidence."""
     log=None
-    def __init__(self):self.calls=[];self.fail=None
+    def __init__(self):self.calls=[];self.fail=None;self.pinned=PIN_NEW;self.relock=False
     def __call__(self,*args,**kwargs):
         args=tuple(map(str,args));self.calls.append(args)
         if self.fail and self.fail(args):raise Failure('injected command failure')
@@ -408,6 +428,14 @@ class FakeRunner:
             data['nodes'][scope]['locked'].update({'rev':REV_NEW,'narHash':NAR_NEW})
             if scope == 'cybexos':
                 data['nodes'][scope]['original']['rev'] = REV_NEW
+                # Nix locks the owner the flake names, as a real update does.
+                named = re.search(r'github:([^/"]+)/CybexOS/', (config/'flake.nix').read_text())
+                if named:
+                    for part in ('locked', 'original'):
+                        data['nodes'][scope][part]['owner'] = named[1]
+                # As Nix does when the flake names Nixpkgs otherwise than the lock.
+                if self.relock:
+                    data['nodes']['nixpkgs']['locked'].update(rev='9' * 40, lastModified=9000)
             atomic(config/'flake.lock',data)
         if args[:3]==('nix','flake','archive'):
             return json.dumps({'path':'/nix/store/'+'c'*32+'-config','inputs':{'nixpkgs':{'path':'/nix/store/'+'d'*32+'-source','inputs':{}}}})
@@ -418,10 +446,12 @@ class FakeRunner:
             return '1.1.0\n'
         if args[:2] == ('cat', STORE_SOURCE + '/release/compatibility.json'):
             return json.dumps(COMPATIBILITY)
+        if args[:2] == ('cat', STORE_SOURCE + '/flake.lock'):
+            return json.dumps(release_lock(self.pinned))
         # The prebuilt check: a candidate whose plan holds nothing to build.
         if args[:3]==('nix','eval','--raw') and any(a.endswith('.toplevel.drvPath') for a in args):
             return '/nix/store/'+'a'*32+'-nixos-system-cybexos.drv'
-        if args[:3]==('nix','eval','--json') and any('cybexosVendorBuilds' in a for a in args):return json.dumps({'expected':[],'vendor':[]})
+        if args[:3]==('nix','eval','--json') and any('cybexosDeclaredBuilds' in a for a in args):return json.dumps({'expected':[],'vendor':[],'declared':[]})
         if args[:2]==('nix','build') and '--dry-run' in args:return ''
         if args[:2]==('nix','build'):return json.dumps([{'outputs':{'out':NEW_SYSTEM}}])
         if args[:3]==('nix','store','diff-closures'):return 'hello: 1 → 2\n'
@@ -459,12 +489,15 @@ class EngineTests(unittest.TestCase):
         self.working=base/'nixos';self.working.symlink_to(self.config)
         self.system=base/'current-system';self.system.symlink_to(OLD_SYSTEM)
         self.booted=base/'booted-system';self.booted.symlink_to(OLD_SYSTEM)
-        self.release=base/'release.json';atomic(self.release,{'version':'1.0.0','architecture':'x86_64-linux','nixos':'unstable'})
+        self.release=base/'release.json';atomic(self.release,{'version':'1.0.0','architecture':'x86_64-linux','nixos':'unstable',
+                                                              'nixpkgs':PIN_NEW})
         self.policy=base/'update.json';atomic(self.policy,{'channel':'stable'})
         self.runner=FakeRunner()
         self.engine=Engine(base/'state',self.working,self.runner,self.release,self.policy,self.system,self.booted)
         copy_config(self.config,base/'deployed');(self.engine.state/'deployed').symlink_to(base/'deployed')
         self.engine.channel=lambda:release()
+        # The available release's flake.lock, as GitHub would serve it.
+        self.engine.release_pin=lambda revision:PIN_NEW
         self.sentinel=config_digest(self.config)
         self.personal=base/'personal-data';self.personal.write_text('VPN key, widgets, preferences, plugin data and service database sentinel')
 
@@ -477,6 +510,12 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(inputs.identity(new,'cybexos')['rev'],REV_NEW if scope in ('cybexos','both') else REV_OLD)
             self.assertEqual(inputs.identity(new,'personal')['rev'],REV_OLD)
             self.assertEqual(read(self.engine.status_path)['state'],'ready')
+            # A machine installed from the repository's former name moves to
+            # the current one with its next Cybex OS update, not before.
+            flake=(self.engine.tx(record['id'])/'config/flake.nix').read_text()
+            owner='CybexBV' if scope in ('cybexos','both') else 'CybexHQ'
+            self.assertIn(f'github:{owner}/CybexOS/',flake)
+            self.assertEqual(inputs.identity(new,'cybexos')['owner'],owner)
 
     def test_region_preview_preserves_working_and_other_preferences(self):
         atomic(self.config / 'desktop-settings.json', {'locale': 'en_US.UTF-8'})
@@ -1070,156 +1109,154 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(trust.NoPublishedRelease):
             self.engine.stage('both')
 
-    def assert_unknown_upstream(self, result, reason):
+    def test_check_offers_only_a_release_pinned_nixpkgs_and_never_the_channel_head(self):
+        # No release to install: the installed release's revision, if newer.
+        self.engine.channel = lambda: release() | {'version': '1.0.0'}
+        result = self.engine.check()
+        self.assertEqual(result['upstream'], {
+            'state': 'available', 'installed': REV_OLD, 'available': REV_NEW, 'release': '1.0.0',
+            'detail': 'Cybex OS 1.0.0 was checked with these NixOS packages. '
+                      'Prepare them to build and review the actual package changes.'})
+        self.assertFalse([args for args in self.runner.calls if args[:3] == ('nix', 'flake', 'metadata')])
+        # Never backwards: a machine already past the release's revision stays.
+        data = lock(); data['nodes']['nixpkgs']['locked'].update(rev='3' * 40, lastModified=3000)
+        atomic(self.config / 'flake.lock', data)
+        self.assertEqual(self.engine.check()['upstream'],
+                         {'state': 'current', 'installed': '3' * 40, 'available': '3' * 40})
+        # A release that names no revision offers none.
+        atomic(self.config / 'flake.lock', lock())
+        atomic(self.release, read(self.release) | {'nixpkgs': None})
+        self.assertEqual(self.engine.check()['upstream']['state'], 'current')
+
+    def test_check_takes_the_available_release_pin(self):
+        pins = []
+        def pinned(revision):
+            pins.append(revision)
+            return PIN_NEW | {'rev': '4' * 40, 'lastModified': 4000}
+        self.engine.release_pin = pinned
+        result = self.engine.check()
+        self.assertEqual(pins, [REV_NEW])
+        self.assertEqual(result['cybexos']['state'], 'available')
+        self.assertEqual((result['upstream']['state'], result['upstream']['available'], result['upstream']['release']),
+                         ('available', '4' * 40, '1.1.0'))
+        # One the release can't name is unknown; the release itself is still offered.
+        self.engine.release_pin = lambda revision: (_ for _ in ()).throw(Failure('Release endpoint unreachable'))
+        result = self.engine.check()
         self.assertEqual(result['upstream']['state'], 'unreachable')
-        error = result['upstream']['error']
-        self.assertIn('Nixpkgs (nixos-unstable) package-source status is unknown.', error)
-        self.assertIn(reason, error)
-        self.assertIn('`nix flake metadata --refresh --json github:NixOS/nixpkgs/nixos-unstable`', error)
-        self.assertNotIn('transaction log', error)
-        self.assertNotIn('cybex update log', error)
+        self.assertIn('the Nixpkgs revision of Cybex OS 1.1.0 could not be read', result['upstream']['error'])
         self.assertNotIn('available', result['upstream'])
         self.assertEqual(result['cybexos']['state'], 'available')
-        self.assertEqual(result['cybexos']['available'], '1.1.0')
-        self.assertFalse(self.engine.status_path.exists())
-        self.assertEqual(list((self.engine.state / 'transactions').iterdir()), [])
+
+    def test_release_pin_reads_the_release_flake_lock_through_the_trusted_api(self):
+        seen = []
+        def get(fetcher, url, limit=0, accept=''):
+            seen.append((url, accept))
+            return json.dumps(release_lock()).encode()
+        with patch.object(trust.Fetcher, 'get', get):
+            self.assertEqual(Engine.release_pin(self.engine, REV_NEW), PIN_NEW)
+        self.assertEqual(seen, [('https://api.github.com/repos/CybexBV/CybexOS/contents/flake.lock?ref=' + REV_NEW,
+                                 'application/vnd.github.raw+json')])
+        for broken in ({'rev': 'main'}, {'narHash': 'sha1-x'}, {'lastModified': 0}, {'ref': 'nixos-26.05'}):
+            with self.subTest(broken=broken), self.assertRaises(Failure):
+                inputs.pin(PIN_NEW | broken)
+        other = release_lock(); other['nodes']['nixpkgs']['locked']['owner'] = 'someone'
+        with self.assertRaises(Failure):
+            inputs.pin(other)
+
+    def test_a_release_update_never_moves_nixpkgs_past_the_pin(self):
+        # An edited nixpkgs.url makes Nix lock Nixpkgs again with the release:
+        # the channel head after all. The update refuses it.
+        self.runner.relock = True
+        for scope in ('both', 'cybexos'):
+            with self.subTest(scope=scope), self.assertRaises(Failure) as raised:
+                self.engine.stage(scope)
+            self.assertIn('also moved NixOS packages', str(raised.exception))
         self.assertEqual(config_digest(self.config), self.sentinel)
 
-    def test_check_classifies_actual_runner_output_without_exposing_or_logging_secrets(self):
-        secret = 'CANARY_DISCOVERY_TOKEN_27_x9F'
-        private = 'Authorization: Bearer ' + secret + '\nNIX_CONFIG=access-tokens = github.com=' + secret
-        endpoint = "error: unable to download 'https://api.github.com/repos/NixOS/nixpkgs/commits/nixos-unstable': "
-        cases = (
-            (endpoint + 'HTTP error 403\nresponse body: {"message":"API rate limit exceeded for 192.0.2.1"}',
-             'GitHub API rate limit reached.'),
-            (endpoint + 'HTTP error 403\nYou have exceeded a secondary rate limit.',
-             'GitHub API rate limit reached.'),
-            (endpoint + 'HTTP error 429', 'rate limited the request (HTTP 429)'),
-            (endpoint + 'HTTP error 403\nForbidden', 'denied access (HTTP 403)'),
-            ("error: unable to download 'https://cache.nixos.org/': HTTP error 403\nAPI rate limit exceeded",
-             'denied access (HTTP 403)'),
-            (endpoint + 'HTTP error 503\nService Unavailable', 'server error (HTTP 5xx)'),
-            (endpoint + 'HTTP/2 502', 'server error (HTTP 5xx)'),
-            (endpoint + 'Could not resolve host: api.github.com', 'hostname resolution failed'),
-            (endpoint + 'SSL certificate problem: certificate verify failed', 'TLS connection failed'),
-            (endpoint + 'Failed to connect to api.github.com port 443: Connection refused', 'connection failed'),
-            (endpoint + 'Timeout was reached', 'metadata lookup timed out'),
-            ('error: metadata evaluation failed (unrelated numbers 403, 429)', 'metadata lookup failed'),
-        )
-        log = self.base / 'discovery.log'
-        log.write_text('previous transaction diagnostics\n')
-        program = 'import sys; print(sys.argv[1]); print(sys.argv[2], file=sys.stderr); sys.exit(1)'
-        for output, reason in cases:
-            for log_path in (None, log):
-                runner = Runner(log_path)
-                def run(*args, **kwargs):
-                    self.assertEqual(args, ('nix', 'flake', 'metadata', '--refresh', '--json',
-                                            'github:NixOS/nixpkgs/nixos-unstable'))
-                    self.assertEqual(kwargs, {'timeout': 90, 'sensitive': True})
-                    try:
-                        return runner(sys.executable, '-B', '-c', program, private, output + '\n' + private, **kwargs)
-                    except CommandFailure as error:
-                        self.assertIn(secret, error.output, 'Exercise actual captured private diagnostics')
-                        self.assertNotIn(secret, str(error))
-                        raise
-                self.engine.run = run
-                stdout, stderr = io.StringIO(), io.StringIO()
-                with self.subTest(output=output, log=log_path), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                    with patch.object(self.engine, 'channel', return_value=release()) as channel:
-                        result = self.engine.check()
-                    channel.assert_called_once_with()
-                    self.assert_unknown_upstream(result, reason)
-                    public = json.dumps(result) + stdout.getvalue() + stderr.getvalue()
-                    for private_text in (secret, 'Authorization:', 'NIX_CONFIG', output):
-                        self.assertNotIn(private_text, public)
-                    if 'denied access' in reason:
-                        self.assertNotIn('rate limit', result['upstream']['error'])
-                    self.assertEqual(log.read_text(), 'previous transaction diagnostics\n')
-                    for path in self.engine.state.rglob('*'):
-                        if path.is_file():
-                            self.assertNotIn(secret.encode(), path.read_bytes())
+    def test_updates_move_nixpkgs_only_to_the_release_pin(self):
+        # Releasing alone keeps the machine's Nixpkgs; with Nixpkgs, the
+        # candidate's pin; Nixpkgs alone, the installed release's.
+        self.runner.pinned = PIN_NEW | {'rev': '4' * 40, 'lastModified': 4000}
+        for scope, expected in (('cybexos', REV_OLD), ('both', '4' * 40), ('upstream', REV_NEW)):
+            with self.subTest(scope=scope):
+                record = self.engine.stage(scope)
+                staged = read(self.engine.tx(record['id']) / 'config/flake.lock')
+                node = staged['nodes'][inputs.root_inputs(staged)['nixpkgs']]
+                self.assertEqual(node['locked']['rev'], expected)
+                if expected != REV_OLD:
+                    self.assertEqual(node['locked']['lastModified'], 4000 if scope == 'both' else 2000)
+        self.assertFalse([args for args in self.runner.calls if args[:4] == ('nix', 'flake', 'update', 'nixpkgs')])
+        # Never backwards, even with a release.
+        self.runner.pinned = PIN_NEW | {'rev': '5' * 40, 'lastModified': 500}
+        record = self.engine.stage('both')
+        staged = read(self.engine.tx(record['id']) / 'config/flake.lock')
+        self.assertEqual(inputs.identity(staged, 'nixpkgs')['rev'], REV_OLD)
 
-    def test_check_timeout_and_general_failures_use_safe_static_guidance(self):
-        secret = 'CANARY_DISCOVERY_FAILURE_27_x9F'
-        cases = (
-            (TimeoutError(secret), 'metadata lookup timed out'),
-            (subprocess.TimeoutExpired(['nix', secret], 90, output=secret, stderr=secret), 'metadata lookup timed out'),
-            (Failure('nix timed out; inspect the transaction log and retry.'), 'metadata lookup timed out'),
-            (Failure(secret), 'metadata lookup failed'),
-            (FileNotFoundError(secret), 'metadata lookup could not run'),
-        )
-        for error, reason in cases:
-            with self.subTest(error=type(error).__name__), patch.object(self.engine, 'run', side_effect=error) as run:
-                result = self.engine.check()
-                self.assert_unknown_upstream(result, reason)
-                self.assertNotIn(secret, json.dumps(result))
-                run.assert_called_once_with('nix', 'flake', 'metadata', '--refresh', '--json',
-                                            'github:NixOS/nixpkgs/nixos-unstable', timeout=90, sensitive=True)
+    def test_nixpkgs_moves_forward_or_to_another_branch_at_the_same_point(self):
+        data = lock()  # nixos-unstable, REV_OLD, lastModified 1000
+        same = {'rev': REV_OLD, 'narHash': NAR_OLD, 'lastModified': 1000}
+        self.assertFalse(inputs.newer(same | {'ref': 'nixos-unstable'}, data))
+        self.assertTrue(inputs.newer(PIN_NEW, data))
+        self.assertFalse(inputs.newer(PIN_NEW | {'lastModified': 999}, data))
+        # 26.11 branching off at the machine's own revision: only the branch moves.
+        self.assertTrue(inputs.newer(same | {'ref': 'nixos-26.11'}, data))
+        # A release on another branch moves there, whatever its commit date:
+        # a stable branch's commits can be older than the machine's unstable.
+        self.assertTrue(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11', 'lastModified': 500}, data))
+        self.assertTrue(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11'}, data))
+        # A lock without its date never moves: nothing proves the pin is later.
+        undated = lock(); del undated['nodes']['nixpkgs']['locked']['lastModified']
+        self.assertFalse(inputs.newer(PIN_NEW, undated))
+        moved = inputs.take(lock(), same | {'ref': 'nixos-26.11'})
+        self.assertEqual(moved['nodes']['nixpkgs']['original']['ref'], 'nixos-26.11')
+        self.assertEqual(moved['nodes']['nixpkgs']['locked']['rev'], REV_OLD)
 
-    def test_check_actual_runner_deadline_does_not_recommend_a_deployment_log(self):
-        runner = Runner()
-        # Exercise Runner's executable-specific timeout wording using Python,
-        # without invoking Nix or waiting for the real discovery deadline.
-        command = self.base / 'nix'
-        command.symlink_to(sys.executable)
-        def run(*args, **kwargs):
-            with patch('cybexos.common.time.monotonic', side_effect=(0, 91)):
-                return runner(command, '-B', '-c', 'pass', **kwargs)
-        self.engine.run = run
-        self.assert_unknown_upstream(self.engine.check(), 'metadata lookup timed out')
+    def test_packages_alone_never_take_a_newer_release_s_nixpkgs(self):
+        # The machine already runs its installed release's revision; a newer
+        # release brings a newer one, which packages alone can't take.
+        data = lock(); data['nodes']['nixpkgs']['locked'].update(rev=REV_NEW, narHash=NAR_NEW, lastModified=2000)
+        atomic(self.config / 'flake.lock', data)
+        working = config_digest(self.config)
+        self.engine.release_pin = lambda revision: PIN_NEW | {'rev': '4' * 40, 'lastModified': 4000}
+        with self.assertRaisesRegex(Failure, 'come with Cybex OS 1.1.0. Prepare them together'):
+            self.engine.stage('upstream')
+        self.assertEqual(config_digest(self.config), working)
+        # With no newer release it prepares the same packages again, as the
+        # installation qualification does.
+        self.engine.channel = lambda: release() | {'version': '1.0.0'}
+        record = self.engine.stage('upstream')
+        staged = read(self.engine.tx(record['id']) / 'config/flake.lock')
+        self.assertEqual(inputs.identity(staged, 'nixpkgs')['rev'], REV_NEW)
 
-    def test_check_actual_runner_invalid_utf8_still_checks_the_vendor_without_leaks(self):
-        secret = 'CANARY_DISCOVERY_ENCODING_x9F'
-        log = self.base / 'discovery.log'
-        log.write_text('previous transaction diagnostics\n')
-        runner = Runner(log)
-        program = 'import sys; sys.stdout.buffer.write(b"\\xff" + sys.argv[1].encode()); sys.stderr.write(sys.argv[1])'
-        def run(*args, **kwargs):
-            self.assertEqual(kwargs, {'timeout': 90, 'sensitive': True})
-            return runner(sys.executable, '-B', '-c', program, secret, **kwargs)
-        self.engine.run = run
-        stdout, stderr = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            with patch.object(self.engine, 'channel', return_value=release()) as channel:
-                result = self.engine.check()
-        channel.assert_called_once_with()
-        self.assert_unknown_upstream(result, 'malformed package-source metadata')
-        self.assertNotIn(secret, json.dumps(result) + stdout.getvalue() + stderr.getvalue())
-        self.assertEqual(log.read_text(), 'previous transaction diagnostics\n')
+    def test_the_nixpkgs_probe_puts_the_installed_branch_back(self):
+        # A Nixpkgs incompatibility is told apart by evaluating with the
+        # installed Nixpkgs; across a branch move the flake must name it too.
+        config = self.base / 'probe-config'; config.mkdir()
+        (config / 'flake.nix').write_text('inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";\n')
+        Engine.nixpkgs_branch(config, 'nixos-unstable')
+        self.assertEqual((config / 'flake.nix').read_text(),
+                         'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";\n')
+        (config / 'flake.nix').write_text('# no literal input\n')
+        with self.assertRaises(Failure):
+            Engine.nixpkgs_branch(config, 'nixos-26.11')
 
-    def test_check_malformed_metadata_remains_unknown_and_private(self):
-        secret = 'CANARY_DISCOVERY_METADATA_27_x9F'
-        documents = [json.dumps(value) for value in (
-            None, False, 0, [], {}, {'locked': None}, {'locked': []}, {'locked': {}},
-            {'locked': {'rev': None}}, {'locked': {'rev': 123}}, {'locked': {'rev': []}},
-            {'locked': {'rev': secret}}, {'locked': {'rev': ''}}, {'locked': {'rev': 'a' * 39}},
-        )]
-        documents += [secret, '{"locked":{"rev":"' + REV_OLD + '"},"locked":{"rev":"' + secret + '"}}']
-        for document in documents:
-            with self.subTest(document=document), patch.object(self.engine, 'run', return_value=document):
-                result = self.engine.check()
-                self.assert_unknown_upstream(result, 'malformed package-source metadata')
-                self.assertNotIn(secret, json.dumps(result))
-
-    def test_check_valid_revisions_preserve_public_fields(self):
-        for revision, state in ((REV_OLD, 'current'), (REV_NEW, 'available')):
-            with self.subTest(state=state), patch.object(self.engine, 'run', return_value=json.dumps({'locked': {'rev': revision}})):
-                result = self.engine.check()
-                self.assertEqual(result['upstream'], {
-                    'state': state, 'installed': REV_OLD, 'available': revision,
-                    'detail': 'Stage upstream to build and review actual package changes.',
-                })
-                self.assertEqual(result['cybexos']['state'], 'available')
-
-    def test_check_reports_both_source_failures_independently(self):
-        with patch.object(self.engine, 'run', side_effect=Failure('lookup failed')):
-            with patch.object(self.engine, 'channel', side_effect=Failure('Release endpoint unreachable; its status is unknown.')) as channel:
-                result = self.engine.check()
-        channel.assert_called_once_with()
-        self.assertEqual(result['upstream']['state'], 'unreachable')
-        self.assertIn('Nixpkgs (nixos-unstable)', result['upstream']['error'])
-        self.assertEqual(result['cybexos']['state'], 'unavailable')
-        self.assertIn('Release endpoint unreachable', result['cybexos']['error'])
+    def test_a_release_on_another_nixos_branch_moves_the_machine_flake_with_it(self):
+        (self.config / 'flake.nix').write_text(
+            'inputs = {\n  nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";\n'
+            '  cybexos.url = "github:CybexHQ/CybexOS/' + REV_OLD + '";\n};\n')
+        self.runner.pinned = PIN_NEW | {'ref': 'nixos-26.11'}
+        working = config_digest(self.config)
+        record = self.engine.stage('both')
+        config = self.engine.tx(record['id']) / 'config'
+        self.assertIn('nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";', (config / 'flake.nix').read_text())
+        staged = read(config / 'flake.lock')
+        self.assertEqual(staged['nodes'][inputs.root_inputs(staged)['nixpkgs']]['original']['ref'], 'nixos-26.11')
+        # Only the staged copy changes; the working configuration stays.
+        self.assertEqual(config_digest(self.config), working)
+        # A stable branch older than 26.11 is not a Cybex OS base.
+        self.runner.pinned = PIN_NEW | {'ref': 'nixos-26.05'}
+        with self.assertRaises(Failure):
+            self.engine.stage('both')
 
     def test_evaluation_build_and_runtime_check_failure_preserve_working(self):
         for needle in ('build','cybexos-desktop-check','archive'):
@@ -1445,9 +1482,27 @@ class EngineTests(unittest.TestCase):
         self.engine.recover() # restarting the worker before reboot does not consume the trial
         self.assertEqual(read(self.engine.status_path)['state'],'awaiting-boot')
         self.engine.boot_id=lambda: 'different-boot'
+        self.runner.calls.clear()
         self.engine.recover() # old system on a new boot means the trial did not boot
         self.assertEqual(read(self.engine.status_path)['state'],'rolled-back')
+        self.assertIn(('cybexos-boot-trial','--restore',OLD_SYSTEM),self.runner.calls)
+        # It already runs the previous generation: only its boot entry is
+        # installed (`boot` stops there). `test` would re-execute the service
+        # managers while automatic login starts the desktop.
+        switches=[c for c in self.runner.calls if c[0].endswith('/bin/switch-to-configuration')]
+        self.assertEqual(switches,[(OLD_SYSTEM+'/bin/switch-to-configuration','boot')])
         with self.assertRaises(Failure):self.engine.stage('upstream') # exact failed system quarantined
+
+    def test_failed_trial_on_another_generation_switches_back_to_the_previous_one(self):
+        record=self.engine.stage('upstream')
+        self.engine.apply(record['id'],record['reviewToken'])
+        self.engine.boot_id=lambda: 'different-boot'
+        other='/nix/store/'+'c'*32+'-nixos-system-other'
+        for link in (self.system,self.booted):
+            link.unlink();link.symlink_to(other)
+        self.engine.recover()
+        self.assertEqual(read(self.engine.status_path)['state'],'rolled-back')
+        self.assertIn((OLD_SYSTEM+'/bin/switch-to-configuration','test'),self.runner.calls)
 
     def test_safe_efi_default_is_set_before_installing_candidate_boot(self):
         record=self.engine.stage('upstream')
@@ -1627,12 +1682,13 @@ class EngineTests(unittest.TestCase):
         record = self.engine.stage('cybexos')
         calls = self.runner.calls
         prefetch = next(i for i, args in enumerate(calls)
-                        if args[:5] == ('nix', 'flake', 'prefetch', '--json', 'github:CybexHQ/CybexOS/' + REV_NEW))
+                        if args[:5] == ('nix', 'flake', 'prefetch', '--json', 'github:CybexBV/CybexOS/' + REV_NEW))
         declared = calls.index(('cat', STORE_SOURCE + '/release/compatibility.json'))
         update = next(i for i, args in enumerate(calls) if args[:3] == ('nix', 'flake', 'update'))
         self.assertLess(prefetch, declared)
         self.assertLess(declared, update)
-        self.assertEqual(read(self.engine.tx(record['id']) / 'release.json'), release() | {'narHash': NAR_NEW})
+        self.assertEqual(read(self.engine.tx(record['id']) / 'release.json'),
+                         release() | {'narHash': NAR_NEW, 'nixpkgs': PIN_NEW})
         self.runner.calls.clear()
         self.engine.channel=lambda:(_ for _ in ()).throw(Failure('Release listing unavailable'))
         with self.assertRaises(Failure):self.engine.stage('cybexos')

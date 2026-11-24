@@ -13,17 +13,17 @@ import uuid
 
 from .common import CommandFailure, Failure, Runner, atomic, link, locked, parse, read, syncdir
 from . import inputs
-from .trust import REPO, AheadOfChannel, Fetcher, NoPublishedRelease, discover, validate_source, version
+from .trust import FORMER_REPOS, GITHUB_API, REPO, AheadOfChannel, Fetcher, NoPublishedRelease, discover, validate_source, version
 from . import channel as channels
 from . import compatibility, review, firmware, prebuilt
 from .progress import NixProgress
 
 SCOPES = ('upstream', 'cybexos', 'both', 'local', 'firmware')
 BUSY = ('discovering', 'building', 'validating', 'activating', 'recovering', 'firmware')
-UPSTREAM_METADATA = ('nix', 'flake', 'metadata', '--refresh', '--json',
-                     'github:NixOS/nixpkgs/nixos-unstable')
-UPSTREAM_LOOKUP_FAILED = 'Nix metadata lookup failed. Check network access and Nix configuration.'
-UPSTREAM_LOOKUP_TIMEOUT = 'Nix metadata lookup timed out. Check network access and retry when connected.'
+# A derivation that failed to build here doesn't build again for this long
+# unless Nixpkgs or Cybex OS changes it (a new derivation path): a held
+# update is checked again daily without compiling the same failure each time.
+FAILED_BUILDS = 7 * 24 * 3600
 
 
 class NotPrebuilt(Failure):
@@ -44,6 +44,23 @@ class NotPrebuilt(Failure):
                          'try again after NixOS has built them.')
 
 
+class NotBuilt(NotPrebuilt):
+    """Packages of a new Nixpkgs that failed to build on this computer.
+
+    The prebuilt check can't foresee every failure: Cybex OS's own packages
+    build here and may not build against a new Nixpkgs yet (Voxtype on
+    2026-11-10), and configuration builds are never cached. The update waits
+    as a prebuilt hold does, and the same derivations don't build again
+    (FAILED_BUILDS) until Nixpkgs or Cybex OS changes them.
+    """
+    def __init__(self, names):
+        self.names, self.kernel = list(names), False
+        shown = ', '.join(self.names[:5]) + (f' and {len(self.names) - 5} more' if len(self.names) > 5 else '')
+        Failure.__init__(self, f"{len(self.names)} package{'s' if len(self.names) != 1 else ''} "
+                         f"failed to build with the new NixOS packages ({shown}). Nothing was changed. "
+                         'Cybex OS tries again when NixOS or Cybex OS publishes a fix.')
+
+
 class IncompatibleNixpkgs(Failure):
     """The candidate Nixpkgs no longer evaluates with this configuration.
 
@@ -58,38 +75,6 @@ class IncompatibleNixpkgs(Failure):
     def held(self):
         """Waiting for a Cybex OS release, rather than for the person."""
         return self.details['origin'] != 'personal'
-
-
-def upstream_discovery_error(output):
-    """Classify private command output into static, public-safe guidance."""
-    output = output.lower()
-    statuses = {int(code) for code in re.findall(
-        r'\b(?:http(?:/\d(?:\.\d)?)?(?:\s+(?:error|status(?:\s+code)?))?|status code)\s*[:=]?\s*([45]\d{2})\b', output)}
-    github_api = re.search(r'https://api\.github\.com(?:/|\s|[\'\"]|$)', output)
-    if github_api and any(text in output for text in (
-            'api rate limit exceeded', 'you have exceeded a secondary rate limit')):
-        return 'GitHub API rate limit reached. Retry later; no account or token is required.'
-    if 429 in statuses:
-        return 'The package-source endpoint rate limited the request (HTTP 429). Retry later.'
-    if 403 in statuses:
-        return 'The package-source endpoint denied access (HTTP 403). Check network access policy and Nix configuration.'
-    if any(500 <= code <= 599 for code in statuses):
-        return 'The package-source endpoint reported a server error (HTTP 5xx). Retry later.'
-    if any(text in output for text in (
-            'could not resolve host', "couldn't resolve host", 'could not resolve proxy',
-            "couldn't resolve proxy", 'temporary failure in name resolution', 'name or service not known')):
-        return 'Package-source hostname resolution failed. Check DNS and network access.'
-    if any(text in output for text in (
-            'ssl certificate problem', 'ssl peer certificate', 'certificate verify failed',
-            'tls handshake', 'ssl connect error')):
-        return 'The package-source TLS connection failed. Check the system clock, certificates and network access.'
-    if any(text in output for text in ('timed out', 'timeout was reached', 'connection timeout')):
-        return UPSTREAM_LOOKUP_TIMEOUT
-    if any(text in output for text in (
-            'could not connect', "couldn't connect", 'failed to connect', 'connection refused',
-            'network is unreachable', 'no route to host', 'connection reset by peer')):
-        return 'The package-source connection failed. Check network access and retry when connected.'
-    return UPSTREAM_LOOKUP_FAILED
 
 
 def configuration_paths(source):
@@ -307,7 +292,58 @@ class Engine:
                         candidate, installed)
         if self.replaced(candidate, installed, nar_hash != installed.get('narHash')):
             raise Failure('Published version was replaced with different source content. Update rejected.')
-        return candidate | {'narHash': nar_hash}
+        # The Nixpkgs revision this release was checked with, from its own
+        # content-addressed source: what the machine's Nixpkgs moves to.
+        pinned = inputs.pin(parse(self.run('cat', store + '/flake.lock', sensitive=True)))
+        return candidate | {'narHash': nar_hash, 'nixpkgs': pinned}
+
+    def release_pin(self, revision):
+        """The Nixpkgs revision a published release was checked with: its
+        flake.lock at that commit, read through the trusted GitHub API."""
+        return inputs.pin(parse(Fetcher(self.state / 'cache').get(
+            f'{GITHUB_API}/contents/flake.lock?ref={revision}', limit=1024 * 1024,
+            accept='application/vnd.github.raw+json')))
+
+    def release_brings_nixpkgs(self, lock):
+        """The newer release whose Nixpkgs revision is newer than the lock's, or None.
+
+        NixOS packages alone move only to the installed release's revision;
+        a newer one belongs to the release that was checked with it.
+        """
+        try:
+            candidate = self.channel()
+            if version(candidate['version']) <= version(read(self.release)['version']):
+                return None
+            return candidate['version'] if inputs.newer(self.release_pin(candidate['revision']), lock) else None
+        except (Failure, KeyError, TypeError, ValueError):
+            return None
+
+    def installed_pin(self):
+        """The installed release's Nixpkgs revision, or None for a release without one."""
+        value = read(self.release).get('nixpkgs')
+        return inputs.pin(value) if value is not None else None
+
+    @staticmethod
+    def nixpkgs_branch(config, ref):
+        """Name a NixOS branch in the machine flake's literal nixpkgs.url."""
+        flake = config / 'flake.nix'
+        text, count = re.subn(r'(nixpkgs\.url\s*=\s*")github:NixOS/nixpkgs/[A-Za-z0-9._-]+("\s*;)',
+                              lambda m: m[1] + 'github:NixOS/nixpkgs/' + ref + m[2], flake.read_text())
+        if count != 1:
+            raise Failure('Machine flake must declare one literal nixpkgs.url. Keep personal modules in local/.')
+        atomic(flake, text.encode())
+
+    @classmethod
+    def move_nixpkgs(cls, config, old, pinned):
+        """Lock the staged configuration's Nixpkgs to a release's revision.
+
+        When the release follows another NixOS branch (nixos-unstable to
+        nixos-26.11), the machine flake's literal nixpkgs.url names it too, so
+        the lock stays what the flake declares.
+        """
+        if pinned['ref'] != inputs.resolved(old, 'nixpkgs')['original']['ref']:
+            cls.nixpkgs_branch(config, pinned['ref'])
+        atomic(config / 'flake.lock', inputs.take(read(config / 'flake.lock'), pinned))
 
     def check(self):
         result = {'upstream': {}, 'cybexos': {}, 'firmware': firmware.discover(self.run, refresh=True),
@@ -321,41 +357,6 @@ class Engine:
             return result | {'upstream': {'state': 'unavailable', 'error': message},
                              'cybexos': {'state': 'unavailable'}, 'error': message}
         result['installedIdentity'] = hashlib.sha256(lock_body).hexdigest()
-        problem = None
-        try:
-            # Discovery has no deployment log. Suppress output logging even if
-            # this Runner previously belonged to a staged transaction.
-            output = self.run(*UPSTREAM_METADATA, timeout=90, sensitive=True)
-        except CommandFailure as error:
-            problem = upstream_discovery_error(error.output)
-        except (TimeoutError, TimeoutExpired):
-            problem = UPSTREAM_LOOKUP_TIMEOUT
-        except UnicodeError:
-            problem = 'Nix returned malformed package-source metadata. Check Nix configuration.'
-        except Failure as error:
-            # Runner's deadline currently raises this fixed Failure, rather
-            # than TimeoutError. Never publish its transaction-log guidance.
-            problem = (UPSTREAM_LOOKUP_TIMEOUT if str(error) ==
-                       'nix timed out; inspect the transaction log and retry.' else UPSTREAM_LOOKUP_FAILED)
-        except OSError:
-            problem = 'Nix metadata lookup could not run. Check that Nix is installed and accessible.'
-        else:
-            try:
-                metadata = parse(output)
-                revision = metadata['locked']['rev']
-                if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{40}', revision):
-                    raise ValueError('Invalid revision')
-            except (Failure, KeyError, TypeError, ValueError):
-                problem = 'Nix returned malformed package-source metadata. Check Nix configuration.'
-            else:
-                installed = inputs.identity(old, 'nixpkgs')['rev']
-                result['upstream'] = {'state': 'available' if revision != installed else 'current',
-                                      'installed': installed, 'available': revision,
-                                      'detail': 'Stage upstream to build and review actual package changes.'}
-        if problem:
-            result['upstream'] = {'state': 'unreachable', 'error':
-                'Nixpkgs (nixos-unstable) package-source status is unknown. ' + problem +
-                ' Run `' + ' '.join(UPSTREAM_METADATA) + '` locally for read-only diagnostics.'}
         try:
             selected = self.selected_channel()
         except (Failure, KeyError, TypeError, ValueError):
@@ -374,7 +375,33 @@ class Engine:
         except (Failure, KeyError, TypeError, ValueError) as error:
             result['cybexos'] = {'state': 'unavailable', 'installed': read(self.release)['version'], 'error': str(error)}
         result['cybexos']['channel'] = selected
+        result['upstream'] = self.upstream(old, result['cybexos'])
         return result
+
+    def upstream(self, lock, vendor):
+        """The NixOS packages an update would bring.
+
+        Not the channel head: the Nixpkgs revision the release it installs
+        was checked with (the available release's, else the installed one's),
+        and only when it is newer than the machine's.
+        """
+        installed = inputs.identity(lock, 'nixpkgs')['rev']
+        available = vendor.get('state') == 'available'
+        source = vendor.get('available') if available else read(self.release).get('version')
+        try:
+            if available:
+                pinned = self.release_pin(vendor['revision'])
+            else:
+                pinned = self.installed_pin()
+        except (Failure, KeyError, TypeError, ValueError):
+            return {'state': 'unreachable', 'installed': installed, 'error':
+                    f'NixOS package status is unknown: the Nixpkgs revision of Cybex OS {source} could not be read. '
+                    'Retry when connected; no account or token is required.'}
+        if pinned is None or not inputs.newer(pinned, lock):
+            return {'state': 'current', 'installed': installed, 'available': installed}
+        return {'state': 'available', 'installed': installed, 'available': pinned['rev'], 'release': source,
+                'detail': f'Cybex OS {source} was checked with these NixOS packages. '
+                          'Prepare them to build and review the actual package changes.'}
 
     def components(self, system):
         # A system built before the manifest existed simply lists no components.
@@ -468,17 +495,37 @@ class Engine:
                 old = read(config / 'flake.lock')
                 inputs.validate_machine(old)
                 if scope in ('upstream', 'both'):
-                    self.nix('flake', 'update', 'nixpkgs', '--flake', f'path:{config}', step='inputs')
+                    # Never the channel head: the Nixpkgs revision the release
+                    # was checked with (the candidate's, else the installed
+                    # one's), and only forwards. Without a newer one the
+                    # machine's Nixpkgs stays.
+                    pinned = candidate['nixpkgs'] if candidate else self.installed_pin()
+                    if pinned and inputs.newer(pinned, old):
+                        self.move_nixpkgs(config, old, pinned)
+                    elif scope == 'upstream' and (bringing := self.release_brings_nixpkgs(old)):
+                        raise Failure(f'These NixOS packages come with Cybex OS {bringing}. '
+                                      'Prepare them together with it.')
                 if candidate:
                     flake = config / 'flake.nix'
                     # A machine installed from its medium's bundled source names
                     # that content-addressed store path until its first release.
-                    expression = r'(cybexos\.url\s*=\s*")(?:github:' + re.escape(REPO) + r'/[^"]+|path:/nix/store/[^"]+)("\s*;)'
+                    expression = r'(cybexos\.url\s*=\s*")(?:github:(?:' + '|'.join(map(re.escape, (REPO, *FORMER_REPOS))) + r')/[^"]+|path:/nix/store/[^"]+)("\s*;)'
                     text, count = re.subn(expression, lambda m: m[1] + f'github:{REPO}/' + candidate['revision'] + m[2], flake.read_text())
                     if count != 1:
                         raise Failure('Machine flake must declare one literal cybexos.url. Keep personal modules in local/.')
                     atomic(flake, text.encode())
+                    # The Nixpkgs chosen above, which this update must not move.
+                    intended = inputs.resolved(read(config / 'flake.lock'), 'nixpkgs')
                     self.nix('flake', 'update', 'cybexos', '--flake', f'path:{config}', step='inputs')
+                    final = inputs.resolved(read(config / 'flake.lock'), 'nixpkgs')
+                    # Nix locks an input again when the flake names it otherwise
+                    # than the lock (an edited nixpkgs.url): that would be the
+                    # channel head after all.
+                    if (final['original'] != intended['original']
+                            or {key: final['locked'].get(key) for key in ('rev', 'narHash')}
+                            != {key: intended['locked'].get(key) for key in ('rev', 'narHash')}):
+                        raise Failure('Updating Cybex OS also moved NixOS packages: /etc/nixos/flake.nix names '
+                                      'another Nixpkgs than its lock. Restore its nixpkgs.url.')
                 new = read(config / 'flake.lock')
                 inputs.validate_delta(old, new, scope)
                 if candidate:
@@ -495,7 +542,13 @@ class Engine:
                 if kind in ('update', 'software'):
                     self.status(phase='Checking that every package is prebuilt')
                     try:
-                        self.require_prebuilt(config)
+                        # Builds that failed here wait only where they failed:
+                        # with a Nixpkgs move. The release alone (the fallback)
+                        # and Software changes build on the Nixpkgs in use.
+                        # Background preparation skips them; a person who
+                        # prepares again builds them again (a full disk, say).
+                        self.require_prebuilt(config, remembered=kind == 'update' and scope in ('upstream', 'both')
+                                              and self.background(request_id))
                     except CommandFailure as error:
                         if kind != 'update' or scope not in ('upstream', 'both'):
                             raise
@@ -513,8 +566,18 @@ class Engine:
                 if region is not None:
                     from .configuration import verify_region
                     verify_region(config, region, self.run)
-                out = parse(self.nix('build', '--no-link', '--json', '--no-update-lock-file',
-                                     f'path:{config}#nixosConfigurations.cybexos.config.system.build.toplevel'))
+                try:
+                    out = parse(self.nix('build', '--no-link', '--json', '--no-update-lock-file',
+                                         f'path:{config}#nixosConfigurations.cybexos.config.system.build.toplevel'))
+                except CommandFailure as error:
+                    # A new Nixpkgs that doesn't build here waits like one
+                    # NixOS hasn't built yet; anything else is a failure.
+                    if (kind == 'update' and scope in ('upstream', 'both')
+                            and inputs.identity(old, 'nixpkgs') != inputs.identity(new, 'nixpkgs')):
+                        failed = self.failed(error)
+                        if failed:
+                            raise failed from error
+                    raise
                 system = out[0]['outputs']['out']
                 if not re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/]+', system):
                     raise Failure('Invalid system build output')
@@ -582,7 +645,8 @@ class Engine:
                     self.keep_prepared(previous, scope, request_id, candidate, error, error.names)
                     raise
                 self.status(state='failed', error=str(error), notPrebuilt=error.names,
-                            phase='Waiting for NixOS to finish building this change' if kind == 'update'
+                            phase=('Waiting for a fix to the new NixOS packages' if isinstance(error, NotBuilt)
+                                   else 'Waiting for NixOS to finish building this change') if kind == 'update'
                                 else 'Staging failed; working system retained',
                             retry='Prepare again after NixOS has built these packages.' if kind == 'update'
                                 else 'Correct the failure and prepare this change again.')
@@ -592,7 +656,7 @@ class Engine:
                     self.keep_prepared(previous, scope, request_id, candidate, error)
                     raise
                 self.status(state='failed', phase='Staging failed; working system retained', error=str(error),
-                            retry='Stage upstream explicitly to retain the installed Cybex OS version.' if scope == 'both' else 'Correct the failure and stage again.')
+                            retry='Stage cybexos to install the release on the NixOS packages in use.' if scope == 'both' else 'Correct the failure and stage again.')
                 raise
             finally:
                 self.run.log = None
@@ -639,6 +703,10 @@ class Engine:
         copy_config(config, probe)
         lock = parse(json.dumps(new))
         lock['nodes'][upstream] = old['nodes'][installed]
+        # A release on another branch also moved the flake's nixpkgs.url;
+        # the installed Nixpkgs needs its own back for the lock to match.
+        if old['nodes'][installed]['original'].get('ref') != new['nodes'][upstream]['original'].get('ref'):
+            self.nixpkgs_branch(probe, old['nodes'][installed]['original']['ref'])
         atomic(probe / 'flake.lock', lock)
         try:
             self.nix('eval', '--raw', '--no-update-lock-file',
@@ -652,34 +720,79 @@ class Engine:
             details['message'] = compatibility.public(found[0])
         return IncompatibleNixpkgs(details, version)
 
-    def require_prebuilt(self, config, *, kernel_only=False):
+    def require_prebuilt(self, config, *, kernel_only=False, remembered=True):
         """Refuse a candidate that would compile Nixpkgs packages here.
 
         A dry run against this computer's store and configured caches; nothing
         is built. Configuration, fixed-output downloads and the system's
         expected local builds (Cybex OS's own packages, unfree vendor
         downloads, kernel modules, `cybexos.updates.expectedBuilds`) are fine;
-        the Nixpkgs packages a vendor download needs must come prebuilt.
-        Personal previews allow other package builds, but never a kernel build.
+        every other package must come prebuilt, including the inputs of those
+        expected builds (prebuilt.compiles). A derivation that failed to build
+        here before waits too (FAILED_BUILDS). Personal previews allow other package builds,
+        but never a kernel build.
         """
         build = f'path:{config}#nixosConfigurations.cybexos.config.system.build'
-        root, expected, vendor = None, [], []
+        root, lists = None, {'expected': [], 'vendor': [], 'declared': []}
         if not kernel_only:
             root = self.nix('eval', '--raw', '--no-update-lock-file', build + '.toplevel.drvPath').strip()
-            # Older releases have no vendor list; their vendor downloads keep
-            # covering their inputs.
-            builds = parse(self.nix('eval', '--json', '--no-update-lock-file', build, '--apply',
-                                    'build: { expected = build.cybexosExpectedBuilds; vendor = build.cybexosVendorBuilds or [ ]; }'))
-            expected, vendor = (builds.get('expected'), builds.get('vendor')) if isinstance(builds, dict) else (None, None)
-            if (not re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/]+\.drv', root)
-                    or any(not isinstance(items, list) or any(not isinstance(item, str) for item in items)
-                           for items in (expected, vendor))):
+            # Releases before 1.0.32 declare no covering builds: nothing covers.
+            lists = parse(self.nix('eval', '--json', '--no-update-lock-file', build, '--apply',
+                                   'build: { expected = build.cybexosExpectedBuilds; vendor = build.cybexosVendorBuilds or [ ];'
+                                   ' declared = build.cybexosDeclaredBuilds or [ ]; }'))
+            if (not re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/]+\.drv', root) or not isinstance(lists, dict)
+                    or any(not isinstance(lists.get(key), list) or any(not isinstance(item, str) for item in lists[key])
+                           for key in ('expected', 'vendor', 'declared'))):
                 raise Failure('The candidate system has no valid build plan.')
         plan = prebuilt.dry_run(self.run, build + '.toplevel', options=('--no-update-lock-file',))
-        found = prebuilt.compiles(self.run, plan['build'], root=root, expected=expected, vendor=vendor,
-                                 kernel_only=kernel_only) if plan['build'] else []
+        if not kernel_only and remembered:
+            known = self.failed_before()
+            again = sorted(prebuilt.name(path) for path in plan['build'] if path in known)
+            if again:
+                raise NotBuilt(again)
+        found = prebuilt.compiles(self.run, plan['build'], root=root, expected=lists['expected'], vendor=lists['vendor'],
+                                 declared=lists['declared'], kernel_only=kernel_only) if plan['build'] else []
         if found:
             raise NotPrebuilt(found, kernel=kernel_only)
+
+    def background(self, request_id):
+        """Whether automatic preparation made this request (automatic.submitted)."""
+        from . import automatic
+        try:
+            return request_id in automatic.submitted(read(self.state / automatic.LAST_RUN, {}) or {})
+        except Failure:
+            return False
+
+    def failed_before(self):
+        """Derivations that failed to build here recently (FAILED_BUILDS)."""
+        try:
+            known = read(self.state / 'failed-builds.json', {}) or {}
+        except Failure:
+            return {}
+        now = time.time()
+        return {path: when for path, when in known.items() if isinstance(when, (int, float))
+                and now - when < FAILED_BUILDS} if isinstance(known, dict) else {}
+
+    def failed(self, error):
+        """A NotBuilt for the builds that failed in `error`, or None.
+
+        Remembers them for a week, for background preparation only (a person
+        who prepares again builds them again), except downloads: a
+        fixed-output derivation fails when the network does, so a failure of
+        downloads alone stays an ordinary failure and is tried again.
+        """
+        paths = prebuilt.failed_builds(getattr(error, 'output', ''))
+        if not paths:
+            return None
+        try:
+            graph = prebuilt.show(self.run, paths)
+        except Failure:
+            graph = {}
+        remembered = [path for path in paths if path in graph and prebuilt.kind(graph[path]) != 'fetch']
+        if not remembered:
+            return None
+        atomic(self.state / 'failed-builds.json', self.failed_before() | {path: time.time() for path in remembered})
+        return NotBuilt([prebuilt.name(path) for path in remembered])
 
     def git_metadata_record(self, root):
         key = hashlib.sha256(str(Path(root).resolve()).encode()).hexdigest()
@@ -912,7 +1025,7 @@ class Engine:
                 self.status(state='awaiting-boot', phase='Restart when ready to finish updating.',
                             error=result['error'])
 
-    def restore(self, record, reason, preserve_working=False):
+    def restore(self, record, reason, preserve_working=False, switch=True):
         tx = self.tx(record['id'])
         self.run.log = tx / 'build.log'
         activation_error = read(tx / 'activation-error.json', {}).get('error', '')
@@ -935,7 +1048,8 @@ class Engine:
                 copy_config(self.working, tx / 'personal-before-rollback')
             self.profile(record['previousSystem'])
             self.run('cybexos-boot-trial', '--restore', record['previousSystem'])
-            self.switch(record['previousSystem'], 'test')
+            if switch:
+                self.switch(record['previousSystem'], 'test')
             self.health(record['previousSystem'] + '/sw/bin/cybexos-health', 'system', record)
             if not preserve_working:
                 self.select_config(tx / 'previous-config', record['id'] + '-rollback', fresh=True)
@@ -990,8 +1104,14 @@ class Engine:
                 return
             if boot_id == pending['bootId']:
                 return
-            if current != pending['system'] or str(self.booted_system.resolve()) != pending['system']:
-                self.restore(pending, 'Failed trial boot')
+            booted = str(self.booted_system.resolve())
+            if current != pending['system'] or booted != pending['system']:
+                # A new boot that booted and runs the previous generation needs
+                # no switch. Switching would only re-execute the system and user
+                # service managers just as automatic login starts the desktop,
+                # and the session's start-up then fails: no bar, keyring locked.
+                self.restore(pending, 'Failed trial boot',
+                             switch=not current == booted == pending['previousSystem'])
                 return
             if (self.tx(pending['id']) / 'good.json').is_file():
                 # Confirmation already passed health, committed the boot default

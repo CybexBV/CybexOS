@@ -68,6 +68,11 @@ def target(config, discovery):
     sources = {name: discovery[name].get('available') if discovery[name].get('state') == 'available' else None
                for name in ('upstream', 'cybexos')}
     scope = 'both' if all(sources.values()) else 'upstream' if sources['upstream'] else 'cybexos' if sources['cybexos'] else ''
+    # The release's Nixpkgs revision couldn't be read (GitHub's rate limit):
+    # preparing both still takes it from the release's own source, where
+    # the release alone would leave the new packages for a second review.
+    if scope == 'cybexos' and (discovery.get('upstream') or {}).get('state') == 'unreachable':
+        scope = 'both'
     devices = (discovery.get('firmware') or {}).get('devices', [])
     if not scope and devices:
         scope = 'firmware'

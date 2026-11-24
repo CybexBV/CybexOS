@@ -1,4 +1,4 @@
-{ pkgs, module, inputSources, candidate }:
+{ pkgs, nixpkgs, module, inputSources, candidate }:
 let
   passwordSink = pkgs.writeShellScript "cybexos-plymouth-answer" ''
     ${pkgs.coreutils}/bin/cat > /run/cybexos-plymouth-answer
@@ -30,6 +30,32 @@ let
       environment.systemPackages = [ (pkgs.runCommand "cybexos-update-interruption" {} "sleep 300; touch $out") ];
     }
   '';
+  # The systems the script stages, as the preview flake above evaluates them on
+  # the VM (its `path:` Cybex OS input has no Git revision). The VM is offline
+  # and can't build NixOS's own tools, so each is prebuilt like the product
+  # candidate: the working configuration, Software adding hello, the cleanup
+  # policy and the region change.
+  preview = extra: nixpkgs.lib.nixosSystem {
+    system = "x86_64-linux";
+    modules = [ module ../../templates/machine/settings.nix ./machine.nix ../../templates/machine/local/maintenance.nix
+      ({ lib, ... }: { cybexos.release.revision = lib.mkForce "uncommitted"; }) extra ];
+  };
+  software = (preview { cybexos.software.packages = [ "hello" ]; }).config;
+  staged = [ software.system.build.toplevel ] ++ map (extra: (preview extra).config.system.build.toplevel) [
+    { }
+    ({ lib, ... }: { cybexos.maintenance = lib.mkForce { automatic = false; keepConfirmed = 10; keepDays = 60; }; })
+    ({ lib, ... }: { time.timeZone = lib.mkOverride 900 "Europe/Berlin"; i18n.defaultLocale = lib.mkOverride 900 "nl_NL.UTF-8"; })
+  ];
+  # The interrupted preparation really builds: with a new package, NixOS
+  # rebuilds these from its own tools, which the VM then needs.
+  builders = let completions = software.environment.etc."fish/generated_completions".source; in
+    map (derivation: derivation.inputDerivation) ([
+      software.system.build.toplevel software.system.build.etc software.system.path
+      software.documentation.man.man-db.manualPages software.environment.etc."dbus-1".source
+      completions (builtins.head completions.paths)
+      software.environment.etc."systemd/system".source software.environment.etc."systemd/user".source
+    ] ++ map (unit: software.systemd.units.${unit}.unit) [ "polkit.service" "mandb.service" "dbus-broker.service" ]
+      ++ [ software.systemd.user.units."dbus-broker.service".unit ]);
   invalidConfiguration = pkgs.writeText "cybexos-verifier-invalid.lua" ''
   dofile("/etc/cybexos/runtime/hypr/hyprland.lua")
   hl.config({ general = { qualification_invalid_option = 1 } })
@@ -48,7 +74,11 @@ in pkgs.testers.runNixOSTest {
     users.users.tester.initialPassword = "qualification-only";
     # Retain the complete candidate and its exact input sources. Staging must
     # use the real Nix/updater path without requiring external delivery in a VM.
-    system.extraDependencies = inputSources ++ [ candidate previewFlake initialLock pkgs.hello pkgs.sshpass ];
+    system.extraDependencies = inputSources ++ staged ++ builders
+      ++ [ candidate previewFlake initialLock pkgs.hello pkgs.sshpass ];
+    # The VM has no network. Asking an unreachable cache.nixos.org (Nix
+    # retries each lookup) kept the interrupted build from starting in time.
+    nix.settings.substituters = lib.mkForce [ ];
     system.stateVersion = "26.05";
     boot.loader.systemd-boot.enable = lib.mkForce false;
   };
@@ -150,7 +180,10 @@ in pkgs.testers.runNixOSTest {
     # The parser must reject a real invalid declaration as well as accepting
     # the full vendor configuration without its former timer SIGSEGV.
     machine.succeed("install -d -m0700 /run/cybexos-verifier-test")
-    machine.fail("XDG_RUNTIME_DIR=/run/cybexos-verifier-test Hyprland --i-am-really-stupid --verify-config --config ${invalidConfiguration} > /run/cybexos-verifier-test/result 2>&1")
+    # As the updater runs it (lifecycle/cybexos/desktop_check.py): Hyprland
+    # 0.57 binds /.socket2.sock before it has an event loop and crashes when
+    # it can; a read-only root denies that bind.
+    machine.fail("${pkgs.bubblewrap}/bin/bwrap --dev-bind / / --remount-ro / --setenv XDG_RUNTIME_DIR /run/cybexos-verifier-test -- Hyprland --i-am-really-stupid --verify-config --config ${invalidConfiguration} > /run/cybexos-verifier-test/result 2>&1")
     machine.succeed("grep -F 'unknown config key' /run/cybexos-verifier-test/result")
     machine.succeed("rm -rf /run/cybexos-verifier-test")
     # Exercise the packaged script plugin and its actual password callback,

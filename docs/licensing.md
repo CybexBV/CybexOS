@@ -13,7 +13,7 @@ font copyright and licence notices.
 Existing procedural wallpaper provenance, generator digests, pinned third-party
 design references and historical patch authors remain unchanged. Third-party
 marks and notices retain their original owners. See the Quickshell
-`assets/THIRD_PARTY_LICENSES.md`, Model Usage notices and [web assets](../web/ASSETS.md).
+`assets/THIRD_PARTY_LICENSES.md` and the Model Usage notices.
 
 John must perform a trademark search for **Cybex OS**; no clearance is asserted.
 The existing owner distribution review still applies to the actual release

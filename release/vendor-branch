@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Put verified vendor-pin updates on a branch, as the vendor-updates workflow
+# does once scripts/vendor-pins has rewritten the pins and their checks passed.
+#
+#   release/vendor-branch CHANGES.json [--dry-run]
+#
+# CHANGES.json is `scripts/vendor-pins update NAME...` output: a list of
+# changes. From main, this commits each pin (`Update TITLE to VERSION`, with
+# its release-notes paragraph in the message) on the vendor-update branch
+# and pushes it, replacing the one before. It never pushes main or
+# publishes: the branch is merged after its full check passes and released
+# with the next beta release, like any change (owner's decision, 2026-11-24).
+# It prints the branch name.
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+fail() { echo "release/vendor-branch: $*" >&2; exit 1; }
+changes=${1:-}
+[[ -f $changes ]] || fail 'usage: release/vendor-branch CHANGES.json [--dry-run]'
+dry_run=0
+[[ ${2:-} == --dry-run ]] && dry_run=1
+
+# One "file<TAB>title<TAB>version<TAB>notes" line per change, in order.
+listing=$(python3 -I - "$changes" <<'EOF'
+import json, re, sys
+changes = json.load(open(sys.argv[1]))
+if not isinstance(changes, list) or not changes:
+    sys.exit('release/vendor-branch: CHANGES.json lists no changes')
+files = [change['file'] for change in changes]
+if len(set(files)) != len(files):
+    sys.exit('release/vendor-branch: a pin appears twice')
+for change in changes:
+    fields = [change['file'], change['title'], change['to'], change['notes']]
+    if any(not isinstance(field, str) or not field.strip() or '\t' in field or '\n' in field for field in fields):
+        sys.exit(f'release/vendor-branch: incomplete change {change!r}')
+    if not re.fullmatch(r'nix/packages/[\w.-]+(/[\w.-]+)*', change['file']) or '..' in change['file']:
+        sys.exit(f"release/vendor-branch: unexpected pin file {change['file']}")
+    print('\t'.join(fields))
+EOF
+) || exit 1
+files=()
+while IFS=$'\t' read -r file _ _ _; do
+    [[ -f $file ]] || fail "unexpected pin file $file"
+    files+=("$file")
+done <<< "$listing"
+[[ $(git rev-parse --abbrev-ref HEAD) == main ]] || fail 'run from main'
+exclude=()
+for file in "${files[@]}"; do exclude+=(":(exclude)$file"); done
+[[ -z $(git status --porcelain -- . "${exclude[@]}") ]] || fail "only ${files[*]} may be changed"
+
+branch=vendor-update
+git switch --quiet --force-create "$branch"
+while IFS=$'\t' read -r file title to notes; do
+    git add -- "$file"
+    git commit --quiet -m "Update $title to $to" -m "$notes" \
+        -m "Upstream's release, checked against its published checksum by scripts/vendor-pins and verified by the vendor-updates workflow."
+done <<< "$listing"
+if ((dry_run)); then
+    echo "Would push $branch at $(git rev-parse HEAD):"
+    git log --format='  %s' main..HEAD
+    exit 0
+fi
+# Replace the branch by deleting it first: the workflow's token may not
+# update a branch to commits that change workflows, but it may create one.
+git push --quiet origin --delete "$branch" 2>/dev/null || true
+git push --quiet origin "HEAD:refs/heads/$branch"
+echo "$branch"

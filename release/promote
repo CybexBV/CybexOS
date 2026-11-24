@@ -11,8 +11,9 @@ newest release, possibly skipping beta releases that were never promoted.
 
 Before it changes anything, promotion checks that every stable machine can
 install the release: it must be a published final version newer than the
-current stable release, it must have been on beta for at least the soak time
-(24 hours unless --soak or --now), and its release/compatibility.json must suit
+current stable release, its commit must have passed the full check (nixos.yml),
+it must have been on beta for at least the soak time (7 days unless --soak or
+--now, which only the owner decides), and its release/compatibility.json must suit
 the updater, configuration/plugin APIs, architectures and NixOS branch that the
 current stable release installed. Its notes become the combined notes of every
 release since the current stable one, so What's New on a stable machine covers
@@ -37,8 +38,8 @@ sys.path.insert(0, str(ROOT / 'lifecycle'))
 from cybexos.common import Failure  # noqa: E402
 from cybexos.trust import version  # noqa: E402
 
-REPO = os.environ.get('CYBEXOS_RELEASE_REPO', 'CybexHQ/CybexOS')
-SOAK_HOURS = 24
+REPO = os.environ.get('CYBEXOS_RELEASE_REPO', 'CybexBV/CybexOS')
+SOAK_HOURS = 7 * 24
 
 
 def fail(message):
@@ -175,6 +176,12 @@ def main():
         fail(f'the tag {tag} is not available from origin')
     if source(tag, 'VERSION').strip() != args.version:
         fail(f'the VERSION file at {tag} is not {args.version}')
+    passed = run('gh', 'run', 'list', '--repo', REPO, '--workflow', 'nixos.yml', '--commit', revision,
+                 '--event', 'workflow_dispatch', '--status', 'success', '--limit', '1',
+                 '--json', 'databaseId', '--jq', 'length').stdout.strip()
+    if passed != '1':
+        fail(f'the full check (nixos.yml) has not passed for {tag} ({revision[:12]}); '
+             'stable gets only releases that passed it')
 
     published = datetime.datetime.fromisoformat(target['published_at'].replace('Z', '+00:00'))
     hours = (datetime.datetime.now(datetime.timezone.utc) - published).total_seconds() / 3600

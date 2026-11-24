@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -31,10 +32,14 @@ class PublishTests(unittest.TestCase):
         self.git('remote', 'add', 'origin', str(self.origin))
         self.git('push', '--quiet', 'origin', 'main')
         tools = base / 'bin'; tools.mkdir()
-        (tools / 'gh').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$GH_LOG"\n')
+        # Answers whether the full check passed (GH_PASSED, default yes) and
+        # logs everything else.
+        (tools / 'gh').write_text('#!/bin/sh\nif [ "$1 $2" = "run list" ]; then printf "%s\\n" "$*" >> "$GH_RUNS";'
+                                  ' echo "${GH_PASSED-1}"; exit; fi\nprintf "%s\\n" "$*" >> "$GH_LOG"\n')
         (tools / 'gh').chmod(0o755)
+        self.runs = base / 'runs.log'
         self.environment = os.environ | {'PATH': f'{tools}:{os.environ["PATH"]}', 'GH_LOG': str(self.log),
-                                         'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS'}
+                                         'GH_RUNS': str(self.runs), 'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS'}
 
     def git(self, *arguments, cwd=None):
         return subprocess.run(['git', *arguments], cwd=cwd or self.work, check=True, capture_output=True, text=True).stdout
@@ -62,6 +67,15 @@ class PublishTests(unittest.TestCase):
             '--notes-file release/notes.md --prerelease --latest=false cybexos.iso'])
         self.assertIn('for beta', result.stdout)
         self.assertIn('release/promote 1.0.1', result.stdout)
+
+    def test_only_a_commit_that_passed_the_full_check_is_published(self):
+        revision = self.git('rev-parse', 'HEAD').strip()
+        self.environment['GH_PASSED'] = '0'
+        self.assert_refused('the full check has not passed for ' + revision, '1.0.1')
+        self.assertIn(f'run list --repo CybexHQ/CybexOS --workflow nixos.yml --commit {revision} '
+                      '--event workflow_dispatch --status success', self.runs.read_text())
+        self.environment['GH_PASSED'] = ''
+        self.assert_refused('the full check has not passed', '1.0.1', '--dry-run')
 
     def test_stable_release_is_tagged_pushed_and_marked_latest(self):
         result = self.publish('1.0.1', '--stable', 'cybexos.iso')
@@ -135,6 +149,8 @@ with open(os.environ['GH_LOG'], 'a') as log:
     log.write(' '.join(arguments) + '\n')
 if arguments[0] == 'api':
     print(json.dumps(listing))
+elif arguments[:2] == ['run', 'list']:
+    print(os.environ.get('GH_PASSED', '1'))
 elif arguments[:2] == ['release', 'edit']:
     item = next(item for item in listing if item['tag_name'] == arguments[2])
     if os.environ.get('GH_IGNORE_EDIT'):
@@ -166,21 +182,22 @@ class PromoteTests(unittest.TestCase):
         self.git('remote', 'add', 'origin', str(self.origin))
         self.listing = []
         tools = base / 'bin'; tools.mkdir()
-        (tools / 'gh').write_text(FAKE_GH)
+        # A Nix build sandbox has no /usr/bin/env.
+        (tools / 'gh').write_text(FAKE_GH.replace('#!/usr/bin/env python3', f'#!{sys.executable}', 1))
         (tools / 'gh').chmod(0o755)
         self.environment = {key: value for key, value in os.environ.items() if key not in ('VISUAL', 'EDITOR')}
         self.environment |= {'PATH': f'{tools}:{os.environ["PATH"]}', 'GH_LOG': str(self.log),
                              'GH_STATE': str(self.state), 'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS',
                              'PYTHONDONTWRITEBYTECODE': '1'}
-        # 1.0.1 is stable; 1.0.2 and 1.0.3 have been on beta for two days.
-        self.release('1.0.1', prerelease=False, hours=96)
-        self.release('1.0.2', hours=48)
-        self.release('1.0.3', hours=47)
+        # 1.0.1 is stable; 1.0.2 and 1.0.3 have been on beta for over a week.
+        self.release('1.0.1', prerelease=False, hours=400)
+        self.release('1.0.2', hours=200)
+        self.release('1.0.3', hours=199)
 
     def git(self, *arguments):
         return subprocess.run(['git', *arguments], cwd=self.work, check=True, capture_output=True, text=True).stdout
 
-    def release(self, version, prerelease=True, hours=48, compatibility=None, draft=False):
+    def release(self, version, prerelease=True, hours=200, compatibility=None, draft=False):
         import datetime
         (self.work / 'VERSION').write_text(version + '\n')
         declared = json.loads((ROOT / 'release/compatibility.json').read_text()) | (compatibility or {})
@@ -249,13 +266,24 @@ class PromoteTests(unittest.TestCase):
 
     def test_soak_time_on_beta(self):
         self.release('1.0.4', hours=2)
-        self.assert_refused('on beta for 2.0 hours, less than 24', '1.0.4', '--yes')
+        self.assert_refused('on beta for 2.0 hours, less than 168', '1.0.4', '--yes')
         self.assert_refused('less than 3', '1.0.4', '--yes', '--soak', '3')
         result = self.promote('1.0.4', '--yes', '--soak', '1')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.release('1.0.5', hours=0)
         result = self.promote('1.0.5', '--yes', '--now')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_only_a_release_that_passed_the_full_check_reaches_stable(self):
+        revision = self.git('rev-parse', 'HEAD').strip()  # 1.0.3's commit
+        before, listing = self.edits(), self.state.read_text()
+        result = self.promote('1.0.3', '--yes', '--now', GH_PASSED='0')
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(f'the full check (nixos.yml) has not passed for v1.0.3 ({revision[:12]})', result.stderr)
+        self.assertEqual(self.edits(), before)
+        self.assertEqual(self.state.read_text(), listing)
+        self.assertIn(f'run list --repo CybexHQ/CybexOS --workflow nixos.yml --commit {revision} ',
+                      self.log.read_text())
 
     def test_dry_run_and_confirmation(self):
         result = self.promote('1.0.3', '--dry-run')

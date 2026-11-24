@@ -6,7 +6,7 @@
 
 `open` updates the open issue with LABEL (or creates one) so repeated failures
 do not pile up; `close` closes it once the check passes again. The repository
-is GITHUB_REPOSITORY, else CybexHQ/CybexOS.
+is GITHUB_REPOSITORY, else CybexBV/CybexOS.
 """
 import argparse
 import json
@@ -14,7 +14,7 @@ import os
 import subprocess
 import sys
 
-REPO = os.environ.get('GITHUB_REPOSITORY') or 'CybexHQ/CybexOS'
+REPO = os.environ.get('GITHUB_REPOSITORY') or 'CybexBV/CybexOS'
 
 
 def gh(*args, capture=True):

@@ -77,12 +77,10 @@ for name, data in {
     'app-icon/svg/cybexos-app-icon-dark.svg': tile,
 }.items():
     write('assets/brand/' + name, data)
-for name in ('desktop/quickshell/assets/cybexos.svg', 'web/public/cybexos.svg', 'installer/kiosk/assets/symbol.svg'):
+for name in ('desktop/quickshell/assets/cybexos.svg', 'installer/kiosk/assets/symbol.svg'):
     write(name, symbol)
-for name in ('desktop/quickshell/assets/cybexos-white.svg', 'web/public/cybexos-white.svg'):
-    write(name, highlight)
-for name in ('web/public/cybexos-logo.svg', 'installer/kiosk/assets/logo.svg'):
-    write(name, wordmark)
+write('desktop/quickshell/assets/cybexos-white.svg', highlight)
+write('installer/kiosk/assets/logo.svg', wordmark)
 write('desktop/icons/hicolor/scalable/apps/cybexos.svg', tile)
 for size in (16, 32, 48, 64, 128, 256, 512):
     write(f'desktop/icons/hicolor/{size}x{size}/apps/cybexos.png', raster(tile, size, size))
@@ -111,8 +109,7 @@ for name, size in [('favicon-16x16.png', 16), ('favicon-32x32.png', 32), ('favic
                    ('icon-maskable-192.png', 192), ('icon-maskable-512.png', 512)]:
     image = raster(tile, size, size)
     write('assets/brand/favicon/' + name, image)
-    write('web/public/' + name, image)
-for prefix in ('assets/brand/favicon/', 'web/public/'):
+for prefix in ('assets/brand/favicon/',):
     write(prefix + 'favicon.svg', tile)
     icon = Image.open(io.BytesIO(raster(tile, 256, 256)))
     output = io.BytesIO()
@@ -154,13 +151,6 @@ for kind, width in [('compact', 40), ('large', 64), ('banner', 80)]:
     for prefix in ('assets/brand/ascii/', 'desktop/fastfetch/'):
         write(prefix + f'cybexos-{kind}.fastfetch.txt', colored)
         write(prefix + f'cybexos-{kind}.txt', plain)
-    if kind == 'compact':
-        terminal = ROOT / 'web/lib/terminal.ts'
-        text = terminal.read_text()
-        start = text.index('export const CYBEXOS_LOGO_COLORED = ')
-        end = text.index(';', start)
-        terminal.write_text(text[:start] + 'export const CYBEXOS_LOGO_COLORED = '
-                            + json.dumps(colored.rstrip('\n'), ensure_ascii=False) + text[end:])
 
 write('assets/brand/kit-sha256.json', json.dumps({'schema': 1, 'files': files}, indent=2) + '\n')
 print(f'Exported {len(files)} Cybex OS assets from {SOURCE.relative_to(ROOT)}')

@@ -3,10 +3,15 @@
 The NerdOS rename is reverted. Interface text says **Cybex OS**. Repository,
 NixOS module/input, Python package, service, path and protocol identifiers use
 `cybexos`; the environment prefix is `CYBEXOS_` and the user command is `cybex`.
-The upstream repository and release identity are `CybexHQ/CybexOS` (`REPO` in
+The upstream repository and release identity are `CybexBV/CybexOS` (`REPO` in
 `lifecycle/cybexos/trust.py`); its GitHub releases are the update channels.
-Development moved there from `DigitalPals/CybexOS` on
-2026-10-29; the earlier history stays in that repository.
+Development moved to `CybexHQ/CybexOS` from `DigitalPals/CybexOS` on
+2026-10-29 (the earlier history stays there) and to the `CybexBV`
+organization in November 2026. GitHub redirects the old name; machines
+installed from it keep `CybexHQ/CybexOS` in their flake until their next
+Cybex OS update writes the new name (`FORMER_REPOS`). Updaters before 1.0.32
+look for releases under the old name, so the CybexHQ account stays, with no
+repository called CybexOS, until no machine runs one of them.
 
 The owner-supplied `cybex_white.svg` is preserved byte-for-byte under
 `assets/brand/source/`. Deployment variants use its outlined wordmark with
@@ -72,8 +77,8 @@ they are VM qualification, not of physical displays.
 The Control Center button ends the bar's right column by default; moved to
 the left section, its drawer opens on that side instead. Settings ->
 Bar & Control Center -> Control Center -> Button icon chooses its icon: the
-Cybex OS mark (the default), the operating system's logo (NixOS), or any Nerd
-Font icon, searched by name in `desktop/quickshell/assets/nerd-icons`
+Cybex OS mark (the default), the operating system's logo (NixOS), or any
+Nerd Font icon, searched by name in `desktop/quickshell/assets/nerd-icons`
 (regenerate with `scripts/update-nerd-icons` when Nixpkgs moves to a new
 Nerd Fonts release). On the bar the Cybex X is two-tone, so it does not read
 as a window's close button: at rest its short stroke takes 55 % of the bar's

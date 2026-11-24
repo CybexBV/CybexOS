@@ -88,8 +88,9 @@ in {
     # for a Nixpkgs package awaiting its binary cache. The encryption check is
     # reached only through the autologin PAM rule, never a package list, so it
     # is declared here too: otherwise any Nixpkgs update that rebuilds it waits
-    # for NixOS to build a package NixOS never builds.
-    cybexos.updates.expectedBuilds = [ titlebars cfg.dictationPackage encryptionCheck ]
+    # for NixOS to build a package NixOS never builds. What they need must
+    # still come prebuilt.
+    cybexos.updates.ownBuilds = [ titlebars cfg.dictationPackage encryptionCheck ]
       ++ lib.optional cfg.features.connectedWidgets hermesBridge;
     environment.etc."cybexos/fingerprint-enabled" = lib.mkIf cfg.authentication.fingerprint { text = "enabled\n"; };
     environment.etc."cybexos/proprietary-enabled" = lib.mkIf cfg.features.proprietary { text = "enabled\n"; };
@@ -240,9 +241,12 @@ in {
       # resident, and Settings turns it off with live text (docs/dictation.md).
       serviceConfig = { ExecStart = "${cfg.dictationPackage}/bin/voxtype daemon"; Restart = "on-failure"; RestartSec = 5; };
     };
+    # Started by the Hermes bar widget when it turns on
+    # (Common/HermesConnection.qml) and ended with the session; nothing runs
+    # it at login, so an optional widget no one uses costs nothing (2026-11-24).
     systemd.user.services.hermes-menubar-bridge = lib.mkIf cfg.features.connectedWidgets {
       description = "Remote Hermes WebUI desktop bridge";
-      partOf = [ "hyprland-session.target" ]; wantedBy = [ "hyprland-session.target" ];
+      partOf = [ "hyprland-session.target" ];
       serviceConfig = {
         ExecStart = "${hermesBridge}/bin/cybexos-hermes-bridge --listen 127.0.0.1 --port 9120 --remote-only --state %h/.local/state/hermes-menubar/conversations.json --remote-auth-state %h/.local/state/hermes-menubar/remote-webui-auth.json";
         UMask = "0077";

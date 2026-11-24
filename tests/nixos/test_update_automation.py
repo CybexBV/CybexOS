@@ -141,6 +141,13 @@ class Automation(unittest.TestCase):
         upstream_only = self.prepare(self.discovery())
         self.assertEqual(upstream_only['scope'], 'upstream')
 
+    def test_a_release_whose_nixpkgs_is_unknown_is_prepared_with_it(self):
+        # Staging reads the release's Nixpkgs from its own source; leaving it
+        # out would make the new packages a second update.
+        accepted = self.prepare(self.discovery(upstream='unreachable', cybexos='available'))
+        self.assertEqual(accepted['scope'], 'both')
+        self.assertEqual(automatic.target({}, self.discovery(upstream='current', cybexos='available'))[0], 'cybexos')
+
     def test_preparation_waits_for_people_power_and_networks(self):
         self.assertEqual(self.prepare(self.discovery('current')), {'skipped': 'current'})
         self.assertEqual(self.prepare(metered=True), {'skipped': 'metered'})

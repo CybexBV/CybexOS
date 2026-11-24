@@ -1,6 +1,6 @@
 # Releases
 
-A Cybex OS release is a published GitHub release of `CybexHQ/CybexOS` with a
+A Cybex OS release is a published GitHub release of `CybexBV/CybexOS` with a
 semantic tag (`v1.2.3`, `v1.2.3-beta.1`) on a commit whose `VERSION` file holds
 the same version. The GitHub repository is the trust root: there are no
 publisher keys, signed manifests or channel documents, and installed machines
@@ -13,8 +13,9 @@ Each machine follows a release channel. **Stable** takes the newest published
 release that is neither marked as a prerelease nor has a prerelease version;
 **beta** takes the newest published release of either kind, so a beta machine
 is never behind stable. Drafts and tags that are not semantic versions are
-ignored. Only Cybex OS releases follow the channel: NixOS package updates are
-selected independently and never consult releases.
+ignored. Each release pins its Nixpkgs revision, so NixOS package updates
+reach a machine with the releases of its channel
+([updates](updates.md#nixpkgs-comes-with-the-release)).
 
 A release reaches beta first. `release/publish` creates it as a GitHub
 prerelease; `release/promote` later clears that flag on the same release, so
@@ -41,7 +42,8 @@ stable, or when its release is withdrawn, it can run a newer version than its
 channel's newest release. Discovery then reports the neutral state `ahead`
 (`installed`, and the channel's newest as `available`): no error, no update
 indicator, and Software Update's up-to-date page says that Cybex OS updates
-resume with the channel's next release. NixOS package updates continue. A Cybex OS update
+resume with the channel's next release, and so do NixOS package updates, which
+releases pin. A Cybex OS update
 prepared on beta becomes stale when the machine moves to stable, and
 installation checks the channel again; moving to beta keeps a prepared
 update, since every stable release is on beta too.
@@ -59,7 +61,7 @@ count a conditional 304 against its anonymous rate limit). Staging then:
    download. The version must equal the tag; the schema, configuration and
    plugin APIs, minimum updater API, architecture and NixOS branch must suit
    this machine;
-3. locks the machine flake to `github:CybexHQ/CybexOS/<commit>` and requires the
+3. locks the machine flake to `github:CybexBV/CybexOS/<commit>` and requires the
    lock's revision and NAR to equal what it checked.
 
 All of this precedes evaluation of the selected code. A version older than the
@@ -82,11 +84,18 @@ never changes what a tested ISO installs.
 Development commits may be pushed directly to `main`. To publish a release:
 
 1. Set `VERSION` to a new version (tags are never reused), write
-   `release/notes.md`, commit and push to `main`.
-2. Qualify that exact commit as far as the release needs (below).
+   `release/notes.md` and commit them on top of `main`, after merging what
+   the release brings. Push that commit to a `release-VERSION` branch, not to
+   `main` yet.
+2. Run [the full check](#the-full-check) on that branch and wait for it to
+   pass. One check covers the release and the work merged into it: prepare
+   `VERSION` and the notes first, then check. Once it passes, move `main` to
+   exactly that commit with `git push origin COMMIT:main`. When `main` moved
+   in the meantime the push fails: merge again and check again.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
-   the notes, refuses an existing tag, creates and pushes the annotated
+   the notes, refuses an existing tag, refuses a commit without a passing
+   dispatched `nixos.yml` run, creates and pushes the annotated
    `vVERSION` tag and creates the GitHub release with `gh` as a prerelease:
    it reaches beta machines only. Pass asset paths (an ISO and its checksum)
    to upload them with the release, or `--dry-run` to only report the result.
@@ -100,8 +109,10 @@ Development commits may be pushed directly to `main`. To publish a release:
    install it:
    - it is a published, final version, still a prerelease, and newer than the
      current stable release;
-   - it has been on beta for at least 24 hours (`--soak HOURS` changes the
-     minimum; `--now` skips it for an urgent fix);
+   - its commit passed the full check;
+   - it has been on beta for at least 7 days (`--soak HOURS` changes the
+     minimum; `--now` skips it for an urgent fix; both are the owner's
+     decision);
    - its `release/compatibility.json` suits the current stable release:
      `minUpdater` at most that release's updater API, the same schema,
      configuration and plugin APIs, all of its architectures and its NixOS
@@ -118,9 +129,9 @@ Development commits may be pushed directly to `main`. To publish a release:
    ([combined updates](updates.md#combined-updates)), so a beta release's
    notes need cover only that release.
 
-### Automatic vendor updates
+### Vendor updates
 
-Packages Nixpkgs maintains update with each machine's Nixpkgs. The vendor
+Packages Nixpkgs maintains move with the Nixpkgs revision each release pins. The vendor
 downloads Cybex OS pins itself only move when this repository does, so
 `scripts/vendor-pins` lists them and compares each with its upstream release.
 The **vendor-updates** workflow (`.github/workflows/vendor-updates.yml`) runs it
@@ -153,61 +164,54 @@ daily on a GitHub-hosted runner:
   One run updates every pin that is behind (`scripts/vendor-pins update
   NAME...`, all or none), builds the packages, runs `nix flake check
   --no-build`, `tests/run` and each updated pin's checks, then
-  `release/automatic`: it commits each pin as `Update TITLE to VERSION`, takes
-  the next patch version past `VERSION` and the tags, writes release notes
-  with a paragraph per update, pushes `main` and runs `release/publish`. The
-  release reaches beta only; promoting it stays a person's decision. A failed
-  run releases none of them and keeps a `vendor-updates` issue open with the
-  attempted updates.
+  `release/vendor-branch`: it commits each pin as `Update TITLE to VERSION`,
+  with its release-notes paragraph in the message, on a
+  `vendor-update` branch (replacing the one before), pushes it, starts the full check on
+  it and keeps a `vendor-update` issue. It never pushes `main` or publishes
+  (owner's decision, 2026-11-24, replacing the automatic beta releases of
+  2026-11-07 and 2026-11-10): merge the branch once its full check passes and
+  take it into the next beta release. A failed run pushes none of them and
+  keeps a `vendor-updates` issue open with the attempted updates.
 
   Before the package checks, `scripts/vendor-downloads` fetches the downloads
-  nothing can substitute (unfree vendor files such as the Spotify snap in the
-  1Password check's system): from the workflow's Actions cache when it holds
-  them, else from the vendor, three times a few minutes apart when its host
-  can't be reached (GitHub's runners lost api.snapcraft.io for days from
-  2026-11-11). The daily Nixpkgs canary fetches the same set for the current
-  pins, so whichever runner reaches a vendor host first fills the cache. A
-  cached file enters the Nix store only through its pinned hash. The cache
-  keeps one set, the newest.
+  nothing can substitute (unfree vendor files in the checks' systems; the
+  1Password check leaves Spotify out since its snap host failed for days):
+  from the workflow's Actions cache when it holds them, else from the vendor,
+  three times a few minutes apart when its host can't be reached (GitHub's
+  runners lost api.snapcraft.io for days from 2026-11-11). A cached file
+  enters the Nix store only through its pinned hash. The cache keeps one set,
+  the newest.
 - **T3 Code, Intel LPMd and Omawrite** are reported, not updated: each needs a
   review beyond its checksum (T3 Code's connected-widget bar API, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
 
-Run it with **Run workflow** to publish available updates at once, with
+Run it with **Run workflow** to push available updates at once, with
 `pins` naming only some automatic pins (for example `codex claude-code` while
 another pin's update needs a person), or with `rehearse` to run every check
-with the current pins without publishing.
+with the current pins without pushing anything.
 `scripts/vendor-pins status` shows the same comparison locally.
 
-### Nixpkgs canary
+### Nixpkgs updates
 
-Machines follow `nixos-unstable` themselves, so a Nixpkgs change that breaks
-Cybex OS reaches them without a Cybex OS release. The **nixpkgs-canary**
-workflow (`scripts/nixpkgs-canary --build`) evaluates `main` and the newest
-beta and stable releases daily against the channel head, Nixpkgs master
-(which leads the channel by days) and the next stable branch once it exists.
-It evaluates the `product`, `system`, `xps-system` and `nvidia-evaluation`
-checks.
+A release pins its Nixpkgs revision, and machines take a newer one only with a
+release ([updates](updates.md#nixpkgs-comes-with-the-release)). The
+**nixpkgs-update** workflow (`.github/workflows/nixpkgs-update.yml`) moves
+`flake.lock`'s Nixpkgs every Monday to the head of the branch `flake.nix`
+follows, on the `nixpkgs-update` branch (replaced each time), starts the full check on it and
+keeps a `nixpkgs-update` issue with the branch and what to do. It never
+pushes `main` or publishes.
 
-It then builds each source's expected local builds for the `product` system
-(Cybex OS's own packages and the unfree vendor downloads machines compile
-themselves) against the channel head, the only branch NixOS's cache covers.
-Evaluation misses a build that only fails: on 2026-11-10 the channel's new
-Rust build settings broke Cybex OS's Voxtype build on every machine that
-took it. The source's own `scripts/check-prebuilt` names what its machines'
-updater holds back until NixOS has built it. A build failure there is
-reported as a wait; any other failure is one machines on that release would
-hit, such as the codex ChatGPT needed that day, which updaters then still
-let through.
+- When the full check passes, merge the branch with `git merge --no-ff`,
+  push `main` and take it into the next beta release.
+- When it fails, that Nixpkgs doesn't work with Cybex OS yet: a package NixOS
+  hasn't built, an evaluation error, or a Cybex OS package that no longer
+  builds (Voxtype on 2026-11-10). Fix Cybex OS on `main` (or a branch of
+  your own): the next run replaces the `nixpkgs-update` branch.
+  Machines are not affected.
 
-An evaluation failure, a build failure machines would hit, or a new evaluation
-warning (usually the notice before a removal) keeps a `nixpkgs-canary` issue
-open with the error, the module that caused it or the failing build's log;
-the issue closes once every source evaluates and builds again. Fix it on
-`main` and release before the channel moves on. Machines that receive the
-change first wait for that release
-([updates](updates.md#when-nixpkgs-drops-something-cybex-os-uses)).
+This replaced the daily Nixpkgs canary (2026-11-24): with machines following
+the channel head themselves, it could only warn after the fact.
 
 Fix forward on `main`: there are no maintenance branches. When stable needs a
 fix while beta carries changes that are not ready, revert those on `main` or
@@ -220,11 +224,15 @@ one that requires it: `release/promote` refuses a release the current stable
 updater cannot install. Installed machines refuse a release that changes
 `configurationApi` or `pluginApi`.
 
-## Qualification
+## The full check
 
-A workflow does not gate releases; their quality is the owner's decision. Run
-**NixOS qualification** on demand from the Actions page. It does not run
-automatically on pushes, pull requests or releases.
+The **NixOS qualification** workflow (`.github/workflows/nixos.yml`) is the
+full check. It gates every release: `release/publish` and `release/promote`
+refuse a commit without a successful dispatched run. Start it with
+`gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; it does not
+run automatically on pushes, pull requests or releases, and there is no
+nightly run. Run it on a branch before merging changes to the updater, the
+Nix modules, the installer, the release scripts, qualification or workflows.
 
 Full Nix/product/image jobs require a `cybexos-isolated` self-hosted runner;
 standard hosted runners do not provide enough space for the complete desktop,
@@ -233,7 +241,8 @@ single-job disposable x86_64 Linux VM with at least 256 GiB of disk, 32 GiB
 RAM, four CPU cores and accessible nested KVM. The preflight requires 160 GiB
 free for the Nix store plus 32 GiB for work (192 GiB when they share a
 filesystem), at least 24 GiB available memory, and KVM for VM/image jobs.
-Build concurrency is bounded to two builds and four cores per build.
+Nix runs up to four builds at once and lets each use every core of the
+runner (16 on The Beast's).
 Discard the runner, workspace and attached disks after each job. It must have
 no workstation data, persistent credentials, production network access or
 production PXE mount. Runner provisioning and isolation are owner-managed, not
@@ -265,8 +274,9 @@ last Nixpkgs recipe in `nix/packages/brave/make-brave.nix` and pins the
 official Origin Debian asset in `nix/packages/brave/release.json`, built
 against the machine Nixpkgs' libraries. Cybex OS is now the browser's only
 maintainer: the vendor-updates workflow follows every Brave stable release
-([automatic vendor updates](#automatic-vendor-updates)), and the Nixpkgs
-canary shows when the recipe needs changing for a Nixpkgs rename.
+([vendor updates](#vendor-updates)), and the weekly
+[Nixpkgs update](#nixpkgs-updates) shows when the recipe needs changing for a
+Nixpkgs rename.
 They remain part of the explicit proprietary-application choice and require
 installed runtime, security and redistribution qualification.
 

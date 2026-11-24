@@ -66,7 +66,10 @@ def end_session(process):
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="cybexos-user-widgets.") as temporary, ExitStack() as stack:
+    # A short path: Quickshell's IPC socket lives below XDG_RUNTIME_DIR and
+    # must fit Linux's 108-byte sockaddr_un path, which a long TMPDIR (a Nix
+    # shell's on the CI runner) does not leave room for.
+    with tempfile.TemporaryDirectory(prefix="cxw-", dir="/tmp") as temporary, ExitStack() as stack:
         base = Path(temporary)
         env = dict(os.environ, HOME=str(base / "home"),
                    XDG_CONFIG_HOME=str(base / "config"),

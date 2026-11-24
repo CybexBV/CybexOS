@@ -345,6 +345,11 @@ run('loginPam', ['cat', '/etc/pam.d/sddm'])
 run('keyringState', prefix + ['busctl', '--user', 'get-property', 'org.freedesktop.secrets',
     '/org/freedesktop/secrets/collection/login', 'org.freedesktop.Secret.Collection', 'Locked'])
 run('keyringJournal', ['journalctl', '--no-pager', '-g', 'gkr-pam|gnome-keyring', '-n', '40'])
+# Which daemon answers for secrets, and whether the session bus or the user's
+# service manager restarted after the login: a second daemon is locked.
+run('keyringProcesses', ['ps', '-o', 'pid,ppid,lstart,cgroup:60,args', '-C', 'gnome-keyring-daemon'])
+run('secretsOwner', prefix + ['busctl', '--user', 'status', 'org.freedesktop.secrets'])
+run('userManagerJournal', ['journalctl', '-b', '--no-pager', '-o', 'short-monotonic', '-n', '60', '_UID=1000'])
 print(json.dumps(output))
 QA_DIAGNOSTIC'''
         try:
@@ -532,8 +537,7 @@ if path.exists():
     saved = json.loads(path.read_text())
     if 'mods' in saved:
         flags = {entry['id']: entry['on'] for column in saved['mods'].values() for entry in column}
-        assert flags['modelusage'] is True
-        assert all(flags[key] is False for key in ('hermes', 'remote', 't3', 'gh', 'fusebox'))
+        assert all(flags[key] is False for key in ('modelusage', 'hermes', 'remote', 't3', 'gh', 'fusebox'))
 print('Bibata desktop/session cursor, local discovery, firewall, and saved widget defaults passed')
 QA_DEFAULTS''', timeout=60)
 
@@ -1089,6 +1093,24 @@ exit 1'''.replace('TIMEOUT', str(timeout)).replace('EXPECTED', '|'.join(expected
     return vm.command(script, timeout=timeout + 30)
 
 
+def upstream_hold(status):
+    """What a held NixOS package update waits for, or None for any other failure.
+
+    The same rules as lifecycle/cybexos/prebuilt.py `held`: packages NixOS
+    hasn't built (or that fail to build), or a Nixpkgs that needs a newer
+    Cybex OS release. A personal configuration is never a hold.
+    """
+    if status.get('state') != 'failed' or status.get('changeKind') != 'update' or status.get('scope') != 'upstream':
+        return None
+    names = status.get('notPrebuilt')
+    if isinstance(names, list) and names and all(isinstance(name, str) and name.strip() for name in names):
+        return {'notPrebuilt': names}
+    details = status.get('incompatible')
+    if isinstance(details, dict) and details.get('origin') in ('cybexos', 'unknown'):
+        return {'incompatible': details}
+    return None
+
+
 def stage_request(vm, scope='local'):
     previous = json.loads(vm.command('cybex update status').strip()).get('transaction')
     vm.command('cybex update stage ' + shlex.quote(scope))
@@ -1190,55 +1212,45 @@ TEXT
     vm.command("python3 - <<'QA'\n" + code.replace('TEXT', action) + '\nQA')
 
 
-def qualify_kernel_update(vm, encrypted):
-    """Stage a real LTS-to-latest kernel change, confirm it and roll it back."""
-    latest = vm.command('uname -r').strip()
-    edit_import(vm, 'qualification-kernel.nix',
-                '{ pkgs, ... }: { boot.kernelPackages = pkgs.linuxPackages; }')
-    baseline = stage(vm)
-    apply(vm, baseline)
-    authenticated_boot(vm, encrypted)
-    confirm(vm)
-    previous = vm.command('uname -r').strip()
-    if previous == latest:
-        raise RuntimeError('Kernel update qualification requires distinct LTS and latest kernels')
+def qualify_boot_update(vm, encrypted):
+    """Stage a boot change, confirm it in a trial boot and roll it back.
 
-    # Remove only our own temporary override to exercise the vendor default.
-    edit_import(vm, 'qualification-kernel.nix')
+    Cybex OS allows only the stock `linuxPackages_latest` kernel
+    (nix/modules/prebuilt.nix), so no other kernel package can be staged
+    here. A kernel parameter changes the same boot identity the updater
+    trial-boots (kernel, initrd and parameters, lifecycle/cybexos/engine.py).
+    """
+    marker = 'cybexos.qualification=boot'
+    def parameters():
+        return vm.command('cat /proc/cmdline').split()
+    if marker in parameters():
+        raise RuntimeError('The installed system already boots with the qualification parameter')
+    edit_import(vm, 'qualification-boot.nix',
+                '{ ... }: { boot.kernelParams = [ "' + marker + '" ]; }')
     candidate = stage(vm)
-    if 'kernel' not in [row['id'] for row in candidate['highlights']['components']]:
-        raise RuntimeError('The update review omits the changed kernel')
     apply(vm, candidate)
     authenticated_boot(vm, encrypted)
     confirm(vm)
-    if vm.command('uname -r').strip() != latest:
-        raise RuntimeError('Confirmed kernel update did not boot the latest kernel')
+    if marker not in parameters():
+        raise RuntimeError('Confirmed boot update did not boot its kernel parameters')
 
     vm.command('cybex update rollback ' + candidate['transaction'])
     wait_state(vm, ('rolled-back',), timeout=180)
     vm.reboot(encrypted)
     vm.login_desktop()
-    if vm.command('uname -r').strip() != previous:
-        raise RuntimeError('Kernel rollback did not boot the previous kernel')
+    if marker in parameters():
+        raise RuntimeError('Boot rollback did not boot the previous kernel parameters')
 
-    # Deliberate rollback quarantines this exact system too. Inspecting the
-    # observed kernel above establishes the expected recovery; explicitly
-    # authorize retry before restoring our known-good latest candidate.
+    # Deliberate rollback quarantines this exact system too. Authorize a
+    # retry explicitly, as a person recovering from it would. Rollback also
+    # restored the configuration without our module.
     retry = json.loads(vm.command('cybex update retry-failed ' + candidate['transaction']).strip())
     if retry.get('retryAuthorized') != candidate['transaction']:
-        raise RuntimeError('Kernel qualification did not authorize the deliberate retry')
-    # Rollback restored our baseline module. Leave subsequent tests on latest.
-    edit_import(vm, 'qualification-kernel.nix')
-    restored = stage(vm)
-    apply(vm, restored)
-    authenticated_boot(vm, encrypted)
-    confirm(vm)
-    if vm.command('uname -r').strip() != latest:
-        raise RuntimeError('Kernel qualification did not restore the latest kernel')
-    return {'result': 'passed', 'previous': previous, 'latest': latest,
+        raise RuntimeError('Boot qualification did not authorize the deliberate retry')
+    return {'result': 'passed', 'parameter': marker,
             'transaction': candidate['transaction'], 'checks': [
-                'staged kernel review', 'trial boot', 'desktop confirmation',
-                'rollback booted previous kernel', 'latest kernel restored']}
+                'staged boot change', 'trial boot', 'desktop confirmation',
+                'rollback booted previous parameters', 'deliberate retry authorized']}
 
 
 def qualify_lifecycle(vm, encrypted, checks=None):
@@ -1252,9 +1264,11 @@ def qualify_lifecycle(vm, encrypted, checks=None):
     if discovery['upstream']['state'] not in ('current', 'available'):
         raise RuntimeError('Cannot qualify independent upstream discovery: ' + json.dumps(discovery))
     vendor = discovery['cybexos']
-    if not ((vendor['state'] == 'unpublished' and not vendor.get('error'))
+    # Nothing from the release channel to install: no release yet, or this
+    # source's version is that channel's newest release or past it.
+    if not ((vendor['state'] in ('unpublished', 'current', 'ahead') and not vendor.get('error'))
             or (vendor['state'] == 'unavailable' and vendor.get('error'))):
-        raise RuntimeError('This development test requires an unpublished or accurately unavailable vendor channel: ' + json.dumps(discovery))
+        raise RuntimeError('This development test requires a release channel with nothing to install: ' + json.dumps(discovery))
     before = json.loads(vm.command('''python3 - <<'QA'
 from pathlib import Path
 import hashlib, json
@@ -1272,14 +1286,23 @@ QA
     vm.command('systemctl start cybexos-update-auto.service', timeout=900)
     # The unit's own result line; systemd adds its lifecycle messages around it.
     automatic = json.loads(vm.command("journalctl -b -u cybexos-update-auto.service -o cat --no-pager | grep '^{' | tail -n 1").strip())
+    held = None
     if discovery['upstream']['state'] == 'available':
         if automatic.get('scope') != 'upstream' or not automatic.get('accepted'):
             raise RuntimeError('Background preparation did not request the available upstream update: ' + json.dumps(automatic))
-        wait_state(vm, ('ready',), previous=previous)
+        wait_state(vm, ('ready', 'failed'), previous=previous)
         vm.command('cybex update status > /run/qa-status.json')
         import base64
         upstream = json.loads(base64.b64decode(vm.command('base64 -w0 /run/qa-status.json').strip()))
-        if 'nixos' not in [row['id'] for row in upstream['highlights']['components']]:
+        if upstream['state'] == 'failed':
+            # The channel's newest Nixpkgs may not be installable yet: NixOS
+            # hasn't built a package this system needs (codex and tectonic on
+            # 2026-11-10), or it needs a newer Cybex OS. The updater must then
+            # hold it, change nothing, and say why; any other failure fails.
+            held = upstream_hold(upstream)
+            if not held:
+                raise RuntimeError('Background preparation of the available upstream update failed: ' + json.dumps(upstream))
+        elif 'nixos' not in [row['id'] for row in upstream['highlights']['components']]:
             raise RuntimeError('The readable review omits the changed NixOS build: ' + json.dumps(upstream['highlights']))
     else:
         if automatic != {'skipped': 'current'}:
@@ -1287,7 +1310,7 @@ QA
         upstream = stage(vm, 'upstream')
     vm.command('cybex update automatic prepare off')
     checks['automaticPreparation'] = {'result': 'passed', 'outcome': automatic,
-                                      'highlights': upstream.get('highlights')}
+                                      'highlights': upstream.get('highlights'), 'held': held}
     if upstream['inputs']['cybexos'] != before['cybexos']:
         raise RuntimeError('Upstream staging changed the installed Cybex OS identity')
     after_hash = vm.command("sha256sum /etc/nixos/flake.lock | cut -d ' ' -f 1").strip()
@@ -1296,9 +1319,10 @@ QA
     checks['upstreamWithUnavailableVendor'] = {
         'result': 'passed', 'discovery': discovery, 'transaction': upstream['transaction'],
         'upstreamBefore': before['nixpkgs'], 'upstreamAfter': upstream['inputs']['nixpkgs'],
-        'upstreamChanged': before['nixpkgs'] != upstream['inputs']['nixpkgs'], 'applied': False,
-        'scope': 'actual independent discovery and complete upstream worker build/validation; candidate remains unapplied; unchanged identity is not changed-package update qualification'}
-    checks['kernelUpdateAndRollback'] = qualify_kernel_update(vm, encrypted)
+        'upstreamChanged': before['nixpkgs'] != upstream['inputs']['nixpkgs'], 'applied': False, 'held': held,
+        'scope': ('actual independent discovery and the updater holding a Nixpkgs it cannot install yet; nothing built or applied'
+                  if held else 'actual independent discovery and complete upstream worker build/validation; candidate remains unapplied; unchanged identity is not changed-package update qualification')}
+    checks['bootUpdateAndRollback'] = qualify_boot_update(vm, encrypted)
     edit_import(vm, 'qualification.nix', PERSONAL_MODULE)
     vm.command('''python3 - <<'QA'
 from pathlib import Path

@@ -1,16 +1,57 @@
-# Independent updates
+# Updates
 
 The machine owns `/etc/nixos/flake.nix` and `flake.lock`:
 
 ```nix
 inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-inputs.cybexos.url = "github:CybexHQ/CybexOS/EXACT_RELEASE_REVISION";
+inputs.cybexos.url = "github:CybexBV/CybexOS/EXACT_RELEASE_REVISION";
 inputs.cybexos.inputs.nixpkgs.follows = "nixpkgs";
 ```
 
 Add personal inputs explicitly and make their Nixpkgs follow the same root.
 The updater rejects duplicate Nixpkgs universes and unrelated lock changes.
 Upstream binaries use `cache.nixos.org`; no extra cache key is implicitly trusted.
+
+## Nixpkgs comes with the release
+
+Each Cybex OS release pins one Nixpkgs revision: the one in its own
+`flake.lock`, which its full check built and checked for uncached packages
+(`nixos.yml`, `scripts/check-prebuilt`). `/etc/cybexos/release.json` names it
+(`"nixpkgs"`). An update moves the machine's Nixpkgs only to that revision,
+never to the channel head and never backwards, so a machine builds a
+combination Cybex OS already built; only personal modules are new to it.
+
+- A Cybex OS update (`both`) moves Nixpkgs to the new release's revision.
+  Prepared alone (`cybexos`, the fallback below), the release keeps the
+  machine's Nixpkgs.
+- NixOS packages alone (`upstream`) move to the installed release's revision.
+  That is newer than the machine's only after a release was installed alone.
+- `cybex update check` reports NixOS packages as available only when the
+  release it would install (or the installed one) pins a newer revision. It
+  reads the available release's `flake.lock` through the same GitHub API as
+  the release listing (`Engine.release_pin`).
+- A release on another NixOS branch (from nixos-unstable to nixos-26.11)
+  also rewrites the literal `nixpkgs.url` in the machine flake, so the lock
+  stays what the flake declares. Stable branches before 26.11 are refused.
+- A machine whose Nixpkgs is newer than a release's (moved by an updater
+  before 1.0.32, or by hand) keeps its own until a release pins a newer one.
+
+The first step still goes the old way. An updater before 1.0.32 installs
+1.0.32 with the channel head of that day, so that update can still meet a
+package NixOS hasn't built. Updaters from 1.0.27 fall back to the release
+alone only when packages are missing, not when a build fails; 1.0.25 and
+1.0.26 (stable until 1.0.32) don't fall back at all. So run `cybex update
+stage cybexos` once to prepare the release on its own, on the packages the
+computer already has, and install it from Software Update. Before 1.0.32 is
+promoted to stable, check that path on a computer or VM running 1.0.25. From then on the installed
+updater takes only release revisions. A machine that got ahead of the pinned
+revision that way stays on its own Nixpkgs until a release passes it, which
+is why 1.0.32 pins the channel head of the day it was checked.
+
+Cybex OS moves its pinned Nixpkgs once a week on the `nixpkgs-update`
+branch that gets the full check before it is merged and released
+([Nixpkgs updates](releasing.md#nixpkgs-updates)). Security fixes in Nixpkgs
+therefore arrive with a Cybex OS release.
 
 The installer and every installed hardware profile default to
 `linuxPackages_latest` from that same nixos-unstable Nixpkgs input. Upstream staging
@@ -25,11 +66,12 @@ packages: the open modules follow NVIDIA's `stable` driver branch (595 for
 Linux 7.3), and the supported 580 closed branch remains independently selected.
 
 Hyprland, hypridle and their libraries come from Nixpkgs unchanged; there is
-no compatibility overlay. Other upstream inputs continue to advance independently.
+no compatibility overlay. They advance with the release's Nixpkgs.
 
-`cybex update check` checks upstream and Cybex OS independently. An unreachable
-source is unknown/unavailable, never reported current. Nixpkgs checks identify
-available revisions; preview builds expose the actual package closure changes.
+`cybex update check` checks NixOS packages and Cybex OS separately. An
+unreachable source is unknown/unavailable, never reported current. Nixpkgs
+checks identify the release's revision; preview builds expose the actual
+package closure changes.
 The menubar shows one icon only when a source has confirmed an available
 update. There are no source counts, zero badges or success/error icons.
 
@@ -166,7 +208,7 @@ authorization.
 
 Updates arrive together, not one restart each. Discovery offers only the
 channel's newest Cybex OS release, and one preparation combines it with the
-newest NixOS packages and available device firmware. A machine on 1.0.18
+NixOS packages it pins and available device firmware. A machine on 1.0.18
 with 1.0.19, 1.0.20 and 1.0.21 published installs 1.0.21 once.
 
 Its notes cover every release it includes. `cybex update check` and the
@@ -179,8 +221,8 @@ unchanged.
 
 A prepared update waiting for review is prepared again when something newer
 would replace it: at once for a newer Cybex OS release, and for newer NixOS
-packages alone only once it is three days old, since nixos-unstable moves
-every day or two and a review rebuilt for each snapshot would never settle.
+packages alone (the installed release's revision, after a release came alone)
+only once it is three days old.
 A preview background preparation made takes in every available source. One
 the person prepared keeps its sources: an update of NixOS packages alone is
 not given a release they left out. Personal Software, configuration and
@@ -220,33 +262,17 @@ covers the NixOS generation and Cybex OS source.
 
 Before the first Cybex OS release is published on a machine's channel, an empty
 release listing is neutral: the unpublished source is hidden and contributes no
-error. Confirmed NixOS package updates remain selected and can be prepared and
-installed independently. An unavailable release repository, an invalid listing,
+error. NixOS packages the installed release pins remain selected and can be
+prepared and installed on their own. An unavailable release repository, an invalid listing,
 a tag that does not name an exact commit, a downgrade and a release whose own
 `VERSION` or compatibility declaration does not fit remain errors
 ([releases](releasing.md)).
 
-An upstream discovery failure keeps `upstream.state` at `unreachable` and
-explains that the Nixpkgs package-source status is unknown. A confirmed GitHub
-API rate-limit response or HTTP 429 suggests retrying later; HTTP 403 without
-rate-limit evidence is reported as access denied. Recognized server, DNS, TLS,
-connection and timeout errors have separate guidance. Other Nix failures leave
-the cause unknown and suggest checking network access and Nix configuration.
-Malformed metadata also leaves the status unknown. Cybex OS discovery still runs
-after an upstream failure, so each source keeps its own result.
-
-Discovery creates no deployment or transaction log. Its public error includes
-this read-only diagnostic command, which can be run locally without elevation:
-
-```sh
-nix flake metadata --refresh --json github:NixOS/nixpkgs/nixos-unstable
-```
-
-Checks classify command diagnostics internally and publish only static guidance;
-they do not log the raw discovery output. The command above may show private
-URLs or configuration details: inspect its output locally and redact secrets
-before sharing it. Checks do not retry automatically or require an account or
-authentication token.
+When the available release's Nixpkgs revision can't be read (GitHub
+unreachable or rate limited, or a `flake.lock` that names no valid revision),
+`upstream.state` is `unreachable` and says the NixOS package status is unknown;
+the release itself is still offered. Discovery creates no deployment or
+transaction log, does not retry automatically and needs no account or token.
 
 Device firmware is included in the regular **Software Update** flow. Checks
 refresh fwupd's signed metadata; a firmware-only update uses the same
@@ -271,10 +297,11 @@ the desktop has no separate firmware button or terminal launch.
 release before evaluation, snapshots the entire personal configuration and
 updates only the chosen inputs. Cybex OS-only updates include its source-declared
 vendor dependency graph while preserving root upstream/personal inputs. They
-never select code from a moving branch. After a failed combined preview, select
-only the available NixOS package source
-to retain installed Cybex OS; that combination must build and pass candidate
-checks too. The equivalent CLI action is `cybex update stage upstream`.
+never select code from a moving branch. A failed combined preview normally
+prepares the release alone at once. NixOS packages alone (`cybex update stage
+upstream`) are only the installed release's revision; packages a newer release
+pins come only with it, so Software Update offers them only together and the
+CLI refuses them alone.
 
 Every stage/apply/discard/rollback/confirm request returns `accepted`, a
 `requestId` and its `cybexos-update@ID.service` unit. Acceptance means the request
@@ -313,10 +340,12 @@ is consumed only after a successful preview. Recovery is separate from
 normal updates; a channel
 cannot use a lower semantic version as a normal update.
 
-nixos-unstable is a rolling branch: advancing it is routine, including when
-its NixOS version moves on (26.11, then later). Release metadata and
-`/etc/cybexos/release.json` name the branch (`"nixos": ["unstable"]`), not a
-version. Never change `system.stateVersion` as part of a routine update.
+Cybex OS follows nixos-unstable until it moves to the stable NixOS 26.11
+branch, and then each new stable release. A release that moves the branch
+names it in its pinned `flake.lock` and is qualified like an ISO release.
+Release metadata and `/etc/cybexos/release.json` name the branch
+(`"nixos": ["unstable"]`), not a version. Never change
+`system.stateVersion` as part of a routine update.
 
 ## Prebuilt packages only
 
@@ -329,12 +358,30 @@ would compile, it stops before building: the status is `failed`, its phase
 "Waiting for NixOS to finish building this change", `notPrebuilt` names the
 packages, and nothing changes.
 
-A hold never keeps a published Cybex OS release back. When a combined update
-(`both`) is held for packages NixOS hasn't built, or for packages that need a
-newer Cybex OS, the same request prepares the newer release alone on this
-computer's current packages (`stage_update` in `lifecycle/cybexos/cli.py`).
-A kernel build or a personal module that needs changing is never worked
-around this way, and a prepared update that already holds the release is kept.
+The check can't foresee every failure: Cybex OS's own packages build here and
+may not build against a new Nixpkgs yet (Voxtype on 2026-11-10), and
+configuration is never cached. When the system build itself fails in an
+update that moves Nixpkgs, the update waits the same way: phase "Waiting for a
+fix to the new NixOS packages", `notPrebuilt` names the packages whose own
+builds failed, and nothing changes. The derivations that failed are kept in
+`/var/lib/cybexos/failed-builds.json`, so background preparation doesn't
+compile the same failure again; a week later, or once Nixpkgs or Cybex OS
+changes them, it builds them again. Preparing again by hand always builds
+them (the cause may have been a full disk), and the release alone and
+Software changes never wait for them. A download that fails (a
+fixed-output derivation) is not kept: the network may be the cause.
+
+Nothing that goes wrong with new NixOS packages keeps a published Cybex OS
+release back. When a combined update (`both`) fails for any reason, whether
+packages NixOS hasn't built, a Nixpkgs that needs a newer Cybex OS, a package
+that fails to build, a personal module the new Nixpkgs breaks or a fault in
+the check itself, the same request prepares the newer release alone on the
+packages this computer already runs (`stage_update` in
+`lifecycle/cybexos/cli.py`). The release's own updater then judges the next
+NixOS package update, so a fix to the updater always arrives. Only when the
+release alone fails too does the request fail. A prepared update that already
+holds the release is kept. Updaters before 1.0.32 fall back only for a hold:
+on one of those, `cybex update stage cybexos` prepares the release alone.
 
 When only newer NixOS packages are held, there is nothing for the person to
 do. Software Update, Settings and the Control Center read as up to date, with
@@ -346,7 +393,7 @@ package names, remains only for a hold that also has a Cybex OS release
 waiting, which preparing the release alone normally resolves. Unknown
 candidate identities never suppress an indicator.
 
-NixOS builds nixos-unstable continuously, so a later revision normally passes.
+A later release normally pins a revision that passes.
 With automatic preparation enabled, background preparation retries a package
 hold for a changed source or personal configuration, or after a day, including
 holds first encountered manually. Other manual failures and personal Software
@@ -375,9 +422,10 @@ error names the module that used what is gone:
   are readable by every user. The person updates that file.
 - **No module named.** Treated as a hold, like a Cybex OS module.
 
-When the installed Nixpkgs fails as well, the failure is an ordinary one. The
-nixpkgs-canary workflow catches these changes before machines receive them
-([releasing](releasing.md#nixpkgs-canary)).
+When the installed Nixpkgs fails as well, the failure is an ordinary one.
+Since a release pins the Nixpkgs its full check built, such a change reaches
+Cybex OS on a `nixpkgs-update` branch first
+([releasing](releasing.md#nixpkgs-updates)).
 
 Two kinds of change become the default generation once activation and its
 health checks pass, without a trial boot or restart:
@@ -437,31 +485,44 @@ use NixOS's cached default builds: Hyprland and its portal as Nixpkgs builds
 them, Xwayland without a font path, and every glibc locale. What builds on the
 computer by design:
 
-- Cybex OS's own packages and hardware stacks, and its NetworkManager
-  Libreswan path fix. These include Codex and Claude Code, the agent CLIs
+- Cybex OS's own packages and hardware stacks, including the ones no
+  package list reaches (Voxtype with its dictation patch, the automatic-login
+  encryption check: the internal `cybexos.updates.ownBuilds`). These include
+  Codex and Claude Code, the agent CLIs
   Wiz drives: Cybex OS packages the vendors' own release builds and keeps
-  them current itself ([vendor updates](releasing.md#automatic-vendor-updates)),
+  them current itself ([vendor updates](releasing.md#vendor-updates)),
   so they do not wait for NixOS's build farm and do not update themselves;
 - unfree vendor downloads, which NixOS never caches: Google Chrome,
   1Password, Spotify, ChatGPT, Steam, Brave Origin from Software and NVIDIA's
-  userspace, with NVIDIA's 32-bit EGL platform libraries for Steam. The
-  Nixpkgs packages a download needs are ordinary NixOS builds and must come
-  prebuilt (`system.build.cybexosVendorBuilds`): on 2026-11-10 the channel's
-  ChatGPT needed a codex and a tectonic that NixOS had failed to build, so
-  the update waits for them instead of compiling them. A wrapper without a
-  source of its own (a Wayland launcher, Steam's environment) carries its
-  download, whose inputs are checked the same way;
+  userspace. A wrapper without a source of its own (a Wayland launcher,
+  Steam's or Zoom's environment) carries its download: the first package of
+  its own family below it (`prebuilt.family`). Cybex OS's own wrappers name
+  it exactly (`passthru.cybexosLocalBuilds`);
 - out-of-tree kernel modules (NVIDIA, the XPS camera, the medium's ZFS);
+- what `cybexos.updates.expectedBuilds` declares: the Libreswan path fix,
+  Steam's runtime, the XPS camera's GStreamer source and NVIDIA's 32-bit EGL
+  platform libraries for Steam, with the 32-bit build tools those need
+  (`system.build.cybexosDeclaredBuilds`);
 - the machine's own configuration: initrd, PAM, setuid wrappers, dconf.
 
+Everything else must come prebuilt, including what these builds need: an
+expected build never covers an uncached Nixpkgs package below it. On
+2026-11-10 the channel's ChatGPT needed a codex and a tectonic NixOS had
+failed to build; updaters before 1.0.31 let the download cover them and
+compiled them until they failed, and before 1.0.32 Cybex OS's own packages
+and kernel modules still covered theirs. Only a declared build covers its
+inputs, and an unfree download listed there doesn't.
+
 A package you deliberately build from source goes in
-`cybexos.updates.expectedBuilds` in your personal configuration. Releases run
-`scripts/check-prebuilt`, `--nvidia` and `--catalogue` (every Software profile
-app); each lists any other build and exits 1.
+`cybexos.updates.expectedBuilds` in your personal configuration; what it needs
+that NixOS doesn't prebuild is built too. Releases run `scripts/check-prebuilt`,
+`--nvidia` and `--catalogue` (every Software profile app), and so does the full
+check's product job; each lists any other build and exits 1. A part a Cybex OS
+package builds separately goes in its `passthru.cybexosLocalBuilds`.
 
 ## Release delivery
 
-Cybex OS updates arrive only as published GitHub releases of `CybexHQ/CybexOS`;
+Cybex OS updates arrive only as published GitHub releases of `CybexBV/CybexOS`;
 there are no publisher keys or channel documents ([releases](releasing.md)).
 An installed machine never follows a branch: a release that is not published,
 or that is a draft, is not offered. It follows the stable or the beta release

@@ -42,6 +42,9 @@ Singleton {
             ? rawEnvironment.trim() : "";
         return environment !== "" ? environment : "ws://127.0.0.1:9120/ws";
     }
+    // The bridge's user service is this computer's loopback endpoint; one set
+    // elsewhere (HERMES_MENUBAR_WS_URL) is not ours to start or stop.
+    readonly property bool localBridge: /^wss?:\/\/(127\.0\.0\.1|localhost|\[::1\]):9120(\/|$)/.test(endpoint)
     readonly property bool websocketsMissing: socketLoader.status === Loader.Error
     readonly property int retryInSecs: retryTimer.running
         ? Math.max(1, Math.ceil(retryTimer.interval / 1000)) : 0
@@ -79,6 +82,16 @@ Singleton {
                 scheduleRetry(false);
             return;
         }
+        // Nothing starts the bridge at login (nix/modules/desktop.nix): the
+        // widget does, once each time it turns on or the person reconnects,
+        // and the reconnect backoff covers the moment it takes to listen.
+        // Retries leave systemd's own restart backoff alone. It runs until
+        // logout once started; stopping it would end a Hermes task it owns.
+        if (localBridge && !bridgeStarted) {
+            bridgeStarted = true;
+            Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
+                "hermes-menubar-bridge.service"]);
+        }
         if (state === "connected" || state === "connecting")
             return;
         generation++;
@@ -111,6 +124,8 @@ Singleton {
 
     function reconnect() {
         disconnect();
+        // Asked again: a bridge whose start failed gets another one.
+        bridgeStarted = false;
         retrySecs = 2;
         connectionError = "";
         if (enabled)
@@ -144,7 +159,17 @@ Singleton {
         return true;
     }
 
-    onEnabledChanged: enabled ? reconnect() : disconnect()
+    // Whether this turn-on started the bridge; the next turn-on starts it again.
+    property bool bridgeStarted: false
+
+    onEnabledChanged: {
+        if (enabled) {
+            reconnect();
+        } else {
+            bridgeStarted = false;
+            disconnect();
+        }
+    }
 
     Component.onCompleted: connectDelay.restart()
 

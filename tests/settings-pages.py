@@ -571,7 +571,7 @@ def main():
             def saved_icon():
                 saved = json.loads((home / '.config/cybexos/shell.json').read_text())
                 return saved['v'], saved.get('controlIcon', 'cybex'), saved.get('controlIconPrompt', True)
-            wait(lambda: saved_icon() == (34, 'cybex', True), 'the choice saved in schema 34')
+            wait(lambda: saved_icon() == (35, 'cybex', True), 'the choice saved in schema 35')
 
             # The narrow window: icon rail, compact chip.
             subprocess.run(['swaymsg', '[title="Cybex OS Settings"]', 'resize', 'set', '640', '620'],

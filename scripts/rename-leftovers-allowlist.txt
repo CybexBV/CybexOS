@@ -1,5 +1,4 @@
 # Retired spelling exceptions are limited to history, the scanners and upstream font names.
-docs/rename-to-nerdos.md :: .  # archived report and artifacts for the previous rename
 docs/measurements/* :: .  # recorded evidence describes the revision actually exercised
 docs/branding.md :: NerdOS|Nerd Font  # explains the reverted identity
 scripts/check_leftovers.py :: (?i)nerdos|nerd  # scanner must recognize retired names
@@ -13,3 +12,4 @@ desktop/quickshell/Ui/PanelSectionHeader.qml :: JetBrainsMono Nerd  # upstream f
 desktop/quickshell/Common/SettingsHelpers.js :: Nerd Font  # upstream font family
 desktop/quickshell/Common/Theme.qml :: Nerd Font  # upstream font family
 tests/quickshell/* :: Nerd Font  # upstream font family assertions
+* :: ^(?!.*(?i:nerdos))(?=.*(?i:nerd[ -]?fonts?|nerd-icons))  # the upstream Nerd Fonts family, its icon names and the catalogue of them; never the retired product name

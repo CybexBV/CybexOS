@@ -29,7 +29,8 @@ in {
         beta channel first. An administrator's runtime choice
         (`cybex update channel`, Settings or Software Update, kept in
         /var/lib/cybexos/update-channel.json) overrides it without a rebuild.
-        NixOS package updates do not follow a channel.
+        NixOS packages come with the releases of the channel: each release
+        pins its Nixpkgs revision.
       '';
     };
     additionalHealthServices = lib.mkOption {
@@ -47,7 +48,11 @@ in {
   };
   config = lib.mkMerge [ (lib.mkIf (cfg.enable || cfg.installationMedium) {
     # The medium installs its own release and passes its channel policy on.
-    environment.etc."cybexos/update.json".text = builtins.toJSON { schema = 1; channel = cfg.updates.channel; branch = "nixos-unstable"; };
+    # Its branch is the one this release's pinned Nixpkgs follows.
+    environment.etc."cybexos/update.json".text = let
+      lock = builtins.fromJSON (builtins.readFile ../../flake.lock);
+    in builtins.toJSON { schema = 1; channel = cfg.updates.channel;
+                         branch = lock.nodes.${lock.nodes.${lock.root}.inputs.nixpkgs}.original.ref; };
   }) (lib.mkIf cfg.enable {
     # units and userUnits must work: a deployment that breaks one is rolled
     # back. The reported lists cover optional devices such as a camera or

@@ -1,26 +1,29 @@
 name: NixOS qualification
 on:
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      source_ref:
-        type: string
-        required: false
-        default: ''
 permissions:
   contents: read
+# One run per branch at a time: a newer dispatch replaces the older one, so
+# daily update branches can't queue up on The Beast's single runner.
+concurrency:
+  group: nixos-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   source:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity
       - run: nix flake check --no-build
       - run: nix build .#checks.x86_64-linux.lifecycle -L
@@ -37,27 +40,51 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity
       - run: nix build .#checks.x86_64-linux.product -L
       - name: Build matched XPS stack and evaluate NVIDIA independently
         run: nix build .#checks.x86_64-linux.xps-system .#checks.x86_64-linux.nvidia-evaluation -L
+      # A fresh machine's update builds only what the updater expects: a new
+      # local build Cybex OS doesn't declare would hold every update.
+      - name: Check that machines build only expected packages
+        run: |
+          python3 -I -B scripts/check-prebuilt
+          python3 -I -B scripts/check-prebuilt --nvidia
+          python3 -I -B scripts/check-prebuilt --catalogue
+          # Hardware variants (each profile with the options the installer
+          # sets for it): what machines with them must not compile.
+          # A list that can't be read must fail, not check nothing.
+          profiles=$(python3 -I -c 'import json; print(" ".join(p["id"] for p in json.load(open("lifecycle/cybexos/hardware-profiles.json"))["profiles"] if p.get("approved")))')
+          test -n "$profiles"
+          for profile in $profiles; do
+            echo "== $profile"
+            python3 -I -B scripts/check-prebuilt --profile "$profile"
+          done
   vm:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity --vm
       - run: nix build .#checks.x86_64-linux.vm -L
       - run: nix build .#checks.x86_64-linux.boot -L
@@ -68,12 +95,16 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
-            max-jobs = 2
-            cores = 4
+            max-jobs = 4
+            cores = 0
       - run: python3 -B scripts/check-ci-capacity --vm
       - name: Build and qualify the exact source image in isolated VMs
         run: |

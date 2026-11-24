@@ -6,7 +6,7 @@ const H = load("SettingsHelpers.js");
 
 test("defaults carry the design values", () => {
     const d = H.defaults();
-    assert.equal(H.VERSION, 34);
+    assert.equal(H.VERSION, 35);
     // The Control Center button ends the right column, with the Cybex OS
     // mark, which the fish prompt shows too.
     assert.equal(d.mods.right.at(-1).id, "control");
@@ -81,8 +81,9 @@ test("defaults carry the design values", () => {
     assert.equal(d.mods.right.find(m => m.id === "tray").on, false);
     assert.equal(d.mods.right.find(m => m.id === "updates").on, true);
     assert.equal(d.mods.right.find(m => m.id === "notifications").on, true);
+    // Optional extras since schema 35, Model Usage too: on in Settings -> Bar.
     for (const id of H.CONNECTED_WIDGET_IDS)
-        assert.equal(d.mods.right.find(m => m.id === id).on, id === "modelusage",
+        assert.equal(d.mods.right.find(m => m.id === id).on, false,
             `${id} is available through Connected without crowding a fresh bar`);
     const moduleIds = [...d.mods.left, ...d.mods.center, ...d.mods.right]
         .map(module => module.id);
@@ -1332,11 +1333,12 @@ test("schema 34 ignores the layout leftovers an older reset kept", () => {
     // Before schema 34, Reset kept every entry outside its default column.
     const leftover = { v: 33, mods: { left: [{ id: "control", on: true, detail: "auto" }] } };
     assert.equal(H.staleModsLeftover(leftover), true);
-    assert.deepEqual(H.merge(leftover).mods, H.defaultMods());
-    assert.deepEqual(H.overrideKeys(leftover), []);
-    // The next save drops it.
-    const saved = JSON.parse(H.serializeDocument(H.merge(leftover), leftover, []));
-    assert.equal(saved.mods, undefined);
+    // It never chose a layout, so it keeps its day's default (schema 35:
+    // with Model Usage on), which the next save stores in place of it.
+    assert.deepEqual(H.merge(leftover).mods, H.defaultMods(true));
+    assert.deepEqual(H.overrideKeys(leftover), ["mods"]);
+    const saved = JSON.parse(H.serializeDocument(H.merge(leftover), leftover, H.overrideKeys(leftover)));
+    assert.deepEqual(saved.mods, H.defaultMods(true));
     // A whole layout is a choice, even when old.
     const full = H.defaultMods();
     full.left.push(full.right.pop());
@@ -1344,6 +1346,42 @@ test("schema 34 ignores the layout leftovers an older reset kept", () => {
     assert.deepEqual(H.overrideKeys({ v: 33, mods: full }), ["mods"]);
     // A newer schema's widget is not a leftover of ours.
     assert.equal(H.staleModsLeftover({ v: 34, mods: leftover.mods }), false);
+});
+
+test("schema 35 makes the connected-service widgets optional and keeps them for files from before", () => {
+    // Off for a new file, Model Usage too.
+    for (const id of H.CONNECTED_WIDGET_IDS.concat(["remote"]))
+        assert.equal(H.defaults().mods.right.find(entry => entry.id === id).on, false, id);
+    assert.equal(H.merge({}).mods.right.find(entry => entry.id === "modelusage").on, false);
+    // A file from before that never chose a layout keeps Model Usage, and
+    // the first save stores the layout so the new default can't remove it.
+    const before = { v: 34, barStyle: "floating" };
+    const merged = H.merge(before);
+    assert.equal(merged.mods.right.find(entry => entry.id === "modelusage").on, true);
+    assert.deepEqual(H.overrideKeys(before), ["barStyle", "mods"]);
+    const saved = JSON.parse(H.serializeDocument(merged, before, H.overrideKeys(before)));
+    assert.equal(saved.v, 35);
+    assert.equal(saved.mods.right.find(entry => entry.id === "modelusage").on, true);
+    assert.equal(H.merge(saved).mods.right.find(entry => entry.id === "modelusage").on, true);
+    // A chosen layout stays exactly as chosen, Model Usage on or off.
+    for (const on of [true, false]) {
+        const chosen = H.defaultMods(true);
+        chosen.right.find(entry => entry.id === "modelusage").on = on;
+        assert.equal(H.merge({ v: 34, mods: chosen }).mods.right.find(entry => entry.id === "modelusage").on, on);
+    }
+    // A layout of that age without a Model Usage entry showed it at its
+    // default; it still does. In a new file an absent entry is off.
+    const partial = { left: [{ id: "ws", on: true, detail: "auto" }], center: [], right: [] };
+    const usage = file => H.merge(file).mods.right.find(entry => entry.id === "modelusage").on;
+    assert.equal(usage({ v: 34, mods: partial }), true);
+    assert.equal(usage({ v: 35, mods: partial }), false);
+    // So did an entry without an on/off.
+    const unset = { ...partial, right: [{ id: "modelusage", detail: "auto" }] };
+    assert.equal(usage({ v: 34, mods: unset }), true);
+    // A file without a version was written by a script, not the shell: new.
+    assert.equal(usage({ reducedMotion: true }), false);
+    assert.equal(usage({ mods: partial }), false);
+    assert.equal(usage({}), false);
 });
 
 test("resetting a layout removes widgets placed outside their default column", () => {

@@ -68,6 +68,17 @@ in {
       Chromium and Brave Origin); administrator values override vendor defaults.
     '';
   };
+  options.cybexos.applications.spotify = lib.mkOption {
+    type = lib.types.bool;
+    default = cfg.features.proprietary;
+    defaultText = lib.literalExpression "config.cybexos.features.proprietary";
+    internal = true;
+    description = ''
+      Install Spotify with the proprietary applications. Checks that don't
+      exercise it turn it off: its download comes from api.snapcraft.io,
+      which CI runners can't always reach.
+    '';
+  };
   config = lib.mkIf cfg.enable {
     environment.systemPackages = with pkgs; [
       cfg.desktopPackage cfg.updaterPackage
@@ -90,7 +101,8 @@ in {
       gsettings-desktop-schemas adwaita-icon-theme adw-gtk3 glib
       # The agent CLIs are part of every installation. Claude Code is unfree.
       codexCli
-    ] ++ lib.optionals cfg.features.proprietary [ chrome waylandApps.spotify waylandApps.chatgpt claudeCode ]
+    ] ++ lib.optionals cfg.features.proprietary [ chrome waylandApps.chatgpt claudeCode ]
+      ++ lib.optionals (cfg.features.proprietary && cfg.applications.spotify) [ waylandApps.spotify ]
       ++ lib.optionals cfg.features.assistant [ assistant ]
       ++ lib.optionals cfg.features.developer [ git-lfs gcc cmake gnumake mold sccache rustup nodejs bun jdk25 tree-sitter python3 ruff shellcheck lazygit lazydocker android-tools balena-cli (pkgs.callPackage ../packages/mdview.nix {}) (pkgs.callPackage ../packages/t3-code.nix {}) ]
       ++ lib.optionals cfg.features.podman [ distrobox podman-compose ]
@@ -228,6 +240,10 @@ in {
     cybexos.updates.expectedBuilds = [ libreswanPlugin ]
       # AppArmor references the original unfree download, outside its launcher.
       ++ lib.optional cfg.features.proprietary chatgpt
+      # ChatGPT's workspace runtime: a second unfree download of its own
+      # (Nixpkgs, November 2026), below ChatGPT rather than in the system's
+      # packages. Its inputs must still come prebuilt.
+      ++ lib.optional (cfg.features.proprietary && (chatgpt.primaryRuntime or null) != null) chatgpt.primaryRuntime
       ++ lib.optional config.programs.steam.enable config.programs.steam.package.run;
     services.libreswan.enable = lib.mkDefault true;
     environment.etc."cybexos/emoji-test.txt".source = "${pkgs.unicode-emoji}/share/unicode/emoji/emoji-test.txt";

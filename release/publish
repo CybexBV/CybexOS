@@ -13,9 +13,10 @@
 #
 # VERSION must equal the committed VERSION file. release/notes.md is the
 # release text. Optional assets (an ISO, its checksum) are uploaded with it.
+# The commit must have passed the full check (nixos.yml) first.
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
-REPO=${CYBEXOS_RELEASE_REPO:-CybexHQ/CybexOS}
+REPO=${CYBEXOS_RELEASE_REPO:-CybexBV/CybexOS}
 
 fail() { echo "release/publish: $*" >&2; exit 1; }
 
@@ -58,11 +59,17 @@ fi
 kind=(--prerelease --latest=false) channel=beta
 if ((stable)); then kind=(--latest) channel='stable and beta'; fi
 revision=$(git rev-parse HEAD)
+# Only a commit the full check passed reaches machines: every job of a
+# dispatched nixos.yml run on The Beast (docs/releasing.md#the-full-check).
+qualified=$(gh run list --repo "$REPO" --workflow nixos.yml --commit "$revision" --event workflow_dispatch \
+    --status success --limit 1 --json databaseId --jq length) \
+    || fail 'cannot ask GitHub whether the full check passed; nothing was published'
+[[ $qualified == 1 ]] || fail "the full check has not passed for $revision; run gh workflow run nixos.yml --repo $REPO --ref main and publish once it passes"
 if ((dry_run)); then
     echo "Would publish $tag at $revision to $REPO for $channel (${kind[*]}) with ${#assets[@]} asset(s)."
     exit 0
 fi
-git tag --annotate "$tag" --message "Cybex OS $version"
+git tag --annotate "$tag" --message "Cybex OS $version" "$revision"
 git push --quiet origin "refs/tags/$tag"
 gh release create "$tag" --repo "$REPO" --verify-tag --title "Cybex OS $version" \
     --notes-file release/notes.md "${kind[@]}" "${assets[@]}"

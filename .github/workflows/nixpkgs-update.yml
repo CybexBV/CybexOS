@@ -1,0 +1,114 @@
+name: Nixpkgs update
+
+# Once a week, move flake.lock's Nixpkgs to the head of the branch flake.nix
+# follows, on the nixpkgs-update branch (replaced each time), and start the full check
+# (nixos.yml) on it. Releases pin that revision and machines take it only with
+# a release (docs/updates.md#nixpkgs-comes-with-the-release), so a revision
+# that breaks Cybex OS never reaches them. This workflow never pushes main or
+# publishes: merging the branch after its full check passes, and releasing
+# it, is a person's step (docs/releasing.md#nixpkgs-updates).
+on:
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  # actions: start the full check; contents: push the branch.
+  actions: write
+  contents: write
+  issues: write
+
+concurrency:
+  group: nixpkgs-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # actions/checkout v4.4.0, as in the repository's other workflows.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+      # cachix/install-nix-action, as in the repository's other workflows.
+      # The token keeps nix flake update clear of GitHub's anonymous limit.
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
+        with:
+          github_access_token: ${{ github.token }}
+
+      - name: Move Nixpkgs on a branch
+        id: update
+        run: |
+          set -euo pipefail
+          revision() {
+            python3 -I -c 'import json; l = json.load(open("flake.lock")); print(l["nodes"][l["nodes"][l["root"]]["inputs"]["nixpkgs"]]["locked"]["rev"])'
+          }
+          before=$(revision)
+          nix --extra-experimental-features 'nix-command flakes' flake update nixpkgs
+          after=$(revision)
+          if [ "$before" = "$after" ]; then
+            echo "Nixpkgs is still at $before." >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branch=nixpkgs-update
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch --create "$branch"
+          git add flake.lock
+          git commit --quiet --message "Update Nixpkgs to ${after:0:12}" \
+            --message "From ${before:0:12}, by the weekly Nixpkgs update workflow. Merge it once its full check passes."
+          # Replace the branch by deleting it first: the token may not update a
+          # branch to commits that change workflows, but it may create one.
+          git push --quiet origin --delete "$branch" 2>/dev/null || true
+          git push --quiet origin "$branch"
+          {
+            echo "changed=true"
+            echo "branch=$branch"
+            echo "before=$before"
+            echo "after=$after"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Start the full check
+        if: steps.update.outputs.changed == 'true'
+        run: gh workflow run nixos.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.update.outputs.branch }}"
+
+      - name: Report the update
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          branch="${{ steps.update.outputs.branch }}"
+          {
+            echo "Nixpkgs moved from \`${{ steps.update.outputs.before }}\` to \`${{ steps.update.outputs.after }}\` on \`$branch\`."
+            echo
+            echo "The full check runs on that branch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/nixos.yml?query=branch%3A$(printf %s "$branch" | sed 's#/#%2F#g')"
+            echo
+            echo "- **It passes:** merge it (\`git merge --no-ff origin/$branch\`), push \`main\` and take it into the next beta release. Machines get the new Nixpkgs with that release."
+            echo "- **It fails:** this Nixpkgs doesn't work with Cybex OS yet. Fix Cybex OS on \`main\`, not on this branch: the next run replaces it. Machines are not affected, because they only take the revision a release pins."
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/issue.md"
+          python3 -I -B scripts/github-issue open --label nixpkgs-update \
+            --title "Nixpkgs update ready for its full check: ${{ steps.update.outputs.after }}" --body-file "$RUNNER_TEMP/issue.md"
+
+      - name: Close a failure report once a run succeeds
+        if: success()
+        run: python3 -I -B scripts/github-issue close --label nixpkgs-update-failed --comment "The weekly Nixpkgs update runs again."
+
+      - name: Report a failed run
+        if: failure()
+        run: |
+          {
+            if [ "${{ steps.update.outputs.changed }}" = true ]; then
+              echo "The weekly Nixpkgs update pushed \`${{ steps.update.outputs.branch }}\` but could not start its full check or report it; start the full check on that branch by hand."
+            else
+              echo "The weekly Nixpkgs update did not finish, so no update branch or full check was started."
+            fi
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/failure.md"
+          python3 -I -B scripts/github-issue open --label nixpkgs-update-failed \
+            --title "Nixpkgs update failed" --body-file "$RUNNER_TEMP/failure.md"
