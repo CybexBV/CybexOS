@@ -39,7 +39,10 @@ Item {
         case "audio": return I18n.tr("Sound…");
         case "time": return I18n.tr("Region…");
         }
-        return "";
+        // A finding no page fixes (a graphics driver, say) gets Wiz on its
+        // own row once he is signed in, rather than a blank row end
+        // (2026-11-24 review, round 2).
+        return Assistant.agentReady ? I18n.tr("Ask Wiz") : "";
     }
     function openPlace(id) {
         if (id === "firmware-updates") {
@@ -48,6 +51,9 @@ Item {
         } else if (root.checkPages[id] !== undefined) {
             Welcome.stepAside(false);
             Settings.showPanel(root.checkPages[id]);
+        } else if (Assistant.agentReady && !Assistant.busy) {
+            Welcome.stepAside(false);
+            Assistant.checkSystem();
         }
     }
     Claim { active: root.visible; onClaimed: SystemSettings.security.acquire(); onReleased: SystemSettings.security.release() }

@@ -330,9 +330,10 @@ test("the Day sheet and the calendar panel share one month grid", () => {
     assert.match(grid, /const startOffset = \(root\.first\.getDay\(\) \+ 6\) % 7;/);
     assert.match(grid, /CalendarHelpers\.eventsInRange\([\s\S]*?, 3\)/);
     assert.match(grid, /color: isToday \? Theme\.accent\s*: isSelected \? Theme\.selectedFill/);
-    // Dates from the months either side are dimmed to the disabled step
-    // (about 3:1), and every date is at least a 32 px target (2026-11-24).
-    assert.match(grid, /: day\.inMonth \|\| day\.isSelected \? Theme\.textMid : Theme\.textDisabled/);
+    // The month shown is in full-strength text and the months either side
+    // in the faintest 4.5:1 step, and every date is at least a 32 px target
+    // (2026-11-24).
+    assert.match(grid, /: day\.inMonth \|\| day\.isSelected \? Theme\.textHi : Theme\.textFaint/);
     assert.match(grid, /property real cellHeight: Math\.max\(32, Theme\.scaled\(32\)\)/);
     assert.match(grid, /signal chosen\(var date\)/);
     // The sheet's grid opens the calendar app on the date, as its week did;

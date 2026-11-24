@@ -239,20 +239,36 @@ Rectangle {
                     height: target
 
                     // Collapsed-group count. The toast never groups, so this
-                    // never renders there.
+                    // never renders there. Outlined, with a chevron, so a
+                    // folded card reads as one that opens (2026-11-24 review,
+                    // round 2: a bare number did not say so).
                     Rectangle {
                         id: countPill
                         visible: card.groupCount > 1
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        width: countText.implicitWidth + 12
+                        width: countText.implicitWidth + countChevron.width + 14
                         height: Theme.chipInnerHeight
                         radius: Theme.chipRadius
                         color: "transparent"
+                        border.width: 1
+                        border.color: Theme.stroke
+
+                        Sym {
+                            id: countChevron
+                            anchors.right: parent.right
+                            anchors.rightMargin: 5
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "expand_more"
+                            size: card.style.pill
+                            color: Theme.textDim
+                        }
 
                         Text {
                             id: countText
-                            anchors.centerIn: parent
+                            anchors.left: parent.left
+                            anchors.leftMargin: 7
+                            anchors.verticalCenter: parent.verticalCenter
                             text: card.groupCount
                             font.family: card.style.face
                             font.pixelSize: card.style.pill

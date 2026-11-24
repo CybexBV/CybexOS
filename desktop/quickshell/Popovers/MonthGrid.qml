@@ -7,9 +7,10 @@ import "../Common/CalendarHelpers.js" as CalendarHelpers
 // colours become small event marks; only three are drawn so a busy date stays
 // a date rather than a chart. Today wears the accent pill, as the bar's
 // current workspace does; a chosen date is a selected tile
-// (docs/shell-states.md). Dates from the months either side are drawn in
-// textDisabled, dimmed but still about 3:1, so the month shown stands out
-// (2026-11-24 review). The Day sheet and CalendarPopover share it, and each
+// (docs/shell-states.md). The month shown is drawn in textHi and the dates
+// either side in textFaint: clearly quieter, but they can still be chosen,
+// so they keep the 4.5:1 text floor (2026-11-24 review; textMid against
+// textFaint read as undimmed, and textDisabled's 3:1 as unavailable). The Day sheet and CalendarPopover share it, and each
 // decides what choosing a date does.
 Grid {
     id: root
@@ -114,7 +115,7 @@ Grid {
                     ? Theme.weightSemibold : Theme.weightRegular
                 font.features: Theme.tabularNumberFeatures
                 color: day.isToday ? Theme.accentFg
-                    : day.inMonth || day.isSelected ? Theme.textMid : Theme.textDisabled
+                    : day.inMonth || day.isSelected ? Theme.textHi : Theme.textFaint
             }
 
             Row {
