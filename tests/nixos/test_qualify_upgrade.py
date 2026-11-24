@@ -142,6 +142,21 @@ class UpdaterPathTests(unittest.TestCase):
         self.assertEqual(upgrade.expected_nixpkgs('1.0.32', 'both', before, before, older), before['rev'])
         # An updater before 1.0.32 takes the channel head of the day.
         self.assertEqual(upgrade.expected_nixpkgs('1.0.31', 'both', before, staged, newer), staged['rev'])
+        # A release on a later branch moves the machine even with an older
+        # commit (the move to nixos-26.11); from 1.0.33 never to an earlier one.
+        unstable, stable, next_stable = 'nixos-unstable', 'nixos-26.11', 'nixos-27.05'
+        for source in ('1.0.32', '1.0.33'):
+            self.assertEqual(upgrade.expected_nixpkgs(source, 'both', before, older, older, unstable, stable),
+                             older['rev'], source)
+        self.assertEqual(upgrade.expected_nixpkgs('1.0.33', 'both', before, before, newer, next_stable, stable),
+                         before['rev'])
+        self.assertEqual(upgrade.expected_nixpkgs('1.0.33', 'both', before, before, newer, stable, unstable),
+                         before['rev'])
+        # 1.0.32's updater took any other branch.
+        self.assertEqual(upgrade.expected_nixpkgs('1.0.32', 'both', before, newer, newer, stable, unstable),
+                         newer['rev'])
+        self.assertEqual(upgrade.expected_nixpkgs('1.0.33', 'both', before, newer, newer, unstable, unstable),
+                         newer['rev'])
 
 
 @unittest.skipUnless(shutil.which('openssl'), 'needs openssl')

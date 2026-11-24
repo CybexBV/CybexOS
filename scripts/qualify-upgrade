@@ -44,6 +44,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'lifecycle'))
+from cybexos.inputs import branch_order  # noqa: E402
 from cybexos.trust import version  # noqa: E402
 
 REPO = 'CybexBV/CybexOS'
@@ -56,6 +57,8 @@ TAG = re.compile(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:beta
 # (docs/updates.md, "Nixpkgs comes with the release").
 FALLBACK_FOR_HOLDS = version('1.0.27')
 RELEASE_PINNED = version('1.0.32')
+# The first updater that moves a machine's NixOS branch only forward.
+FORWARD_BRANCHES_ONLY = version('1.0.33')
 # The stand-in answers its own probes under this path.
 PROBE = '/cybexos-upgrade-test/'
 
@@ -135,17 +138,28 @@ def fallback_scope(source_version, scope, status):
     return None
 
 
-def expected_nixpkgs(source_version, scope, before, staged, pinned):
+def expected_nixpkgs(source_version, scope, before, staged, pinned, before_ref=None, pinned_ref=None):
     """The Nixpkgs revision the upgraded machine must run.
 
     The release alone keeps the machine's. With NixOS packages, an updater
-    from 1.0.32 moves to the release's pinned revision when it is newer; an
-    older one takes the channel head of the day, so whatever it staged.
+    from 1.0.32 moves to the release's pinned revision when it is newer on the
+    same branch; to a release on another branch (nixos-unstable to
+    nixos-26.11) whatever the dates, which from 1.0.33 on means a later
+    branch only (inputs.branch_order). An older updater takes the channel
+    head of the day, so whatever it staged.
     """
     if scope == 'cybexos':
         return before['rev']
     if version(source_version) >= RELEASE_PINNED:
-        return pinned['rev'] if pinned['lastModified'] > before['lastModified'] else before['rev']
+        if before_ref and pinned_ref and before_ref != pinned_ref:
+            if version(source_version) < FORWARD_BRANCHES_ONLY:
+                moves = True
+            else:
+                order = branch_order(before_ref), branch_order(pinned_ref)
+                moves = None not in order and order[1] > order[0]
+        else:
+            moves = pinned['lastModified'] > before['lastModified']
+        return pinned['rev'] if moves else before['rev']
     return staged['rev']
 
 
@@ -568,10 +582,12 @@ def upgrade(harness, iso, source, target, base, evidence, *, standin, applicatio
         release = json.loads(vm.command('cat /etc/cybexos/release.json').strip())
         after = machine_inputs(vm)
         cybexos = after['cybexos']['locked']
-        pinned = root_input(target['lock'], 'nixpkgs')['locked']
+        release_nixpkgs = root_input(target['lock'], 'nixpkgs')
+        pinned = release_nixpkgs['locked']
         staged = (prepared.get('inputs') or {}).get('nixpkgs') or {}
         final_scope = prepared.get('scope') or scope
-        expected = expected_nixpkgs(source['version'], final_scope, before['nixpkgs']['locked'], staged, pinned)
+        expected = expected_nixpkgs(source['version'], final_scope, before['nixpkgs']['locked'], staged, pinned,
+                                    before['nixpkgs']['original'].get('ref'), release_nixpkgs['original'].get('ref'))
         problems = []
         if release.get('version') != target['version'] or release.get('revision') != target['revision']:
             problems.append('/etc/cybexos/release.json names ' + json.dumps({k: release.get(k) for k in ('version', 'revision')}))
