@@ -147,6 +147,11 @@ class Audit:
         for path in [target,*target.rglob('*')]:
             if not path.is_symlink():os.chown(path,1000,100)
         config=Path('/home/cybexqa/.config/cybexos/dev-source')
+        # A fresh account has no Cybex OS settings yet.
+        for directory in (config.parent.parent, config.parent):
+            if not directory.exists():
+                directory.mkdir()
+                os.chown(directory,1000,100)
         config.write_text(str(target)+'\n')
         os.chown(config,1000,100)
         self.user(['systemctl','--user','restart','quickshell.service'])

@@ -48,7 +48,8 @@ in pkgs.testers.runNixOSTest {
     def audit(name, command):
         status, output = machine.execute(f"cd /tmp && PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3.interpreter} -B {command} 2>&1")
         machine.log(output)
-        machine.copy_from_machine(f"/tmp/{name}.json", "")
+        if machine.execute(f"test -e /tmp/{name}.json")[0] == 0:
+            machine.copy_from_machine(f"/tmp/{name}.json", "")
         assert status == 0, f"{name} failed; see its report and the log above"
 
     audit("settings-audit", "${source}/tests/settings-runtime.py --prepare --report /tmp/settings-audit.json")
