@@ -19,7 +19,7 @@ SHORTCUTS = ('', 'grp:alt_shift_toggle', 'grp:ctrl_shift_toggle', 'grp:caps_togg
 def run(args):
     result = subprocess.run(args, capture_output=True, text=True, timeout=8, check=False)
     if result.returncode:
-        raise ValueError('Hyprland could not apply this change. Check your session and retry.')
+        raise ValueError('Could not apply this change to the desktop. Try again.')
     return result.stdout.strip()
 
 
@@ -209,7 +209,7 @@ class InputSettings:
                     run(['hyprctl', 'reload'])
                 except Exception:
                     raise ValueError('Input preferences were restored, but Hyprland could not reload. Sign out to restore the session.') from error
-                raise ValueError('Hyprland could not apply the change. Previous preferences were restored.') from error
+                raise ValueError('Could not apply the change, so your previous settings were restored.') from error
         # Hash the exact committed bytes, including the newline. Re-reading
         # after releasing the lock could return another writer's version.
         return {'version': hashlib.sha256(payload).hexdigest(),

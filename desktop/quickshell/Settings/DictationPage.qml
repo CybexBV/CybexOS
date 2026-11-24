@@ -477,7 +477,7 @@ SettingsPage {
 
             SettingsHint {
                 width: parent.width
-                text: I18n.tr("An administrator can add them. In /etc/nixos/machine.nix, change features.developer = false; to true;. Then run the command below and review the change in Software Update. Compilers and other programming tools come with them.")
+                text: I18n.tr("An administrator can add them: in /etc/nixos/machine.nix, set features.developer to true, run the command below, then install the change from Software Update. Compilers and other programming tools come with them.")
             }
             ValueRow {
                 width: parent.width

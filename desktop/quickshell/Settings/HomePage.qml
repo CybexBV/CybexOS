@@ -106,7 +106,11 @@ SettingsPage {
                 detail: I18n.tr("Back up to a drive or an SSH server, protected by a recovery key."),
                 action: I18n.tr("Set up…") });
         for (const check of Doctor.attention)
-            list.push({ id: "check:" + check.id, tone: check.state === "problem" ? "red" : "neutral",
+            // A finding keeps the colour Welcome's Ready step gives it: red
+            // for a problem, amber for a suggestion (2026-11-24 review,
+            // round 2: grey here and amber there gave one finding two
+            // levels of urgency). A suggestion still never takes the primary.
+            list.push({ id: "check:" + check.id, tone: check.state === "problem" ? "red" : "amber",
                 status: check.state === "problem" ? I18n.tr("Problem") : I18n.tr("Suggestion"),
                 needed: check.state === "problem",
                 title: Doctor.sentence(check), detail: I18n.tr("Found by the system check"),

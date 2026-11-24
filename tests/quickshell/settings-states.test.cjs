@@ -131,7 +131,8 @@ test("Home reflows and keeps its formats, tiers and static memory", () => {
     // in progress and the check's verdict stay neutral.
     assert.match(home, /id: "changes", tone: "neutral", status: ""/);
     assert.match(home, /id: "preparing", tone: "neutral"/);
-    assert.match(home, /tone: check\.state === "problem" \? "red" : "neutral"/);
+    // A finding keeps Welcome Ready's colours: red problem, amber suggestion.
+    assert.match(home, /tone: check\.state === "problem" \? "red" : "amber"/);
     assert.doesNotMatch(home, /"Not applied"/);
     assert.doesNotMatch(home, /: "ok"/);
     assert.match(home, /"Updates not checked yet"/);
@@ -227,7 +228,8 @@ test("Back shows only when the trail has a page to return to", () => {
     const view = read("Settings/SettingsView.qml");
     assert.match(view, /id: backAction[\s\S]{0,200}?visible: root\.canGoBack/);
     assert.doesNotMatch(view, /enabled: root\.canGoBack/, "a dimmed arrow on the first page went nowhere");
-    assert.match(view, /anchors\.left: backAction\.visible \? backAction\.right : parent\.left/);
+    // The title keeps the arrow's slot, so it never jumps when Back hides.
+    assert.match(view, /anchors\.left: backAction\.right\s*anchors\.leftMargin: Theme\.scaled\(6\)/);
     // A keyboard Back to the first page hands focus to the rail.
     assert.match(view, /if \(fromBack && !root\.canGoBack\)/);
 });
@@ -282,7 +284,7 @@ test("technical detail waits behind Details and missing features say how to add 
     assert.match(dictation, /StatusPlaceholder \{\s+shown: !Dictation\.available/);
     assert.match(dictation, /visible: !Dictation\.available && Dictation\.cpuSupported/);
     assert.match(dictation, /label: "cybex update stage local" \/\/ i18n: untranslated/);
-    assert.match(dictation, /\/etc\/nixos\/machine\.nix, change features\.developer = false; to true;/);
+    assert.match(dictation, /in \/etc\/nixos\/machine\.nix, set features\.developer to true, run the command below/);
     assert.doesNotMatch(dictation, /which this installation does not have/);
 });
 

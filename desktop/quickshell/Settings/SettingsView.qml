@@ -804,7 +804,7 @@ PopoutPanel {
 
         // Shown only while the trail has somewhere to go: a dimmed arrow on
         // the first page opened read as a way back to nowhere (2026-11-24
-        // review). The title takes its place.
+        // review). Its slot stays, so the title never shifts sideways.
         SettingsAction {
             id: backAction
             objectName: "settingsBack"
@@ -822,8 +822,8 @@ PopoutPanel {
         // about as a quieter qualifier after a middot.
         Row {
             id: headerCopy
-            anchors.left: backAction.visible ? backAction.right : parent.left
-            anchors.leftMargin: backAction.visible ? Theme.scaled(6) : root.gutter / 2 + Theme.scaled(8)
+            anchors.left: backAction.right
+            anchors.leftMargin: Theme.scaled(6)
             anchors.right: headerActions.left
             anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
