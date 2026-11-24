@@ -42,7 +42,8 @@ stable, or when its release is withdrawn, it can run a newer version than its
 channel's newest release. Discovery then reports the neutral state `ahead`
 (`installed`, and the channel's newest as `available`): no error, no update
 indicator, and Software Update's up-to-date page says that Cybex OS updates
-resume with the channel's next release. NixOS package updates continue. A Cybex OS update
+resume with the channel's next release, and so do NixOS package updates, which
+releases pin. A Cybex OS update
 prepared on beta becomes stale when the machine moves to stable, and
 installation checks the channel again; moving to beta keeps a prepared
 update, since every stable release is on beta too.

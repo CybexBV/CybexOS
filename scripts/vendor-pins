@@ -4,8 +4,9 @@
 Packages Nixpkgs maintains update with each machine's Nixpkgs. The ones below
 are pinned in this repository, so they only move when it does:
 
-  auto    the vendor-updates workflow updates the pin, verifies and releases
-          it to beta: Brave Origin (its stable releases carry security fixes)
+  auto    the vendor-updates workflow updates the pin, verifies it and puts
+          it on the vendor-update branch for the next release: Brave Origin
+          (its stable releases carry security fixes)
           and the agent CLIs Codex and Claude Code (the vendors' own builds,
           so an update never waits for NixOS's build farm).
   report  shown in the workflow's report when upstream is ahead, for a person
@@ -311,7 +312,7 @@ def markdown(rows):
     for row in rows:
         if not row['behind']:
             continue
-        action = 'automatic, to beta' if row['mode'] == 'auto' else 'by hand: ' + row['reason']
+        action = 'automatic, on the vendor-update branch' if row['mode'] == 'auto' else 'by hand: ' + row['reason']
         lines.append(f"| {row['title']} (`{row['file']}`) | {row['pinned']} | {row['latest']} "
                      f"| {row['published']} | {action} |")
     text = '\n'.join(lines) if len(lines) > 2 else 'Every pinned vendor package is current.'

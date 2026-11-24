@@ -29,7 +29,8 @@ in {
         beta channel first. An administrator's runtime choice
         (`cybex update channel`, Settings or Software Update, kept in
         /var/lib/cybexos/update-channel.json) overrides it without a rebuild.
-        NixOS package updates do not follow a channel.
+        NixOS packages come with the releases of the channel: each release
+        pins its Nixpkgs revision.
       '';
     };
     additionalHealthServices = lib.mkOption {

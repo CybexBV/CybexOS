@@ -205,7 +205,7 @@ authorization.
 
 Updates arrive together, not one restart each. Discovery offers only the
 channel's newest Cybex OS release, and one preparation combines it with the
-newest NixOS packages and available device firmware. A machine on 1.0.18
+NixOS packages it pins and available device firmware. A machine on 1.0.18
 with 1.0.19, 1.0.20 and 1.0.21 published installs 1.0.21 once.
 
 Its notes cover every release it includes. `cybex update check` and the
@@ -218,8 +218,8 @@ unchanged.
 
 A prepared update waiting for review is prepared again when something newer
 would replace it: at once for a newer Cybex OS release, and for newer NixOS
-packages alone only once it is three days old, since nixos-unstable moves
-every day or two and a review rebuilt for each snapshot would never settle.
+packages alone (the installed release's revision, after a release came alone)
+only once it is three days old.
 A preview background preparation made takes in every available source. One
 the person prepared keeps its sources: an update of NixOS packages alone is
 not given a release they left out. Personal Software, configuration and
@@ -259,8 +259,8 @@ covers the NixOS generation and Cybex OS source.
 
 Before the first Cybex OS release is published on a machine's channel, an empty
 release listing is neutral: the unpublished source is hidden and contributes no
-error. Confirmed NixOS package updates remain selected and can be prepared and
-installed independently. An unavailable release repository, an invalid listing,
+error. NixOS packages the installed release pins remain selected and can be
+prepared and installed on their own. An unavailable release repository, an invalid listing,
 a tag that does not name an exact commit, a downgrade and a release whose own
 `VERSION` or compatibility declaration does not fit remain errors
 ([releases](releasing.md)).

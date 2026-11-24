@@ -197,7 +197,7 @@ class VendorPinTests(unittest.TestCase):
         self.assertFalse(rows['brave-origin']['behind'])
         self.assertEqual(rows['claude-code']['published'], '2026-11-10')
         report = pins.markdown(list(rows.values()))
-        self.assertIn('| Codex (`nix/packages/codex/release.json`) | 0.166.0 | 0.167.0 | 2026-11-06 | automatic, to beta |', report)
+        self.assertIn('| Codex (`nix/packages/codex/release.json`) | 0.166.0 | 0.167.0 | 2026-11-06 | automatic, on the vendor-update branch |', report)
         self.assertIn('| Claude Code (`nix/packages/claude-code/release.json`) | 2.1.311 | 2.1.322 |', report)
 
     def test_update_rewrites_every_named_pin_and_lists_the_changes(self):

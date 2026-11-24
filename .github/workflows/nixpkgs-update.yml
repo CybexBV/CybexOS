@@ -35,7 +35,10 @@ jobs:
           ref: main
           fetch-depth: 0
       # cachix/install-nix-action, as in the repository's other workflows.
+      # The token keeps nix flake update clear of GitHub's anonymous limit.
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
+        with:
+          github_access_token: ${{ github.token }}
 
       - name: Move Nixpkgs on a branch
         id: update
