@@ -241,9 +241,12 @@ in {
       # resident, and Settings turns it off with live text (docs/dictation.md).
       serviceConfig = { ExecStart = "${cfg.dictationPackage}/bin/voxtype daemon"; Restart = "on-failure"; RestartSec = 5; };
     };
+    # Started by the Hermes bar widget when it turns on and stopped when it
+    # turns off (Common/HermesConnection.qml); nothing runs it at login, so an
+    # optional widget no one uses costs nothing (2026-11-24).
     systemd.user.services.hermes-menubar-bridge = lib.mkIf cfg.features.connectedWidgets {
       description = "Remote Hermes WebUI desktop bridge";
-      partOf = [ "hyprland-session.target" ]; wantedBy = [ "hyprland-session.target" ];
+      partOf = [ "hyprland-session.target" ];
       serviceConfig = {
         ExecStart = "${hermesBridge}/bin/cybexos-hermes-bridge --listen 127.0.0.1 --port 9120 --remote-only --state %h/.local/state/hermes-menubar/conversations.json --remote-auth-state %h/.local/state/hermes-menubar/remote-webui-auth.json";
         UMask = "0077";

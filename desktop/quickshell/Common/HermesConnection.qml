@@ -69,6 +69,11 @@ Singleton {
             state = "disabled";
             return;
         }
+        // Nothing starts the bridge at login (nix/modules/desktop.nix): the
+        // widget does, as it turns on. Starting a running unit is a no-op,
+        // and the reconnect backoff covers the moment it takes to listen.
+        Quickshell.execDetached(["systemctl", "--user", "start", "--no-block",
+            "hermes-menubar-bridge.service"]);
         if (websocketsMissing) {
             state = "offline";
             return;
@@ -144,7 +149,16 @@ Singleton {
         return true;
     }
 
-    onEnabledChanged: enabled ? reconnect() : disconnect()
+    onEnabledChanged: {
+        if (enabled) {
+            reconnect();
+        } else {
+            disconnect();
+            // Turned off: the bridge has no one else to serve.
+            Quickshell.execDetached(["systemctl", "--user", "stop", "--no-block",
+                "hermes-menubar-bridge.service"]);
+        }
+    }
 
     Component.onCompleted: connectDelay.restart()
 
