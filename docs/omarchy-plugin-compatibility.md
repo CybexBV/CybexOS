@@ -72,7 +72,7 @@ cybex plugin list
 
 Upstream schema 1 defines no settings format, so Cybex OS reads an optional
 `barWidget.schema` array, the convention used by packages such as
-`digitalpals.model-usage`. The widget's settings dialog (Settings → Bar & Control Center →
+`digitalpals.model-usage` (a [Cybex OS plugin](#cybex-os-plugins)). The widget's settings dialog (Settings → Bar & Control Center →
 the widget) draws each entry as an ordinary settings row, with its `label`,
 `description`, a changed-value mark, and a reset to its default:
 
@@ -165,23 +165,37 @@ restores the native bar and exposes an error. Top, bottom, left and right are
 supported by the tested upstream replacement; position is its configuration,
 not a change to Cybex OS's native bar preference.
 
-## Built-in Model Usage
+## Cybex OS plugins
 
-The [Model Usage](https://github.com/DigitalPals/omarchy-modelusage) plugin
-(`digitalpals.model-usage`) ships inside the shell as the built-in `modelusage`
-widget: an unchanged copy in `ModelUsage/`, hosted by a native bar module
-through this adapter's bar facade (see `ModelUsage/README.md`). It is placed,
-enabled and configured in Settings → Bar & Control Center like any built-in widget, and is
-updated with Cybex OS; `scripts/sync-model-usage` re-vendors a new upstream
-commit.
+Six widgets that used to be built into the bar are Cybex OS plugins now
+(owner's decision, 2026-11-24): niche ones that suit a separate release
+schedule better than Cybex OS's own. Each lives in its own repository, has its
+own version, and installs like any other Omarchy schema-1 package.
 
-An installed copy of the package is listed under Settings → Plugins with that
-reason and is never loaded, so it cannot draw a second widget; `cybex plugin
-enable` and `add` refuse it. Remove it with `cybex plugin remove
-digitalpals.model-usage`. Its settings in `plugins.json` are not carried over,
-but the scripts share their state and saved keys (`~/.local/state/omarchy/`,
-`~/.config/omarchy/model-usage/`), so re-enter only the source and server
-settings.
+| Plugin | ID | Repository |
+| --- | --- | --- |
+| Model Usage | `digitalpals.model-usage` | <https://github.com/DigitalPals/omarchy-modelusage> |
+| GitHub | `digitalpals.github-inbox` | <https://github.com/DigitalPals/cybexos-github> |
+| T3 Code | `digitalpals.t3code` | <https://github.com/DigitalPals/cybexos-t3code> |
+| Hermes Agent | `digitalpals.hermes` | <https://github.com/DigitalPals/cybexos-hermes> |
+| Fusebox | `digitalpals.fusebox` | <https://github.com/DigitalPals/cybexos-fusebox> |
+| Remote Server | `digitalpals.remote-server` | <https://github.com/DigitalPals/cybexos-remote-server> |
+
+Settings → Plugins lists them under **Cybex OS plugins** with an Install
+button each (the list is `desktop/quickshell/Common/CybexPlugins.js`). Install
+does what these commands do, then the widget waits in the Bar page's Add
+widgets tray:
+
+```bash
+cybex plugin add https://github.com/DigitalPals/cybexos-hermes
+cybex plugin enable digitalpals.hermes
+```
+
+The settings these widgets had as built-ins are not carried over: the shell
+settings schema 36 drops their layout entries and options from
+`~/.config/cybexos/shell.json` on its next save, and each plugin asks for its
+own settings again. A `shell.json` that still names them loads as before,
+without them. The T3 Code desktop app stays part of the developer tools.
 
 ## Host contract
 

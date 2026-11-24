@@ -182,7 +182,7 @@ daily on a GitHub-hosted runner:
   enters the Nix store only through its pinned hash. The cache keeps one set,
   the newest.
 - **T3 Code, Intel LPMd and Omawrite** are reported, not updated: each needs a
-  review beyond its checksum (T3 Code's connected-widget bar API, for
+  review beyond its checksum (a new T3 Code nightly needs a desktop run, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
 
@@ -263,9 +263,9 @@ derivations, not another Nixpkgs universe; requalify their ABI/license
 constraints when updating them. Before publishing, `scripts/check-prebuilt`,
 `--nvidia` and `--catalogue` must report no build beyond the expected ones
 ([Prebuilt packages only](updates.md#prebuilt-packages-only)).
-T3 Code is an exact hashed upstream nightly AppImage wrapped with Nixpkgs, the
-client the connected widget was reviewed with; Nixpkgs' `t3code` is the 0.1.2
-release. Replace that source recipe with the maintained Nixpkgs package after
+T3 Code is an exact hashed upstream nightly AppImage wrapped with Nixpkgs;
+Nixpkgs' `t3code` is the 0.1.2 release. (Its bar widget is the
+`digitalpals.t3code` plugin now.) Replace that source recipe with the maintained Nixpkgs package after
 product runtime qualification; its successful wrapper build is not desktop
 validation.
 ChatGPT is Nixpkgs' maintained `chatgpt` package, so it updates with the

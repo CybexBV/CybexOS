@@ -10,8 +10,8 @@ are pinned in this repository, so they only move when it does:
           and the agent CLIs Codex and Claude Code (the vendors' own builds,
           so an update never waits for NixOS's build farm).
   report  shown in the workflow's report when upstream is ahead, for a person
-          to review; updating them needs more than a checksum (T3 Code's bar
-          API, for example).
+          to review; updating them needs more than a checksum (a new T3
+          Code nightly needs a desktop run, for example).
 
 The XPS IPU7 camera recipe is deliberately absent: its fail-closed ABI guard
 moves only with a reviewed kernel/camera stack, never automatically.
