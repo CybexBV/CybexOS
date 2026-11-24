@@ -15,7 +15,7 @@
 # release text. Optional assets (an ISO, its checksum) are uploaded with it.
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
-REPO=${CYBEXOS_RELEASE_REPO:-CybexHQ/CybexOS}
+REPO=${CYBEXOS_RELEASE_REPO:-CybexBV/CybexOS}
 
 fail() { echo "release/publish: $*" >&2; exit 1; }
 

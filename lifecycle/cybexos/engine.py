@@ -13,7 +13,7 @@ import uuid
 
 from .common import CommandFailure, Failure, Runner, atomic, link, locked, parse, read, syncdir
 from . import inputs
-from .trust import REPO, AheadOfChannel, Fetcher, NoPublishedRelease, discover, validate_source, version
+from .trust import FORMER_REPOS, REPO, AheadOfChannel, Fetcher, NoPublishedRelease, discover, validate_source, version
 from . import channel as channels
 from . import compatibility, review, firmware, prebuilt
 from .progress import NixProgress
@@ -494,7 +494,7 @@ class Engine:
                     flake = config / 'flake.nix'
                     # A machine installed from its medium's bundled source names
                     # that content-addressed store path until its first release.
-                    expression = r'(cybexos\.url\s*=\s*")(?:github:' + re.escape(REPO) + r'/[^"]+|path:/nix/store/[^"]+)("\s*;)'
+                    expression = r'(cybexos\.url\s*=\s*")(?:github:(?:' + '|'.join(map(re.escape, (REPO, *FORMER_REPOS))) + r')/[^"]+|path:/nix/store/[^"]+)("\s*;)'
                     text, count = re.subn(expression, lambda m: m[1] + f'github:{REPO}/' + candidate['revision'] + m[2], flake.read_text())
                     if count != 1:
                         raise Failure('Machine flake must declare one literal cybexos.url. Keep personal modules in local/.')

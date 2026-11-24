@@ -1,6 +1,6 @@
 # Releases
 
-A Cybex OS release is a published GitHub release of `CybexHQ/CybexOS` with a
+A Cybex OS release is a published GitHub release of `CybexBV/CybexOS` with a
 semantic tag (`v1.2.3`, `v1.2.3-beta.1`) on a commit whose `VERSION` file holds
 the same version. The GitHub repository is the trust root: there are no
 publisher keys, signed manifests or channel documents, and installed machines
@@ -59,7 +59,7 @@ count a conditional 304 against its anonymous rate limit). Staging then:
    download. The version must equal the tag; the schema, configuration and
    plugin APIs, minimum updater API, architecture and NixOS branch must suit
    this machine;
-3. locks the machine flake to `github:CybexHQ/CybexOS/<commit>` and requires the
+3. locks the machine flake to `github:CybexBV/CybexOS/<commit>` and requires the
    lock's revision and NAR to equal what it checked.
 
 All of this precedes evaluation of the selected code. A version older than the

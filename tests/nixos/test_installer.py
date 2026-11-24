@@ -525,7 +525,7 @@ class DiskSafetyTests(unittest.TestCase):
             return {'/sys/firmware/efi':efi, '/sys/firmware/efi/efivars':variables, STORE_SOURCE:ROOT}.get(value, real_path(value, *args))
         revision = 'a' * 40
         nar = 'sha256-' + 'A' * 43 + '='
-        source = 'github:CybexHQ/CybexOS/' + revision
+        source = 'github:CybexBV/CybexOS/' + revision
         choice = plan(); choice.update(encrypted=False, autoLogin=False)
         for fetched in ({'hash': nar, 'storePath': STORE_SOURCE}, {'hash': nar}, {'hash': nar, 'storePath': '../source'},
                         {'hash': 'sha256-' + 'B' * 43 + '='}, {}):

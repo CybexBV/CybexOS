@@ -3,10 +3,13 @@
 The NerdOS rename is reverted. Interface text says **Cybex OS**. Repository,
 NixOS module/input, Python package, service, path and protocol identifiers use
 `cybexos`; the environment prefix is `CYBEXOS_` and the user command is `cybex`.
-The upstream repository and release identity are `CybexHQ/CybexOS` (`REPO` in
+The upstream repository and release identity are `CybexBV/CybexOS` (`REPO` in
 `lifecycle/cybexos/trust.py`); its GitHub releases are the update channels.
-Development moved there from `DigitalPals/CybexOS` on
-2026-10-29; the earlier history stays in that repository.
+Development moved to `CybexHQ/CybexOS` from `DigitalPals/CybexOS` on
+2026-10-29 (the earlier history stays there) and to the `CybexBV`
+organization in November 2026. GitHub redirects the old name; machines
+installed from it keep `CybexHQ/CybexOS` in their flake until their next
+Cybex OS update writes the new name (`FORMER_REPOS`).
 
 The owner-supplied `cybex_white.svg` is preserved byte-for-byte under
 `assets/brand/source/`. Deployment variants use its outlined wordmark with

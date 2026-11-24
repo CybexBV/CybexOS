@@ -6,7 +6,7 @@ production-qualified. Report security issues privately through the repository's
 GitHub security advisories; do not include credentials or personal archives.
 
 Nixpkgs supplies upstream packages. Cybex OS releases are published GitHub
-releases of `CybexHQ/CybexOS`; the repository is the trust root, and there are
+releases of `CybexBV/CybexOS`; the repository is the trust root, and there are
 no publisher signatures. Updates fetch release metadata over HTTPS from the
 GitHub API only, pin the tag's exact commit and the content hash of what they
 download, and reject downgrades, a published version whose content changed,

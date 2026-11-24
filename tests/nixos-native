@@ -289,7 +289,7 @@ def delivery(base):
 def release_delivery(base, revision):
     """Keyless release discovery over isolated HTTPS: the production Fetcher,
     its endpoint checks and ETag cache, and the real GitHub API shapes."""
-    api = 'https://api.github.com/repos/CybexHQ/CybexOS'
+    api = 'https://api.github.com/repos/CybexBV/CybexOS'
     releases = [{'tag_name': 'v1.0.0-beta.3', 'prerelease': True, 'draft': True, 'body': 'Unpublished draft'},
                 {'tag_name': 'v1.0.0-beta.2', 'prerelease': True, 'draft': False,
                  'body': 'Isolated keyless delivery qualification'}]

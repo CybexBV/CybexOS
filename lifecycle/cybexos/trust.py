@@ -17,7 +17,11 @@ import urllib.request
 from .common import Failure, atomic, parse, read
 
 API = 1
-REPO = 'CybexHQ/CybexOS'
+REPO = 'CybexBV/CybexOS'
+# Earlier names of REPO. GitHub redirects them, but an installed machine's
+# flake names the one it was installed or last updated from: the updater
+# accepts it there and writes REPO at its next Cybex OS update.
+FORMER_REPOS = ('CybexHQ/CybexOS',)
 # The Nixpkgs branch a release follows: release.json's "nixos" and an entry of
 # a release's release/compatibility.json "nixos" list. A branch, not a version.
 NIXOS = 'unstable'

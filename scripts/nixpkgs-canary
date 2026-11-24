@@ -73,7 +73,7 @@ def sources(wanted):
     if 'main' in wanted:
         result['main'] = run('git', 'rev-parse', 'HEAD', cwd=ROOT).stdout.strip()
     if {'beta', 'stable'} & set(wanted):
-        listing = run('gh', 'release', 'list', '--repo', 'CybexHQ/CybexOS', '--limit', '30',
+        listing = run('gh', 'release', 'list', '--repo', 'CybexBV/CybexOS', '--limit', '30',
                       '--json', 'tagName,isPrerelease,isLatest,publishedAt')
         if listing.returncode:
             raise SystemExit('nixpkgs-canary: cannot list releases: ' + listing.stderr.strip())

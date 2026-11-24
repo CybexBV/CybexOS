@@ -13,6 +13,7 @@ Skipped where Nix can't build (the Nix build sandbox of checks.lifecycle).
 """
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -93,8 +94,11 @@ class Inputs(Runner):
             if args[3] == 'nixpkgs':
                 lock['nodes']['nixpkgs']['locked'] = self.nixpkgs
             else:
-                lock['nodes']['cybexos']['locked'] |= {'rev': self.revision, 'narHash': self.release}
-                lock['nodes']['cybexos']['original']['rev'] = self.revision
+                # As Nix does, lock the owner the rewritten flake names: a
+                # machine installed from the former repository name moves on.
+                owner = re.search(r'github:([^/"]+)/CybexOS/', (config / 'flake.nix').read_text())[1]
+                lock['nodes']['cybexos']['locked'] |= {'rev': self.revision, 'narHash': self.release, 'owner': owner}
+                lock['nodes']['cybexos']['original'] |= {'rev': self.revision, 'owner': owner}
             atomic(config / 'flake.lock', lock)
             return ''
         if args[:2] == ('nix', 'build') and '--dry-run' not in args:

@@ -4,7 +4,7 @@ The machine owns `/etc/nixos/flake.nix` and `flake.lock`:
 
 ```nix
 inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-inputs.cybexos.url = "github:CybexHQ/CybexOS/EXACT_RELEASE_REVISION";
+inputs.cybexos.url = "github:CybexBV/CybexOS/EXACT_RELEASE_REVISION";
 inputs.cybexos.inputs.nixpkgs.follows = "nixpkgs";
 ```
 
@@ -490,7 +490,7 @@ package builds separately goes in its `passthru.cybexosLocalBuilds`.
 
 ## Release delivery
 
-Cybex OS updates arrive only as published GitHub releases of `CybexHQ/CybexOS`;
+Cybex OS updates arrive only as published GitHub releases of `CybexBV/CybexOS`;
 there are no publisher keys or channel documents ([releases](releasing.md)).
 An installed machine never follows a branch: a release that is not published,
 or that is a draft, is not offered. It follows the stable or the beta release

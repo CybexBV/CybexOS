@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT / 'lifecycle'))
 from cybexos.common import Failure  # noqa: E402
 from cybexos.trust import version  # noqa: E402
 
-REPO = os.environ.get('CYBEXOS_RELEASE_REPO', 'CybexHQ/CybexOS')
+REPO = os.environ.get('CYBEXOS_RELEASE_REPO', 'CybexBV/CybexOS')
 SOAK_HOURS = 24
 
 

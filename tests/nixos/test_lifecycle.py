@@ -1,5 +1,6 @@
 """Source regression fixtures. These are not installation qualification."""
 import copy
+import re
 import contextlib
 import hashlib
 import http.server
@@ -176,7 +177,7 @@ class ConfigurationIdentityTests(unittest.TestCase):
 
 class TrustTests(unittest.TestCase):
     """Keyless release discovery: the GitHub repository is the trust root."""
-    API = 'https://api.github.com/repos/CybexHQ/CybexOS'
+    API = 'https://api.github.com/repos/CybexBV/CybexOS'
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -267,9 +268,9 @@ class TrustTests(unittest.TestCase):
                 trust.discover(self.fetch(listing(('v1.1.0', False, False)), {'v1.1.0': answer}), 'stable', '1.0.0')
 
     def test_only_the_github_api_is_contacted(self):
-        for url in ('https://example.com/releases', 'http://api.github.com/repos/CybexHQ/CybexOS/releases',
+        for url in ('https://example.com/releases', 'http://api.github.com/repos/CybexBV/CybexOS/releases',
                     'https://cybexhq.github.io/CybexOS/channels/stable.json',
-                    'https://user:token@api.github.com/repos/CybexHQ/CybexOS/releases'):
+                    'https://user:token@api.github.com/repos/CybexBV/CybexOS/releases'):
             with self.subTest(url=url), self.assertRaises(Failure):
                 trust.Fetcher(self.base / 'cache').get(url)
         redirected = Mock(); redirected.url = 'https://example.com/releases'
@@ -291,7 +292,7 @@ class TrustTests(unittest.TestCase):
                 self.close_connection = True
             def log_message(self, *args):
                 pass
-        endpoint = 'https://api.github.com/repos/CybexHQ/CybexOS/releases?per_page=100'
+        endpoint = 'https://api.github.com/repos/CybexBV/CybexOS/releases?per_page=100'
         requests = []
         real_urlopen = urllib.request.urlopen
         with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Interrupted) as server:
@@ -408,6 +409,11 @@ class FakeRunner:
             data['nodes'][scope]['locked'].update({'rev':REV_NEW,'narHash':NAR_NEW})
             if scope == 'cybexos':
                 data['nodes'][scope]['original']['rev'] = REV_NEW
+                # Nix locks the owner the flake names, as a real update does.
+                named = re.search(r'github:([^/"]+)/CybexOS/', (config/'flake.nix').read_text())
+                if named:
+                    for part in ('locked', 'original'):
+                        data['nodes'][scope][part]['owner'] = named[1]
             atomic(config/'flake.lock',data)
         if args[:3]==('nix','flake','archive'):
             return json.dumps({'path':'/nix/store/'+'c'*32+'-config','inputs':{'nixpkgs':{'path':'/nix/store/'+'d'*32+'-source','inputs':{}}}})
@@ -477,6 +483,12 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(inputs.identity(new,'cybexos')['rev'],REV_NEW if scope in ('cybexos','both') else REV_OLD)
             self.assertEqual(inputs.identity(new,'personal')['rev'],REV_OLD)
             self.assertEqual(read(self.engine.status_path)['state'],'ready')
+            # A machine installed from the repository's former name moves to
+            # the current one with its next Cybex OS update, not before.
+            flake=(self.engine.tx(record['id'])/'config/flake.nix').read_text()
+            owner='CybexBV' if scope in ('cybexos','both') else 'CybexHQ'
+            self.assertIn(f'github:{owner}/CybexOS/',flake)
+            self.assertEqual(inputs.identity(new,'cybexos')['owner'],owner)
 
     def test_region_preview_preserves_working_and_other_preferences(self):
         atomic(self.config / 'desktop-settings.json', {'locale': 'en_US.UTF-8'})
@@ -1627,7 +1639,7 @@ class EngineTests(unittest.TestCase):
         record = self.engine.stage('cybexos')
         calls = self.runner.calls
         prefetch = next(i for i, args in enumerate(calls)
-                        if args[:5] == ('nix', 'flake', 'prefetch', '--json', 'github:CybexHQ/CybexOS/' + REV_NEW))
+                        if args[:5] == ('nix', 'flake', 'prefetch', '--json', 'github:CybexBV/CybexOS/' + REV_NEW))
         declared = calls.index(('cat', STORE_SOURCE + '/release/compatibility.json'))
         update = next(i for i, args in enumerate(calls) if args[:3] == ('nix', 'flake', 'update'))
         self.assertLess(prefetch, declared)
