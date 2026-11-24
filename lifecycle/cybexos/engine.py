@@ -514,7 +514,18 @@ class Engine:
                     if count != 1:
                         raise Failure('Machine flake must declare one literal cybexos.url. Keep personal modules in local/.')
                     atomic(flake, text.encode())
+                    # The Nixpkgs chosen above, which this update must not move.
+                    intended = inputs.resolved(read(config / 'flake.lock'), 'nixpkgs')
                     self.nix('flake', 'update', 'cybexos', '--flake', f'path:{config}', step='inputs')
+                    final = inputs.resolved(read(config / 'flake.lock'), 'nixpkgs')
+                    # Nix locks an input again when the flake names it otherwise
+                    # than the lock (an edited nixpkgs.url): that would be the
+                    # channel head after all.
+                    if (final['original'] != intended['original']
+                            or {key: final['locked'].get(key) for key in ('rev', 'narHash')}
+                            != {key: intended['locked'].get(key) for key in ('rev', 'narHash')}):
+                        raise Failure('Updating Cybex OS also moved NixOS packages: /etc/nixos/flake.nix names '
+                                      'another Nixpkgs than its lock. Restore its nixpkgs.url.')
                 new = read(config / 'flake.lock')
                 inputs.validate_delta(old, new, scope)
                 if candidate:

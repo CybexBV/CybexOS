@@ -418,7 +418,7 @@ class InputTests(unittest.TestCase):
 class FakeRunner:
     """Command-boundary fixture; deliberately not called end-to-end evidence."""
     log=None
-    def __init__(self):self.calls=[];self.fail=None;self.pinned=PIN_NEW
+    def __init__(self):self.calls=[];self.fail=None;self.pinned=PIN_NEW;self.relock=False
     def __call__(self,*args,**kwargs):
         args=tuple(map(str,args));self.calls.append(args)
         if self.fail and self.fail(args):raise Failure('injected command failure')
@@ -433,6 +433,9 @@ class FakeRunner:
                 if named:
                     for part in ('locked', 'original'):
                         data['nodes'][scope][part]['owner'] = named[1]
+                # As Nix does when the flake names Nixpkgs otherwise than the lock.
+                if self.relock:
+                    data['nodes']['nixpkgs']['locked'].update(rev='9' * 40, lastModified=9000)
             atomic(config/'flake.lock',data)
         if args[:3]==('nix','flake','archive'):
             return json.dumps({'path':'/nix/store/'+'c'*32+'-config','inputs':{'nixpkgs':{'path':'/nix/store/'+'d'*32+'-source','inputs':{}}}})
@@ -1159,6 +1162,16 @@ class EngineTests(unittest.TestCase):
         other = release_lock(); other['nodes']['nixpkgs']['locked']['owner'] = 'someone'
         with self.assertRaises(Failure):
             inputs.pin(other)
+
+    def test_a_release_update_never_moves_nixpkgs_past_the_pin(self):
+        # An edited nixpkgs.url makes Nix lock Nixpkgs again with the release:
+        # the channel head after all. The update refuses it.
+        self.runner.relock = True
+        for scope in ('both', 'cybexos'):
+            with self.subTest(scope=scope), self.assertRaises(Failure) as raised:
+                self.engine.stage(scope)
+            self.assertIn('also moved NixOS packages', str(raised.exception))
+        self.assertEqual(config_digest(self.config), self.sentinel)
 
     def test_updates_move_nixpkgs_only_to_the_release_pin(self):
         # Releasing alone keeps the machine's Nixpkgs; with Nixpkgs, the
