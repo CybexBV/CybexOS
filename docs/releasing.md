@@ -83,10 +83,13 @@ Development commits may be pushed directly to `main`. To publish a release:
 
 1. Set `VERSION` to a new version (tags are never reused), write
    `release/notes.md`, commit and push to `main`.
-2. Qualify that exact commit as far as the release needs (below).
+2. Run [the full check](#the-full-check) on that exact commit and wait for
+   it to pass. One check covers the release: prepare `VERSION` and the notes
+   first, then check.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
-   the notes, refuses an existing tag, creates and pushes the annotated
+   the notes, refuses an existing tag, refuses a commit without a passing
+   dispatched `nixos.yml` run, creates and pushes the annotated
    `vVERSION` tag and creates the GitHub release with `gh` as a prerelease:
    it reaches beta machines only. Pass asset paths (an ISO and its checksum)
    to upload them with the release, or `--dry-run` to only report the result.
@@ -100,8 +103,10 @@ Development commits may be pushed directly to `main`. To publish a release:
    install it:
    - it is a published, final version, still a prerelease, and newer than the
      current stable release;
-   - it has been on beta for at least 24 hours (`--soak HOURS` changes the
-     minimum; `--now` skips it for an urgent fix);
+   - its commit passed the full check;
+   - it has been on beta for at least 7 days (`--soak HOURS` changes the
+     minimum; `--now` skips it for an urgent fix; both are the owner's
+     decision);
    - its `release/compatibility.json` suits the current stable release:
      `minUpdater` at most that release's updater API, the same schema,
      configuration and plugin APIs, all of its architectures and its NixOS
@@ -119,6 +124,10 @@ Development commits may be pushed directly to `main`. To publish a release:
    notes need cover only that release.
 
 ### Automatic vendor updates
+
+**Switched off since 2026-11-12.** Until it is reworked to push branches
+only, nothing below runs; no workflow may publish a release or push `main`
+(owner's decision, 2026-11-24).
 
 Packages Nixpkgs maintains update with each machine's Nixpkgs. The vendor
 downloads Cybex OS pins itself only move when this repository does, so
@@ -182,6 +191,8 @@ with the current pins without publishing.
 
 ### Nixpkgs canary
 
+**Switched off since 2026-11-12**, until it is reworked.
+
 Machines follow `nixos-unstable` themselves, so a Nixpkgs change that breaks
 Cybex OS reaches them without a Cybex OS release. The **nixpkgs-canary**
 workflow (`scripts/nixpkgs-canary --build`) evaluates `main` and the newest
@@ -220,11 +231,15 @@ one that requires it: `release/promote` refuses a release the current stable
 updater cannot install. Installed machines refuse a release that changes
 `configurationApi` or `pluginApi`.
 
-## Qualification
+## The full check
 
-A workflow does not gate releases; their quality is the owner's decision. Run
-**NixOS qualification** on demand from the Actions page. It does not run
-automatically on pushes, pull requests or releases.
+The **NixOS qualification** workflow (`.github/workflows/nixos.yml`) is the
+full check. It gates every release: `release/publish` and `release/promote`
+refuse a commit without a successful dispatched run. Start it with
+`gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; it does not
+run automatically on pushes, pull requests or releases, and there is no
+nightly run. Run it on a branch before merging changes to the updater, the
+Nix modules, the installer, the release scripts, qualification or workflows.
 
 Full Nix/product/image jobs require a `cybexos-isolated` self-hosted runner;
 standard hosted runners do not provide enough space for the complete desktop,

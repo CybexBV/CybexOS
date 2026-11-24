@@ -7,35 +7,39 @@
 
 ## How agents work here
 
-- Work in a worktree of your own, on a new branch from `main`; never in this folder itself.
+- Work in a worktree of your own, on a new branch from `main`; never in this folder itself. Worktrees go in
+  `/data/t3-worktrees/CybexOS/<name>` (also reached as `~/.t3/worktrees/CybexOS`).
 - When a check fails, fix it and try again, at most 3 rounds.
 - When you change what people see, add before and after screenshots.
 - Commit in small commits, merge your branch into `main` here (`git merge --no-ff`) and push `main`.
-- Then deploy it to the development environment.
+- Landing on `main` is not a release. Releases are a separate, deliberate step (see Releases below).
 - Once your work is merged, remove your worktree and branch.
-- Never deploy to production.
+- Never publish to the stable channel, build an ISO or touch installed machines unless John asks for it.
 
-## Testing (fast testing)
-- After a change, run `fast-test` in the repository folder. It tests only what changed since `main` (commits,
-  staged and unstaged edits, new files): quick tests here on The Dragon, heavy ones (VMs, Nix, databases, wide
-  changes) on The Beast by itself. `fast-test --dry-run` shows what it would run and why.
+## Stability first (from 2026-11-24)
+
+Cybex OS is in a feature freeze until the full check and real updates have both stayed green for two weeks in a row.
+Until then only fixes, stability work and the agreed clean-up land: no new desktop features, widgets, settings,
+assistant integrations, vendor packages or hardware profiles. John lifts the freeze; it does not end by itself.
+
+## Testing
+
+- After a change, run `fast-test` in your worktree. It tests only what changed since `main` (commits, staged and
+  unstaged edits, new files) and runs every step here on The Dragon in the dev shell. `fast-test --dry-run` shows
+  what it would run and why.
 - Exit 0 passed, 1 failed, 2 couldn't run (say so; don't run the full suite here instead). When it fails, its output
   ends with the failing step's last lines; the whole log is in `.git/fast-test/`.
-- Don't run the full test suite and don't wait for GitHub CI. `fast-test --full` runs everything on The Beast, only
-  when someone asks for it.
 - A failing test runs once more before it counts as failing (fast-test does this itself). Never skip or weaken a test
   to make it pass.
-- Every night The Beast runs the full suite of `main`; failures are reported in the morning.
-- Here every step runs on The Dragon in the dev shell, and there is no `--full` or nightly run yet. The NixOS
-  checks (product, VM, boot, firmware, ISO) run in the manual `nixos.yml` workflow on The Beast's runner, only
-  when someone asks for them.
+- **The full check** is the `nixos.yml` workflow on The Beast's runner: source, product, VM and image jobs, about two
+  hours. Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with
+  `gh run watch`. Never run it on The Dragon. Run it on your branch before you merge a change to `lifecycle/`,
+  `nix/`, `installer/`, `release/`, `scripts/qualify-installations` or `.github/`, and on `main` before every
+  release. There is no nightly run.
 
 ## Git workflow
 
-- Direct commits and pushes to `main` are supported. Do not require a pull
-  request or passing GitHub Actions checks before pushing.
-- The NixOS qualification workflow runs manually. Ordinary pushes, pull
-  requests and releases do not start it.
+- Direct commits and pushes to `main` are supported. A pull request is not required.
 - Work on your own branch. Make small, focused commits with imperative
   messages (`Apply the chosen pointer to X11 apps`).
 - End every commit message with your co-author line, for Claude
@@ -45,63 +49,51 @@
 - A workflow sub-agent or delegated task in a worktree does not push, rebase
   shared branches or merge into `main` unless its task says so: the
   orchestrator merges. The exception is a direct instruction (next section).
+- Other sessions push to `main` too; fetch before branching and before
+  choosing a version.
 
-## Direct instructions: land on main and publish to beta
+## Direct instructions: land on main
 
-When John gives you an instruction directly in the main checkout
-(`/home/john/Code/CybexOS`, not a workflow sub-agent in a worktree), the task
-always includes shipping it to the beta channel. Do this without asking, so he
-can try it right away:
+When John gives you an instruction directly in the main checkout (`/home/john/Code/CybexOS`, not a workflow
+sub-agent in a worktree):
 
-1. Implement on a short-lived branch, or in a worktree for larger work. Other
-   sessions use this checkout too, and their worktrees are in
-   `~/.t3/worktrees/CybexOS`. Commit as above.
-2. Verify with `fast-test` (it runs `tests/run`, the shell's checks and
-   `nix flake check --no-build` as the change needs), plus a Nix build of what
-   changed when one exists. Don't run NixOS qualification, installation VMs or
-   an ISO build for this.
-3. Merge into `main` (`git merge --no-ff <branch>`), check that `HEAD`
-   actually moved, delete the branch, and `git push origin main`.
-4. Publish it to beta:
-   - Set `VERSION` to the next patch version. It must be past the highest of
-     `VERSION`, the repository's `v*` tags and `/data/pxe/iso`.
-   - Rewrite `release/notes.md` for this release, in the shape the file
-     already has: `# Cybex OS X.Y.Z`, one short paragraph per change that
-     says what the person notices, then the closing line about ISO and
-     qualification.
-   - Commit `Prepare Cybex OS X.Y.Z release` and push it.
-   - Run `release/publish X.Y.Z` from a clean `main` equal to `origin/main`.
-     It reaches beta machines only. When the tag already exists, another
-     session published first: take the next version.
-5. Finish with what changed, the version, and how to get it. Beta machines
-   take it with their next update check (Software Update, or
-   `cybex update check`).
+1. Implement in a worktree of your own. Other sessions use this checkout too. Commit as above.
+2. Verify with `fast-test`, plus a Nix build of what changed when one exists, plus the full check on your branch
+   when the change touches a path listed under Testing.
+3. Merge into `main` (`git merge --no-ff <branch>`), check that `HEAD` actually moved, delete the branch and
+   worktree, and `git push origin main`.
+4. Finish with what changed and that it waits for the next release. Do not publish a release unless John asks for
+   one.
 
-Never pass `--stable`, run `release/promote` or build an ISO unless John asks
-for it. An ISO follows the ISO rules below.
-
-## Release channels
+## Releases
 
 - Cybex OS releases have a beta and a stable channel
   ([docs/releasing.md](docs/releasing.md#channels)). Only Cybex OS releases
   follow them; NixOS package updates do not.
-- `release/publish VERSION` publishes to beta only (a GitHub prerelease).
-  `release/promote VERSION` later moves that same release to stable after its
-  checks (soak time, stable-updater compatibility, combined notes). Publish
-  with `--stable`, or promote with `--now`, only when the owner asks for it.
-  Publishing to beta is part of shipping a direct instruction (above).
-  Publishing with `--stable` and promoting each need the owner's explicit
-  decision.
+- Release only when John asks for one. Bundle what landed: at most two beta
+  releases a week. Never one release per change.
+- To publish a beta:
+  - Set `VERSION` to the next patch version, past the highest of `VERSION`,
+    the repository's `v*` tags and `/data/pxe/iso`.
+  - Rewrite `release/notes.md` in the shape the file already has: `# Cybex OS
+    X.Y.Z`, one short paragraph per change that says what the person notices,
+    then the closing line about ISO and qualification.
+  - Commit `Prepare Cybex OS X.Y.Z release` and push it.
+  - Run the full check on `main` at that commit and wait for it to pass.
+    `release/publish` refuses a commit without a passing dispatched
+    `nixos.yml` run. When it fails, fix forward and run it again.
+  - Run `release/publish X.Y.Z` from a clean `main` equal to `origin/main`.
+    When the tag already exists, another session published first: take the
+    next version.
+- `release/promote VERSION` moves a beta release to stable after a week on
+  beta, its passing full check and stable-updater compatibility, and only
+  with John's explicit OK. `--stable`, `--now` and a shorter `--soak` are
+  John's decision alone.
 - Never fix stable from a maintenance branch: fix forward on `main`.
-- The vendor-updates workflow publishes to beta on its own: verified Brave
-  Origin, Codex and Claude Code updates, one release per run (owner's
-  decisions, 2026-11-07 for Brave Origin and 2026-11-10 for the agent CLIs; see
-  [docs/releasing.md](docs/releasing.md#automatic-vendor-updates)). It pushes
-  `Update … to …` and `Prepare Cybex OS X.Y.Z release` commits to `main` as
-  github-actions[bot], so fetch before branching and before choosing a version.
-  Don't widen what it updates or publishes without the owner.
-- An open `nixpkgs-canary` issue means machines' next Nixpkgs update will fail
-  to evaluate: fix it on `main` and release it before the channel moves on.
+- No workflow publishes releases or pushes `main` (owner's decision,
+  2026-11-24, replacing the automatic vendor beta releases of 2026-11-07 and
+  2026-11-10). The vendor-updates and Nixpkgs canary workflows stay switched
+  off until they are reworked to push branches only.
 
 ## NixOS installation and lifecycle contract
 
