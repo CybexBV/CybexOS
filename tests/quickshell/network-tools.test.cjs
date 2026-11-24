@@ -382,34 +382,41 @@ test("speed test emits phase, sample, and completion JSON lines", () => {
         const calls = path.join(base.directory, "curl.log");
         base.env.STUB_LOG = calls;
         executable(base, "curl", `#!/usr/bin/env python3
-import json, os, pathlib, sys, time
+import fcntl, json, os, pathlib, sys, time
 a=sys.argv[1:]
 if any("api.fast.com" in value for value in a):
     print(json.dumps({"targets":[{"url":"https://fixture.test/transfer"}]})); sys.exit(0)
 with open(os.environ["STUB_LOG"], "a") as stream: stream.write(json.dumps(a)+"\\n")
 counter="tx_bytes" if "POST" in a else "rx_bytes"
 target=pathlib.Path(os.environ["NETWORK_SPEEDTEST_COUNTER_ROOT"])/"eth0"/"statistics"/counter
-# Keep every mocked transfer active beyond the complete 350 ms phase. A short
+# Keep every mocked transfer active until the helper ends its phase. A short
 # burst can finish before later samples on a loaded CI runner, which correctly
 # looks like stalled traffic to the production sustained-throughput check.
-for _ in range(40):
-    value=int(target.read_text().strip() or 0)
-    temporary=target.with_name(target.name+"."+str(os.getpid()))
-    temporary.write_text(str(value+250000))
-    os.replace(temporary, target)
+# The parallel transfers add to one counter under a lock: two read-modify-
+# writes that overlap would otherwise lose bytes and move it backwards.
+while True:
+    with open(str(target)+".lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        value=int(target.read_text().strip() or 0)
+        temporary=target.with_name(target.name+"."+str(os.getpid()))
+        temporary.write_text(str(value+250000))
+        os.replace(temporary, target)
     time.sleep(.02)
 `);
-        base.env.NETWORK_SPEEDTEST_PHASE_SECONDS = "0.35";
-        base.env.NETWORK_SPEEDTEST_SAMPLE_INTERVAL = "0.1";
+        // Samples of 300 ms, not 100 ms: a busy runner can pause the mocked
+        // transfers for a few hundred milliseconds, and a phase whose later
+        // samples all see no traffic fails, as it must on a real network.
+        base.env.NETWORK_SPEEDTEST_PHASE_SECONDS = "1.2";
+        base.env.NETWORK_SPEEDTEST_SAMPLE_INTERVAL = "0.3";
         base.env.NETWORK_SPEEDTEST_PARALLEL = "2";
         base.env.NETWORK_SPEEDTEST_UPLOAD_BYTES = "1000000";
         const started = Date.now();
         const result = spawnSync("python3", [speedHelper, "--interface", "eth0"], {
-            encoding: "utf8", env: base.env, timeout: 5000
+            encoding: "utf8", env: base.env, timeout: 10000
         });
         const elapsed = Date.now() - started;
         assert.equal(result.status, 0, result.stdout + result.stderr);
-        assert.ok(elapsed >= 600,
+        assert.ok(elapsed >= 2400,
             `both sustained phases finished too early (${elapsed}ms)`);
         const records = result.stdout.trim().split("\n").map(JSON.parse);
         assert.equal(records[0].type, "phase");
