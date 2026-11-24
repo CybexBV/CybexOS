@@ -24,7 +24,10 @@ let
   speech = pkgs.runCommand "cybexos-dictation-speech" { nativeBuildInputs = [ pkgs.espeak-ng ]; } ''
     mkdir $out
     espeak-ng -v en-us -s 140 -w $out/english.wav "Good morning. This is a dictation test on Cybex. The weather is nice today."
-    espeak-ng -v nl -s 130 -w $out/dutch.wav "Goedemorgen. Dit is een test van het dicteren. Het weer is mooi vandaag."
+    # Long enough that Whisper's language detection hears Dutch: on the
+    # shorter sentence alone the large model took this synthetic voice for
+    # English now and then and translated it (full check, 2026-11-24).
+    espeak-ng -v nl -s 130 -w $out/dutch.wav "Goedemorgen. Dit is een test van het dicteren. Het weer is mooi vandaag. Vanmiddag fietsen we samen naar het dorp en drinken we koffie bij de bakker."
   '';
   # The enhanced model as the download leaves it (same pinned file and hash).
   enhanced = pkgs.fetchurl {
