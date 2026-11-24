@@ -517,7 +517,7 @@ A package you deliberately build from source goes in
 `cybexos.updates.expectedBuilds` in your personal configuration; what it needs
 that NixOS doesn't prebuild is built too. Releases run `scripts/check-prebuilt`,
 `--nvidia` and `--catalogue` (every Software profile app), and so does the full
-check's product job; each lists any other build and exits 1. A part a Cybex OS
+check's checks job; each lists any other build and exits 1. A part a Cybex OS
 package builds separately goes in its `passthru.cybexosLocalBuilds`.
 
 ## Release delivery
