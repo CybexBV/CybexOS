@@ -176,6 +176,10 @@ fn scenarios() -> Vec<(&'static str, Value, Setup)> {
         }),
         ("17-keyboard", json!({}), |store| store.invoke_open_sheet(SharedString::from("keyboard"))),
         ("18-tools", json!({"draft": {"screen": "disk"}}), |store| store.invoke_open_sheet(SharedString::from("tools"))),
+        ("18a-tools-reduced-motion", json!({"phase": "loading", "message": "Checking this installation medium…", "disks": []}), |store| {
+            store.invoke_toggle_reduced_motion();
+            store.invoke_open_sheet(SharedString::from("tools"));
+        }),
         ("19-log", json!({"phase": "installing", "stage": 4, "elapsed": 754, "diskTouched": true}), |store| {
             store.invoke_open_sheet(SharedString::from("log"));
             store.set_details(SharedString::from(
@@ -199,6 +203,10 @@ fn moments() -> Vec<(&'static str, Value, u64)> {
         ("25-welcome-offline", json!({"phase": "preflight", "error": "DNS could not resolve cache.nixos.org. Open the network menu and check the DNS provider and any VPN DNS settings, then retry. No disk has been erased.",
             "network": {"connected": false, "ethernetCable": false, "kind": "", "address": ""}, "disks": []}), 1440),
         ("26-installing", json!({"phase": "installing", "stage": 4, "elapsed": 754, "diskTouched": true,
+            "message": "Building and downloading packages"}), 600),
+        // The same moment with Reduce motion on: Wiz at his first frame. A
+        // snapshot equal to the last one is ignored, hence the next second.
+        ("26a-installing-reduced", json!({"phase": "installing", "stage": 4, "elapsed": 755, "diskTouched": true,
             "message": "Building and downloading packages"}), 600),
         ("27-done", json!({"phase": "complete", "stage": 6, "diskTouched": true,
             "result": {"username": "ada", "hostname": "ada-cybexos", "encrypted": true}}), 440),
@@ -231,15 +239,27 @@ fn main() {
     ui.show().expect("show");
     let app = App::new(&ui, Client::offline());
     app.borrow_mut().set_preview_time(MOMENT);
-    App::message(&app, parse(&statics).expect("static message: run cybexos-installerd --dump-static"));
+    let statics = parse(&statics).expect("static message: run cybexos-installerd --dump-static");
+    // Without the catalogue the daemon offers no profiles, and the Software
+    // renders would show an empty step instead of the release's cards.
+    let selected = |name: &str| only.is_empty() || only.iter().any(|o| name.contains(o.as_str()));
+    if let Message::Static(data) = &statics {
+        if data.software.profiles.is_empty() && scenarios().iter().any(|&(name, ..)| name.contains("software") && selected(name)) {
+            eprintln!("installer-preview: static.json has no software profiles; cybexos-installerd found no \
+                       desktop/software/catalogue.json. Dump it from a full checkout or set CYBEXOS_INSTALLER_SOFTWARE.");
+            std::process::exit(2);
+        }
+    }
+    App::message(&app, statics);
 
     for (name, patch, setup) in scenarios() {
-        if !only.is_empty() && !only.iter().any(|o| name.contains(o.as_str())) {
+        if !selected(name) {
             continue;
         }
         let store = ui.global::<Store>();
         store.set_sheet(SharedString::from(""));
         store.set_show_all_disks(false);
+        store.set_reduced_motion(false);
         App::message(&app, state(patch));
         store.set_connected(true);
         setup(&store);
@@ -256,12 +276,13 @@ fn main() {
     }
 
     for (name, patch, ms) in moments() {
-        if !only.is_empty() && !only.iter().any(|o| name.contains(o.as_str())) {
+        if !selected(name) {
             continue;
         }
         // A fresh screen, so its Wiz starts from his first frame.
         let store = ui.global::<Store>();
         store.set_sheet(SharedString::from(""));
+        store.set_reduced_motion(name.contains("reduced"));
         store.set_screen(SharedString::from(""));
         draw(&window, width, height);
         App::message(&app, state(patch));

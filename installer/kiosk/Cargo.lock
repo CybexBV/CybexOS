@@ -2352,6 +2352,7 @@ dependencies = [
 name = "cybexos-installer"
 version = "0.1.0"
 dependencies = [
+ "i-slint-core",
  "image",
  "serde",
  "serde_json",

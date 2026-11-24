@@ -12,6 +12,9 @@
 // poses hold still: a blink every few seconds, a waiting question pulses three
 // times and then every 8 s, and a finished installation nods and sparkles
 // once. Under a sheet or the reconnecting screen every pose holds still.
+// With reduced motion (the menu's switch, Store.reduced-motion) he shows
+// each pose's first frame and never moves: no loop, blink, pulse or cheer.
+// That frame still tells the poses apart (the runes, the spell, the pip).
 //
 // His frame is the rig's WizRig.STILL_BOX, [-8, -12, 136, 132] in rig units,
 // with his feet on the ground at rig y 110. Motion follows the rig's ops().
@@ -20,6 +23,8 @@ import { Store, WizArt } from "store.slint";
 
 // One of his pictures, drawn 1:1 and placed by its centre in the rig's frame.
 component Art inherits Image {
+    // One of several layers of one picture; screen readers skip them.
+    accessible-role: none;
     in property <string> name;
     in property <float> ppu;       // physical pixels per rig unit
     in property <float> size: 1;   // about its centre
@@ -45,7 +50,8 @@ export component Wiz inherits Rectangle {
     property <length> unit: root.width / 136;
     property <float> ppu: root.unit / 1phx;
     property <string> look: root.pose == "finished" ? "happy" : root.pose;
-    property <bool> animated: Store.sheet == "" && Store.connected;
+    property <bool> still: Store.reduced-motion;
+    property <bool> animated: Store.sheet == "" && Store.connected && !root.still;
     property <bool> loops: root.pose == "thinking" || root.pose == "working";
 
     // Rig units to whole physical pixels: an offset that rounds the same never
@@ -58,7 +64,7 @@ export component Wiz inherits Rectangle {
     // The frame counter runs only while he loops or something plays once: a
     // blink (4 frames), the waiting pulse (28) or the finished cheer (24).
     property <int> tick;
-    property <float> t: root.tick * 0.04;   // seconds
+    property <float> t: root.still ? 0 : root.tick * 0.04;   // seconds
     property <int> blink-at: -100;
     property <int> blinks;
     property <int> pulse-at: -100;
@@ -111,21 +117,21 @@ export component Wiz inherits Rectangle {
     // ---- what the frame shows --------------------------------------------------
     // Breathing while he loops, the hat a moment after the body. The rig's
     // breath is under a pixel; one unit keeps it on the pixel grid.
-    property <length> bob: root.loops ? root.px(sin(root.t * 2.1rad)) : 0;
-    property <length> hat-bob: root.loops ? root.px(sin(root.t * 2.1rad - 0.7rad)) : 0;
+    property <length> bob: root.loops && !root.still ? root.px(sin(root.t * 2.1rad)) : 0;
+    property <length> hat-bob: root.loops && !root.still ? root.px(sin(root.t * 2.1rad - 0.7rad)) : 0;
     // A blink closes and opens the lids over 160 ms.
-    property <string> lids: root.look == "happy" ? ""
+    property <string> lids: root.look == "happy" || root.still ? ""
         : root.since-blink == 0 || root.since-blink == 3 ? "-half"
         : root.since-blink == 1 || root.since-blink == 2 ? "-shut" : "";
     // Finished: two nods after 150 ms, the body dipping a little, the eyes
     // more, the hat most.
-    property <float> nod: root.since-cheer >= 4 && root.since-cheer < 24 ? sin(Math.mod(root.since-cheer - 4, 10) * 18deg) : 0;
+    property <float> nod: !root.still && root.since-cheer >= 4 && root.since-cheer < 24 ? sin(Math.mod(root.since-cheer - 4, 10) * 18deg) : 0;
     // Thinking: four runes circle the hat, behind it on the far side.
     pure function orbit(q: int) -> angle {
         return root.t * 1.25rad + q * 90deg + 0.4rad;
     }
     // Working: the spell flickers in steps of 120 ms and its ring turns.
-    property <int> step: floor(root.tick / 3.0);
+    property <int> step: root.still ? 0 : floor(root.tick / 3.0);
 
     // Rig (0, 0), for the pictures' centres.
     Rectangle {
@@ -216,7 +222,7 @@ export component Wiz inherits Rectangle {
         }
 
         // Finished: each sparkle grows and shrinks in 600 ms, in turn.
-        if root.pose == "finished" && root.since-cheer < 24: Rectangle {
+        if root.pose == "finished" && root.since-cheer < 24 && !root.still: Rectangle {
             width: 0;
             height: 0;
             for delay[z] in [0, 0.1, 0.2, 0.3, 0.06]: Art {
@@ -239,7 +245,7 @@ export component Wiz inherits Rectangle {
                 // The rig's ring grows from 3 to 9 units; the picture's is 5.4.
                 size: round((3 + 6 * self.spread) / 5.4 * 8) / 8.0;
                 opacity: 0.8 * (1 - self.spread);
-                visible: root.since-pulse < 28;
+                visible: root.since-pulse < 28 && !root.still;
             }
 
             Art {

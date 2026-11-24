@@ -1,7 +1,7 @@
 import { Theme } from "theme.slint";
 import { Icons } from "icons.slint";
 import { Store, Check, DiskRow, SummaryRow, StageRow, AppTile, ProfileCard } from "store.slint";
-import { Icon, SlotIcon, Kicker, Heading, Lead, Btn, LinkButton, Card, Field, Toggle, Row, Mark, Tag, Help, FieldLabel } from "widgets.slint";
+import { Icon, SlotIcon, Kicker, Heading, Lead, Btn, LinkButton, Card, Field, Toggle, Row, Mark, Tag, Help, FieldLabel, KeyFocus, PressArea } from "widgets.slint";
 import { Wiz } from "wiz.slint";
 import { ListArea } from "sheets.slint";
 
@@ -50,15 +50,23 @@ component Footer inherits Rectangle {
     @children
 }
 
+// The welcome screen's language and keyboard: the current value, which opens
+// its sheet. `name` is the kicker in plain case, for screen readers.
 component Pick inherits Rectangle {
     in property <string> label;
+    in property <string> name;
     in property <string> value;
     callback clicked;
+    accessible-role: combobox;
+    accessible-label: root.name;
+    accessible-value: root.value;
+    accessible-enabled: Store.sheet == "";
+    accessible-action-default => { if (Store.sheet == "") { root.clicked(); } }
     height: 64px;
     border-radius: 14px;
     background: Theme.card;
     border-width: 1px;
-    border-color: touch.has-hover || focus.has-focus ? Theme.line-2 : Theme.line;
+    border-color: touch.has-hover || focus.ring ? Theme.line-2 : Theme.line;
     Kicker {
         x: 18px;
         text: root.label;
@@ -80,7 +88,17 @@ component Pick inherits Rectangle {
         d: Icons.right;
         tint: Theme.faint;
     }
-    focus := FocusScope {
+    // A border shade alone did not show keyboard focus (2026-11-24 review).
+    if focus.ring: Rectangle {
+        x: -3px;
+        y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: 17px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+    focus := KeyFocus {
         enabled: Store.sheet == "";
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
@@ -90,7 +108,7 @@ component Pick inherits Rectangle {
             return reject;
         }
     }
-    touch := TouchArea {
+    touch := PressArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
@@ -178,17 +196,22 @@ export component WelcomeScreen inherits Rectangle {
             Rectangle { height: 30px; }
             Pick {
                 label: "LANGUAGE";
+                name: "Language";
                 value: Store.language-name;
                 clicked => { Store.open-sheet("language"); }
             }
             Rectangle { height: 10px; }
             Pick {
                 label: "KEYBOARD";
+                name: "Keyboard layout";
                 value: Store.layout-name;
                 clicked => { Store.open-sheet("keyboard"); }
             }
             Rectangle { height: 10px; }
-            Field { placeholder: "Type here to test your keyboard"; }
+            Field {
+                label: "Keyboard test";
+                placeholder: "Type here to test your keyboard";
+            }
             Rectangle { height: 28px; }
             if Store.development: Rectangle {
                 height: dev-text.preferred-height + 34px;
@@ -309,9 +332,19 @@ export component WelcomeScreen inherits Rectangle {
 
 // ── disk ─────────────────────────────────────────────────────────────────────
 
+// One disk, a radio button: exactly one is chosen. Screen readers hear its
+// name and size, whether it is chosen, and the line under its name.
 component DiskCard inherits Rectangle {
     in property <DiskRow> data;
     callback clicked;
+    property <bool> active: root.data.available && Store.sheet == "";
+    accessible-role: radio-button;
+    accessible-label: root.data.model + ", " + root.data.size;
+    accessible-description: root.data.path + " · " + (root.data.available ? root.data.bus + " · " + root.data.contents : root.data.reason);
+    accessible-checkable: true;
+    accessible-checked: root.data.selected;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
     height: 96px;
     border-radius: 18px;
     background: Theme.card;
@@ -396,14 +429,14 @@ component DiskCard inherits Rectangle {
             size: 14px;
         }
     }
-    if disk-focus.has-focus: Rectangle {
+    if disk-focus.ring: Rectangle {
         x: -3px; y: -3px;
         width: parent.width + 6px; height: parent.height + 6px;
-        border-radius: 20px;
+        border-radius: 21px;
         border-width: 2px; border-color: Theme.accent;
     }
-    disk-focus := FocusScope {
-        enabled: root.data.available && Store.sheet == "";
+    disk-focus := KeyFocus {
+        enabled: root.active;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
                 if (!event.repeat) { root.clicked(); }
@@ -412,8 +445,8 @@ component DiskCard inherits Rectangle {
             return reject;
         }
     }
-    touch := TouchArea {
-        enabled: root.data.available && Store.sheet == "";
+    touch := PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => { disk-focus.focus(); root.clicked(); }
     }
@@ -478,6 +511,9 @@ export component DiskScreen inherits Rectangle {
                 height: 34px;
                 more := Row {
                     row-height: 34px;
+                    accessible-label: more-text.text;
+                    accessible-expandable: true;
+                    accessible-expanded: Store.show-all-disks;
                     clicked => { Store.toggle-all-disks(); }
                     width: more-row.preferred-width;
                     more-row := HorizontalLayout {
@@ -486,7 +522,7 @@ export component DiskScreen inherits Rectangle {
                             d: Store.show-all-disks ? "M 5 9 L 12 16 L 19 9" : Icons.right;
                             size: 16px;
                         }
-                        Text {
+                        more-text := Text {
                             text: Store.show-all-disks ? "Fewer details" : Store.hidden-disks > 0 ? "More options · serial numbers and " + (Store.hidden-disks == 1 ? "1 disk" : Store.hidden-disks + " disks") + " that can't be used" : "More options · serial numbers";
                             color: Theme.fog;
                             font-size: 15px;
@@ -541,6 +577,7 @@ export component DiskScreen inherits Rectangle {
                     }
                     Toggle {
                         x: parent.width - 70px;
+                        label: "Encrypt the disk";
                         on: Store.encrypted;
                         toggled => { Store.toggle-encrypted(); }
                     }
@@ -567,16 +604,32 @@ export component DiskScreen inherits Rectangle {
                             font-weight: 700;
                             color: Theme.ink;
                         }
+                        // Plain words first; the partition table follows in
+                        // smaller mono for those who want it (2026-11-24 review).
+                        Text {
+                            text: Store.encrypted ? "Encrypted whole-disk install" : "Whole-disk install, not encrypted";
+                            font-size: 15px;
+                            color: Theme.ink;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "A " + Store.esp-gib + " GiB startup partition, then the rest of the disk" + (Store.encrypted ? ", encrypted." : ".");
+                            font-size: 14px;
+                            color: Theme.fog;
+                            wrap: word-wrap;
+                        }
+                        Rectangle { height: 2px; }
                         Text {
                             text: "GPT · " + Store.esp-gib + " GiB EFI system (FAT32)\nrest: ext4" + (Store.encrypted ? " inside LUKS2" : "");
                             font-family: Theme.mono;
-                            font-size: 13px;
-                            color: Theme.fog;
+                            font-size: 12px;
+                            color: Theme.faint;
                         }
                         Text {
                             text: "Set by the release. Minimum disk " + Store.minimum-gib + " GiB.";
                             font-size: 13px;
                             color: Theme.faint;
+                            wrap: word-wrap;
                         }
                     }
                 }
@@ -632,6 +685,7 @@ export component AccountScreen inherits Rectangle {
             aux: "optional";
         }
         name-field := Field {
+            label: "Your name";
             placeholder: "Ada Lovelace";
             text <=> Store.full-name;
             edited(text) => { Store.full-name-edited(text); }
@@ -647,6 +701,7 @@ export component AccountScreen inherits Rectangle {
             aux: Store.username-count;
         }
         user-field := Field {
+            label: "Username";
             mono: true;
             placeholder: "ada";
             bad: Store.username-tone == 2;
@@ -674,6 +729,7 @@ export component AccountScreen inherits Rectangle {
         Rectangle {
             height: 52px;
             password-field := Field {
+                label: "Password";
                 width: parent.width;
                 password: !Store.show-password;
                 right-inset: 70px;
@@ -696,6 +752,7 @@ export component AccountScreen inherits Rectangle {
                 width: 62px;
                 small: true;
                 text: Store.show-password ? "Hide" : "Show";
+                accessible-label: Store.show-password ? "Hide password" : "Show password";
                 clicked => { Store.show-password = !Store.show-password; }
             }
         }
@@ -714,6 +771,7 @@ export component AccountScreen inherits Rectangle {
         }
         FieldLabel { text: "CONFIRM PASSWORD"; }
         confirm-field := Field {
+            label: "Confirm password";
             password: !Store.show-password;
             placeholder: "Type it once more";
             bad: Store.confirm-tone == 2;
@@ -787,7 +845,9 @@ export component AccountScreen inherits Rectangle {
                 text: "Change";
                 clicked => { Store.open-sheet("timezone"); }
             }
-            TouchArea {
+            // The whole card opens the picker for a pointer; Change is the
+            // keyboard's way in.
+            PressArea {
                 mouse-cursor: pointer;
                 clicked => { Store.open-sheet("timezone"); }
             }
@@ -798,6 +858,7 @@ export component AccountScreen inherits Rectangle {
             aux: Store.host-edited ? "custom" : "follows your username";
         }
         host-field := Field {
+            label: "Computer name";
             mono: true;
             text <=> Store.hostname;
             bad: Store.hostname-tone == 2;
@@ -879,9 +940,19 @@ component AppTileView inherits VerticalLayout {
     }
 }
 
+// A software profile, a checkbox: any number can be chosen.
 component ProfileTile inherits Rectangle {
     in property <ProfileCard> data;
     callback clicked;
+    property <bool> active: root.data.available && Store.sheet == "";
+    accessible-role: checkbox;
+    accessible-label: root.data.name;
+    accessible-description: root.data.summary + ". " + (root.data.recommended ? "Recommended. " : "") + root.data.size
+        + (root.data.vendor != "" ? ". " + root.data.vendor : "");
+    accessible-checkable: true;
+    accessible-checked: root.data.selected;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
     height: 196px;
     border-radius: 18px;
     background: Theme.card;
@@ -893,7 +964,7 @@ component ProfileTile inherits Rectangle {
     Rectangle {
         border-radius: parent.border-radius;
         border-width: 1.5px;
-        border-color: root.data.selected ? Theme.accent : (touch.has-hover || card-focus.has-focus) && root.data.available ? Theme.line-2 : Theme.line;
+        border-color: root.data.selected ? Theme.accent : (touch.has-hover || card-focus.ring) && root.data.available ? Theme.line-2 : Theme.line;
     }
     Rectangle {
         x: 18px;
@@ -972,17 +1043,17 @@ component ProfileTile inherits Rectangle {
         }
         if root.data.vendor != "": Tag { text: root.data.vendor; }
     }
-    if card-focus.has-focus: Rectangle {
+    if card-focus.ring: Rectangle {
         x: -3px;
         y: -3px;
         width: parent.width + 6px;
         height: parent.height + 6px;
-        border-radius: 20px;
+        border-radius: 21px;
         border-width: 2px;
         border-color: Theme.accent;
     }
-    card-focus := FocusScope {
-        enabled: root.data.available && Store.sheet == "";
+    card-focus := KeyFocus {
+        enabled: root.active;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
                 if (!event.repeat) { root.clicked(); }
@@ -991,8 +1062,8 @@ component ProfileTile inherits Rectangle {
             return reject;
         }
     }
-    touch := TouchArea {
-        enabled: root.data.available && Store.sheet == "";
+    touch := PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => { card-focus.focus(); root.clicked(); }
     }
@@ -1054,6 +1125,17 @@ export component SoftwareScreen inherits Rectangle {
             data: card;
             clicked => { Store.toggle-profile(card.id); }
         }
+        // A medium without the catalogue (a broken build): say so rather than
+        // leave the step blank. The essentials still install.
+        if Store.profiles.length == 0: Text {
+            x: 64px;
+            y: 240px;
+            width: 820px;
+            text: "No software profiles are available on this installer. Cybex OS installs its essentials, and you can add apps later in Software.";
+            font-size: 16px;
+            color: Theme.amber;
+            wrap: word-wrap;
+        }
         Rectangle {
             x: 64px;
             y: 642px;
@@ -1084,6 +1166,7 @@ export component SoftwareScreen inherits Rectangle {
                 }
                 customize := Row {
                     row-height: 30px;
+                    accessible-label: "Customize apps";
                     width: customize-row.preferred-width + 12px;
                     clicked => { Store.open-sheet("apps"); }
                     customize-row := HorizontalLayout {

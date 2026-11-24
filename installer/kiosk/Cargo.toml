@@ -31,6 +31,12 @@ name = "installer-preview"
 path = "src/preview.rs"
 required-features = ["preview"]
 
+[dev-dependencies]
+# Slint's item tree, which its accessibility bridges read: the tests check the
+# screen-reader semantics (accessible-*) of the real tree. Already in the lock
+# through slint; slint's own features apply.
+i-slint-core = { version = "=1.18.1", default-features = false }
+
 [build-dependencies]
 slint-build = "=1.18.1"
 

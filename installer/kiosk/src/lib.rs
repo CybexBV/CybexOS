@@ -8,6 +8,7 @@ slint::include_modules!();
 
 pub mod client;
 pub mod map;
+pub mod motion;
 pub mod names;
 pub mod protocol;
 pub mod software;

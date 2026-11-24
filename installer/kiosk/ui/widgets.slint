@@ -65,11 +65,35 @@ export component Lead inherits Text {
     wrap: word-wrap;
 }
 
+// Keyboard focus for a custom control. Its ring shows only while the person
+// drives the installer from the keyboard (Store.keyboard-modality), like the
+// desktop's FocusModality: a click still focuses the control, so Tab goes on
+// from there, but draws no ring (2026-11-24 review). Tab always shows one.
+export component KeyFocus inherits FocusScope {
+    out property <bool> ring: self.has-focus && Store.keyboard-modality;
+    focus-gained(reason) => {
+        if (reason == FocusReason.tab-navigation) {
+            Store.keyboard-modality = true;
+        }
+    }
+}
+
+// A pointer target. A press is pointer input, which hides focus rings until
+// the next key (KeyFocus; app.slint sees every key).
+export component PressArea inherits TouchArea {
+    pointer-event(event) => {
+        if (event.kind == PointerEventKind.down) {
+            Store.keyboard-modality = false;
+        }
+    }
+}
+
+// Controls under an open sheet are inert, for screen readers too.
 export component Btn inherits Rectangle {
     accessible-role: button;
     accessible-label: root.text;
-    accessible-enabled: root.enabled;
-    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
     in property <bool> in-sheet;
     in property <bool> keyboard-focus: true;
     in property <string> text;
@@ -79,6 +103,7 @@ export component Btn inherits Rectangle {
     in property <bool> small;
     in property <bool> icon-right;
     callback clicked;
+    property <bool> active: root.enabled && (root.in-sheet || Store.sheet == "");
     property <length> pad: root.small ? 14px : 26px;
     property <color> ink: root.kind == "ghost" ? Theme.ink : Theme.accent-ink;
     height: root.small ? 38px : 52px;
@@ -87,9 +112,9 @@ export component Btn inherits Rectangle {
     background: root.kind == "primary" ? Theme.accent : root.kind == "danger" ? Theme.red : transparent;
     border-width: 1px;
     border-color: root.kind == "primary" ? Theme.accent : root.kind == "danger" ? Theme.red
-        : (touch.has-hover || focus.has-focus) && root.enabled ? Theme.fog : Theme.line-2;
+        : (touch.has-hover || focus.ring) && root.enabled ? Theme.fog : Theme.line-2;
     opacity: root.enabled ? 1 : 0.35;
-    if focus.has-focus: Rectangle {
+    if focus.ring: Rectangle {
         x: -4px;
         y: -4px;
         width: parent.width + 8px;
@@ -122,9 +147,9 @@ export component Btn inherits Rectangle {
     }
     // Keyboard focus sits below the pointer area: the topmost element gets
     // the click, so the FocusScope must not cover the TouchArea.
-    focus := FocusScope {
+    focus := KeyFocus {
         focus-on-tab-navigation: root.keyboard-focus;
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+        enabled: root.active;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
                 if (!event.repeat) { root.clicked(); }
@@ -133,8 +158,8 @@ export component Btn inherits Rectangle {
             return reject;
         }
     }
-    touch := TouchArea {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    touch := PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => {
             focus.focus();
@@ -148,10 +173,15 @@ export component LinkButton inherits Text {
     in property <bool> in-sheet;
     in property <bool> keyboard-focus: true;
     callback clicked;
+    property <bool> active: root.enabled && (root.in-sheet || Store.sheet == "");
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
     color: Theme.accent;
     font-size: 14px;
     font-weight: 500;
-    if focus.has-focus: Rectangle {
+    if focus.ring: Rectangle {
         x: -3px;
         y: -3px;
         width: parent.width + 6px;
@@ -160,8 +190,8 @@ export component LinkButton inherits Text {
         border-width: 2px;
         border-color: Theme.accent;
     }
-    focus := FocusScope {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    focus := KeyFocus {
+        enabled: root.active;
         focus-on-tab-navigation: root.keyboard-focus;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
@@ -171,21 +201,29 @@ export component LinkButton inherits Text {
             return reject;
         }
     }
-    touch := TouchArea {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    touch := PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => { focus.focus(); root.clicked(); }
     }
 }
 
+// The top bar's chips. `name` is what a screen reader says: the ⋯ chip has
+// no text, and "US" alone does not say it is the keyboard.
 export component Chip inherits Rectangle {
     in property <bool> in-sheet;
     in property <bool> keyboard-focus: true;
     in property <string> text;
+    in property <string> name;
     in property <string> icon;
     in property <bool> warn;
     in property <bool> enabled: true;
     callback clicked;
+    property <bool> active: root.enabled && (root.in-sheet || Store.sheet == "");
+    accessible-role: button;
+    accessible-label: root.name != "" ? root.name : root.text;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
     height: 36px;
     width: root.text == "" ? 36px : row.preferred-width + 28px;
     border-radius: 18px;
@@ -211,17 +249,17 @@ export component Chip inherits Rectangle {
             vertical-alignment: center;
         }
     }
-    if focus.has-focus: Rectangle {
+    if focus.ring: Rectangle {
         x: -3px;
         y: -3px;
         width: parent.width + 6px;
         height: parent.height + 6px;
-        border-radius: 8px;
+        border-radius: 21px;
         border-width: 2px;
         border-color: Theme.accent;
     }
-    focus := FocusScope {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    focus := KeyFocus {
+        enabled: root.active;
         focus-on-tab-navigation: root.keyboard-focus;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
@@ -231,8 +269,8 @@ export component Chip inherits Rectangle {
             return reject;
         }
     }
-    touch := TouchArea {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    touch := PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => { focus.focus(); root.clicked(); }
     }
@@ -246,8 +284,11 @@ export component Card inherits Rectangle {
 }
 
 // A text field: TextInput with placeholder, focus ring and optional caret control.
+// It shows its focus after a click too, as a browser's :focus-visible does: the
+// caret is where typing goes. `label` names it for screen readers.
 export component Field inherits Rectangle {
     in property <bool> in-sheet;
+    in property <string> label;
     in property <string> placeholder;
     in-out property <string> text;
     in property <bool> mono;
@@ -285,6 +326,8 @@ export component Field inherits Rectangle {
         overflow: elide;
     }
     input := TextInput {
+        accessible-label: root.label != "" ? root.label : root.placeholder;
+        accessible-placeholder-text: root.placeholder;
         x: 16px;
         width: parent.width - 32px - root.right-inset;
         height: parent.height;
@@ -316,25 +359,43 @@ export component Field inherits Rectangle {
     }
 }
 
+// A switch. Off is a quiet track with a 1 px fog edge and a smaller fog
+// knob, the desktop's Common/Toggle.qml and its switchOff* tokens: the edge
+// gives the off state the 3:1 boundary a faint track alone missed
+// (2026-11-24 review). On is the accent track. `label` names it for screen
+// readers; a row that is itself the switch sets `accessible-role: none` here.
 export component Toggle inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> in-sheet;
     in property <bool> keyboard-focus: true;
     in property <bool> on;
+    in property <string> label;
     callback toggled;
+    property <bool> active: root.enabled && (root.in-sheet || Store.sheet == "");
+    accessible-role: switch;
+    accessible-label: root.label;
+    accessible-checkable: true;
+    accessible-checked: root.on;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.toggled(); } }
     width: 48px;
     height: 28px;
     border-radius: 14px;
-    background: root.on ? Theme.accent : Theme.line-2;
+    // Theme.faint at 30 %, the desktop's dark switchOffTrack. Not a Theme
+    // token: the welcome guide mirrors every one (welcome-kiosk.test.cjs).
+    background: root.on ? Theme.accent : #8f918a4d;
+    border-width: root.on ? 0px : 1px;
+    border-color: Theme.fog;
+    // The desktop's knob: 4 px inside the track when on, 8 px when off.
     Rectangle {
-        x: root.on ? 23px : 3px;
-        y: 3px;
-        width: 22px;
-        height: 22px;
-        border-radius: 11px;
+        width: root.on ? 24px : 20px;
+        height: self.width;
+        x: root.on ? parent.width - 2px - self.width : 4px;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
         background: root.on ? Theme.accent-ink : Theme.fog;
     }
-    if focus.has-focus: Rectangle {
+    if focus.ring: Rectangle {
         x: -4px;
         y: -4px;
         width: parent.width + 8px;
@@ -343,9 +404,9 @@ export component Toggle inherits Rectangle {
         border-width: 2px;
         border-color: Theme.accent;
     }
-    focus := FocusScope {
+    focus := KeyFocus {
         focus-on-tab-navigation: root.keyboard-focus;
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+        enabled: root.active;
         // Space flips the switch; Enter still reaches the screen's Continue.
         key-pressed(event) => {
             if (event.text == " ") {
@@ -355,17 +416,21 @@ export component Toggle inherits Rectangle {
             return reject;
         }
     }
-    TouchArea {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => { focus.focus(); root.toggled(); }
     }
 }
 
-// Status marks: 0 ok, 1 running, 2 waiting, 3 warning, 4 error.
+// Status marks: 0 ok, 1 running, 2 waiting, 3 warning, 4 error. The text
+// beside a mark says what it is about; the label says its state.
 export component Mark inherits Rectangle {
     in property <int> state;
     in property <int> tick;
+    accessible-role: image;
+    accessible-label: root.state == 0 ? "Done" : root.state == 1 ? "In progress" : root.state == 2 ? "Waiting"
+        : root.state == 3 ? "Warning" : "Problem";
     width: 24px;
     height: 24px;
     border-radius: 12px;
@@ -378,12 +443,13 @@ export component Mark inherits Rectangle {
         size: 14px;
     }
     if root.state == 1: Rectangle {
-        // A static active marker with a 1 Hz step, no continuous animation.
+        // A static active marker with a 1 Hz step, no continuous animation;
+        // solid under reduced motion, where the ring still marks it active.
         width: 8px;
         height: 8px;
         border-radius: 4px;
         background: Theme.accent;
-        opacity: Math.mod(root.tick, 2) == 0 ? 1 : 0.45;
+        opacity: Store.reduced-motion || Math.mod(root.tick, 2) == 0 ? 1 : 0.45;
     }
     if root.state == 3: Text {
         text: "!";
@@ -415,7 +481,9 @@ export component Tag inherits Rectangle {
     }
 }
 
-// A selectable row in sheets and pickers.
+// A selectable row in sheets and pickers. A button to screen readers unless
+// its user says what it is (a list item, a switch, a radio button) and names
+// it with `accessible-label`: the row's content is free-form.
 export component Row inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> in-sheet;
@@ -424,22 +492,26 @@ export component Row inherits Rectangle {
     in property <length> row-height: 54px;
     out property <bool> has-focus: focus.has-focus;
     callback clicked;
+    property <bool> active: root.enabled && (root.in-sheet || Store.sheet == "");
+    accessible-role: button;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
     height: root.row-height;
     border-radius: 12px;
     background: root.selected ? Theme.accent-soft : touch.has-hover ? Theme.card-2 : transparent;
     border-width: 1px;
     border-color: root.selected ? #60a5fa59 : transparent;
-    if focus.has-focus: Rectangle {
+    if focus.ring: Rectangle {
         x: -3px;
         y: -3px;
         width: parent.width + 6px;
         height: parent.height + 6px;
-        border-radius: 8px;
+        border-radius: 15px;
         border-width: 2px;
         border-color: Theme.accent;
     }
-    focus := FocusScope {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    focus := KeyFocus {
+        enabled: root.active;
         focus-on-tab-navigation: root.keyboard-focus;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == " ") {
@@ -449,8 +521,8 @@ export component Row inherits Rectangle {
             return reject;
         }
     }
-    touch := TouchArea {
-        enabled: root.enabled && (root.in-sheet || Store.sheet == "");
+    touch := PressArea {
+        enabled: root.active;
         mouse-cursor: pointer;
         clicked => { focus.focus(); root.clicked(); }
     }
@@ -503,6 +575,9 @@ export component ScrollHint inherits Rectangle {
     touch := TouchArea {
         property <length> grab-offset;
         pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                Store.keyboard-modality = false;
+            }
             if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
                 self.grab-offset = self.mouse-y >= thumb.y && self.mouse-y <= thumb.y + thumb.height
                     ? self.mouse-y - thumb.y : thumb.height / 2;

@@ -113,6 +113,8 @@ pub struct App {
     /// static message so unchanged cards keep comparing equal.
     icons: HashMap<String, Image>,
     tiles: HashMap<String, ModelRc<AppTile>>,
+    /// Where the Reduce motion switch outlasts a restart (src/motion.rs).
+    motion_file: Option<std::path::PathBuf>,
 }
 
 pub type Shared = Rc<RefCell<App>>;
@@ -144,6 +146,7 @@ impl App {
             preview_now: None,
             icons: HashMap::new(),
             tiles: HashMap::new(),
+            motion_file: None,
         }));
         bind(&app, window);
         let timer = Timer::default();
@@ -155,6 +158,16 @@ impl App {
         });
         app.borrow_mut().timers.push(timer);
         app
+    }
+
+    /// Reduced motion as the session left it, or as the environment asks,
+    /// and where the menu's switch keeps its choice.
+    pub fn init_motion(&mut self, file: Option<std::path::PathBuf>, env: Option<&str>) {
+        let on = crate::motion::initial(file.as_deref(), env);
+        self.motion_file = file;
+        if let Some(window) = self.window() {
+            window.global::<Store>().set_reduced_motion(on);
+        }
     }
 
     /// Previews render a fixed moment.
@@ -1448,6 +1461,13 @@ fn bind(app: &Shared, window: &InstallerWindow) {
             "shell" => this.send(json!({"action": "shell"})),
             "text-installer" => this.send(json!({"action": "text-installer"})),
             _ => {}
+        }
+    });
+    on!(on_toggle_reduced_motion, |this, store| {
+        let on = !store.get_reduced_motion();
+        store.set_reduced_motion(on);
+        if let Some(file) = this.motion_file.as_deref() {
+            crate::motion::save(file, on);
         }
     });
     on!(on_request_details, |this, store| {
