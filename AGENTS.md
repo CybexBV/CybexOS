@@ -50,8 +50,9 @@ assistant integrations, vendor packages or hardware profiles. John lifts the fre
 - A workflow sub-agent or delegated task in a worktree does not push, rebase
   shared branches or merge into `main` unless its task says so: the
   orchestrator merges. The exception is a direct instruction (next section).
-- Other sessions push to `main` too; fetch before branching and before
-  choosing a version.
+- Other sessions push to `main` too, and workflows push
+  `nixpkgs-update/*` and `vendor-update/*` branches; fetch before branching
+  and before choosing a version.
 
 ## Direct instructions: land on main
 
@@ -69,8 +70,8 @@ sub-agent in a worktree):
 ## Releases
 
 - Cybex OS releases have a beta and a stable channel
-  ([docs/releasing.md](docs/releasing.md#channels)). Only Cybex OS releases
-  follow them; NixOS package updates do not.
+  ([docs/releasing.md](docs/releasing.md#channels)). Each release pins its
+  Nixpkgs revision, so NixOS package updates reach machines with releases.
 - Release only when John asks for one. Bundle what landed: at most two beta
   releases a week. Never one release per change.
 - To publish a beta:
@@ -93,8 +94,16 @@ sub-agent in a worktree):
 - Never fix stable from a maintenance branch: fix forward on `main`.
 - No workflow publishes releases or pushes `main` (owner's decision,
   2026-11-24, replacing the automatic vendor beta releases of 2026-11-07 and
-  2026-11-10). The vendor-updates and Nixpkgs canary workflows stay switched
-  off until they are reworked to push branches only.
+  2026-11-10). They push branches and open issues; merge a branch after its
+  full check, like any change:
+  - **Nixpkgs updates** (`nixpkgs-update.yml`, weekly): `flake.lock`'s
+    Nixpkgs moves on a `nixpkgs-update/<date>` branch
+    ([docs/releasing.md](docs/releasing.md#nixpkgs-updates)). A failing one
+    means the next Nixpkgs doesn't work with Cybex OS yet; machines are not
+    affected, because they only take the revision a release pins.
+  - **Vendor updates** (`vendor-updates.yml`, daily): one
+    `vendor-update/<name>-<version>` branch per verified pin update
+    ([docs/releasing.md](docs/releasing.md#vendor-updates)).
 
 ## NixOS installation and lifecycle contract
 
@@ -113,9 +122,12 @@ sub-agent in a worktree):
   out (May and November) as a qualified Cybex OS update. Take no packages from
   `nixos-unstable` or another branch: Quickshell, Hyprland, Qt and the rest stay
   at the release's versions. The kernel stays `linuxPackages_latest`, which the
-  release itself keeps current. Until NixOS 26.11 ships (planned 2026-11-23)
-  the tree still follows `nixos-unstable`; moving to 26.11 is the next branch
-  change.
+  release itself keeps current. Until NixOS 26.11 ships (planned 2026-11-23;
+  no `nixos-26.11` branch existed on 2026-11-24) the tree still follows
+  `nixos-unstable`; moving to 26.11 is the next branch change. Make that move
+  as its own release one to two weeks after the branch exists and is built,
+  with an ISO and qualification, and check for packages that are older on
+  26.11 than on the machines' nixos-unstable.
 - Hardware support targets non-Apple Intel/AMD x86_64 UEFI PCs only. Every
   enabled Cybex OS system and installation medium must retain the exact, unmodified selected
   Nixpkgs `linuxPackages_latest` kernel derivation. Never obtain hardware
@@ -137,7 +149,14 @@ sub-agent in a worktree):
   enrollment and external-module trust are implemented and physically tested.
   A hardware profile does not solve these requirements. Never disable firmware
   verification to make installation or qualification pass.
-- Nixpkgs is selected independently of Cybex OS. Its packages come prebuilt
+- Each Cybex OS release pins one Nixpkgs revision (its `flake.lock`), the one
+  its full check built. Machines move their Nixpkgs only to a release's
+  revision, never to the channel head and never backwards
+  ([docs/updates.md](docs/updates.md#nixpkgs-comes-with-the-release); owner's
+  decision, 2026-11-24, replacing independent Nixpkgs selection). The
+  updater's lock change and, for a release on another NixOS branch, the
+  literal `nixpkgs.url` rewrite in `/etc/nixos/flake.nix` are part of the
+  update path, not a migration. Nixpkgs packages come prebuilt
   from cache.nixos.org, guarded by the updater's prebuilt check
   (`lifecycle/cybexos/prebuilt.py`, `nix/modules/prebuilt.nix`). Only Cybex
   OS's own packages, unfree vendor downloads, kernel modules and machine

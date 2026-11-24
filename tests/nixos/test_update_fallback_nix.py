@@ -81,24 +81,23 @@ def usable():
 
 
 class Inputs(Runner):
-    """The real Runner, except input updates: they would ask GitHub."""
-    def __init__(self, nixpkgs, release, revision):
+    """The real Runner, except the release's input update: it would ask GitHub."""
+    def __init__(self, release, revision):
         super().__init__()
-        self.nixpkgs, self.release, self.revision, self.builds = nixpkgs, release, revision, 0
+        self.release, self.revision, self.builds = release, revision, 0
 
     def __call__(self, *args, **kwargs):
         args = tuple(map(str, args))
         if args[:3] == ('nix', 'flake', 'update'):
             config = Path(args[args.index('--flake') + 1].removeprefix('path:'))
             lock = read(config / 'flake.lock')
-            if args[3] == 'nixpkgs':
-                lock['nodes']['nixpkgs']['locked'] = self.nixpkgs
-            else:
-                # As Nix does, lock the owner the rewritten flake names: a
-                # machine installed from the former repository name moves on.
-                owner = re.search(r'github:([^/"]+)/CybexOS/', (config / 'flake.nix').read_text())[1]
-                lock['nodes']['cybexos']['locked'] |= {'rev': self.revision, 'narHash': self.release, 'owner': owner}
-                lock['nodes']['cybexos']['original'] |= {'rev': self.revision, 'owner': owner}
+            # Nixpkgs moves only to a release's revision, never the channel head.
+            assert args[3] == 'cybexos', args
+            # As Nix does, lock the owner the rewritten flake names: a
+            # machine installed from the former repository name moves on.
+            owner = re.search(r'github:([^/"]+)/CybexOS/', (config / 'flake.nix').read_text())[1]
+            lock['nodes']['cybexos']['locked'] |= {'rev': self.revision, 'narHash': self.release, 'owner': owner}
+            lock['nodes']['cybexos']['original'] |= {'rev': self.revision, 'owner': owner}
             atomic(config / 'flake.lock', lock)
             return ''
         if args[:2] == ('nix', 'build') and '--dry-run' not in args:
@@ -144,16 +143,21 @@ class FallbackWithNix(unittest.TestCase):
                     f'path:{config}#nixosConfigurations.cybexos.config.system.build.toplevel')
         self.assertEqual(built.returncode, 0, built.stderr)
         (base / 'current-system').symlink_to(built.stdout.strip())
-        atomic(base / 'release.json', {'version': '1.0.0', 'architecture': 'x86_64-linux', 'nixos': 'unstable'})
+        # The new release was checked with the new Nixpkgs revision; so was
+        # the installed one later on, for the packages-alone step below.
+        pinned = {'rev': new, 'narHash': nixpkgs['locked']['narHash'],
+                  'lastModified': nixpkgs['locked']['lastModified'] + 1, 'ref': 'nixos-unstable'}
+        atomic(base / 'release.json', {'version': '1.0.0', 'architecture': 'x86_64-linux', 'nixos': 'unstable',
+                                       'nixpkgs': pinned})
         atomic(base / 'update.json', {'channel': 'beta'})
-        self.runner = Inputs(nixpkgs['locked'] | {'rev': new}, release, self.released)
+        self.runner = Inputs(release, self.released)
         self.engine = Engine(base / 'state', config, self.runner, base / 'release.json', base / 'update.json',
                              base / 'current-system', base / 'current-system')
         copy_config(config, base / 'deployed')
         (self.engine.state / 'deployed').symlink_to(base / 'deployed')
         candidate = lifecycle.release() | {'revision': self.released, 'channel': 'beta'}
         self.engine.channel = lambda: candidate
-        self.engine.release_source = lambda found: found | {'narHash': release}
+        self.engine.release_source = lambda found: found | {'narHash': release, 'nixpkgs': pinned}
 
     def test_the_release_comes_alone_and_the_packages_wait_without_building_again(self):
         cli.stage_update(self.engine, 'both', 'a' * 32)

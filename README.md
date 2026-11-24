@@ -23,7 +23,7 @@ file; personal modules and persistent data are separate from vendor releases.
 
 - [Fresh installation](docs/installation.md)
 - [Architecture and ownership](docs/architecture/ownership.md)
-- [Independent updates](docs/updates.md)
+- [Updates](docs/updates.md)
 - [Personal configuration and plugin development](docs/customization.md)
 - [Wallpapers and the shared picker](docs/wallpapers.md)
 - [Welcome guide](docs/welcome.md)

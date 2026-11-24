@@ -159,6 +159,11 @@ in {
     environment.etc."cybexos/release.json".text = let
       # The same declaration the updater reads from a release's source.
       compatibility = builtins.fromJSON (builtins.readFile ../../release/compatibility.json);
+      # The Nixpkgs revision this release was checked with: its own
+      # flake.lock, whatever the machine's lock holds today. Updates move a
+      # machine's Nixpkgs only to this revision (docs/updates.md).
+      lock = builtins.fromJSON (builtins.readFile ../../flake.lock);
+      pinned = lock.nodes.${lock.nodes.${lock.root}.inputs.nixpkgs};
     in builtins.toJSON {
       inherit (cfg.release) version revision narHash;
       inherit (compatibility) configurationApi pluginApi;
@@ -166,6 +171,7 @@ in {
       # declared "nixos" list; not the rolling 26.11 version number.
       updaterApi = 1; nixos = "unstable";
       architecture = pkgs.stdenv.hostPlatform.system;
+      nixpkgs = { inherit (pinned.locked) rev narHash lastModified; inherit (pinned.original) ref; };
     };
   }) (mkIf cfg.enable {
     assertions = [

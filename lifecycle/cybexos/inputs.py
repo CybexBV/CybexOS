@@ -15,11 +15,21 @@ def resolved(lock, name):
     return lock['nodes'][value]
 
 
-def validate_machine(lock, branch='nixos-unstable'):
+def supported_branch(ref):
+    """nixos-unstable, or a stable NixOS branch from 26.11 on (nixos-YY.MM)."""
+    if ref == 'nixos-unstable':
+        return True
+    match = re.fullmatch(r'nixos-([0-9]{2})\.(05|11)', ref) if isinstance(ref, str) else None
+    return bool(match) and (int(match[1]), int(match[2])) >= (26, 11)
+
+
+def validate_machine(lock):
     upstream, vendor = resolved(lock, 'nixpkgs'), resolved(lock, 'cybexos')
     original = upstream['original']
-    if original != {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'ref': branch}:
-        raise Failure('Upstream must follow the nixos-unstable branch that Cybex OS supports.')
+    if (set(original) != {'type', 'owner', 'repo', 'ref'} or original.get('type') != 'github'
+            or original.get('owner') != 'NixOS' or original.get('repo') != 'nixpkgs'
+            or not supported_branch(original.get('ref'))):
+        raise Failure('Upstream must follow nixos-unstable or a stable NixOS branch that Cybex OS supports.')
     if vendor['inputs'].get('nixpkgs') != ['nixpkgs']:
         raise Failure('Cybex OS must follow the machine nixpkgs input')
     selected = vendor.get('locked', {})
@@ -78,3 +88,45 @@ def validate_delta(old, new, scope):
     for name in root_inputs(old):
         if name not in allowed and not unchanged_graph(old, new, name):
             raise Failure(f'Update unexpectedly refreshed {name}; staged configuration rejected')
+
+
+def pin(value):
+    """The Nixpkgs revision a release was checked with.
+
+    `value` is a release's own flake.lock or release.json's "nixpkgs"
+    (nix/modules/default.nix). Machines move their Nixpkgs only to such a
+    revision, so every update builds a combination Cybex OS already built.
+    """
+    try:
+        if 'nodes' in value:
+            node = value['nodes'][value['nodes'][value['root']]['inputs']['nixpkgs']]
+            locked, original = node['locked'], node['original']
+            if (locked.get('type'), locked.get('owner'), locked.get('repo')) != ('github', 'NixOS', 'nixpkgs'):
+                raise ValueError('Not a NixOS/nixpkgs revision')
+            value = {name: locked.get(name) for name in ('rev', 'narHash', 'lastModified')} | {'ref': original.get('ref')}
+        result = {name: value[name] for name in ('rev', 'narHash', 'lastModified', 'ref')}
+    except (KeyError, TypeError, ValueError, AttributeError) as error:
+        raise Failure('The release names no valid Nixpkgs revision') from error
+    if (not isinstance(result['rev'], str) or not re.fullmatch('[0-9a-f]{40}', result['rev'])
+            or not isinstance(result['narHash'], str)
+            or not re.fullmatch(r'sha256-[A-Za-z0-9+/]{43}=', result['narHash'])
+            or type(result['lastModified']) is not int or result['lastModified'] <= 0
+            or not supported_branch(result['ref'])):
+        raise Failure('The release names no valid Nixpkgs revision')
+    return result
+
+
+def newer(pinned, lock):
+    """Whether `pinned` is newer than the machine lock's Nixpkgs. Never back."""
+    current = identity(lock, 'nixpkgs')
+    modified = current.get('lastModified')
+    return pinned['rev'] != current.get('rev') and pinned['lastModified'] > (modified if type(modified) is int else 0)
+
+
+def take(lock, pinned):
+    """The machine lock with its Nixpkgs moved to a release's revision."""
+    node = lock['nodes'][root_inputs(lock)['nixpkgs']]
+    node['locked'] = {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'rev': pinned['rev'],
+                      'narHash': pinned['narHash'], 'lastModified': pinned['lastModified']}
+    node['original'] = {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'ref': pinned['ref']}
+    return lock
