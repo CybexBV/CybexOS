@@ -23,7 +23,7 @@ BUSY = ('discovering', 'building', 'validating', 'activating', 'recovering', 'fi
 # A derivation that failed to build here doesn't build again for this long
 # unless Nixpkgs or Cybex OS changes it (a new derivation path): a held
 # update is checked again daily without compiling the same failure each time.
-FAILED_BUILDS = 7 * 24 * 3600
+FAILED_BUILDS = 24 * 3600
 
 
 class NotPrebuilt(Failure):
@@ -734,8 +734,10 @@ class Engine:
     def failed(self, error):
         """A NotBuilt for the builds that failed in `error`, or None.
 
-        Remembers them, except downloads: a fixed-output derivation fails
-        when the network does, and is tried again.
+        Remembers them for a day (a full disk or a killed build fails too),
+        except downloads: a fixed-output derivation fails when the network
+        does, so a failure of downloads alone stays an ordinary failure and is
+        tried again.
         """
         paths = prebuilt.failed_builds(getattr(error, 'output', ''))
         if not paths:
@@ -745,10 +747,10 @@ class Engine:
         except Failure:
             graph = {}
         remembered = [path for path in paths if path in graph and prebuilt.kind(graph[path]) != 'fetch']
-        if remembered:
-            now = time.time()
-            atomic(self.state / 'failed-builds.json', self.failed_before() | {path: now for path in remembered})
-        return NotBuilt([prebuilt.name(path) for path in paths])
+        if not remembered:
+            return None
+        atomic(self.state / 'failed-builds.json', self.failed_before() | {path: time.time() for path in remembered})
+        return NotBuilt([prebuilt.name(path) for path in remembered])
 
     def git_metadata_record(self, root):
         key = hashlib.sha256(str(Path(root).resolve()).encode()).hexdigest()

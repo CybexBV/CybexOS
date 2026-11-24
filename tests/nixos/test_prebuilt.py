@@ -379,8 +379,10 @@ class EngineGuard(unittest.TestCase):
         graph = {ROOT: node(VOXTYPE, preferLocalBuild='1'), VOXTYPE: node(fetch, src=store('x', 'voxtype.tar.gz')),
                  fetch: {'outputs': {'out': {'path': store('z', 'source'), 'hash': 'abc'}}, 'env': {}, 'inputDrvs': {}}}
         self.failing(f"error: hash mismatch in fixed-output derivation '{fetch}':\n", graph)
-        with self.assertRaises(NotBuilt):
+        # The network may be the cause: an ordinary failure, tried again.
+        with self.assertRaises(CommandFailure) as raised:
             self.engine.stage('upstream')
+        self.assertNotIsInstance(raised.exception, NotBuilt)
         self.assertFalse((self.engine.state / 'failed-builds.json').exists())
 
     def test_a_build_failure_without_new_nixpkgs_is_an_ordinary_failure(self):
