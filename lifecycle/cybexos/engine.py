@@ -542,7 +542,10 @@ class Engine:
                 if kind in ('update', 'software'):
                     self.status(phase='Checking that every package is prebuilt')
                     try:
-                        self.require_prebuilt(config)
+                        # Builds that failed here wait only where they failed:
+                        # with a Nixpkgs move. The release alone (the fallback)
+                        # and Software changes build on the Nixpkgs in use.
+                        self.require_prebuilt(config, remembered=kind == 'update' and scope in ('upstream', 'both'))
                     except CommandFailure as error:
                         if kind != 'update' or scope not in ('upstream', 'both'):
                             raise
@@ -714,7 +717,7 @@ class Engine:
             details['message'] = compatibility.public(found[0])
         return IncompatibleNixpkgs(details, version)
 
-    def require_prebuilt(self, config, *, kernel_only=False):
+    def require_prebuilt(self, config, *, kernel_only=False, remembered=True):
         """Refuse a candidate that would compile Nixpkgs packages here.
 
         A dry run against this computer's store and configured caches; nothing
@@ -739,7 +742,7 @@ class Engine:
                            for key in ('expected', 'vendor', 'declared'))):
                 raise Failure('The candidate system has no valid build plan.')
         plan = prebuilt.dry_run(self.run, build + '.toplevel', options=('--no-update-lock-file',))
-        if not kernel_only:
+        if not kernel_only and remembered:
             known = self.failed_before()
             again = sorted(prebuilt.name(path) for path in plan['build'] if path in known)
             if again:

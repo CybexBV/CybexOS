@@ -37,10 +37,13 @@ combination Cybex OS already built; only personal modules are new to it.
   before 1.0.32, or by hand) keeps its own until a release pins a newer one.
 
 The first step still goes the old way. An updater before 1.0.32 installs
-1.0.32 with the channel head as it did before, so that update can still meet
-a package NixOS hasn't built, and it doesn't fall back to the release alone
-for a build that fails. If preparing it fails, run `cybex update stage
-cybexos` once to prepare the release on its own. From then on the installed
+1.0.32 with the channel head of that day, so that update can still meet a
+package NixOS hasn't built. Updaters from 1.0.27 fall back to the release
+alone only when packages are missing, not when a build fails; 1.0.25 and
+1.0.26 (stable until 1.0.32) don't fall back at all. So run `cybex update
+stage cybexos` once to prepare the release on its own, on the packages the
+computer already has, and install it from Software Update. Before 1.0.32 is
+promoted to stable, check that path on a computer or VM running 1.0.25. From then on the installed
 updater takes only release revisions. A machine that got ahead of the pinned
 revision that way stays on its own Nixpkgs until a release passes it, which
 is why 1.0.32 pins the channel head of the day it was checked.

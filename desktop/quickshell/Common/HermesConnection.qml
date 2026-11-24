@@ -44,7 +44,7 @@ Singleton {
     }
     // The bridge's user service is this computer's loopback endpoint; one set
     // elsewhere (HERMES_MENUBAR_WS_URL) is not ours to start or stop.
-    readonly property bool localBridge: /^wss?:\/\/(127\.0\.0\.1|localhost|\[::1\]):9120\//.test(endpoint)
+    readonly property bool localBridge: /^wss?:\/\/(127\.0\.0\.1|localhost|\[::1\]):9120(\/|$)/.test(endpoint)
     readonly property bool websocketsMissing: socketLoader.status === Loader.Error
     readonly property int retryInSecs: retryTimer.running
         ? Math.max(1, Math.ceil(retryTimer.interval / 1000)) : 0

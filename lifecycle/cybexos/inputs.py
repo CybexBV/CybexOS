@@ -119,9 +119,9 @@ def pin(value):
 def newer(pinned, lock):
     """Whether the machine lock's Nixpkgs moves to `pinned`. Never back.
 
-    A later revision moves it. So does the same point on another branch
-    (when nixos-26.11 branches off at a revision the machine already has):
-    then only the branch the flake follows changes.
+    A later revision on the same branch moves it. A release on another
+    branch moves it to that branch's revision: the move to a stable release
+    (nixos-26.11) is qualified as its own release.
     """
     current = identity(lock, 'nixpkgs')
     modified = current.get('lastModified')
@@ -129,7 +129,10 @@ def newer(pinned, lock):
         # Without the machine's own date nothing proves the release's is later.
         return False
     branch = resolved(lock, 'nixpkgs')['original'].get('ref')
-    if pinned['ref'] != branch and pinned['rev'] == current.get('rev'):
+    if pinned['ref'] != branch:
+        # A release on another branch (nixos-unstable to nixos-26.11) is the
+        # owner's qualified move, whatever its commit dates: a stable branch's
+        # commits can be dated before the machine's unstable revision.
         return True
     return pinned['rev'] != current.get('rev') and pinned['lastModified'] > modified
 

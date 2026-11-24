@@ -119,6 +119,8 @@ test("the Hermes bridge starts with its widget, once, and is never stopped by it
     const local = connection.match(/localBridge: (\/.*\/)\.test\(endpoint\)/)[1];
     const pattern = eval(local);
     assert.ok(pattern.test("ws://127.0.0.1:9120/ws"));
+    assert.ok(pattern.test("ws://localhost:9120"));
+    assert.ok(!pattern.test("ws://127.0.0.1:91200/ws"));
     assert.ok(!pattern.test("wss://hermes.example.com/ws"));
 });
 

@@ -1200,8 +1200,9 @@ class EngineTests(unittest.TestCase):
         self.assertFalse(inputs.newer(PIN_NEW | {'lastModified': 999}, data))
         # 26.11 branching off at the machine's own revision: only the branch moves.
         self.assertTrue(inputs.newer(same | {'ref': 'nixos-26.11'}, data))
-        # Another revision on another branch moves only when it is later.
-        self.assertFalse(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11', 'lastModified': 1000}, data))
+        # A release on another branch moves there, whatever its commit date:
+        # a stable branch's commits can be older than the machine's unstable.
+        self.assertTrue(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11', 'lastModified': 500}, data))
         self.assertTrue(inputs.newer(PIN_NEW | {'ref': 'nixos-26.11'}, data))
         # A lock without its date never moves: nothing proves the pin is later.
         undated = lock(); del undated['nodes']['nixpkgs']['locked']['lastModified']

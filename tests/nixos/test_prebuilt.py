@@ -368,11 +368,17 @@ class EngineGuard(unittest.TestCase):
         with self.assertRaises(NotBuilt):
             self.engine.stage('upstream')
         self.assertEqual(self.builds, 1)
-        # A week later it is built again.
+        # A day later it is built again.
         atomic(self.engine.state / 'failed-builds.json', {VOXTYPE: 1})
         with self.assertRaises(NotBuilt):
             self.engine.stage('upstream')
         self.assertEqual(self.builds, 2)
+        # The release alone builds on the Nixpkgs in use: the record of a
+        # Nixpkgs move doesn't hold it.
+        with self.assertRaises(CommandFailure) as raised:
+            self.engine.stage('cybexos')
+        self.assertNotIsInstance(raised.exception, NotBuilt)
+        self.assertEqual(self.builds, 3)
 
     def test_a_failed_download_is_not_remembered(self):
         fetch = store('f', 'voxtype-source.drv')
