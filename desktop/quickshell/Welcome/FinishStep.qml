@@ -294,8 +294,8 @@ Item {
                         KioskText {
                             anchors.left: findingIcon.right
                             anchors.leftMargin: Kiosk.px(10)
-                            anchors.right: placeLink.left
-                            anchors.rightMargin: Kiosk.px(16)
+                            anchors.right: placeLink.visible ? placeLink.left : parent.right
+                            anchors.rightMargin: placeLink.visible ? Kiosk.px(16) : 0
                             anchors.verticalCenter: parent.verticalCenter
                             text: Doctor.sentence(finding.modelData)
                             size: 15
@@ -305,8 +305,9 @@ Item {
                             id: placeLink
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
+                            // Sized by its text alone: binding width to
+                            // visibility here looped (Binding loop on width).
                             visible: finding.place !== ""
-                            width: visible ? implicitWidth : 0
                             text: finding.place
                             onClicked: root.openPlace(finding.modelData.id)
                         }
