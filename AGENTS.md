@@ -81,10 +81,15 @@ sub-agent in a worktree):
   - Rewrite `release/notes.md` in the shape the file already has: `# Cybex OS
     X.Y.Z`, one short paragraph per change that says what the person notices,
     then the closing line about ISO and qualification.
-  - Commit `Prepare Cybex OS X.Y.Z release` and push it.
-  - Run the full check on `main` at that commit and wait for it to pass.
-    `release/publish` refuses a commit without a passing dispatched
-    `nixos.yml` run. When it fails, fix forward and run it again.
+  - Commit `Prepare Cybex OS X.Y.Z release` on top of `main` (after merging
+    what the release brings) and push it to a `release-X.Y.Z` branch, not to
+    `main`. Run the full check on that branch; one run covers the release
+    and the merged work. `release/publish` refuses a commit without a
+    passing dispatched `nixos.yml` run. When it fails, fix forward and run it
+    again.
+  - Once it passes, move `main` to exactly that commit:
+    `git push origin <commit>:main`. If `main` moved meanwhile, the push
+    fails: merge again and check again.
   - Run `release/publish X.Y.Z` from a clean `main` equal to `origin/main`.
     When the tag already exists, another session published first: take the
     next version.

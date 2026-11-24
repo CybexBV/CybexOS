@@ -84,10 +84,14 @@ never changes what a tested ISO installs.
 Development commits may be pushed directly to `main`. To publish a release:
 
 1. Set `VERSION` to a new version (tags are never reused), write
-   `release/notes.md`, commit and push to `main`.
-2. Run [the full check](#the-full-check) on that exact commit and wait for
-   it to pass. One check covers the release: prepare `VERSION` and the notes
-   first, then check.
+   `release/notes.md` and commit them on top of `main`, after merging what
+   the release brings. Push that commit to a `release-VERSION` branch, not to
+   `main` yet.
+2. Run [the full check](#the-full-check) on that branch and wait for it to
+   pass. One check covers the release and the work merged into it: prepare
+   `VERSION` and the notes first, then check. Once it passes, move `main` to
+   exactly that commit with `git push origin COMMIT:main`. When `main` moved
+   in the meantime the push fails: merge again and check again.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
    the notes, refuses an existing tag, refuses a commit without a passing
