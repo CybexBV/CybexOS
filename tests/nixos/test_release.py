@@ -175,7 +175,7 @@ class PublishTests(unittest.TestCase):
         result = self.publish('1.0.1')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.git('ls-remote', 'origin', 'refs/tags/v1.0.1^{}').split()[0], revision)
-        self.assertFalse(self.api.exists(), 'a new tag has no release to look for')
+        self.assertNotIn('--jq', self.api.read_text(), 'a new tag has no draft release to look for')
         self.log.unlink()
         # gh failed before creating the release: it is created at the same tag.
         self.git('tag', '--delete', 'v1.0.1')
@@ -199,6 +199,24 @@ class PublishTests(unittest.TestCase):
             'release edit v1.0.1 --repo CybexHQ/CybexOS --draft=false --title Cybex OS 1.0.1 '
             '--notes-file release/notes.md --prerelease --latest=false'])
         self.assertEqual(self.git('tag', '--list', 'v1.0.1').strip(), '', 'no new local tag is made')
+
+    def test_no_release_drops_a_nixos_branch_the_newest_one_lists(self):
+        # 1.0.0 (a beta) lists unstable and 26.11; 1.0.1 lists 26.11 only.
+        compatibility = json.loads((self.work / 'release/compatibility.json').read_text())
+        (self.work / 'release/compatibility.json').write_text(json.dumps(compatibility | {'nixos': ['unstable', '26.11']}))
+        self.git('commit', '--quiet', '-am', 'Both branches')
+        self.git('tag', '--annotate', 'v1.0.0', '--message', 'Cybex OS 1.0.0')
+        self.git('push', '--quiet', 'origin', 'v1.0.0')
+        self.git('tag', '--delete', 'v1.0.0')
+        (self.work / 'release/compatibility.json').write_text(json.dumps(compatibility | {'nixos': ['26.11']}))
+        self.git('commit', '--quiet', '-am', 'Drop unstable')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.0', 'prerelease': True, 'draft': False}])
+        result = self.publish('1.0.1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('it drops NixOS unstable, which v1.0.0 supports', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertNotIn('v1.0.1', self.git('ls-remote', '--tags', 'origin'))
 
     def test_stable_needs_what_promotion_to_stable_needs(self):
         # 1.0.0 is stable; 1.0.1 changes the configuration API it installed.

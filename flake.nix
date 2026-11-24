@@ -174,6 +174,8 @@
           packages = with pkgs; [ openssl nixfmt git nodejs quickshell matugen grim wtype imagemagick qt6.qtdeclarative restic systemd
             qt6.qttools cmake ninja pkg-config qt6.qtbase sway qemu OVMF dbus util-linux lua5_5 jq procps hyprland xorriso mtools squashfsTools xdg-terminal-exec desktop-file-utils hostapd dnsmasq iw
             ruff shellcheck actionlint
+            # tests/nixos/test_boot.py checks grubenv and the boot menu with GRUB's own tools.
+            grub2_efi
             (python3.withPackages (p: [ p.pexpect p.pillow p.pygobject3 p.dbus-python p.websockets p.pyside6 ])) ];
           CYBEXOS_OVMF = "${pkgs.OVMF.fd}/FV";
           CYBEXOS_QA_HOSTAPD = "${pkgs.hostapd}/bin/hostapd";

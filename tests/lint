@@ -11,11 +11,10 @@ for tool in ruff shellcheck actionlint; do
   command -v "$tool" >/dev/null || { echo "tests/lint: $tool is missing; run it in the dev shell (nix develop)" >&2; exit 2; }
 done
 
-# Tracked files and new ones not yet added, by their first line. Model
-# Usage's upstream tests are vendored unchanged (see scripts/sync-model-usage).
+# Tracked files and new ones not yet added, by their first line.
 python=() shell=()
 while IFS= read -r -d '' path; do
-  [[ -f $path && ! -L $path && $path != tests/model-usage/* ]] || continue
+  [[ -f $path && ! -L $path ]] || continue
   case $path in
     *.py) python+=("$path"); continue ;;
     *.sh|*.bash) shell+=("$path"); continue ;;

@@ -84,21 +84,34 @@ qualified=$(gh run list --repo "$REPO" --workflow nixos.yml --commit "$revision"
     --json event,displayTitle --jq '[.[] | select((.event == "workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length') \
     || fail 'cannot ask GitHub whether the full check passed; nothing was published'
 [[ $qualified =~ ^[1-9][0-9]*$ ]] || fail "the full check has not passed for $revision; run gh workflow run nixos.yml --repo $REPO --ref main and publish once it passes"
-if ((stable)); then
-    # The check release/promote makes before a release reaches stable.
-    git fetch --quiet --tags origin || fail 'cannot fetch the tags on origin'
-    problems=$(python3 -c '
-import importlib.machinery, importlib.util, sys
+# Every release keeps each NixOS branch the newest published one lists: a
+# machine that installed a release alone keeps its branch, and a beta that
+# dropped it would refuse that machine. With --stable, also the check
+# release/promote makes before a release reaches stable. Only the tags it
+# compares with are fetched.
+problems=$(python3 -c '
+import importlib.machinery, importlib.util, json, sys
 loader = importlib.machinery.SourceFileLoader("promote", "release/promote")
 promote = importlib.util.module_from_spec(importlib.util.spec_from_loader("promote", loader))
 loader.exec_module(promote)
-current = max((item for item in promote.releases() if promote.stable(item)), key=lambda item: item["key"], default=None)
-problems = promote.compatible(sys.argv[1], current["tag_name"]) if current else []
+candidate, stable = sys.argv[1], sys.argv[2] == "1"
+listing = promote.releases()
+newest = max(listing, key=lambda item: item["key"], default=None)
+current = max((item for item in listing if promote.stable(item)), key=lambda item: item["key"], default=None)
+for item in {newest["tag_name"] if newest else None, current["tag_name"] if current and stable else None} - {None}:
+    promote.run("git", "fetch", "--quiet", "origin", "refs/tags/" + item + ":refs/tags/" + item)
+if newest:
+    wanted = set(json.loads(promote.source(candidate, "release/compatibility.json")).get("nixos", []))
+    have = set(json.loads(promote.source(newest["tag_name"], "release/compatibility.json")).get("nixos", []))
+    if have - wanted:
+        print("it drops NixOS " + ", ".join(sorted(have - wanted)) + ", which " + newest["tag_name"]
+              + " supports and machines that installed a release alone may still run")
+        sys.exit()
+problems = promote.compatible(candidate, current["tag_name"]) if stable and current else []
 if problems:
     print("stable machines on " + current["tag_name"] + " cannot install it: " + "; ".join(problems))
-' "$revision") || fail 'cannot check what stable machines can install; nothing was published'
-    [[ -z $problems ]] || fail "$problems"
-fi
+' "$revision" "$stable") || fail 'cannot check what machines can install; nothing was published'
+[[ -z $problems ]] || fail "$problems"
 drafts=0
 if [[ -n $tagged ]]; then
     # Machines never see a draft; gh leaves one when an upload is interrupted.

@@ -193,5 +193,8 @@ jobs:
           # That release's own ISO, built from its tag.
           NIX_CONFIG="access-tokens = github.com=$GITHUB_TOKEN" \
             nix build "github:CybexBV/CybexOS/$from#iso" -L --out-link "$staging/from"
+          # Minimal applications: the proprietary ones download from their
+          # vendors (Chrome's .deb, gone once superseded), which would tie the
+          # gate to their servers; the updater path is the same.
           nix develop -c scripts/qualify-upgrade run "$staging"/from/iso/*.iso --from "$from" \
-            --work-dir "$staging" --output "$staging/upgrade.json"
+            --applications minimal --work-dir "$staging" --output "$staging/upgrade.json"
