@@ -85,6 +85,16 @@ class NixpkgsUpdateTests(unittest.TestCase):
         self.assertEqual(json.loads(self.git('show', 'main:flake.lock', cwd=self.origin))
                          ['nodes']['nixpkgs']['locked']['rev'], '1' * 40)
 
+    def test_the_next_update_replaces_the_branch(self):
+        self.assertEqual(self.run_step('2' * 40).returncode, 0)
+        self.git('checkout', '--quiet', 'main')
+        self.git('branch', '--quiet', '-D', 'nixpkgs-update')
+        result = self.run_step('3' * 40)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        pushed = self.git('show', 'nixpkgs-update:flake.lock', cwd=self.origin)
+        self.assertEqual(json.loads(pushed)['nodes']['nixpkgs']['locked']['rev'], '3' * 40)
+        self.assertEqual(self.git('rev-list', '--count', 'main..nixpkgs-update', cwd=self.origin).strip(), '1')
+
     def test_an_unchanged_nixpkgs_pushes_nothing(self):
         result = self.run_step('1' * 40)
         self.assertEqual(result.returncode, 0, result.stderr)

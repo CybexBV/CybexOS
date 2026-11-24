@@ -127,7 +127,7 @@ Development commits may be pushed directly to `main`. To publish a release:
 
 ### Vendor updates
 
-Packages Nixpkgs maintains update with each machine's Nixpkgs. The vendor
+Packages Nixpkgs maintains move with the Nixpkgs revision each release pins. The vendor
 downloads Cybex OS pins itself only move when this repository does, so
 `scripts/vendor-pins` lists them and compares each with its upstream release.
 The **vendor-updates** workflow (`.github/workflows/vendor-updates.yml`) runs it

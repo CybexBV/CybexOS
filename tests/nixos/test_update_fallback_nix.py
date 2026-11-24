@@ -160,6 +160,8 @@ class FallbackWithNix(unittest.TestCase):
         self.engine.release_source = lambda found: found | {'narHash': release, 'nixpkgs': pinned}
 
     def test_the_release_comes_alone_and_the_packages_wait_without_building_again(self):
+        # Background preparation's requests, as automatic.prepare records them.
+        atomic(self.engine.state / 'update-automatic-run.json', {'requests': ['a' * 32, 'b' * 32]})
         cli.stage_update(self.engine, 'both', 'a' * 32)
         status = read(self.engine.status_path)
         self.assertEqual((status['state'], status['scope'], status['availableVersion']), ('ready', 'cybexos', '1.1.0'))
@@ -170,7 +172,7 @@ class FallbackWithNix(unittest.TestCase):
         self.assertEqual([Path(path).name.split('-', 1)[1] for path in remembered], ['tectonic-0.17.0.drv'])
         # The packages on their own: they wait, and tectonic isn't compiled again.
         with self.assertRaises(NotBuilt) as raised:
-            self.engine.stage('upstream')
+            self.engine.stage('upstream', request_id='b' * 32)
         self.assertEqual(raised.exception.names, ['tectonic-0.17.0'])
         self.assertEqual(self.runner.builds, 2)
         kept = read(self.engine.status_path)

@@ -23,7 +23,7 @@ BUSY = ('discovering', 'building', 'validating', 'activating', 'recovering', 'fi
 # A derivation that failed to build here doesn't build again for this long
 # unless Nixpkgs or Cybex OS changes it (a new derivation path): a held
 # update is checked again daily without compiling the same failure each time.
-FAILED_BUILDS = 24 * 3600
+FAILED_BUILDS = 7 * 24 * 3600
 
 
 class NotPrebuilt(Failure):
@@ -545,7 +545,10 @@ class Engine:
                         # Builds that failed here wait only where they failed:
                         # with a Nixpkgs move. The release alone (the fallback)
                         # and Software changes build on the Nixpkgs in use.
-                        self.require_prebuilt(config, remembered=kind == 'update' and scope in ('upstream', 'both'))
+                        # Background preparation skips them; a person who
+                        # prepares again builds them again (a full disk, say).
+                        self.require_prebuilt(config, remembered=kind == 'update' and scope in ('upstream', 'both')
+                                              and self.background(request_id))
                     except CommandFailure as error:
                         if kind != 'update' or scope not in ('upstream', 'both'):
                             raise
@@ -752,6 +755,14 @@ class Engine:
         if found:
             raise NotPrebuilt(found, kernel=kernel_only)
 
+    def background(self, request_id):
+        """Whether automatic preparation made this request (automatic.submitted)."""
+        from . import automatic
+        try:
+            return request_id in automatic.submitted(read(self.state / automatic.LAST_RUN, {}) or {})
+        except Failure:
+            return False
+
     def failed_before(self):
         """Derivations that failed to build here recently (FAILED_BUILDS)."""
         try:
@@ -765,10 +776,10 @@ class Engine:
     def failed(self, error):
         """A NotBuilt for the builds that failed in `error`, or None.
 
-        Remembers them for a day (a full disk or a killed build fails too),
-        except downloads: a fixed-output derivation fails when the network
-        does, so a failure of downloads alone stays an ordinary failure and is
-        tried again.
+        Remembers them for a week, for background preparation only (a person
+        who prepares again builds them again), except downloads: a
+        fixed-output derivation fails when the network does, so a failure of
+        downloads alone stays an ordinary failure and is tried again.
         """
         paths = prebuilt.failed_builds(getattr(error, 'output', ''))
         if not paths:

@@ -60,5 +60,8 @@ if ((dry_run)); then
     git log --format='  %s' main..HEAD
     exit 0
 fi
-git push --quiet --force origin "HEAD:refs/heads/$branch"
+# Replace the branch by deleting it first: the workflow's token may not
+# update a branch to commits that change workflows, but it may create one.
+git push --quiet origin --delete "$branch" 2>/dev/null || true
+git push --quiet origin "HEAD:refs/heads/$branch"
 echo "$branch"

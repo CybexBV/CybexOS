@@ -136,7 +136,8 @@ sub-agent in a worktree):
   26.11 than on the machines' nixos-unstable. Before it, VM-test the branch
   move from an installed release, the installer's and `release/promote`'s
   "unstable" assumptions, and that compatibility follows the branch a
-  machine actually runs.
+  machine actually runs. Keep `"unstable"` in `release/compatibility.json`
+  until no machine runs nixos-unstable.
 - Hardware support targets non-Apple Intel/AMD x86_64 UEFI PCs only. Every
   enabled Cybex OS system and installation medium must retain the exact, unmodified selected
   Nixpkgs `linuxPackages_latest` kernel derivation. Never obtain hardware

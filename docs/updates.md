@@ -363,9 +363,11 @@ configuration is never cached. When the system build itself fails in an
 update that moves Nixpkgs, the update waits the same way: phase "Waiting for a
 fix to the new NixOS packages", `notPrebuilt` names the packages whose own
 builds failed, and nothing changes. The derivations that failed are kept in
-`/var/lib/cybexos/failed-builds.json`, so checking the same candidate again
-doesn't compile the same failure again; a day later, or once Nixpkgs or
-Cybex OS changes them, they are built again. A download that fails (a
+`/var/lib/cybexos/failed-builds.json`, so background preparation doesn't
+compile the same failure again; a week later, or once Nixpkgs or Cybex OS
+changes them, it builds them again. Preparing again by hand always builds
+them (the cause may have been a full disk), and the release alone and
+Software changes never wait for them. A download that fails (a
 fixed-output derivation) is not kept: the network may be the cause.
 
 Nothing that goes wrong with new NixOS packages keeps a published Cybex OS

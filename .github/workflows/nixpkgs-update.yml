@@ -62,7 +62,10 @@ jobs:
           git add flake.lock
           git commit --quiet --message "Update Nixpkgs to ${after:0:12}" \
             --message "From ${before:0:12}, by the weekly Nixpkgs update workflow. Merge it once its full check passes."
-          git push --quiet --force origin "$branch"
+          # Replace the branch by deleting it first: the token may not update a
+          # branch to commits that change workflows, but it may create one.
+          git push --quiet origin --delete "$branch" 2>/dev/null || true
+          git push --quiet origin "$branch"
           {
             echo "changed=true"
             echo "branch=$branch"

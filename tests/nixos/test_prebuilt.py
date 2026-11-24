@@ -363,22 +363,27 @@ class EngineGuard(unittest.TestCase):
         self.assertEqual(prebuilt.waiting_packages(status), ['voxtype-1.1.1'])
         self.assertEqual(list(read(self.engine.state / 'failed-builds.json')), [VOXTYPE])
         self.assertEqual(lifecycle.config_digest(self.config), self.sentinel)
-        # Checked again (daily, or for newer packages): it waits without
+        # Background preparation checks again daily: it waits without
         # compiling the same failure again.
+        atomic(self.engine.state / 'update-automatic-run.json', {'requests': ['background']})
         with self.assertRaises(NotBuilt):
-            self.engine.stage('upstream')
+            self.engine.stage('upstream', request_id='background')
         self.assertEqual(self.builds, 1)
-        # A day later it is built again.
+        # A person who prepares again builds it again (a full disk, say).
+        with self.assertRaises(NotBuilt):
+            self.engine.stage('upstream', request_id='person')
+        self.assertEqual(self.builds, 2)
+        # A week later background preparation builds it again too.
         atomic(self.engine.state / 'failed-builds.json', {VOXTYPE: 1})
         with self.assertRaises(NotBuilt):
-            self.engine.stage('upstream')
-        self.assertEqual(self.builds, 2)
+            self.engine.stage('upstream', request_id='background')
+        self.assertEqual(self.builds, 3)
         # The release alone builds on the Nixpkgs in use: the record of a
         # Nixpkgs move doesn't hold it.
         with self.assertRaises(CommandFailure) as raised:
-            self.engine.stage('cybexos')
+            self.engine.stage('cybexos', request_id='background')
         self.assertNotIsInstance(raised.exception, NotBuilt)
-        self.assertEqual(self.builds, 3)
+        self.assertEqual(self.builds, 4)
 
     def test_a_failed_download_is_not_remembered(self):
         fetch = store('f', 'voxtype-source.drv')
