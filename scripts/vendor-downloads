@@ -20,9 +20,8 @@ spaced attempts, and keeps what it fetched for the next run.
       delete the workflows' other vendor-downloads caches (gh), so the
       repository keeps one set of a few gigabytes
 
-The vendor-updates workflow uses it before its package checks; the daily
-Nixpkgs canary fetches the same set for the current pins, so whichever
-runner reaches a vendor host first fills the cache for both.
+The vendor-updates workflow uses it before its package checks, so a run
+that reaches a vendor host fills the cache for the runs after it.
 
 The cache never vouches for content: a cached file enters the store with
 `nix-store --add-fixed`, whose store path follows from the file's own hash,

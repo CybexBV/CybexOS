@@ -123,11 +123,7 @@ Development commits may be pushed directly to `main`. To publish a release:
    ([combined updates](updates.md#combined-updates)), so a beta release's
    notes need cover only that release.
 
-### Automatic vendor updates
-
-**Switched off since 2026-11-12.** Until it is reworked to push branches
-only, nothing below runs; no workflow may publish a release or push `main`
-(owner's decision, 2026-11-24).
+### Vendor updates
 
 Packages Nixpkgs maintains update with each machine's Nixpkgs. The vendor
 downloads Cybex OS pins itself only move when this repository does, so
@@ -162,63 +158,53 @@ daily on a GitHub-hosted runner:
   One run updates every pin that is behind (`scripts/vendor-pins update
   NAME...`, all or none), builds the packages, runs `nix flake check
   --no-build`, `tests/run` and each updated pin's checks, then
-  `release/automatic`: it commits each pin as `Update TITLE to VERSION`, takes
-  the next patch version past `VERSION` and the tags, writes release notes
-  with a paragraph per update, pushes `main` and runs `release/publish`. The
-  release reaches beta only; promoting it stays a person's decision. A failed
-  run releases none of them and keeps a `vendor-updates` issue open with the
-  attempted updates.
+  `release/vendor-branch`: it commits each pin as `Update TITLE to VERSION`,
+  with its release-notes paragraph in the message, on a
+  `vendor-update/DATE` branch, pushes that branch, starts the full check on
+  it and keeps a `vendor-update` issue. It never pushes `main` or publishes
+  (owner's decision, 2026-11-24, replacing the automatic beta releases of
+  2026-11-07 and 2026-11-10): merge the branch once its full check passes and
+  take it into the next beta release. A failed run pushes none of them and
+  keeps a `vendor-updates` issue open with the attempted updates.
 
   Before the package checks, `scripts/vendor-downloads` fetches the downloads
-  nothing can substitute (unfree vendor files such as the Spotify snap in the
-  1Password check's system): from the workflow's Actions cache when it holds
-  them, else from the vendor, three times a few minutes apart when its host
-  can't be reached (GitHub's runners lost api.snapcraft.io for days from
-  2026-11-11). The daily Nixpkgs canary fetches the same set for the current
-  pins, so whichever runner reaches a vendor host first fills the cache. A
-  cached file enters the Nix store only through its pinned hash. The cache
-  keeps one set, the newest.
+  nothing can substitute (unfree vendor files in the checks' systems; the
+  1Password check leaves Spotify out since its snap host failed for days):
+  from the workflow's Actions cache when it holds them, else from the vendor,
+  three times a few minutes apart when its host can't be reached (GitHub's
+  runners lost api.snapcraft.io for days from 2026-11-11). A cached file
+  enters the Nix store only through its pinned hash. The cache keeps one set,
+  the newest.
 - **T3 Code, Intel LPMd and Omawrite** are reported, not updated: each needs a
   review beyond its checksum (T3 Code's connected-widget bar API, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
 
-Run it with **Run workflow** to publish available updates at once, with
+Run it with **Run workflow** to push available updates at once, with
 `pins` naming only some automatic pins (for example `codex claude-code` while
 another pin's update needs a person), or with `rehearse` to run every check
-with the current pins without publishing.
+with the current pins without pushing anything.
 `scripts/vendor-pins status` shows the same comparison locally.
 
-### Nixpkgs canary
+### Nixpkgs updates
 
-**Switched off since 2026-11-12**, until it is reworked.
+A release pins its Nixpkgs revision, and machines take a newer one only with a
+release ([updates](updates.md#nixpkgs-comes-with-the-release)). The
+**nixpkgs-update** workflow (`.github/workflows/nixpkgs-update.yml`) moves
+`flake.lock`'s Nixpkgs every Monday to the head of the branch `flake.nix`
+follows, on a `nixpkgs-update/<date>` branch, starts the full check on it and
+keeps a `nixpkgs-update` issue with the branch and what to do. It never
+pushes `main` or publishes.
 
-Machines follow `nixos-unstable` themselves, so a Nixpkgs change that breaks
-Cybex OS reaches them without a Cybex OS release. The **nixpkgs-canary**
-workflow (`scripts/nixpkgs-canary --build`) evaluates `main` and the newest
-beta and stable releases daily against the channel head, Nixpkgs master
-(which leads the channel by days) and the next stable branch once it exists.
-It evaluates the `product`, `system`, `xps-system` and `nvidia-evaluation`
-checks.
+- When the full check passes, merge the branch with `git merge --no-ff`,
+  push `main` and take it into the next beta release.
+- When it fails, that Nixpkgs doesn't work with Cybex OS yet: a package NixOS
+  hasn't built, an evaluation error, or a Cybex OS package that no longer
+  builds (Voxtype on 2026-11-10). Fix Cybex OS on the branch or on `main`.
+  Machines are not affected.
 
-It then builds each source's expected local builds for the `product` system
-(Cybex OS's own packages and the unfree vendor downloads machines compile
-themselves) against the channel head, the only branch NixOS's cache covers.
-Evaluation misses a build that only fails: on 2026-11-10 the channel's new
-Rust build settings broke Cybex OS's Voxtype build on every machine that
-took it. The source's own `scripts/check-prebuilt` names what its machines'
-updater holds back until NixOS has built it. A build failure there is
-reported as a wait; any other failure is one machines on that release would
-hit, such as the codex ChatGPT needed that day, which updaters then still
-let through.
-
-An evaluation failure, a build failure machines would hit, or a new evaluation
-warning (usually the notice before a removal) keeps a `nixpkgs-canary` issue
-open with the error, the module that caused it or the failing build's log;
-the issue closes once every source evaluates and builds again. Fix it on
-`main` and release before the channel moves on. Machines that receive the
-change first wait for that release
-([updates](updates.md#when-nixpkgs-drops-something-cybex-os-uses)).
+This replaced the daily Nixpkgs canary (2026-11-24): with machines following
+the channel head themselves, it could only warn after the fact.
 
 Fix forward on `main`: there are no maintenance branches. When stable needs a
 fix while beta carries changes that are not ready, revert those on `main` or
@@ -280,8 +266,9 @@ last Nixpkgs recipe in `nix/packages/brave/make-brave.nix` and pins the
 official Origin Debian asset in `nix/packages/brave/release.json`, built
 against the machine Nixpkgs' libraries. Cybex OS is now the browser's only
 maintainer: the vendor-updates workflow follows every Brave stable release
-([automatic vendor updates](#automatic-vendor-updates)), and the Nixpkgs
-canary shows when the recipe needs changing for a Nixpkgs rename.
+([vendor updates](#vendor-updates)), and the weekly
+[Nixpkgs update](#nixpkgs-updates) shows when the recipe needs changing for a
+Nixpkgs rename.
 They remain part of the explicit proprietary-application choice and require
 installed runtime, security and redistribution qualification.
 
