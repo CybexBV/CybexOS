@@ -167,9 +167,10 @@ in {
     in builtins.toJSON {
       inherit (cfg.release) version revision narHash;
       inherit (compatibility) configurationApi pluginApi;
-      # The Nixpkgs branch this release follows, compared with a release's
-      # declared "nixos" list; not the rolling 26.11 version number.
-      updaterApi = 1; nixos = "unstable";
+      # The Nixpkgs branch this release follows ("unstable", later "26.11"),
+      # from its pinned revision, compared with a release's declared "nixos"
+      # list; not the rolling 26.11 version number.
+      updaterApi = 1; nixos = lib.removePrefix "nixos-" pinned.original.ref;
       architecture = pkgs.stdenv.hostPlatform.system;
       nixpkgs = { inherit (pinned.locked) rev narHash lastModified; inherit (pinned.original) ref; };
     };

@@ -36,6 +36,15 @@ combination Cybex OS already built; only personal modules are new to it.
 - A machine whose Nixpkgs is newer than a release's (moved by an updater
   before 1.0.33, or by hand) keeps its own until a release pins a newer one.
 
+The first step still goes the old way. An updater before 1.0.33 installs
+1.0.33 with the channel head as it did before, so that update can still meet
+a package NixOS hasn't built; updaters before 1.0.32 then don't fall back to
+the release alone for a build that fails. If preparing it fails, run
+`cybex update stage cybexos` once to prepare the release on its own. From
+then on the installed updater takes only release revisions, and a machine
+that got ahead of the pinned revision that way stays on its own Nixpkgs
+until a release passes it.
+
 Cybex OS moves its pinned Nixpkgs once a week on a `nixpkgs-update/<date>`
 branch that gets the full check before it is merged and released
 ([Nixpkgs updates](releasing.md#nixpkgs-updates)). Security fixes in Nixpkgs
