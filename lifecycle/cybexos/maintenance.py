@@ -312,7 +312,7 @@ class Maintenance:
                 for offset in range(0, len(dead), 100):
                     batch = parse(self.engine.run('nix', 'path-info', '--json', *dead[offset:offset + 100], timeout=180))
                     sizes.update({p['path']: p for p in batch} if isinstance(batch, list) else batch)
-                self.engine.run('nix-store', '--gc', timeout=7200)
+                self.engine.run('nix-store', '--gc', timeout=7200, capture=False)
                 reclaimed = sum(info.get('narSize', 0) for path, info in sizes.items() if not Path(path).exists())
                 self.publish(state='done', error='', reclaimedBytes=reclaimed, lastCleanup=self.now,
                              candidates=[], recoveryPending=False, deployments=[d | {'retired': True, 'eligible': False}

@@ -97,12 +97,58 @@ def locked(path, *, skip_busy=False):
         yield True
 
 
+class Tail:
+    """The last `limit` bytes of a stream, starting at a whole line.
+
+    Commands such as an hours-long `nix build --log-format internal-json`
+    write far more than a laptop should hold; the private log on disk keeps
+    everything, memory keeps what error handling reads: the end.
+    """
+
+    def __init__(self, limit):
+        self.limit, self.data, self.truncated = limit, bytearray(), False
+
+    def extend(self, data):
+        self.data.extend(data)
+        # Trim in amortized batches rather than on every chunk.
+        if len(self.data) > 2 * self.limit:
+            self.trim()
+
+    def trim(self):
+        excess = len(self.data) - self.limit
+        if excess <= 0:
+            return
+        # Start after a line break, so parsers see whole lines; a last line
+        # longer than the limit keeps its end.
+        newline = self.data.find(b'\n', excess - 1, len(self.data) - 1)
+        del self.data[:newline + 1 if newline >= 0 else excess]
+        self.truncated = True
+
+    def value(self):
+        self.trim()
+        return bytes(self.data)
+
+
 class Runner:
+    # How much of a command's combined output stays in memory and in
+    # CommandFailure.output. Nix prints its errors (a failed builder with its
+    # last log lines, an evaluation trace) at the end; the private log on
+    # disk keeps everything.
+    TAIL = 1024 * 1024
+
     def __init__(self, log=None):
         self.log = log
         self.observer = None
 
     def __call__(self, *args, cwd=None, capture=True, timeout=7200, input=None, sensitive=False, diagnostics=False):
+        """Run a command; return its stdout.
+
+        `capture=False` keeps stdout only as part of the bounded tail, for
+        commands whose answer is unused (`nix-store --gc` lists every path it
+        deletes). `diagnostics=True` returns stdout and stderr in full, for
+        the few answers written to stderr (`nix build --dry-run`); everything
+        else keeps only the last TAIL bytes of the combined output.
+        """
         # A fixed system PATH is supplied by the package wrapper; callers never
         # pass shell text or include credentials in argv.
         def observe(data):
@@ -118,8 +164,9 @@ class Runner:
             if input is not None:
                 process.stdin.write(input)
                 process.stdin.close()
-            output = bytearray()
-            wanted, diagnostics = diagnostics, bytearray()
+            output = bytearray() if capture else None
+            wanted = diagnostics
+            combined = bytearray() if wanted else Tail(self.TAIL)
             started = time.monotonic()
             with contextlib.ExitStack() as stack:
                 log = stack.enter_context(Path(self.log).open('ab')) if self.log and not sensitive else None
@@ -136,10 +183,11 @@ class Runner:
                                 selector.unregister(key.fileobj)
                                 continue
                             if key.data:
-                                output.extend(data)
+                                if output is not None:
+                                    output.extend(data)
                             else:
                                 observe(data)
-                            diagnostics.extend(data)
+                            combined.extend(data)
                             if log:
                                 log.write(data)
                                 log.flush()
@@ -151,7 +199,8 @@ class Runner:
                     process.kill()
                     process.wait()
                     raise
+            combined = bytes(combined) if wanted else combined.value()
             if code:
-                raise CommandFailure(args[0], code, diagnostics.decode(errors='replace'))
+                raise CommandFailure(args[0], code, combined.decode(errors='replace'))
             # Some answers (e.g. `nix build --dry-run`) are written to stderr.
-            return (diagnostics if wanted else output).decode()
+            return (combined if wanted else bytes(output or b'')).decode()

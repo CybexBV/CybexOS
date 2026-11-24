@@ -8,7 +8,8 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'lifecycle'))
-from cybexos.common import CommandFailure, Runner, read
+from cybexos.common import CommandFailure, Runner, Tail, read
+from cybexos import prebuilt
 from cybexos.progress import NixProgress, log_line
 import test_lifecycle as lifecycle
 
@@ -100,6 +101,53 @@ class ProgressTests(unittest.TestCase):
         data = repr(event('start', type=105, fields=['private.drv']))
         runner(sys.executable, '-c', 'import os,time; os.write(2,' + data + '); time.sleep(1.3)')
         self.assertTrue(any(value['builds']['active'] == 1 for value in self.records))
+
+    def test_real_runner_keeps_only_a_bounded_tail_of_long_diagnostics(self):
+        # Hours of internal-json build logs stay on disk, not in memory.
+        with tempfile.TemporaryDirectory() as directory, patch.object(Runner, 'TAIL', 64 * 1024):
+            runner = Runner(Path(directory) / 'private.log')
+            line = b'@nix {"action":"result","type":101,"fields":["compiler output"]}\n'
+            failure = (b'@nix {"action":"msg","level":0,"msg":"builder for \'/nix/store/' + b'a' * 32
+                       + b'-private.drv\' failed with exit code 2"}\n')
+            count = 40000  # about 2.6 MB, forty times the tail
+            script = ('import os,sys\nfor _ in range(%d): os.write(2,%r)\nos.write(2,%r)\nsys.exit(1)'
+                      % (count, line, failure))
+            seen = []
+            runner.observer = seen.append
+            with self.assertRaises(CommandFailure) as raised:
+                runner(sys.executable, '-c', script)
+            output = raised.exception.output
+            self.assertLessEqual(len(output), 64 * 1024)
+            self.assertTrue(output.endswith(failure.decode()), 'The end holds Nix\'s error')
+            self.assertTrue(output.startswith('@nix '), 'The tail starts at a whole line')
+            self.assertEqual(prebuilt.failed_builds(output), ['/nix/store/' + 'a' * 32 + '-private.drv'])
+            # The private log and the progress observer still see everything.
+            self.assertEqual(runner.log.read_bytes().count(line), count)
+            self.assertEqual(b''.join(seen).count(line), count)
+
+    def test_real_runner_returns_full_stdout_and_full_requested_diagnostics(self):
+        with patch.object(Runner, 'TAIL', 1024):
+            runner = Runner()
+            stdout = '{"paths":[' + ','.join('"%d"' % i for i in range(5000)) + ']}'
+            script = 'import os,sys; sys.stdout.write(%r); os.write(2,b"x"*100000)' % stdout
+            self.assertEqual(runner(sys.executable, '-c', script), stdout)
+            plan = ''.join('  /nix/store/%032d-path\n' % i for i in range(2000))
+            dry = 'import sys; sys.stderr.write("these 2000 paths will be fetched\\n" + %r)' % plan
+            self.assertEqual(runner(sys.executable, '-c', dry, diagnostics=True),
+                             'these 2000 paths will be fetched\n' + plan)
+            # An unused answer is not kept at all, except in the bounded tail.
+            self.assertEqual(runner(sys.executable, '-c', script, capture=False), '')
+
+    def test_tail_keeps_the_end_of_a_line_longer_than_the_limit(self):
+        tail = Tail(10)
+        for chunk in (b'first\n', b'0123456789' * 5, b'end\n'):
+            tail.extend(chunk)
+        self.assertEqual(tail.value(), b'456789end\n')
+        self.assertTrue(tail.truncated)
+        small = Tail(10)
+        small.extend(b'a\nb\n')
+        self.assertEqual(small.value(), b'a\nb\n')
+        self.assertFalse(small.truncated)
 
     def test_private_log_reader_keeps_diagnostics_human_readable(self):
         self.assertEqual(log_line(event('result', type=101, fields=['compiler output']).decode()), 'compiler output\n')
