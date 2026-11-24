@@ -83,6 +83,7 @@ test("Install adds the package and switches it on, and stops when adding fails",
         const listed = listing.plugins.find(item => item.id === "digitalpals.hermes");
         assert.ok(listed && listed.enabled && !listed.error, JSON.stringify(listed));
         assert.ok(P.installed(listing.plugins, "digitalpals.hermes"));
+        assert.equal(listed.width, 120, "without a width the default slot");
 
         // A second Install fails at `add`, and `enable` never runs.
         const again = spawnSync(command, args, { encoding: "utf8", env });
@@ -97,4 +98,13 @@ test("Install adds the package and switches it on, and stops when adding fails",
     } finally {
         fs.rmSync(base, { recursive: true, force: true });
     }
+});
+
+test("Install gives a plugin that needs it a wider bar slot", () => {
+    const t3 = P.PLUGINS.find(item => item.id === "digitalpals.t3code");
+    const [, , line, , helper, url, id, width] = P.installCommand("/helper.py", t3);
+    assert.match(line, /enable "\$3" --width "\$4"$/);
+    assert.deepEqual([helper, url, id, width], ["/helper.py", t3.url, t3.id, "140"]);
+    const hermes = P.PLUGINS.find(item => item.id === "digitalpals.hermes");
+    assert.equal(P.installCommand("/helper.py", hermes).length, 7, "no width argument without a width");
 });

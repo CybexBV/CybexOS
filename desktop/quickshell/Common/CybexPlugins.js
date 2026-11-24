@@ -25,7 +25,9 @@ var PLUGINS = [
         id: "digitalpals.t3code",
         name: "T3 Code",
         description: "Follow and answer your T3 Code sessions from the bar.",
-        url: "https://github.com/DigitalPals/cybexos-t3code"
+        url: "https://github.com/DigitalPals/cybexos-t3code",
+        // Its chip's longest status word needs more than the default 120.
+        width: 140
     },
     {
         id: "digitalpals.hermes",
@@ -49,10 +51,11 @@ var PLUGINS = [
 
 // The helper commands Install queues, as one shell line so `enable` runs
 // only after `add` succeeded: its own error would otherwise replace the
-// reason the install failed.
+// reason the install failed. A plugin's `width` is the bar slot it needs.
 function installCommand(helper, plugin) {
-    return ["sh", "-c", 'python3 "$1" add "$2" && python3 "$1" enable "$3"',
-        "sh", helper, plugin.url, plugin.id];
+    var enable = 'python3 "$1" enable "$3"' + (plugin.width ? ' --width "$4"' : "");
+    return ["sh", "-c", 'python3 "$1" add "$2" && ' + enable,
+        "sh", helper, plugin.url, plugin.id].concat(plugin.width ? [String(plugin.width)] : []);
 }
 
 function installed(plugins, id) {
