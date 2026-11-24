@@ -569,7 +569,7 @@ Singleton {
             return null;
         const parsed = SettingsHelpers.parse(storeText);
         const options = parsed.status === "ok" && parsed.value.modOpts ? parsed.value.modOpts[id] : null;
-        return options && typeof options === "object" && !Array.isArray(options)
+        return options && typeof options === "object" && !(Array.isArray(options) || options instanceof Array)
             && Object.keys(options).length ? options : null;
     }
 
