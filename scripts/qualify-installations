@@ -532,8 +532,7 @@ if path.exists():
     saved = json.loads(path.read_text())
     if 'mods' in saved:
         flags = {entry['id']: entry['on'] for column in saved['mods'].values() for entry in column}
-        assert flags['modelusage'] is True
-        assert all(flags[key] is False for key in ('hermes', 'remote', 't3', 'gh', 'fusebox'))
+        assert all(flags[key] is False for key in ('modelusage', 'hermes', 'remote', 't3', 'gh', 'fusebox'))
 print('Bibata desktop/session cursor, local discovery, firewall, and saved widget defaults passed')
 QA_DEFAULTS''', timeout=60)
 

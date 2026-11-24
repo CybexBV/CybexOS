@@ -336,9 +336,12 @@ installer/cybexos-installerd --dump-static > static.json   # with lifecycle/ on 
 cd installer/kiosk && cargo run --features preview --bin installer-preview -- ../../static.json /tmp/renders
 ```
 
-New menubars enable Model Usage and leave Hermes Agent, Remote Server, T3 Code,
-GitHub and Fusebox available but hidden. Installing connected-service support
-does not enable their widgets. Saved widget choices remain personal. LAN
+New menubars leave the optional widgets (Model Usage, Hermes Agent, Remote
+Server, T3 Code, GitHub and Fusebox) available but off; turn them on in
+Settings -> Bar. Their code and the Hermes bridge run only while they are on.
+Installing connected-service support does not enable them. Saved widget
+choices remain personal: a menubar from before 1.0.33 that showed Model Usage
+by default keeps it. LAN
 discovery is enabled by default: Avahi browses and publishes local addresses,
 `.local` resolution is available, and the firewall admits the discovery and
 selected application ports. Bibata Modern Classic is the default pointer across

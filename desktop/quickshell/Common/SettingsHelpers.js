@@ -1,7 +1,7 @@
 // Pure settings-schema helpers shared by QML and Node tests.
 // Keep this file free of Qt APIs so persistence stays deterministic.
 
-var VERSION = 34;
+var VERSION = 35;
 
 var BAR_STYLES = ["hug", "floating", "attached"];
 var PALETTE_MODES = ["wallpaper", "fixed"];
@@ -376,7 +376,11 @@ function moduleGroup(id, options) {
     return entry ? enumIn(entry.group, NOTIFICATION_GROUPS, fallback) : fallback;
 }
 
-function defaultMods() {
+// The connected-service widgets (Model Usage, Fusebox, T3 Code, Hermes,
+// Remote Server) are optional extras, off until a person turns them on in
+// Settings -> Bar. Before schema 35 Model Usage was on by default; files from
+// then keep it (legacyDefaultMods, overrideKeys).
+function defaultMods(modelUsage) {
     function mod(id, on) {
         return { id: id, on: on, detail: "auto" };
     }
@@ -385,7 +389,7 @@ function defaultMods() {
         center: [mod("indicators", true), mod("clock", true), mod("weather", false),
             mod("notes", true)],
         right: [
-            mod("modelusage", true), mod("fusebox", false), mod("updates", true), mod("gh", false),
+            mod("modelusage", modelUsage === true), mod("fusebox", false), mod("updates", true), mod("gh", false),
             mod("t3", false),
             mod("hermes", false), mod("remote", false),
             mod("tray", false), mod("assistant", true), mod("notifications", true), mod("vol", true),
@@ -1757,7 +1761,8 @@ function merge(raw, context) {
         controlIcon: controlIconIn(parsed.controlIcon, d.controlIcon),
         controlIconPrompt: boolIn(parsed.controlIconPrompt, d.controlIconPrompt),
         mods: parsed.mods === undefined || staleModsLeftover(parsed)
-            ? d.mods : migrateMods(parsed.mods, parsed.v, context),
+            ? (legacyDefaultLayout(parsed) ? defaultMods(true) : d.mods)
+            : migrateMods(parsed.mods, parsed.v, context),
         modOpts: migrateModOpts(parsed.modOpts, parsed.v, parsed),
         dock: boolIn(parsed.dock, d.dock),
         dockAutoHide: boolIn(parsed.dockAutoHide, d.dockAutoHide),
@@ -1903,12 +1908,24 @@ function serialize(settings) {
 // adopted as explicit. Unknown fields are carried through without validation.
 function overrideKeys(raw) {
     var known = defaults();
-    return Object.keys(raw || {}).filter(function(key) {
+    var keys = Object.keys(raw || {}).filter(function(key) {
         if (key === "mods" && staleModsLeftover(raw))
             return false;
         return Object.prototype.hasOwnProperty.call(known, key)
             && JSON.stringify(unknownFields(raw[key], schemaFor(key, known))) !== JSON.stringify(raw[key]);
     });
+    // The default layout such a file had, with Model Usage on, is stored
+    // with the first save, so the new default never takes it away.
+    if (legacyDefaultLayout(raw) && keys.indexOf("mods") === -1)
+        keys.push("mods");
+    return keys;
+}
+
+// A file from before schema 35 that never chose a layout: it shows the
+// default layout of its day, with Model Usage on.
+function legacyDefaultLayout(raw) {
+    return !!raw && typeof raw === "object" && typeof raw.v === "number" && raw.v < 35
+        && (raw.mods === undefined || staleModsLeftover(raw));
 }
 
 // What a stored value is checked against for fields this schema understands.
