@@ -44,9 +44,12 @@ def exercise(audit, mpv=None):
         return 'OmarchyPlugins.records['+json.dumps(plugin+':'+kind)+']?.host?.instance'
 
     def own(directory):
+        # Fixtures copied from a read-only source (the Nix store) stay
+        # read-only; the test user must be able to commit them.
         for path in [directory, *directory.rglob('*')]:
             if not path.is_symlink():
                 os.chown(path, 1000, 100)
+                path.chmod(path.stat().st_mode | 0o200)
 
     with tempfile.TemporaryDirectory(prefix='omarchy-installed-', dir=home) as temporary:
         base = Path(temporary)
