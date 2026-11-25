@@ -124,7 +124,7 @@ test("the terminal palette keeps every hue readable on the base", () => {
 });
 
 test("colour helpers agree with SettingsHelpers", () => {
-    const H = require(path.join(shellDir, "Common/SettingsHelpers.js"));
+    const H = require("./shell.cjs").load("SettingsHelpers.js");
     const cases = [["#d3d283", "#eae9ef", 4.5], ["#9ecbeb", "#f8f7fa", 4.5],
         ["#3a3936", "#1a1917", 3], ["#e8837a", "#1a1917", 7]];
     const out = tokensModule(

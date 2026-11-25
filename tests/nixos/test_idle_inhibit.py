@@ -27,7 +27,9 @@ class IdleInhibitTests(unittest.TestCase):
         self.shell = self.base / 'shell'
         common = self.shell / 'Common'
         common.mkdir(parents=True)
-        for name in ('SysInfo.qml', 'ProcHelpers.js', 'SettingsHelpers.js', 'SysInfoHelpers.js'):
+        for name in ('SysInfo.qml', 'ProcHelpers.js', 'SettingsHelpers.js',
+                     'SettingsColorHelpers.js', 'SettingsDictationHelpers.js',
+                     'SettingsDocumentHelpers.js', 'SysInfoHelpers.js'):
             shutil.copy2(ROOT / 'desktop/quickshell/Common' / name, common / name)
         (common / 'qmldir').write_text(''.join(
             f'singleton {name} {name}.qml\n' for name in ('SysInfo', 'Settings', 'Startup', 'Battery')))

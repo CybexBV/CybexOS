@@ -1,5 +1,12 @@
+.pragma library
+.import "SettingsColorHelpers.js" as ColorHelpers
+.import "SettingsDictationHelpers.js" as DictationHelpers
+.import "SettingsDocumentHelpers.js" as DocumentHelpers
+
 // Pure settings-schema helpers shared by QML and Node tests.
 // Keep this file free of Qt APIs so persistence stays deterministic.
+// Colour/palette math lives in SettingsColorHelpers.js, dictation rules in
+// SettingsDictationHelpers.js, and document/clock utilities in SettingsDocumentHelpers.js.
 
 var VERSION = 36;
 
@@ -117,35 +124,9 @@ var FONT_CHOICES = [
 
 var FONT_IDS = FONT_CHOICES.map(function(choice) { return choice.id; });
 
-// Named menubar colours. `default` and `macos` are adaptive pairs; the
-// remaining presets are intentionally fixed so changing the shell theme does
-// not silently change a colour the user chose explicitly. Custom is stored as
-// HSL components so hue survives even at zero saturation/lightness.
-var BAR_COLOR_CHOICES = [
-    { id: "default", label: "Shell Default" },
-    { id: "macos", label: "macOS" },
-    { id: "black", label: "Black" },
-    { id: "graphite", label: "Graphite" },
-    { id: "slate", label: "Slate" },
-    { id: "white", label: "White" },
-    { id: "custom", label: "Custom" }
-];
-
-var BAR_COLOR_IDS = BAR_COLOR_CHOICES.map(function(choice) { return choice.id; });
-
-var BAR_COLOR_PRESETS = {
-    // The 2026-09 "edge drawer" redesign (Claude Design project 8cf85161,
-    // direction 2) rests the shell on a warm charcoal instead of the earlier
-    // cool near-black. The light half is a soft grey, Theme.lightBackground,
-    // rather than white: a full-width white strip read as glare, and the
-    // bar's attached panels share its fill. "White" remains an explicit choice.
-    "default": { dark: "#1a1917", light: "#eae9ef" },
-    "macos": { dark: "#1d1d1f", light: "#f5f5f7" },
-    "black": { dark: "#000000", light: "#000000" },
-    "graphite": { dark: "#2c2c2e", light: "#2c2c2e" },
-    "slate": { dark: "#344054", light: "#344054" },
-    "white": { dark: "#ffffff", light: "#ffffff" }
-};
+var BAR_COLOR_CHOICES = ColorHelpers.BAR_COLOR_CHOICES;
+var BAR_COLOR_IDS = ColorHelpers.BAR_COLOR_IDS;
+var BAR_COLOR_PRESETS = ColorHelpers.BAR_COLOR_PRESETS;
 
 // How a module draws itself in the bar, which is also how the bar groups a
 // run of them. `chip` modules retain their shared ordering and separator
@@ -200,115 +181,35 @@ function mergeIndicatorOrder(shown, saved) {
     return out;
 }
 
-// Dictation's speech models (docs/dictation.md): the small Whisper model every
-// installation carries, and the two a person may download: Whisper turbo for
-// every language, and Parakeet, faster and as accurate, for 25 European
-// languages. Older saved choices (tiny, small, medium, large-v3) were never
-// installed, so they fall back to the built-in model.
-var DICTATION_MODEL_CHOICES = [
-    { value: "base", label: "Standard" },
-    { value: "large-v3-turbo", label: "Accurate" },
-    { value: "parakeet", label: "Fast & accurate" }
-];
-var DICTATION_MODELS = DICTATION_MODEL_CHOICES.map(
-    function(choice) { return choice.value; });
-
-// Languages offered for dictation: those the shell can name (LocaleNames)
-// that Whisper also transcribes, by their Whisper codes.
-var DICTATION_LANGUAGES = [
-    "en", "ar", "bg", "ca", "cs", "da", "de", "el", "es", "et", "eu", "fi", "fr", "gl",
-    "he", "hi", "hr", "hu", "id", "is", "it", "ja", "ko", "lt", "lv", "nl", "nn", "no",
-    "pl", "pt", "ro", "ru", "sk", "sl", "sr", "sv", "th", "tr", "uk", "vi", "zh"
-];
-
-// The languages Parakeet v3 transcribes (it tells them apart by itself),
-// among those offered: a dictation in any other language needs Whisper.
-var PARAKEET_LANGUAGES = [
-    "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hr", "hu", "it", "lt",
-    "lv", "nl", "pl", "pt", "ro", "ru", "sk", "sl", "sv", "uk"
-];
+var DICTATION_MODEL_CHOICES = DictationHelpers.DICTATION_MODEL_CHOICES;
+var DICTATION_MODELS = DictationHelpers.DICTATION_MODELS;
+var DICTATION_LANGUAGES = DictationHelpers.DICTATION_LANGUAGES;
+var PARAKEET_LANGUAGES = DictationHelpers.PARAKEET_LANGUAGES;
+var DICTATION_CORRECTIONS_MAX = DictationHelpers.DICTATION_CORRECTIONS_MAX;
+var DICTATION_CORRECTION_LENGTH = DictationHelpers.DICTATION_CORRECTION_LENGTH;
 
 function parakeetSupports(primary, secondary) {
-    return PARAKEET_LANGUAGES.indexOf(primary) !== -1
-        && (secondary === "off" || secondary === primary || PARAKEET_LANGUAGES.indexOf(secondary) !== -1);
+    return DictationHelpers.parakeetSupports(primary, secondary);
 }
 
-// The names in the vocabulary, one per comma, as Settings shows them.
 function dictationTerms(value) {
-    return String(value || "").split(",").map(function(term) {
-        return term.trim();
-    }).filter(function(term, index, all) {
-        return term !== "" && all.indexOf(term) === index;
-    });
+    return DictationHelpers.dictationTerms(value);
 }
 
 function dictationTermsLine(terms) {
-    return dictationTerms((terms || []).join(",")).join(", ");
-}
-
-// Corrections: what dictation writes ("heard") and what to write instead.
-var DICTATION_CORRECTIONS_MAX = 200;
-var DICTATION_CORRECTION_LENGTH = 60;
-
-function correctionText(value) {
-    if (typeof value !== "string")
-        return "";
-    return value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+    return DictationHelpers.dictationTermsLine(terms);
 }
 
 function dictationCorrectionsIn(value, fallback) {
-    if (!(Array.isArray(value) || value instanceof Array))
-        return fallback;
-    var seen = {};
-    var kept = [];
-    value.forEach(function(rule) {
-        if (!rule || typeof rule !== "object" || kept.length >= DICTATION_CORRECTIONS_MAX)
-            return;
-        var heard = correctionText(rule.heard);
-        var write = correctionText(rule.write);
-        if (heard === "" || write === "" || heard === write
-                || heard.length > DICTATION_CORRECTION_LENGTH || write.length > DICTATION_CORRECTION_LENGTH)
-            return;
-        var key = heard.toLowerCase();
-        if (seen[key])
-            return;
-        seen[key] = true;
-        kept.push({ heard: heard, write: write });
-    });
-    return kept;
-}
-
-// The same replacement scripts/dictation.py makes before typing, for the
-// live words: whole words, any case.
-function escapeRegExp(text) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return DictationHelpers.dictationCorrectionsIn(value, fallback);
 }
 
 function applyDictationCorrections(text, rules) {
-    var result = String(text || "");
-    (rules || []).forEach(function(rule) {
-        var heard = correctionText(rule && rule.heard);
-        var write = correctionText(rule && rule.write);
-        if (heard === "" || write === "" || heard === write)
-            return;
-        var words = heard.split(" ").map(escapeRegExp).join("\\s+");
-        // Letters of the Latin, Greek and Cyrillic scripts: QML's engine
-        // has no Unicode property escapes.
-        var letter = "A-Za-z0-9_\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF'\\u2019-";
-        var pattern = new RegExp("(^|[^" + letter + "])(" + words + ")(?![" + letter + "])", "gi");
-        result = result.replace(pattern, function(_match, before) {
-            return before + write;
-        });
-    });
-    return result;
+    return DictationHelpers.applyDictationCorrections(text, rules);
 }
 
-// The words a person wants recognised, as one line Whisper reads as context.
 function dictationVocabularyIn(value, fallback) {
-    if (typeof value !== "string")
-        return fallback;
-    var line = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
-    return line.length <= 400 ? line : fallback;
+    return DictationHelpers.dictationVocabularyIn(value, fallback);
 }
 
 // Notes title generation deliberately uses a small, reviewed model catalog.
@@ -727,332 +628,37 @@ function timestampIn(value, fallback) {
         ? Math.floor(value) : fallback;
 }
 
-function hexIn(value, fallback) {
-    return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
-}
+var DISABLED_CONTRAST = ColorHelpers.DISABLED_CONTRAST;
+var DARK_CARD_ALPHA = ColorHelpers.DARK_CARD_ALPHA;
+var THEME_PALETTE_KEYS = ColorHelpers.THEME_PALETTE_KEYS;
+var THEME_FALLBACKS = ColorHelpers.THEME_FALLBACKS;
 
-function channelHex(value) {
-    return Math.round(Math.min(1, Math.max(0, value)) * 255)
-        .toString(16).padStart(2, "0");
-}
-
-function hslToHex(hue, saturation, lightness) {
-    var h = ((Number(hue) % 360) + 360) % 360 / 360;
-    var s = Math.min(100, Math.max(0, Number(saturation))) / 100;
-    var l = Math.min(100, Math.max(0, Number(lightness))) / 100;
-    if (!isFinite(h) || !isFinite(s) || !isFinite(l))
-        return "#000000";
-
-    if (s === 0)
-        return "#" + channelHex(l) + channelHex(l) + channelHex(l);
-
-    function hueChannel(p, q, t) {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1 / 6) return p + (q - p) * 6 * t;
-        if (t < 1 / 2) return q;
-        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-        return p;
-    }
-
-    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    var p = 2 * l - q;
-    return "#" + [
-        hueChannel(p, q, h + 1 / 3),
-        hueChannel(p, q, h),
-        hueChannel(p, q, h - 1 / 3)
-    ].map(channelHex).join("");
-}
-
+function hexIn(value, fallback) { return ColorHelpers.hexIn(value, fallback); }
+function hslToHex(hue, saturation, lightness) { return ColorHelpers.hslToHex(hue, saturation, lightness); }
+function hueToHex(degrees) { return ColorHelpers.hueToHex(degrees); }
+function hexHue(value, fallback) { return ColorHelpers.hexHue(value, fallback); }
 function resolveBarColor(mode, themeMode, hue, saturation, lightness) {
-    var selected = enumIn(mode, BAR_COLOR_IDS, "default");
-    if (selected === "custom")
-        return hslToHex(hue, saturation, lightness);
-    var preset = BAR_COLOR_PRESETS[selected] || BAR_COLOR_PRESETS["default"];
-    return themeMode === "light" ? preset.light : preset.dark;
+    return ColorHelpers.resolveBarColor(mode, themeMode, hue, saturation, lightness);
 }
-
-function rgbIn(value, fallback) {
-    var valid = hexIn(value, fallback || "#000000").toLowerCase();
-    return [1, 3, 5].map(function(offset) {
-        return parseInt(valid.slice(offset, offset + 2), 16) / 255;
-    });
-}
-
-function relativeLuminance(value) {
-    var linear = rgbIn(value).map(function(channel) {
-        return channel <= 0.04045 ? channel / 12.92
-            : Math.pow((channel + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-}
-
-function contrastRatio(a, b) {
-    var first = relativeLuminance(a);
-    var second = relativeLuminance(b);
-    return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
-}
-
-function mixHex(from, to, amount) {
-    var start = rgbIn(from);
-    var end = rgbIn(to);
-    var t = Math.min(1, Math.max(0, amount));
-    return "#" + start.map(function(channel, index) {
-        return channelHex(channel + (end[index] - channel) * t);
-    }).join("");
-}
-
-function foregroundFor(background) {
-    return contrastRatio("#ffffff", background) >= contrastRatio("#000000", background)
-        ? "#ffffff" : "#000000";
-}
-
-// The least foreground mixed over a background that reaches the requested
-// contrast. On a mid-luminance colour the hierarchy may collapse to the full
-// black/white foreground; readability wins over artificial tonal separation.
-function contrastTone(background, foreground, target) {
-    if (contrastRatio(foreground, background) < target)
-        return foreground;
-    var low = 0;
-    var high = 1;
-    for (var i = 0; i < 16; i++) {
-        var mid = (low + high) / 2;
-        if (contrastRatio(mixHex(background, foreground, mid), background) >= target)
-            high = mid;
-        else
-            low = mid;
-    }
-    return mixHex(background, foreground, high);
-}
-
-// Disabled content (2026-11, docs/shell-states.md): dimmed so it reads as
-// unavailable, but still readable at about 3:1 over the least favourable
-// backdrop, a step below the 4.5:1 floor every other piece of copy holds.
-var DISABLED_CONTRAST = 3.0;
-
-function disabledTone(background, foreground) {
-    return contrastTone(background, foreground, DISABLED_CONTRAST);
-}
-
-// The brightest resting card a dark panel carries: Theme.tile, white at this
-// alpha over the panel. Dark copy is held against such a card on the lightest
-// panel surface rather than against the bare surface, where secondary text on
-// a card used to fall to about 3.4:1. Light mode needs no counterpart: its
-// reference, a hovered chip on the base, is already darker than any card.
-var DARK_CARD_ALPHA = 0.09;
-
-// Preserve a semantic colour when it already reads; otherwise pull it toward
-// the bar's automatically selected foreground until it does.
-function ensureContrast(value, background, target) {
-    var source = hexIn(value, foregroundFor(background)).toLowerCase();
-    if (contrastRatio(source, background) >= target)
-        return source;
-    var foreground = foregroundFor(background);
-    var low = 0;
-    var high = 1;
-    for (var i = 0; i < 16; i++) {
-        var mid = (low + high) / 2;
-        if (contrastRatio(mixHex(source, foreground, mid), background) >= target)
-            high = mid;
-        else
-            low = mid;
-    }
-    return mixHex(source, foreground, high);
-}
-
-// The 2026-11 state system (docs/shell-states.md). Hover keeps the neutral
-// chip; the current item takes an accent tint, so hover and selection can no
-// longer look alike (they used to share one fill). The accent marks drawn on
-// top of state — a rail's 3 px edge, a selected tile's border, the keyboard
-// focus ring — are graphics a person must find, so they are lifted to 3:1
-// (WCAG 1.4.11) over `reference`, the least favourable backdrop copy sits on.
-// Pure, so state-tokens.test.cjs checks every theme pack in its mode.
-function stateTokens(accent, reference, dark) {
-    var bg = hexIn(reference, dark ? "#201e1b" : "#e3e2ea").toLowerCase();
-    var tone = hexIn(accent, "#60a5fa").toLowerCase();
-    var mark = ensureContrast(tone, bg, 3.0);
-    return {
-        // Alpha of the accent laid over whatever surface hosts the item.
-        selectedAlpha: dark ? 0.18 : 0.14,
-        selectedMark: mark,
-        focusRing: mark,
-        // An off switch's track is a quiet tint of the faint ink; its border
-        // and knob carry the 3:1 boundary instead (textMid clears 4.5:1).
-        switchOffTrackAlpha: dark ? 0.30 : 0.22
-    };
-}
-
-function barPalette(background) {
-    var bg = hexIn(background, "#161424").toLowerCase();
-    var foreground = foregroundFor(bg);
-    // Small status glyphs need stronger ink than the adjacent secondary copy.
-    // The dark anchor matches the bright silver that already reads correctly
-    // on the GitHub mark; light bars use its established deep-ink counterpart.
-    // Pull either toward the selected foreground only when a custom bar colour
-    // needs more contrast.
-    var iconBase = foreground === "#ffffff" ? "#c2c6d1" : "#3a3850";
-    return {
-        background: bg,
-        foreground: foreground,
-        textHi: foreground,
-        textMid: contrastTone(bg, foreground, 7.0),
-        textLow: contrastTone(bg, foreground, 5.5),
-        textDim: contrastTone(bg, foreground, 4.8),
-        textFaint: contrastTone(bg, foreground, 4.5),
-        textDisabled: disabledTone(bg, foreground),
-        icon: ensureContrast(iconBase, bg, 10.5)
-    };
-}
-
-// One step of a semantic ladder, in whichever direction the source needs.
-// `ensureContrast` only ever *raises* a colour toward the foreground, so a
-// palette whose variant already clears the highest target returns that same
-// variant for every step and the ladder collapses to one tone — which is
-// exactly what Material's own on-surface roles do on a deep container. Fold
-// the tone back toward the background in that case, the way the menubar
-// builds its own ladder, so each step lands on its floor rather than above it.
-function paletteTone(background, source, target) {
-    return contrastRatio(source, background) < target
-        ? ensureContrast(source, background, target)
-        : contrastTone(background, source, target);
-}
-
-// Material palettes provide their own on-surface tones. Build the established
-// semantic ladder from those roles while retaining the shell-wide AA floor.
+function relativeLuminance(value) { return ColorHelpers.relativeLuminance(value); }
+function contrastRatio(a, b) { return ColorHelpers.contrastRatio(a, b); }
+function mixHex(from, to, amount) { return ColorHelpers.mixHex(from, to, amount); }
+function foregroundFor(background) { return ColorHelpers.foregroundFor(background); }
+function disabledTone(background, foreground) { return ColorHelpers.disabledTone(background, foreground); }
+function ensureContrast(value, background, target) { return ColorHelpers.ensureContrast(value, background, target); }
+function stateTokens(accent, reference, dark) { return ColorHelpers.stateTokens(accent, reference, dark); }
+function barPalette(background) { return ColorHelpers.barPalette(background); }
 function semanticPalette(background, onSurface, onSurfaceVariant) {
-    var bg = hexIn(background, "#161424").toLowerCase();
-    var hi = ensureContrast(onSurface, bg, 7.0);
-    var variant = ensureContrast(onSurfaceVariant, bg, 4.5);
-    return {
-        background: bg,
-        foreground: hi,
-        textHi: hi,
-        textMid: paletteTone(bg, variant, 7.0),
-        textLow: paletteTone(bg, variant, 5.5),
-        textDim: paletteTone(bg, variant, 4.8),
-        textFaint: paletteTone(bg, variant, 4.5),
-        textDisabled: disabledTone(bg, hi),
-        icon: paletteTone(bg, variant, 6.0)
-    };
+    return ColorHelpers.semanticPalette(background, onSurface, onSurfaceVariant);
 }
-
-// ---- named theme palettes ---------------------------------------------------
-// A named theme (scripts/theme_packs.py) may set its own surfaces, text and
-// status colours. Applying it copies them into `themePalette`, so the look
-// survives the theme's removal and loads with the settings, without reading
-// any theme file. Theme.qml uses them only while `mode` is the shell's mode
-// and the accent source is fixed; the keys left empty are derived.
-var THEME_PALETTE_KEYS = ["background", "surface", "surfaceRaised", "text", "textMuted",
-    "textDim", "red", "amber", "green"];
-
-// Theme.qml's fixed references, for whatever a theme palette leaves out.
-var THEME_FALLBACKS = {
-    dark: { background: "#1a1917", text: "#f2f0ea", red: "#ff8f8f", amber: "#ffc26e",
-        green: "#63d68c" },
-    light: { background: "#eae9ef", text: "#1f1d2b", red: "#c22f2f", amber: "#b5761e",
-        green: "#1f9d57" }
-};
-
-function defaultThemePalette() {
-    var out = { mode: "" };
-    THEME_PALETTE_KEYS.forEach(function(key) { out[key] = ""; });
-    return out;
-}
-
-function themePaletteIn(value) {
-    var out = defaultThemePalette();
-    if (!value || typeof value !== "object" || (Array.isArray(value) || value instanceof Array))
-        return out;
-    out.mode = enumIn(value.mode, ["", "dark", "light"], "");
-    THEME_PALETTE_KEYS.forEach(function(key) {
-        out[key] = hexIn(value[key], "").toLowerCase();
-    });
-    return out;
-}
-
-function themeIdIn(value) {
-    return typeof value === "string" && /^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/.test(value)
-        ? value : "";
-}
-
-// A theme palette's surfaces and inks, deriving what it leaves out the way
-// Theme.qml layers its own: in both modes a raised surface steps toward
-// white, and quieter text steps toward the base. Surfaces are held to their
-// mode — at least 7.5:1 against white in dark mode, for the two panel
-// surfaces even under a resting card (DARK_CARD_ALPHA), and 9:1 against black
-// in light mode — so a theme cannot put light panels in a dark shell, and the
-// text floors below are always reachable. Real themes sit far inside both.
-function themeSurfaces(palette) {
-    var p = themePaletteIn(palette);
-    var dark = p.mode !== "light";
-    var fallback = THEME_FALLBACKS[dark ? "dark" : "light"];
-    function polar(value) {
-        return dark ? ensureContrast(value, "#ffffff", 7.5) : ensureContrast(value, "#000000", 9);
-    }
-    function panel(value) {
-        var out = polar(value);
-        for (var i = 0; dark && i < 40
-                && contrastRatio(mixHex(out, "#ffffff", DARK_CARD_ALPHA), "#ffffff") < 7.5; i++)
-            out = mixHex(out, "#000000", 0.05);
-        return out;
-    }
-    var background = panel(p.background || fallback.background);
-    var surface = panel(p.surface || mixHex(background, "#ffffff", dark ? 0.03 : 0.35));
-    var text = p.text || fallback.text;
-    var muted = p.textMuted || mixHex(text, background, 0.25);
-    return {
-        mode: dark ? "dark" : "light",
-        background: background,
-        surface: surface,
-        surfaceRaised: polar(p.surfaceRaised || mixHex(surface, "#ffffff", dark ? 0.04 : 0.5)),
-        text: text,
-        // What light mode draws its chips, hover layers and hairlines in.
-        ink: ensureContrast(text, background, 7.0),
-        textMuted: muted,
-        textDim: p.textDim || mixHex(text, background, 0.42),
-        red: p.red || fallback.red,
-        amber: p.amber || fallback.amber,
-        green: p.green || fallback.green
-    };
-}
-
-// The least favourable backdrop for copy in a themed shell
-// (Theme.copyReferenceBg): in dark mode the lightest of the raised surface and
-// a resting card (`cardAlpha`, default DARK_CARD_ALPHA) on either panel
-// surface; in light mode the darkest surface under a hovered chip of the
-// theme's ink.
+function defaultThemePalette() { return ColorHelpers.defaultThemePalette(); }
+function themePaletteIn(value) { return ColorHelpers.themePaletteIn(value); }
+function themeIdIn(value) { return ColorHelpers.themeIdIn(value); }
+function themeSurfaces(palette) { return ColorHelpers.themeSurfaces(palette); }
 function themeReference(palette, chipAlpha, cardAlpha) {
-    var s = themeSurfaces(palette);
-    var byLuminance = function(a, b) { return relativeLuminance(a) - relativeLuminance(b); };
-    if (s.mode !== "dark") {
-        var darkest = [s.background, s.surface, s.surfaceRaised].sort(byLuminance)[0];
-        return mixHex(darkest, s.ink, chipAlpha);
-    }
-    var card = cardAlpha === undefined ? DARK_CARD_ALPHA : cardAlpha;
-    return [s.surfaceRaised, mixHex(s.background, "#ffffff", card),
-        mixHex(s.surface, "#ffffff", card)].sort(byLuminance)[2];
+    return ColorHelpers.themeReference(palette, chipAlpha, cardAlpha);
 }
-
-// The text ladder of a theme palette over `reference`, its least favourable
-// backdrop (themeReference). A theme's own colours stay wherever they
-// already read; the floors only ever raise them — 7:1 for primary text,
-// 4.5:1 for every quieter step — so no theme can make copy unreadable.
-function themeTextPalette(reference, palette) {
-    var s = themeSurfaces(palette);
-    var bg = hexIn(reference, s.background).toLowerCase();
-    var hi = ensureContrast(s.text, bg, 7.0);
-    return {
-        background: bg,
-        foreground: hi,
-        textHi: hi,
-        textMid: ensureContrast(s.textMuted, bg, 4.5),
-        textLow: ensureContrast(mixHex(s.textMuted, s.textDim, 0.5), bg, 4.5),
-        textDim: ensureContrast(s.textDim, bg, 4.5),
-        textFaint: ensureContrast(mixHex(s.textDim, s.background, 0.12), bg, 4.5),
-        textDisabled: disabledTone(bg, hi),
-        icon: ensureContrast(mixHex(s.text, s.textMuted, 0.5), bg, 4.5)
-    };
-}
+function themeTextPalette(reference, palette) { return ColorHelpers.themeTextPalette(reference, palette); }
 
 function nameIn(value, fallback) {
     return typeof value === "string" && value !== "" && value.indexOf("/") === -1
@@ -1594,81 +1200,14 @@ function merge(raw) {
     };
 }
 
-// Quiet hours. "nights" is a fixed preset; "custom" uses the stored
-// minutes-since-midnight bounds. A range crossing midnight wraps.
-var QUIET_NIGHTS = { start: 1320, end: 420 };
-
-function quietRange(quiet, start, end) {
-    if (quiet === "nights")
-        return { start: QUIET_NIGHTS.start, end: QUIET_NIGHTS.end };
-    if (quiet === "custom")
-        return { start: start, end: end };
-    return null;
-}
-
+function quietRange(quiet, start, end) { return DocumentHelpers.quietRange(quiet, start, end); }
 function quietActive(quiet, start, end, minutesNow) {
-    var range = quietRange(quiet, start, end);
-    if (!range || range.start === range.end)
-        return false;
-    if (range.start < range.end)
-        return minutesNow >= range.start && minutesNow < range.end;
-    return minutesNow >= range.start || minutesNow < range.end;
+    return DocumentHelpers.quietActive(quiet, start, end, minutesNow);
 }
-
-function formatMinutes(total) {
-    var h = Math.floor(total / 60) % 24;
-    var m = total % 60;
-    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
-}
-
-// Typed clock time to minutes since midnight, snapped to `step` and wrapped
-// to one day: "7", "7:30", "07:30", "0730" and "19.45" all read. Returns -1
-// for text that names no time, so a field can flag it instead of guessing.
-function parseClockMinutes(text, step) {
-    var clean = String(text || "").trim();
-    var match = clean.match(/^(\d{1,2})(?:[:.h]?(\d{2}))?$/);
-    if (!match)
-        return -1;
-    var hours = Number(match[1]);
-    var minutes = match[2] === undefined ? 0 : Number(match[2]);
-    if (hours > 23 || minutes > 59)
-        return -1;
-    var grain = step > 0 ? step : 1;
-    var total = Math.round((hours * 60 + minutes) / grain) * grain;
-    return ((total % 1440) + 1440) % 1440;
-}
-
-function hueToHex(degrees) {
-    return hslToHex(degrees, 50, 75);
-}
-
-function hexHue(value, fallback) {
-    if (typeof value !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value))
-        return fallback === undefined ? 0 : fallback;
-    var r = parseInt(value.slice(1, 3), 16) / 255;
-    var g = parseInt(value.slice(3, 5), 16) / 255;
-    var b = parseInt(value.slice(5, 7), 16) / 255;
-    var max = Math.max(r, g, b);
-    var min = Math.min(r, g, b);
-    if (max === min)
-        return fallback === undefined ? 0 : fallback;
-    var d = max - min;
-    var h = max === r ? ((g - b) / d + (g < b ? 6 : 0))
-        : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-    return Math.round(h * 60) % 360;
-}
-
-function clone(value) {
-    return JSON.parse(JSON.stringify(value));
-}
-
-function restoreSnapshot(current, snapshot) {
-    var restored = clone(current);
-    Object.keys(snapshot || {}).forEach(function(key) {
-        restored[key] = clone(snapshot[key]);
-    });
-    return restored;
-}
+function formatMinutes(total) { return DocumentHelpers.formatMinutes(total); }
+function parseClockMinutes(text, step) { return DocumentHelpers.parseClockMinutes(text, step); }
+function clone(value) { return DocumentHelpers.clone(value); }
+function restoreSnapshot(current, snapshot) { return DocumentHelpers.restoreSnapshot(current, snapshot); }
 
 // The value one key holds after a save and reload: what merge() makes of it.
 // Writers pass values through this so memory never holds one the file cannot
@@ -1727,140 +1266,13 @@ function schemaFor(key, known) {
     return { left: entries, center: entries, right: entries };
 }
 
-// A layout entry moved to another column is no longer where the file had it.
-// Only entries the new layout does not place at all (a newer schema's
-// widgets) stay behind in their old column; a moved entry carries its
-// unknown fields along.
 function preserveUnknownMods(original, replacement) {
-    if (!original || typeof original !== "object" || !replacement || typeof replacement !== "object")
-        return preserveUnknown(original, replacement);
-    var columns = ["left", "center", "right"];
-    var stored = {};
-    var placedIn = {};
-    columns.forEach(function(col) {
-        listIn(original[col]).forEach(function(entry) {
-            if (entry && typeof entry.id === "string" && !stored[entry.id])
-                stored[entry.id] = entry;
-        });
-        listIn(replacement[col]).forEach(function(entry) {
-            if (entry && typeof entry.id === "string")
-                placedIn[entry.id] = col;
-        });
-    });
-    var base = clone(original);
-    columns.forEach(function(col) {
-        var kept = listIn(original[col]).filter(function(entry) {
-            return !entry || typeof entry.id !== "string" || placedIn[entry.id] === undefined;
-        });
-        listIn(replacement[col]).forEach(function(entry) {
-            if (entry && stored[entry.id])
-                kept.push(stored[entry.id]);
-        });
-        if (original[col] !== undefined || replacement[col] !== undefined)
-            base[col] = clone(kept);
-    });
-    return preserveUnknown(base, replacement);
+    return DocumentHelpers.preserveUnknownMods(original, replacement);
 }
-
-function listIn(value) {
-    return (Array.isArray(value) || value instanceof Array) ? value : [];
-}
-
-function unknownFields(original, schema) {
-    if (!original || typeof original !== "object")
-        return undefined;
-    if ((Array.isArray(original) || original instanceof Array)) {
-        if (!(Array.isArray(schema) || schema instanceof Array))
-            return undefined;
-        var entries = [];
-        original.forEach(function(item) {
-            if (!item || typeof item.id !== "string")
-                return;
-            var known = schema.find(function(value) { return value && value.id === item.id; });
-            if (!known) {
-                entries.push(clone(item));
-                return;
-            }
-            var extra = unknownFields(item, known);
-            if (extra) {
-                extra.id = item.id;
-                entries.push(extra);
-            }
-        });
-        return entries.length ? entries : undefined;
-    }
-    if (!schema || typeof schema !== "object")
-        return undefined;
-    var out = {};
-    Object.keys(original).forEach(function(key) {
-        if (key === "__proto__" || key === "constructor" || key === "prototype")
-            return;
-        var value = Object.prototype.hasOwnProperty.call(schema, key)
-            ? unknownFields(original[key], schema[key]) : clone(original[key]);
-        if (value !== undefined)
-            out[key] = value;
-    });
-    return Object.keys(out).length ? out : undefined;
-}
-
-function preserveUnknown(original, replacement) {
-    if ((Array.isArray(replacement) || replacement instanceof Array)) {
-        if (!(Array.isArray(original) || original instanceof Array))
-            return clone(replacement);
-        // Layout entries carry stable ids. Preserve future entries and fields
-        // while retaining the current user's ordering of understood entries.
-        if (replacement.every(function(item) { return item && typeof item.id === "string"; })) {
-            var result = replacement.map(function(item) {
-                return preserveUnknown(original.find(function(old) {
-                    return old && old.id === item.id;
-                }), item);
-            });
-            original.forEach(function(item) {
-                if (item && typeof item.id === "string"
-                        && !replacement.some(function(next) { return next.id === item.id; }))
-                    result.push(clone(item));
-            });
-            return result;
-        }
-        return clone(replacement);
-    }
-    if (!replacement || typeof replacement !== "object")
-        return clone(replacement);
-    var out = original && typeof original === "object" && !(Array.isArray(original) || original instanceof Array)
-        ? clone(original) : {};
-    Object.keys(replacement).forEach(function(key) {
-        if (key !== "__proto__" && key !== "constructor" && key !== "prototype")
-            out[key] = preserveUnknown(out[key], replacement[key]);
-    });
-    return out;
-}
-
+function unknownFields(original, schema) { return DocumentHelpers.unknownFields(original, schema); }
+function preserveUnknown(original, replacement) { return DocumentHelpers.preserveUnknown(original, replacement); }
 function rebaseDocuments(base, desired, current, path) {
-    if (JSON.stringify(desired) === JSON.stringify(base)
-            || JSON.stringify(desired) === JSON.stringify(current))
-        return current;
-    if (JSON.stringify(current) === JSON.stringify(base))
-        return desired;
-    if (base && desired && current && [base, desired, current].every(function(value) {
-        return typeof value === "object" && !(Array.isArray(value) || value instanceof Array);
-    })) {
-        var out = clone(current);
-        Object.keys(base).concat(Object.keys(desired)).forEach(function(key) {
-            if (key === "__proto__" || key === "constructor" || key === "prototype")
-                return;
-            if (!path && key === "v") {
-                out.v = desired.v;
-                return;
-            }
-            var result = rebaseDocuments(base[key], desired[key], current[key], (path || "") + "/" + key);
-            if (result === undefined)
-                delete out[key];
-            else
-                out[key] = result;
-        });
-        return out;
-    }
-    throw new Error("Another writer changed " + (path || "/") + "; reload before retrying");
+    return DocumentHelpers.rebaseDocuments(base, desired, current, path);
 }
 
 // A retired widget's layout entries and options are not a newer schema's
@@ -1903,26 +1315,7 @@ function serializeDocument(settings, original, explicitKeys) {
     return JSON.stringify(out, null, 2) + "\n";
 }
 
-// Distinguishing "no settings yet" from "settings we could not read" is what
-// keeps a corrupt file recoverable: both merge to defaults, but only the empty
-// case may be overwritten. Returns { status, value } where status is one of:
-//   "empty"   — nothing on disk yet (or a whitespace-only file); first run.
-//   "ok"      — a settings object; value is it.
-//   "corrupt" — bytes exist but are not a settings object. Value is null and
-//               the caller must preserve the file before saving over it.
-function parse(text) {
-    if (typeof text !== "string" || text.trim() === "")
-        return { status: "empty", value: null };
-    var parsed;
-    try {
-        parsed = JSON.parse(text);
-    } catch (e) {
-        return { status: "corrupt", value: null };
-    }
-    if (!parsed || typeof parsed !== "object" || (Array.isArray(parsed) || parsed instanceof Array))
-        return { status: "corrupt", value: null };
-    return { status: "ok", value: parsed };
-}
+function parse(text) { return DocumentHelpers.parse(text); }
 
 var exported = {
     VERSION: VERSION,

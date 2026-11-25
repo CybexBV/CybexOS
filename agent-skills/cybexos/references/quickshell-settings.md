@@ -16,10 +16,13 @@ Do not assume a schema version or copy defaults from another release. Read:
 `SettingsHelpers.js` is authoritative for `VERSION`, `defaults()`, accepted
 enums and ranges, module IDs, composite normalization, and migrations.
 `Settings.qml` identifies the persisted properties and the live watcher.
-`SettingsHelpers.js` can be loaded with Node because it exports its pure helpers:
+`SettingsHelpers.js` can be loaded with Node through the shell's QML-JS loader
+because it exports its pure helpers (and imports `SettingsColorHelpers.js`,
+`SettingsDictationHelpers.js`, and `SettingsDocumentHelpers.js` via QML
+`.import` directives):
 
 ```bash
-node -e 'const s=require(process.argv[1]); console.log(JSON.stringify({version:s.VERSION,defaults:s.defaults(),modules:s.MODULE_IDS},null,2))' \
+node -e 'const load=require("/etc/cybexos/runtime/quickshell/scripts/load-qml-js.cjs"); const s=load(process.argv[1]); console.log(JSON.stringify({version:s.VERSION,defaults:s.defaults(),modules:s.MODULE_IDS},null,2))' \
   /etc/cybexos/runtime/quickshell/Common/SettingsHelpers.js
 ```
 
@@ -74,7 +77,8 @@ keys:
 
 ```javascript
 const fs = require("fs");
-const schema = require(process.argv[2]);
+const load = require("/etc/cybexos/runtime/quickshell/scripts/load-qml-js.cjs");
+const schema = load(process.argv[2]);
 const candidate = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const requested = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
 function contains(actual, expected) {

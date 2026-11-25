@@ -71,7 +71,7 @@ test('shortcut rows size from their column, not a parent that closing unsets', (
 });
 
 test('accent ink remains readable without changing the chosen fill', () => {
-    const helpers = require('../../desktop/quickshell/Common/SettingsHelpers.js');
+    const helpers = require('./shell.cjs').load('SettingsHelpers.js');
     for (const background of ['#201e1b', '#eeedf3', '#f7f5fb']) {
         for (const accent of ['#d1d581', '#9ecbeb', '#a992e0', '#79b88b', '#d3b47e', '#e8837a']) {
             const ink = helpers.ensureContrast(accent, background, 4.5);

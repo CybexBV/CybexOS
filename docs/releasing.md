@@ -337,7 +337,7 @@ constraints when updating them. Before publishing, `scripts/check-prebuilt`,
 `--nvidia` and `--catalogue` must report no build beyond the expected ones
 ([Prebuilt packages only](updates.md#prebuilt-packages-only)).
 T3 Code is an exact hashed upstream nightly AppImage wrapped with Nixpkgs;
-Nixpkgs' `t3code` is the 0.1.2 release. (Its bar widget is the
+Nixpkgs now packages `t3code` (0.1.8 at the current pin). (Its bar widget is the
 `digitalpals.t3code` plugin now.) Replace that source recipe with the maintained Nixpkgs package after
 product runtime qualification; its successful wrapper build is not desktop
 validation.

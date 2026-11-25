@@ -1357,3 +1357,14 @@ test("schema 25 drops the retired usage widget, drawer tab, options and poll cei
     assert.ok(!("usage" in H.normalizeModOpts({ usage: { warnAt: 35 } })));
 });
 
+test("load-qml-js.cjs loads SettingsHelpers.js by absolute path for skill scripts", () => {
+    const path = require("node:path");
+    const { shellDir } = require("./shell.cjs");
+    const loadQmlJs = require(path.join(shellDir, "scripts/load-qml-js.cjs"));
+    const schema = loadQmlJs(path.join(shellDir, "Common/SettingsHelpers.js"));
+    assert.equal(schema.VERSION, H.VERSION);
+    assert.deepEqual(schema.defaults(), H.defaults());
+    assert.equal(schema.merge({ v: schema.VERSION, barHeight: 40 }).barHeight, 40);
+});
+
+
