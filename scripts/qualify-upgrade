@@ -506,11 +506,14 @@ systemd-run --unit=qa-github-forward --collect "$(command -v python3)" -I /run/q
 for n in $(seq 1 30); do python3 -c 'import socket; socket.create_connection(("127.0.0.1", 443), 2)' 2>/dev/null && exit 0; sleep 1; done
 exit 1''')
     # The updater's Python and Nix's own downloads both reach and trust it.
+    # A fresh path each time: Nix keeps fetchurl results for an hour, across
+    # reboots, and a cached answer would prove nothing.
+    fresh = os.urandom(6).hex()
     expected = f'cybexos-upgrade-test {standin.nonce}'
     python = vm.command("python3 -I -c 'import urllib.request; "
-                        f"print(urllib.request.urlopen(\"https://api.github.com{PROBE}python\", timeout=30).read().decode().strip())'").strip()
+                        f"print(urllib.request.urlopen(\"https://api.github.com{PROBE}python/{fresh}\", timeout=30).read().decode().strip())'").strip()
     nix = vm.command("nix --extra-experimental-features nix-command eval --raw --impure --expr "
-                     f"'builtins.readFile (builtins.fetchurl \"https://api.github.com{PROBE}nix\")'").strip()
+                     f"'builtins.readFile (builtins.fetchurl \"https://api.github.com{PROBE}nix/{fresh}\")'").strip()
     if python != expected or nix != expected:
         raise RuntimeError(f'The guest did not reach the stand-in: python {python!r}, nix {nix!r}')
     return {'result': 'passed', 'port': port, 'checks': ['Python urllib trusts the test CA', 'Nix downloads trust it']}
