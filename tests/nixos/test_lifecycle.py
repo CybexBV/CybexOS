@@ -166,7 +166,7 @@ class ConfigurationIdentityTests(unittest.TestCase):
 
     def test_unreadable_personal_directory_refuses_partial_identity_and_copy(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             source = root / 'source'
             personal = source / 'local'
             personal.mkdir(parents=True)
@@ -598,7 +598,7 @@ class EngineTests(unittest.TestCase):
         device_firmware.start()
         self.addCleanup(device_firmware.stop)
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);self.base=base
+        base=Path(self.temp.name).resolve();self.base=base
         self.config=base/'config';self.config.mkdir()
         atomic(self.config/'flake.lock',lock())
         (self.config/'flake.nix').write_text('cybexos.url = "github:CybexHQ/CybexOS/'+REV_OLD+'";')
