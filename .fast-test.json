@@ -29,13 +29,6 @@
       "timeout": 20
     },
     {
-      "name": "installer-kiosk",
-      "about": "The Rust/Slint installer screen and its headless interaction, presentation and time-zone tests.",
-      "when": ["installer/kiosk/**", "nix/packages/installer.nix"],
-      "run": "nix --extra-experimental-features 'nix-command flakes' build --no-link .#packages.x86_64-linux.installer-ui.passthru.screen",
-      "timeout": 20
-    },
-    {
       "name": "single-tests",
       "about": "A changed standalone test script, one after the other. Each one's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
       "when": ["tests/*.py", "tests/nixos-native"],

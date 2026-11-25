@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
 
 from . import history as history_module, prompt
 from .desktop_tools import DesktopError
@@ -12,6 +13,11 @@ from .protocol import BUSY, LOG, NOT_FOUND, UNAVAILABLE, RpcFault, now_ms
 
 LANGUAGE = re.compile(r"^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?$")
 ROUTINE_TICK = 30.0
+
+
+def _server_attr(name, default):
+    module = sys.modules.get("cybexos_assistant.server")
+    return getattr(module, name, default) if module is not None else default
 
 
 class ConversationsMixin:
@@ -211,7 +217,8 @@ class ConversationsMixin:
         if not isinstance(text, str) or len(text) > 64 * 1024:
             raise RpcFault(-32602, "Invalid text")
         language = params.get("language")
-        if language is not None and (not isinstance(language, str) or not LANGUAGE.fullmatch(language)):
+        language_pattern = _server_attr("LANGUAGE", LANGUAGE)
+        if language is not None and (not isinstance(language, str) or not language_pattern.fullmatch(language)):
             language = None
         return await self.speaker.say(text, language)
 
@@ -309,4 +316,4 @@ class ConversationsMixin:
                     await self._next()
             except Exception:
                 LOG.exception("routine scheduling failed")
-            await asyncio.sleep(ROUTINE_TICK)
+            await asyncio.sleep(_server_attr("ROUTINE_TICK", ROUTINE_TICK))

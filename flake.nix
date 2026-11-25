@@ -53,10 +53,17 @@
         titlebars = pkgs.callPackage ./nix/packages/titlebars.nix {};
         omasnap = pkgs.callPackage ./nix/packages/omasnap.nix {};
         omawrite = pkgs.callPackage ./nix/packages/omawrite.nix {};
-        # Free Cybex OS local builds for publishing to a binary cache
-        # (docs/releasing.md). Unfree vendor downloads stay excluded.
+        # Curated set of Cybex OS's own free local builds for publishing to a
+        # binary cache (docs/releasing.md). Asserts no item declares an unfree
+        # or non-redistributable license and none appears in prebuilt.nix's
+        # unfree vendor download set (full transitive audit still belongs to
+        # cache publishing).
         cache-closure = let
-          isFree = pkg: nixpkgs.lib.all (l: l.free or true) (nixpkgs.lib.toList (pkg.meta.license or [ ]));
+          vendorDrvs = installerPayload.config.system.build.cybexosVendorBuilds;
+          isFree = pkg:
+            nixpkgs.lib.all (l: (l.free or true) && (l.redistributable or true))
+              (nixpkgs.lib.toList (pkg.meta.license or [ ]))
+            && !(nixpkgs.lib.elem (builtins.unsafeDiscardStringContext pkg.drvPath) vendorDrvs);
           items = [
             desktop desktop.images updater installer-ui installer-ui.passthru.screen
             plymouth symbols-font titlebars omasnap omawrite

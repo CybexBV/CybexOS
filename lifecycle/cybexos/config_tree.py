@@ -4,10 +4,17 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import sys
 from tempfile import TemporaryDirectory
 import uuid
 
 from .common import Failure, atomic, link, read, syncdir
+
+
+def _syncdir(path):
+    """Look up syncdir via cybexos.engine so tests patching engine.syncdir intercept config copies too."""
+    engine = sys.modules.get('cybexos.engine')
+    return (getattr(engine, 'syncdir', syncdir) if engine is not None else syncdir)(path)
 
 # The login screen: its unit, configuration and authentication (including the
 # encryption-gated automatic login). Activation does not restart it, so only a
@@ -69,9 +76,9 @@ def copy_config(source, target):
                     os.fsync(stream.fileno())
         for path in reversed(paths):
             if path.is_dir():
-                syncdir(path)
+                _syncdir(path)
         os.rename(staged, target)
-        syncdir(target.parent)
+        _syncdir(target.parent)
 
 
 def boot_path(system):

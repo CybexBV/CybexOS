@@ -50,12 +50,13 @@ def validate_screenshot(shots_dir, value):
     return real
 
 
-def collect_attachments(shots_dir, value):
+def collect_attachments(shots_dir, value, validate=None):
     """(text attachments for the note, images): what the person attached."""
     if value in (None, ""):
         return [], []
     if not isinstance(value, list) or len(value) > MAX_ATTACHMENTS:
         raise RpcFault(-32602, f"Attach at most {MAX_ATTACHMENTS} things to one question.")
+    check_screenshot = validate or (lambda path: validate_screenshot(shots_dir, path))
     notes, images = [], []
     for item in value:
         if not isinstance(item, dict) or item.get("kind") not in ATTACHMENT_KINDS:
@@ -63,7 +64,7 @@ def collect_attachments(shots_dir, value):
         kind = item["kind"]
         label = " ".join(str(item.get("label") or "").split())[:200]
         if kind == "image":
-            images.append(validate_screenshot(shots_dir, item.get("path")))
+            images.append(check_screenshot(item.get("path")))
             notes.append({"kind": "image", "label": label})
         elif kind == "file":
             path = item.get("path")

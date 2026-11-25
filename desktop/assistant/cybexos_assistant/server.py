@@ -348,7 +348,7 @@ class Server(ConversationsMixin, DesktopToolsMixin):
         return validate_screenshot(self.shots, value)
 
     def attachments(self, value):
-        return collect_attachments(self.shots, value)
+        return collect_attachments(self.shots, value, validate=self.screenshot)
 
     def _model(self, value):
         if value in (None, "", "default"):
