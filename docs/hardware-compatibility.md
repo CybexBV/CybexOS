@@ -76,7 +76,7 @@ working installed Hyprland graphics stack.
    blockers. The kiosk currently tells users to turn Secure Boot off; that
    instruction conflicts with the repository's hardware/security contract and
    is not an accepted compatibility solution. See
-   [the worker](../installer/cybexos-install), [kiosk messaging](../installer/kiosk/src/ui.rs)
+   [the worker](../installer/cybexos-install), [kiosk messaging](../installer/kiosk/src/ui/screens.rs)
    and [hardware/security blockers](hardware-security.md).
 2. **Broadcom coverage has a known firmware/driver hole.** Evaluation gives
    `hardware.enableAllFirmware = false` and

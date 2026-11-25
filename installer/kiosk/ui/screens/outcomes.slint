@@ -1,0 +1,304 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Store } from "../store.slint";
+import { Kicker, Heading, Lead, Btn, Card, Mark } from "../widgets.slint";
+import { Wiz } from "../wiz.slint";
+
+// ── done ─────────────────────────────────────────────────────────────────────
+
+component NextCard inherits Card {
+    in property <string> number;
+    in property <string> title;
+    in property <string> body;
+    height: 150px;
+    VerticalLayout {
+        padding: 20px;
+        spacing: 6px;
+        alignment: start;
+        Text {
+            text: root.number;
+            font-family: Theme.mono;
+            font-weight: 700;
+            font-size: 13px;
+            color: Theme.accent;
+        }
+        Text {
+            text: root.title;
+            font-size: 18px;
+            font-weight: 700;
+            color: Theme.ink;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.body;
+            font-size: 14.5px;
+            color: Theme.fog;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component DoneScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    Wiz {
+        x: (parent.width - self.width) / 2;
+        y: 92px;
+        width: 150px;
+        pose: "finished";
+    }
+    Heading {
+        x: 0;
+        y: 246px;
+        width: parent.width;
+        horizontal-alignment: center;
+        text: "Welcome home, " + Store.done-name + ".";
+    }
+    Lead {
+        x: 0;
+        y: 316px;
+        width: parent.width;
+        horizontal-alignment: center;
+        text: (Store.version == "" ? "Cybex OS" : "Cybex OS " + Store.version) + " is installed on " + Store.done-host + ".";
+    }
+    // Three equal cards, whatever their text.
+    HorizontalLayout {
+        x: 188px;
+        y: 380px;
+        width: 904px;
+        spacing: 14px;
+        NextCard {
+            width: 292px;
+            number: "01";
+            title: "Remove the USB drive";
+            body: "Or choose the internal disk if this computer booted over the network.";
+        }
+        NextCard {
+            width: 292px;
+            number: "02";
+            title: Store.done-encrypted ? "Unlock the disk" : "Wait for the login screen";
+            body: Store.done-encrypted ? "Type your password at startup, using the " + Store.layout-name + " layout." : "This disk is not encrypted.";
+        }
+        NextCard {
+            width: 292px;
+            number: "03";
+            title: Store.done-encrypted ? "Your desktop opens" : "Sign in as " + Store.done-user;
+            body: Store.done-encrypted ? "Unlocking the disk signs you in as " + Store.done-user + "." : "Use the password you just chose.";
+        }
+    }
+    HorizontalLayout {
+        x: (parent.width - self.preferred-width) / 2;
+        y: 566px;
+        width: self.preferred-width;
+        spacing: 14px;
+        restart := Btn {
+            kind: "primary";
+            icon: Icons.restart;
+            text: "Restart now";
+            clicked => { Store.power("reboot"); }
+        }
+        Btn {
+            icon: Icons.power;
+            text: "Power off";
+            clicked => { Store.power("poweroff"); }
+        }
+    }
+}
+
+// ── stopped before any disk change, and failures after it ────────────────────
+
+export component StoppedScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    VerticalLayout {
+        x: 64px;
+        y: 136px;
+        width: 760px;
+        alignment: start;
+        Kicker {
+            text: Store.stop-kicker;
+            color: Theme.amber;
+        }
+        Rectangle { height: 14px; }
+        Heading { text: Store.stop-title; }
+        Rectangle { height: 14px; }
+        Lead { text: Store.stop-body; }
+        if Store.stop-check-label != "": Rectangle { height: 26px; }
+        if Store.stop-check-label != "": Rectangle {
+            height: 58px;
+            border-radius: 14px;
+            background: Theme.red-tint;
+            border-width: 1px;
+            border-color: #ff6b574d;
+            Mark {
+                x: 20px;
+                state: 4;
+            }
+            Text {
+                x: 58px;
+                text: Store.stop-check-label;
+                color: Theme.fog;
+                font-size: 16px;
+                vertical-alignment: center;
+                height: parent.height;
+            }
+            Text {
+                x: 200px;
+                width: parent.width - 220px;
+                text: Store.stop-check-value;
+                font-family: Theme.mono;
+                font-size: 15px;
+                color: Theme.ink;
+                vertical-alignment: center;
+                height: parent.height;
+                overflow: elide;
+            }
+        }
+        Rectangle { height: 22px; }
+        for step[i] in Store.stop-steps: HorizontalLayout {
+            spacing: 14px;
+            height: 44px;
+            Rectangle {
+                width: 26px;
+                Rectangle {
+                    width: 26px;
+                    height: 26px;
+                    border-radius: 13px;
+                    background: Theme.accent-soft;
+                    Text {
+                        text: i + 1;
+                        font-family: Theme.mono;
+                        font-weight: 700;
+                        font-size: 13px;
+                        color: Theme.accent;
+                    }
+                }
+            }
+            Text {
+                text: step;
+                font-size: 17px;
+                color: Theme.ink;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+        Rectangle { height: 24px; }
+        HorizontalLayout {
+            spacing: 14px;
+            alignment: start;
+            if Store.stop-action == "firmware": Btn {
+                kind: "primary";
+                icon: Icons.firmware;
+                text: "Restart into firmware settings";
+                clicked => { Store.power("firmware"); }
+            }
+            if Store.stop-action == "restart": Btn {
+                kind: "primary";
+                icon: Icons.restart;
+                text: "Restart";
+                clicked => { Store.power("reboot"); }
+            }
+            if Store.stop-action == "retry": Btn {
+                kind: "primary";
+                icon: Icons.refresh;
+                text: "Try again";
+                clicked => { Store.start-over(); }
+            }
+            Btn {
+                icon: Icons.log;
+                text: "Details";
+                clicked => { Store.open-sheet("log"); }
+            }
+            Btn {
+                icon: Icons.power;
+                text: "Power off";
+                clicked => { Store.power("poweroff"); }
+            }
+        }
+    }
+    // Beside the text, centred in the space to its right.
+    Wiz {
+        x: 965px;
+        y: 150px;
+        width: 150px;
+        pose: Store.stop-pose;
+    }
+}
+
+export component FailedScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    VerticalLayout {
+        x: 64px;
+        y: 136px;
+        width: 800px;
+        alignment: start;
+        Kicker {
+            text: "INSTALLATION FAILED";
+            color: Theme.red;
+        }
+        Rectangle { height: 14px; }
+        Heading { text: Store.fail-title; }
+        Rectangle { height: 16px; }
+        // What it means for the disk first, then what to do; the worker's
+        // own message is the detail under them.
+        Lead {
+            text: Store.fail-touched
+                ? "The disk may have changed. The installer had already started writing to it, so files that were on it may be gone, and Cybex OS did not finish installing."
+                : "No disk was changed. The installer stopped before writing to any disk.";
+            color: Theme.ink;
+        }
+        Rectangle { height: 12px; }
+        Lead { text: "Save the installation log to another USB stick before you restart or power off: it lives only in this session. Start over goes back to the first step and keeps your choices; you type your password again."; }
+        Rectangle { height: 22px; }
+        Rectangle {
+            height: detail.preferred-height + 28px;
+            border-radius: 14px;
+            background: Theme.card;
+            border-width: 1px;
+            border-color: Theme.line;
+            detail := VerticalLayout {
+                x: 18px;
+                y: 14px;
+                width: parent.width - 36px;
+                height: self.preferred-height;
+                spacing: 6px;
+                Kicker { text: "WHAT FAILED"; }
+                Text {
+                    text: Store.fail-message;
+                    color: Theme.fog;
+                    font-size: 15px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+        Rectangle { height: 26px; }
+        HorizontalLayout {
+            spacing: 14px;
+            alignment: start;
+            Btn {
+                kind: "primary";
+                icon: Icons.log;
+                text: "Show installation details";
+                clicked => { Store.open-sheet("log"); }
+            }
+            Btn {
+                icon: Icons.refresh;
+                text: "Start over";
+                clicked => { Store.start-over(); }
+            }
+            Btn {
+                icon: Icons.power;
+                text: "Power off";
+                clicked => { Store.power("poweroff"); }
+            }
+        }
+    }
+    // Beside the text, centred in the space to its right.
+    Wiz {
+        x: 965px;
+        y: 150px;
+        width: 150px;
+        pose: "sorry";
+    }
+}

@@ -1,0 +1,252 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Store } from "../store.slint";
+import { Lead, Btn, LinkButton, Card, Field, Help, FieldLabel, PressArea } from "../widgets.slint";
+import { Footer } from "shared.slint";
+
+// ── account ──────────────────────────────────────────────────────────────────
+
+export component AccountScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    Text {
+        x: 64px;
+        y: 100px;
+        text: "Who's using this computer?";
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: -1px;
+        color: Theme.ink;
+    }
+    Lead {
+        x: 64px;
+        y: 156px;
+        width: 760px;
+        text: Store.encrypted ? "One account with one password. That password also unlocks the disk." : "One account with one password.";
+    }
+    VerticalLayout {
+        x: 64px;
+        y: 206px;
+        width: 552px;
+        alignment: start;
+        spacing: 8px;
+        FieldLabel {
+            text: "YOUR NAME";
+            aux: "optional";
+        }
+        name-field := Field {
+            label: "Your name";
+            placeholder: "Ada Lovelace";
+            text <=> Store.full-name;
+            edited(text) => { Store.full-name-edited(text); }
+            accepted => { user-field.focus-input(); }
+        }
+        Help {
+            height: 18px;
+            text: Store.name-help;
+            tone: 2;
+        }
+        FieldLabel {
+            text: "USERNAME";
+            aux: Store.username-count;
+        }
+        user-field := Field {
+            label: "Username";
+            mono: true;
+            placeholder: "ada";
+            bad: Store.username-tone == 2;
+            text <=> Store.username;
+            edited(text) => {
+                let r = Store.filter-name(text, self.caret());
+                Store.username-edited(r.text, r.note);
+                if (r.text != text) {
+                    self.set-caret(r.caret);
+                    self.text = r.text;
+                    self.set-caret(r.caret);
+                }
+            }
+            accepted => { password-field.focus-input(); }
+        }
+        Help {
+            height: 26px;
+            text: Store.username-help;
+            tone: Store.username-tone;
+        }
+        FieldLabel {
+            text: "PASSWORD";
+            aux: "8+ characters · typing with " + Store.layout-name;
+        }
+        Rectangle {
+            height: 52px;
+            password-field := Field {
+                label: "Password";
+                width: parent.width;
+                password: !Store.show-password;
+                right-inset: 70px;
+                placeholder: "At least 8 characters";
+                text <=> Store.password;
+                edited(text) => { Store.passwords-edited(); }
+                accepted => {
+                    if (Store.password != "" && Store.confirm == "") {
+                        confirm-field.focus-input();
+                    } else if (Store.can-review) {
+                        Store.continue-account();
+                    } else {
+                        confirm-field.focus-input();
+                    }
+                }
+            }
+            Btn {
+                x: parent.width - 70px;
+                y: 8px;
+                width: 62px;
+                small: true;
+                text: Store.show-password ? "Hide" : "Show";
+                accessible-label: Store.show-password ? "Hide password" : "Show password";
+                clicked => { Store.show-password = !Store.show-password; }
+            }
+        }
+        HorizontalLayout {
+            height: 4px;
+            spacing: 4px;
+            for level in [1, 2, 3, 4]: Rectangle {
+                border-radius: 2px;
+                background: Store.strength >= level ? (Store.strength == 1 ? Theme.amber : Theme.accent) : Theme.line-2;
+            }
+        }
+        Help {
+            height: 22px;
+            text: Store.unlock-note;
+            tone: 0;
+        }
+        FieldLabel { text: "CONFIRM PASSWORD"; }
+        confirm-field := Field {
+            label: "Confirm password";
+            password: !Store.show-password;
+            placeholder: "Type it once more";
+            bad: Store.confirm-tone == 2;
+            text <=> Store.confirm;
+            edited(text) => { Store.passwords-edited(); }
+            accepted => {
+                if (Store.can-review) {
+                    Store.continue-account();
+                }
+            }
+        }
+        Help {
+            height: 20px;
+            text: Store.account-error != "" ? Store.account-error : Store.confirm-help;
+            tone: Store.account-error != "" ? 2 : Store.confirm-tone;
+        }
+    }
+    VerticalLayout {
+        x: 664px;
+        y: 206px;
+        width: 552px;
+        alignment: start;
+        spacing: 8px;
+        FieldLabel {
+            text: "TIME ZONE";
+            aux: Store.tz-source;
+        }
+        Card {
+            height: 290px;
+            Image {
+                x: 22px;
+                y: 20px;
+                width: 508px;
+                height: 170px;
+                source: Store.mini-map;
+                image-fit: fill;
+            }
+            Text {
+                x: 22px;
+                y: 206px;
+                text: Store.tz-clock;
+                font-family: Theme.mono;
+                font-weight: 700;
+                font-size: 54px;
+                letter-spacing: -2px;
+                color: Theme.ink;
+            }
+            VerticalLayout {
+                x: 210px;
+                y: 210px;
+                width: 300px;
+                height: self.preferred-height;
+                spacing: 2px;
+                Text {
+                    text: Store.tz-city;
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: Theme.ink;
+                    overflow: elide;
+                }
+                Text {
+                    text: Store.tz-sub;
+                    font-size: 14px;
+                    color: Theme.fog;
+                    overflow: elide;
+                }
+            }
+            LinkButton {
+                x: parent.width - self.width - 22px;
+                y: 238px;
+                text: "Change";
+                clicked => { Store.open-sheet("timezone"); }
+            }
+            // The whole card opens the picker for a pointer; Change is the
+            // keyboard's way in.
+            PressArea {
+                mouse-cursor: pointer;
+                clicked => { Store.open-sheet("timezone"); }
+            }
+        }
+        Rectangle { height: 14px; }
+        FieldLabel {
+            text: "COMPUTER NAME";
+            aux: Store.host-edited ? "custom" : "follows your username";
+        }
+        host-field := Field {
+            label: "Computer name";
+            mono: true;
+            text <=> Store.hostname;
+            bad: Store.hostname-tone == 2;
+            edited(text) => {
+                let r = Store.filter-name(text, self.caret());
+                Store.hostname-edited(r.text, r.note);
+                if (r.text != text) {
+                    self.set-caret(r.caret);
+                    self.text = r.text;
+                    self.set-caret(r.caret);
+                }
+            }
+        }
+        Help {
+            height: 22px;
+            text: Store.hostname-help;
+            tone: Store.hostname-tone;
+        }
+    }
+    Footer {
+        note: Store.home-note;
+        back => { Store.navigate("disk"); }
+        Btn {
+            x: 1216px - self.width;
+            y: 18px;
+            kind: "primary";
+            text: "Continue";
+            icon: Icons.right;
+            icon-right: true;
+            enabled: Store.can-review;
+            clicked => { Store.continue-account(); }
+        }
+    }
+    init => {
+        if (Store.username == "") {
+            name-field.focus-input();
+        } else {
+            password-field.focus-input();
+        }
+    }
+}

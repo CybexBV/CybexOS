@@ -1,0 +1,158 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Store, Check } from "../store.slint";
+import { Icon, SlotIcon, Kicker, Btn, Mark, KeyFocus, PressArea } from "../widgets.slint";
+
+// ── shared pieces ────────────────────────────────────────────────────────────
+
+export component Footer inherits Rectangle {
+    in property <string> note;
+    in property <string> note-icon;
+    in property <bool> show-back: true;
+    callback back;
+    x: 0;
+    y: 712px;
+    width: 1280px;
+    height: 88px;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line;
+    }
+    if root.show-back: Btn {
+        x: 64px;
+        y: 18px;
+        text: "Back";
+        clicked => { root.back(); }
+    }
+    HorizontalLayout {
+        x: 190px;
+        y: 0;
+        height: parent.height;
+        width: 640px;
+        spacing: 8px;
+        alignment: start;
+        if root.note-icon != "": SlotIcon {
+            d: root.note-icon;
+            size: 16px;
+            tint: Theme.faint;
+        }
+        Text {
+            text: root.note;
+            color: Theme.faint;
+            font-size: 14px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    @children
+}
+
+// The welcome screen's language and keyboard: the current value, which opens
+// its sheet. `name` is the kicker in plain case, for screen readers.
+export component Pick inherits Rectangle {
+    in property <string> label;
+    in property <string> name;
+    in property <string> value;
+    callback clicked;
+    accessible-role: combobox;
+    accessible-label: root.name;
+    accessible-value: root.value;
+    accessible-enabled: Store.sheet == "";
+    accessible-action-default => { if (Store.sheet == "") { root.clicked(); } }
+    height: 64px;
+    border-radius: 14px;
+    background: Theme.card;
+    border-width: 1px;
+    border-color: touch.has-hover || focus.ring ? Theme.line-2 : Theme.line;
+    Kicker {
+        x: 18px;
+        text: root.label;
+        font-size: 11px;
+        color: Theme.faint;
+        vertical-alignment: center;
+        height: parent.height;
+    }
+    Text {
+        x: 128px;
+        text: root.value;
+        font-size: 18px;
+        color: Theme.ink;
+        vertical-alignment: center;
+        height: parent.height;
+    }
+    Icon {
+        x: parent.width - 36px;
+        d: Icons.right;
+        tint: Theme.faint;
+    }
+    // A border shade alone did not show keyboard focus (2026-11-24 review).
+    if focus.ring: Rectangle {
+        x: -3px;
+        y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: 17px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+    focus := KeyFocus {
+        enabled: Store.sheet == "";
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == " ") {
+                if (!event.repeat) { root.clicked(); }
+                return accept;
+            }
+            return reject;
+        }
+    }
+    touch := PressArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Values and details wrap rather than elide, so the whole check reads
+// without scrolling (the card grows to fit; see WelcomeScreen).
+export component CheckLine inherits Rectangle {
+    in property <Check> data;
+    in property <bool> first;
+    height: max(root.data.detail == "" ? 54px : 66px, check-copy.preferred-height + 24px);
+    if !root.first: Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line;
+    }
+    Mark {
+        x: 0;
+        state: root.data.state;
+        tick: Store.tick;
+    }
+    Text {
+        x: 38px;
+        width: 90px;
+        text: root.data.label;
+        color: Theme.fog;
+        font-size: 15px;
+        vertical-alignment: center;
+        height: parent.height;
+    }
+    check-copy := VerticalLayout {
+        x: 128px;
+        width: parent.width - 128px;
+        alignment: center;
+        spacing: 2px;
+        Text {
+            text: root.data.value;
+            color: root.data.state == 4 ? Theme.red : root.data.state == 3 ? Theme.amber : Theme.ink;
+            font-size: 15px;
+            wrap: word-wrap;
+        }
+        if root.data.detail != "": Text {
+            text: root.data.detail;
+            color: Theme.faint;
+            font-size: 13px;
+            wrap: word-wrap;
+        }
+    }
+}
