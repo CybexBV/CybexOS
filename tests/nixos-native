@@ -299,7 +299,7 @@ def release_delivery(base, revision):
         routes[parsed.hostname, parsed.path + ('?' + parsed.query if parsed.query else '')] = status, body
 
     with delivery(base) as routes:
-        route(routes, api + '/releases?per_page=100', 200, json.dumps(releases).encode())
+        route(routes, api + '/releases?per_page=30', 200, json.dumps(releases).encode())
         route(routes, api + '/commits/v1.0.0-beta.2', 200, revision.encode())
         fetcher = Fetcher(base / 'metadata-cache')
         def found():
@@ -315,7 +315,7 @@ def release_delivery(base, revision):
             ('noStableRelease', lambda: None, 'stable', '1.0.0-beta.1', 'no cybex os release'),
             ('aheadOfChannel', lambda: None, 'beta', '1.0.0', 'next beta release after 1.0.0'),
             ('inexactTag', lambda: route(routes, api + '/commits/v1.0.0-beta.2', 200, b'main'), 'beta', '1.0.0-beta.1', 'exact git commit'),
-            ('unavailableListing', lambda: route(routes, api + '/releases?per_page=100', 503, b'unavailable'), 'beta', '1.0.0-beta.1', 'unavailable'),
+            ('unavailableListing', lambda: route(routes, api + '/releases?per_page=30', 503, b'unavailable'), 'beta', '1.0.0-beta.1', 'unavailable'),
         ):
             setup()
             try:
