@@ -12,7 +12,7 @@ const helper = path.join(shellDir, "scripts/wallpaper-thumbnail.py");
 // A stand-in `magick` that records its argv and copies the first existing
 // file argument (the source) to the last argument (the output).
 function fakeMagick(t) {
-    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "qs-thumb-test-"));
+    const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "qs-thumb-test-")));
     t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
 
     const bin = path.join(temporary, "bin");

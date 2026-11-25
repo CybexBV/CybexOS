@@ -21,7 +21,7 @@ from pathlib import Path
 import re
 import signal
 import sys
-from typing import Callable
+from collections.abc import Callable
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit

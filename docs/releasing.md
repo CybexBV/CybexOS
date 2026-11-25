@@ -199,7 +199,7 @@ daily on a GitHub-hosted runner:
   runners lost api.snapcraft.io for days from 2026-11-11). A cached file
   enters the Nix store only through its pinned hash. The cache keeps one set,
   the newest.
-- **T3 Code, Intel LPMd and Omawrite** are reported, not updated: each needs a
+- **T3 Code and Omawrite** are reported, not updated: each needs a
   review beyond its checksum (a new T3 Code nightly needs a desktop run, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
@@ -337,8 +337,8 @@ constraints when updating them. Before publishing, `scripts/check-prebuilt`,
 `--nvidia` and `--catalogue` must report no build beyond the expected ones
 ([Prebuilt packages only](updates.md#prebuilt-packages-only)).
 T3 Code is an exact hashed upstream nightly AppImage wrapped with Nixpkgs;
-Nixpkgs' `t3code` is the 0.1.2 release. (Its bar widget is the
-`digitalpals.t3code` plugin now.) Replace that source recipe with the maintained Nixpkgs package after
+Nixpkgs already packages `t3code` (its bar widget is the
+`digitalpals.t3code` plugin now). Replace that source recipe with the maintained Nixpkgs package after
 product runtime qualification; its successful wrapper build is not desktop
 validation.
 ChatGPT is Nixpkgs' maintained `chatgpt` package, so it updates with the
@@ -383,10 +383,16 @@ a candidate outside that matrix fails staging until qualified.
 No durable Cybex OS binary cache is configured. Before advertising fast public
 updates, provision a public Nix cache (for example an object-store-backed Nix
 cache or Cachix), publish its independent Nix cache signing public key and
-substituter URL, and prebuild each release/architecture. Add cache trust through
-the shared module after reviewing that key. GitHub Actions artifacts and GitHub
-Release download archives are not a public Nix binary cache. Source builds remain
-possible. Redistribution/license review remains required for the actual payload.
+substituter URL, and prebuild each release/architecture. `packages.<system>.cache-closure`
+is a curated set of Cybex OS's own free local builds (including Voxtype,
+Omasnap, Omawrite, `mdview`, titlebars, desktop, updater and installer,
+leaving out unfree vendor downloads) so a cache upload is a single
+`nix build .#cache-closure` and `nix copy --to <cache-url> .#cache-closure`.
+Add cache trust through the shared module after reviewing that key. GitHub
+Actions artifacts and GitHub Release download archives are not a public Nix
+binary cache. Source builds remain possible. Because `cache-closure` is
+curated and does not inspect transitive dependency licenses, redistribution
+and license review remains required for the full uploaded closure.
 
 Physical/security qualification should include mandatory access control and
 firewall evidence. Record enforced profile/process coverage, negative access

@@ -10,7 +10,7 @@ import "../Common"
 Rectangle {
     id: root
 
-    default property alias content: content.data
+    default property alias content: contentRow.data
 
     // ---- panel wiring -----------------------------------------------------
     // Setting panelName makes this the bar's anchor for that popout and drives
@@ -94,7 +94,7 @@ Rectangle {
     readonly property real hitSlack: Theme.barSpacing / 2
     readonly property real hitMinWidth: Theme.scaled(32)
 
-    readonly property real naturalWidth: content.implicitWidth + leftPadding + rightPadding
+    readonly property real naturalWidth: contentRow.implicitWidth + leftPadding + rightPadding
     // What the minimum adds, split either side so narrow content stays
     // centred, in whole pixels so a mark does not land between them.
     readonly property real minimumInset: Math.ceil(Math.max(0, hitMinWidth - hitSlack * 2 - naturalWidth) / 2)
@@ -143,7 +143,7 @@ Rectangle {
     }
 
     Row {
-        id: content
+        id: contentRow
         z: root.contentTakesInput ? 1 : 0
         anchors.verticalCenter: parent.verticalCenter
         x: root.leftPadding + root.minimumInset

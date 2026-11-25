@@ -18,7 +18,7 @@ import os
 import pwd
 import shutil
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 import socket
 import subprocess
@@ -156,8 +156,6 @@ SSH = r'''#!/bin/sh
 printf '%s\n' "ssh $*" >> "$STUB_LOG"
 printf 'user tester\nhostname 127.0.0.1\nport %s\nproxyjump none\n' "$STUB_SSH_PORT"
 '''
-
-UTC = timezone.utc
 
 
 class Fixture(unittest.TestCase):

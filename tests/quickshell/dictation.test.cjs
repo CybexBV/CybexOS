@@ -134,15 +134,23 @@ test("the seeded Voxtype configuration streams, detects silence and keeps the mo
     assert.match(desktop, /ExecStart = "\$\{cfg\.dictationPackage\}\/bin\/voxtype daemon"/,
         "a command-line --on-demand-loading would override live text");
     const options = fs.readFileSync(path.join(repo, "nix/modules/default.nix"), "utf8");
-    assert.match(options, /patches = \(old\.patches or \[ \]\) \+\+ \[ \.\.\/packages\/voxtype-dictation\.patch \]/);
+    const voxtypePatches = [
+        "01-comma-separated-languages.patch",
+        "02-parakeet-sliding-window.patch",
+        "03-sliding-window-backlog-and-whole-transcript.patch",
+        "04-daemon-live-preview-and-recordings.patch",
+    ];
+    for (const name of voxtypePatches)
+        assert.match(options, new RegExp(`\\.\\./patches/voxtype/${name.replace(/\./g, "\\.")}`), name);
     // ONNX Runtime from Nixpkgs runs Parakeet, which the patch streams.
     assert.match(options, /pkgs\.voxtype\.override \{ vulkanSupport = true; onnxSupport = true; \}/);
     // Nixpkgs' Rust builds link onig_sys and libsqlite3-sys to system
     // libraries; this build (unlike NixOS's cached one) compiles both.
     assert.match(options, /buildInputs = \(old\.buildInputs or \[ \]\) \+\+ \[ pkgs\.oniguruma pkgs\.sqlite \]/);
-    const patch = fs.readFileSync(path.join(repo, "nix/packages/voxtype-dictation.patch"), "utf8");
-    assert.match(patch, /\+fn parakeet_streams_by_window\(model: &str\) -> bool \{/);
-    assert.match(patch, /\+fn write_recording\(transcript: &std::path::Path, samples: &\[f32\], sample_rate: u32\) \{/);
+    const parakeetPatch = fs.readFileSync(path.join(repo, "nix/patches/voxtype/02-parakeet-sliding-window.patch"), "utf8");
+    assert.match(parakeetPatch, /\+fn parakeet_streams_by_window\(model: &str\) -> bool \{/);
+    const daemonPatch = fs.readFileSync(path.join(repo, "nix/patches/voxtype/04-daemon-live-preview-and-recordings.patch"), "utf8");
+    assert.match(daemonPatch, /\+fn write_recording\(transcript: &std::path::Path, samples: &\[f32\], sample_rate: u32\) \{/);
     // whisper.cpp's vector instructions, off in every Nix build unless asked
     // for, and a unit that does not start on a processor without them.
     for (const flag of ["GGML_SSE42", "GGML_AVX", "GGML_AVX2", "GGML_FMA", "GGML_F16C", "GGML_BMI2"])

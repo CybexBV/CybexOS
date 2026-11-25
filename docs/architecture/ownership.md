@@ -33,6 +33,10 @@ vendor `mkDefault` values. The primary user's shell uses priority 900 because
 NixOS also supplies it with `mkDefault`; a normal administrator definition wins.
 Use `mkForce` deliberately, not to hide conflicts.
 
-No updater changes `system.stateVersion`. Routine updates advance the rolling
-nixos-unstable branch, including when its NixOS version number moves on; a
-change to another Nixpkgs branch requires explicit edits and fresh qualification.
+No updater changes `system.stateVersion`. Each Cybex OS release pins one
+Nixpkgs revision in its `flake.lock`, and routine updates move the machine's
+Nixpkgs only to that release's revision (never to the channel head and never
+backwards; see [docs/updates.md](../updates.md#nixpkgs-comes-with-the-release)).
+When a release moves to the next stable NixOS branch, the updater rewrites the
+machine flake's literal `nixpkgs.url` alongside its lock as part of that
+qualified update.

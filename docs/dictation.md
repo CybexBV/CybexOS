@@ -147,7 +147,7 @@ The shell starts each dictation as `voxtype record start --file=PATH` with
 `PATH` in `$XDG_RUNTIME_DIR/cybexos-dictation/`. Voxtype streams it through
 its sliding-window engine, re-reading the recording as it grows; nothing is
 typed while you speak. Cybex OS patches Voxtype
-(`nix/packages/voxtype-dictation.patch`) to:
+(`nix/patches/voxtype/`) to:
 
 - write the running text (committed words plus the current guess) to
   `PATH.live`, which the pill shows;

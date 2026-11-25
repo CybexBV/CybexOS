@@ -1,0 +1,185 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Store, SummaryRow } from "../store.slint";
+import { Icon, Btn, LinkButton } from "../widgets.slint";
+import { ListArea } from "../sheets.slint";
+import { Footer } from "shared.slint";
+
+// ── review ───────────────────────────────────────────────────────────────────
+
+component SummaryLine inherits Rectangle {
+    in property <SummaryRow> data;
+    height: 66px;
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line;
+    }
+    Text {
+        x: 0;
+        width: 140px;
+        text: root.data.label;
+        color: Theme.fog;
+        font-size: 15px;
+        vertical-alignment: center;
+        height: parent.height;
+    }
+    VerticalLayout {
+        x: 150px;
+        width: parent.width - 150px - 90px;
+        alignment: center;
+        spacing: 2px;
+        Text {
+            text: root.data.value;
+            font-family: root.data.mono ? Theme.mono : Theme.sans;
+            font-size: 16px;
+            color: root.data.warn ? Theme.amber : Theme.ink;
+            overflow: elide;
+        }
+        if root.data.detail != "": Text {
+            text: root.data.detail;
+            font-size: 13px;
+            color: Theme.faint;
+            overflow: elide;
+        }
+    }
+    if root.data.action != "": LinkButton {
+        x: parent.width - self.width;
+        text: root.data.action-label;
+        vertical-alignment: center;
+        height: parent.height;
+        clicked => { Store.change(root.data.action); }
+    }
+}
+
+export component ReviewScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    keys := FocusScope {
+        enabled: Store.sheet == "";
+        focus-on-tab-navigation: false;
+        key-pressed(event) => {
+            // Enter never erases: the button must be chosen explicitly.
+            if (event.text == Key.Escape && Store.sheet == "") {
+                Store.back-to-software();
+                return accept;
+            }
+            return reject;
+        }
+        Text {
+            x: 64px;
+            y: 100px;
+            text: "Ready when you are.";
+            font-size: 40px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            color: Theme.ink;
+        }
+        Rectangle {
+            x: 64px;
+            y: 166px;
+            width: 1152px;
+            height: 88px;
+            border-radius: 18px;
+            background: Theme.red-tint;
+            border-width: 1px;
+            border-color: Theme.red-line;
+            Rectangle {
+                x: 24px;
+                width: 48px;
+                height: 48px;
+                border-radius: 24px;
+                background: #ff6b5726;
+                Icon {
+                    d: Icons.alert;
+                    tint: Theme.red;
+                    size: 24px;
+                }
+            }
+            VerticalLayout {
+                x: 92px;
+                width: parent.width - 116px;
+                alignment: center;
+                spacing: 3px;
+                Text {
+                    text: Store.erase-title;
+                    font-size: 21px;
+                    font-weight: 700;
+                    color: Theme.ink;
+                    overflow: elide;
+                }
+                Text {
+                    text: Store.erase-detail;
+                    font-size: 15px;
+                    color: Theme.fog;
+                    overflow: elide;
+                }
+            }
+        }
+        // ListArea centres its list 10 px narrower than itself and keeps its
+        // scroll bar in the last 12 px. Its list spans x 64 to 1216 here, the
+        // width of the erase banner, with the scroll bar outside in the margin.
+        ListArea {
+            x: 59px;
+            y: 270px;
+            width: 1170px;
+            height: 360px;
+            content-height: review-body.preferred-height;
+            // Full width of the list, never of the ListArea: wider rows were
+            // centred and lost their first and last pixels to its clip.
+            review-body := VerticalLayout {
+                x: 0;
+                width: 1152px;
+                spacing: 12px;
+                alignment: start;
+                Text {
+                    text: "Hardware: " + Store.hardware-identity;
+                    font-size: 16px;
+                    color: Theme.ink;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: Store.hardware-detail;
+                    font-size: 14px;
+                    color: Theme.fog;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 40px;
+                    VerticalLayout {
+                        alignment: start;
+                        for row in Store.summary-left: SummaryLine { data: row; }
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        for row in Store.summary-right: SummaryLine { data: row; }
+                    }
+                }
+            }
+        }
+        if Store.review-error != "": Text {
+            x: 64px;
+            y: 640px;
+            width: 1152px;
+            text: Store.review-error;
+            color: Theme.red;
+            font-size: 14px;
+            wrap: word-wrap;
+        }
+        Footer {
+            note: Store.review-busy ? "Updating the review…" : "The disk's identity is checked again just before it is erased.";
+            note-icon: Icons.shield;
+            back => { Store.back-to-software(); }
+            Btn {
+                x: 1216px - self.width;
+                y: 18px;
+                kind: "danger";
+                icon: Icons.alert;
+                text: Store.erase-button;
+                enabled: !Store.review-busy;
+                clicked => { Store.install(); }
+            }
+        }
+    }
+    init => { keys.focus(); }
+}

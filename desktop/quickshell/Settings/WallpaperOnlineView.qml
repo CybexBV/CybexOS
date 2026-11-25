@@ -127,7 +127,7 @@ Item {
         anchors.topMargin: 10
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: footer.top
+        anchors.bottom: footerColumn.top
         online: true
         items: OnlineWallpapers.results
         selectedKey: OnlineWallpapers.selected ? OnlineWallpapers.selected.id : ""
@@ -146,7 +146,7 @@ Item {
         }
     }
     Column {
-        id: footer
+        id: footerColumn
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom

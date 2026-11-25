@@ -4,7 +4,7 @@ stdenvNoCC.mkDerivation {
   version = "1";
   src = lib.cleanSourceWith {
     src = lib.cleanSource ../../desktop/assistant;
-    filter = path: type: baseNameOf path != "__pycache__";
+    filter = path: _type: baseNameOf path != "__pycache__";
   };
   nativeBuildInputs = [ makeWrapper ];
   dontBuild = true;

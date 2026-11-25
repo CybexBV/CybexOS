@@ -392,7 +392,10 @@ the shortcut and the service; nothing in `shell.json` is lost.
   the next login when conversations are kept only for the session
   ([Updates](updates.md#desktop-services-during-activation)). Only the
   standard library is used.
-  - `server.py` — the socket and the session state.
+  - `server.py` — the socket, session state and turn lifecycle.
+  - `transport.py` — client framing, lanes and attachment/screenshot checks.
+  - `conversations.py` — conversation history, undoable change log, speech and routine RPC handlers.
+  - `desktop_tools.py` — desktop tool execution (settings, wallpapers, windows, Flathub apps, doctor, routines).
   - `auth.py` — bounded, output-discarding `claude auth status` and
     `codex login status` checks. No prompt or model request checks sign-in.
     Login runs `claude auth login` or `codex login` in the background, with

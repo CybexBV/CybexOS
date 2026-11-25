@@ -106,7 +106,7 @@ class CodexAgent:
         try:
             await self._send({"id": identifier, "method": method, "params": params})
             return await asyncio.wait_for(future, timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise CodexError(f"Codex did not answer {method}") from None
         finally:
             self.pending.pop(identifier, None)
@@ -206,7 +206,7 @@ class CodexAgent:
                                    timeout=STOP_GRACE)
         try:
             await asyncio.wait_for(asyncio.shield(result), STOP_GRACE)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await self.close()
             self._settle("stopped")
 

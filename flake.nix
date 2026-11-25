@@ -52,6 +52,33 @@
         claude-code = pkgs.callPackage ./nix/packages/claude-code {};
         titlebars = pkgs.callPackage ./nix/packages/titlebars.nix {};
         omasnap = pkgs.callPackage ./nix/packages/omasnap.nix {};
+        omawrite = pkgs.callPackage ./nix/packages/omawrite.nix {};
+        # Curated set of Cybex OS's own free local builds for publishing to a
+        # binary cache (docs/releasing.md). Asserts no item declares an unfree
+        # or non-redistributable license and none appears in prebuilt.nix's
+        # unfree vendor download set (full transitive audit still belongs to
+        # cache publishing).
+        cache-closure = let
+          vendorDrvs = installerPayload.config.system.build.cybexosVendorBuilds;
+          isFree = pkg:
+            nixpkgs.lib.all (l: (l.free or true) && (l.redistributable or true))
+              (nixpkgs.lib.toList (pkg.meta.license or [ ]))
+            && !(nixpkgs.lib.elem (builtins.unsafeDiscardStringContext pkg.drvPath) vendorDrvs);
+          items = [
+            desktop desktop.images updater installer-ui installer-ui.passthru.screen
+            plymouth symbols-font titlebars omasnap omawrite
+            (pkgs.callPackage ./nix/packages/mdview.nix {})
+            (pkgs.callPackage ./nix/packages/assistant.nix {})
+            (pkgs.callPackage ./nix/packages/encryption-check.nix { source = self; })
+            (pkgs.callPackage ./nix/packages/lid-guard.nix {})
+            (pkgs.callPackage ./nix/packages/networkmanager-libreswan.nix {})
+            (pkgs.callPackage ./nix/packages/fonts.nix {})
+            (pkgs.callPackage ./nix/packages/space-grotesk.nix {})
+            installerPayload.config.cybexos.dictationPackage
+            installerPayload.config.cybexos.bootTheme
+          ];
+        in assert nixpkgs.lib.all isFree items;
+          pkgs.linkFarmFromDrvs "cybexos-cache-closure" items;
         iso = self.nixosConfigurations.installer.config.system.build.isoImage;
         default = desktop;
       });
@@ -134,8 +161,9 @@
         hyprland-pointer = import ./nix/tests/hyprland-pointer.nix { inherit pkgs module; };
         # Print, Shift+Print and Alt+Print through Omasnap in a real Hyprland session.
         screenshots = import ./nix/tests/screenshots.nix { inherit pkgs module; };
-        # Omasnap's own headless suite, which machines skip when they build it.
+        # Omasnap's and Omawrite's own headless suites, which machines skip when they build them.
         omasnap = (pkgs.callPackage ./nix/packages/omasnap.nix {}).tests.smoke;
+        omawrite = (pkgs.callPackage ./nix/packages/omawrite.nix {}).tests.suite;
         # Voxtype's test suite, with Cybex OS's dictation patch, which machines
         # skip when they build it too.
         voxtype = (nixpkgs.lib.nixosSystem {
@@ -172,8 +200,8 @@
       devShells = each (system: let pkgs = nixpkgs.legacyPackages.${system}; in {
         default = pkgs.mkShell {
           packages = with pkgs; [ openssl nixfmt git nodejs quickshell matugen grim wtype imagemagick qt6.qtdeclarative restic systemd
-            qt6.qttools cmake ninja pkg-config qt6.qtbase sway qemu OVMF dbus util-linux lua5_5 jq procps hyprland xorriso mtools squashfsTools xdg-terminal-exec desktop-file-utils hostapd dnsmasq iw
-            ruff shellcheck actionlint
+            qt6.qttools cmake ninja pkg-config qt6.qtbase sway qemu OVMF dbus util-linux lua5_5 luajit fish jq procps hyprland xorriso mtools squashfsTools xdg-terminal-exec desktop-file-utils hostapd dnsmasq iw
+            ruff shellcheck actionlint deadnix
             # tests/nixos/test_boot.py checks grubenv and the boot menu with GRUB's own tools.
             grub2_efi
             (python3.withPackages (p: [ p.pexpect p.pillow p.pygobject3 p.dbus-python p.websockets p.pyside6 ])) ];

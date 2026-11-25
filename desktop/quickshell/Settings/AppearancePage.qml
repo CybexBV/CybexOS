@@ -191,7 +191,7 @@ SettingsPage {
                 // narrow row needs no control line under its label.
                 narrowHeight: Theme.panelRowHeight
             }
-            Revealer {
+            Common.Revealer {
                 id: saveThemeReveal
                 width: parent.width
                 reveal: page.savingTheme
@@ -339,7 +339,7 @@ SettingsPage {
             // Fixed: the presets and a hue for anything between them. The
             // rows sit directly under Accent source, with no heading of
             // their own, as the options it revealed.
-            Revealer {
+            Common.Revealer {
                 id: fixedColorReveal
                 width: parent.width
                 reveal: page.fixedPalette
@@ -467,7 +467,7 @@ SettingsPage {
             // Wallpaper: the generated palette, read-only, where the presets
             // were. Its status line says what it was made from, or why it
             // fell back.
-            Revealer {
+            Common.Revealer {
                 id: wallpaperPaletteReveal
                 width: parent.width
                 reveal: !page.fixedPalette
@@ -531,7 +531,7 @@ SettingsPage {
 
             // A theme installed or removed by hand appears the next time the
             // page opens.
-            Claim {
+            Common.Claim {
                 active: page.visible && Settings.panelOpen
                 onClaimed: Pointer.refresh()
             }
@@ -647,7 +647,7 @@ SettingsPage {
                 model: [{ value: "accent", label: I18n.tr("Accent") }, { value: "subtle", label: I18n.tr("Subtle") },
                     { value: "custom", label: I18n.tr("Custom") }]
             }
-            Revealer {
+            Common.Revealer {
                 id: borderColorReveal
                 width: parent.width
                 reveal: Settings.surfaceBorderMode === "custom"

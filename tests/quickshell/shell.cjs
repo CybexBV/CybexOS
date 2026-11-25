@@ -9,10 +9,12 @@ const { execFileSync } = require("node:child_process");
 const executable = name => execFileSync("sh", ["-c", "command -v " + name], { encoding: "utf8" }).trim();
 
 const shellDir = path.resolve(__dirname, "../../desktop/quickshell");
+const loadQmlJs = require(path.join(shellDir, "scripts/load-qml-js.cjs"));
+const loaded = {};
 
-// require() a pure-JS helper out of Common/ by name.
+// Load a pure-JS helper out of Common/ by name, supporting QML .pragma and .import directives.
 function load(name) {
-    return require(path.join(shellDir, "Common", name));
+    return loadQmlJs(path.join(shellDir, "Common", name), loaded);
 }
 
 // Directories vendored from upstream projects (see each README for reviewed

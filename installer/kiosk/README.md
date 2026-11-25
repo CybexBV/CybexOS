@@ -19,13 +19,13 @@ libseat backend through logind rather than direct device access as root.
 | Path | Role |
 |---|---|
 | `ui/app.slint` | window, 1280×800 canvas, top bar, screen and sheet routing |
-| `ui/screens.slint` | welcome and system check, disk, account, software, review, installing, done, stop and failure screens |
+| `ui/screens.slint`, `ui/screens/` | welcome and system check, disk, account, software, review, installing, done, stop and failure screens |
 | `ui/sheets.slint` | Wi-Fi, keyboard, language, menu, log and USB save, Customize apps, NVIDIA driver, time zone picker |
 | `ui/store.slint` | the `Store` global: every property the screens show and every request they make |
 | `ui/widgets.slint`, `ui/theme.slint` | controls and brand tokens; `KeyFocus` and `PressArea` keep focus rings to keyboard use |
 | `ui/wiz.slint`, `src/wiz.rs` | Wiz, the assistant's character, on the welcome, software, installing, done, stop and failure screens; `src/wiz.rs` draws his pictures (`assets/wiz`) once per size |
 | `ui/icons.slint` | generated Tabler icon paths, and `Icons.tabler(name)` for names that arrive as data; the names are in `assets/tabler/icons.json` |
-| `src/ui.rs` | daemon snapshots → `Store`, requests → daemon |
+| `src/ui/` | daemon snapshots → `Store`, time zone picker, callbacks, requests → daemon |
 | `src/names.rs` | the username and computer-name filter (`[a-z][a-z0-9-]{0,30}`) |
 | `src/software.rs` | the Software step's wording: card tiles and tags, the footer note, the review summary |
 | `src/zones.rs` | time zone search, live local time and the next clock change from TZif data |

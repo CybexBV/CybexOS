@@ -29,7 +29,7 @@ Applying a theme is one settings change: settings_patch() maps it to the
 shell.json keys that Settings → Appearance (Common/Themes.qml) and
 `cybex theme apply` set together. That mapping exists only here.
 """
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import importlib.machinery
 import importlib.util
 import io
@@ -890,7 +890,7 @@ def install(source, replace=False, root=None, builtin=None, _allow_file_urls=Fal
         for name, data in files.items():
             (candidate / name).write_bytes(data)
             (candidate / name).chmod(0o644)
-        origin['installed'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        origin['installed'] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
         (candidate / SOURCE_FILE).write_text(json.dumps(origin, indent=2) + '\n')
         destination = root / theme['id']
         if destination.exists() or destination.is_symlink():
@@ -951,7 +951,7 @@ def save(settings, name, root=None, builtin=None):
         (candidate / THEME_FILE).write_text(canonical(theme), encoding='utf-8')
         (candidate / SOURCE_FILE).write_text(json.dumps({
             'type': 'saved', 'source': '',
-            'installed': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}, indent=2) + '\n')
+            'installed': datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}, indent=2) + '\n')
         candidate.rename(root / theme['id'])
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -991,7 +991,7 @@ def export(theme, destination, wallpaper=None):
                 for name, data in sorted(files.items()):
                     info = tarfile.TarInfo(f'{theme["id"]}/{name}')
                     info.size, info.mode = len(data), 0o644
-                    info.mtime = int(datetime.now(timezone.utc).timestamp())
+                    info.mtime = int(datetime.now(UTC).timestamp())
                     archive.addfile(info, io.BytesIO(data))
             os.chmod(temporary, 0o644)
             os.link(temporary, destination)

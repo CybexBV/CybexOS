@@ -9,7 +9,7 @@ let
   # Quirks measured on one exact SKU and panel EDID (docs/hardware-compatibility.md).
   xpsPsrOff = xps.sku == "0DB9" && xps.panel == "30e4c607";
   camera = pkgs.callPackage ../packages/ipu7.nix { inherit (config.boot.kernelPackages) kernel kernelModuleMakeFlags; };
-  lpmd = pkgs.callPackage ../packages/intel-lpmd.nix {};
+  lpmd = pkgs.intel-lpmd;
   micmuteLed = pkgs.writeShellApplication {
     name = "cybexos-micmute-led";
     runtimeInputs = with pkgs; [ coreutils gawk pulseaudio systemd ];
@@ -202,14 +202,16 @@ in {
       };
     };
   }) (lib.mkIf (xps.enable && xps.lowPower && xps.sku != "0E53") {
-    # The pinned LPMd carries Intel's Panther Lake policy only; Wildcat Lake
-    # (the XPS 13's 0E53) has a policy in later LPMd releases.
+    # LPMd now comes prebuilt from Nixpkgs (`pkgs.intel-lpmd`), which ships
+    # both Panther Lake and Wildcat Lake XML policies. Keep the XPS 13 (0E53)
+    # excluded until that laptop and the Nixpkgs LPMd build are physically
+    # qualified (docs/hardware-security.md).
     # LPMd follows the PowerProfiles D-Bus API (PPD here, TuneD's bridge
     # before). PPD alone owns EPP/EPB and platform profiles. Upstream's Panther
     # Lake policy keeps LP-mode CPU restriction off in all three profiles and
     # sets the SoC power slider for AC/battery. Neither daemon replaces the other.
     environment.systemPackages = [ lpmd ];
-    environment.etc."intel_lpmd".source = "${lpmd}/etc/intel_lpmd";
+    environment.etc."intel_lpmd".source = "${lpmd}/share/intel-lpmd";
     users.groups.power = {};
     services.dbus.packages = [ lpmd ];
     # Keep upstream's unit: its virtualization condition, unsupported-platform

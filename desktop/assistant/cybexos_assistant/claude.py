@@ -172,7 +172,7 @@ class ClaudeAgent:
                               "request": {"subtype": "interrupt"}})
         try:
             await asyncio.wait_for(asyncio.shield(result), STOP_GRACE)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # The session is on disk; the next question resumes it.
             await self.close()
             self._settle("stopped")

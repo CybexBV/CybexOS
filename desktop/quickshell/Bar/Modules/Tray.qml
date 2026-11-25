@@ -190,7 +190,10 @@ BarModule {
 
                             QsMenuAnchor {
                                 id: itemMenu
+                                // DBusMenuHandle derives from QsMenuHandle in Quickshell's C++ layer without qmltypes inheritance.
+                                // qmllint disable incompatible-type
                                 menu: trayItem.modelData.menu
+                                // qmllint enable incompatible-type
                                 anchor.item: trayItem
                                 anchor.rect.y: trayItem.height + 8
                             }

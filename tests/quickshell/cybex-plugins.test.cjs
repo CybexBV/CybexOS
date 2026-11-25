@@ -110,7 +110,7 @@ test("Install gives a plugin that needs it a wider bar slot", () => {
 });
 
 test("each plugin names the built-in widget whose options it imports", () => {
-    const S = require(path.join(shellDir, "Common/SettingsHelpers.js"));
+    const S = load("SettingsHelpers.js");
     assert.deepEqual(P.PLUGINS.map(item => item.widget).sort(), [...S.PLUGIN_WIDGET_IDS].sort());
 });
 

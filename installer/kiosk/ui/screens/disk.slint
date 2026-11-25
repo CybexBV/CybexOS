@@ -1,0 +1,329 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Store, DiskRow } from "../store.slint";
+import { Icon, SlotIcon, Lead, Btn, LinkButton, Card, Toggle, Row, Tag, KeyFocus, PressArea } from "../widgets.slint";
+import { Footer } from "shared.slint";
+
+// ── disk ─────────────────────────────────────────────────────────────────────
+
+// One disk, a radio button: exactly one is chosen. Screen readers hear its
+// name and size, whether it is chosen, and the line under its name.
+component DiskCard inherits Rectangle {
+    in property <DiskRow> data;
+    callback clicked;
+    property <bool> active: root.data.available && Store.sheet == "";
+    accessible-role: radio-button;
+    accessible-label: root.data.model + ", " + root.data.size;
+    accessible-description: root.data.path + " · " + (root.data.available ? root.data.bus + " · " + root.data.contents : root.data.reason);
+    accessible-checkable: true;
+    accessible-checked: root.data.selected;
+    accessible-enabled: root.active;
+    accessible-action-default => { if (root.active) { root.clicked(); } }
+    height: 96px;
+    border-radius: 18px;
+    background: Theme.card;
+    border-width: 1.5px;
+    border-color: root.data.selected ? Theme.accent : touch.has-hover && root.data.available ? Theme.line-2 : Theme.line;
+    opacity: root.data.available ? 1 : 0.55;
+    if root.data.selected: Rectangle {
+        x: -4px;
+        y: -4px;
+        width: parent.width + 8px;
+        height: parent.height + 8px;
+        border-radius: 22px;
+        border-width: 3px;
+        border-color: #60a5fa1a;
+    }
+    Rectangle {
+        x: 22px;
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: Theme.bg-deep;
+        Icon {
+            d: root.data.removable ? Icons.usb : Icons.disk;
+            size: 26px;
+        }
+    }
+    VerticalLayout {
+        x: 92px;
+        width: parent.width - 92px - 200px;
+        alignment: center;
+        spacing: 6px;
+        Text {
+            text: root.data.model;
+            font-size: 19px;
+            font-weight: 700;
+            color: Theme.ink;
+            overflow: elide;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            Tag { text: root.data.path; }
+            Text {
+                text: root.data.available ? root.data.bus + " · " + root.data.contents : root.data.reason;
+                color: root.data.available ? Theme.fog : Theme.amber;
+                font-size: 14px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        if Store.show-all-disks: Text {
+            text: "serial " + root.data.serial;
+            font-family: Theme.mono;
+            font-size: 12px;
+            color: Theme.faint;
+            overflow: elide;
+        }
+    }
+    Text {
+        x: parent.width - 210px;
+        width: 150px;
+        text: root.data.size;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        height: parent.height;
+        color: Theme.ink;
+    }
+    Rectangle {
+        x: parent.width - 46px;
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        border-width: root.data.selected ? 0px : 1.5px;
+        border-color: Theme.line-2;
+        background: root.data.selected ? Theme.accent : transparent;
+        if root.data.selected: Icon {
+            d: Icons.check;
+            tint: Theme.accent-ink;
+            size: 14px;
+        }
+    }
+    if disk-focus.ring: Rectangle {
+        x: -3px; y: -3px;
+        width: parent.width + 6px; height: parent.height + 6px;
+        border-radius: 21px;
+        border-width: 2px; border-color: Theme.accent;
+    }
+    disk-focus := KeyFocus {
+        enabled: root.active;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == " ") {
+                if (!event.repeat) { root.clicked(); }
+                return accept;
+            }
+            return reject;
+        }
+    }
+    touch := PressArea {
+        enabled: root.active;
+        mouse-cursor: pointer;
+        clicked => { disk-focus.focus(); root.clicked(); }
+    }
+}
+
+export component DiskScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    keys := FocusScope {
+        enabled: Store.sheet == "";
+        focus-on-tab-navigation: false;
+        key-pressed(event) => {
+            if (Store.sheet != "") { return reject; }
+            if (!event.repeat && event.text == Key.Return && Store.disk-chosen) {
+                Store.navigate("account");
+                return accept;
+            }
+            if (event.text == Key.Escape) {
+                Store.navigate("welcome");
+                return accept;
+            }
+            if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
+                Store.choose-disk(event.text == Key.DownArrow ? "+next" : "+previous");
+                return accept;
+            }
+            return reject;
+        }
+        Text {
+            x: 64px;
+            y: 100px;
+            text: "Where should Cybex OS live?";
+            font-size: 40px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            color: Theme.ink;
+        }
+        Lead {
+            x: 64px;
+            y: 156px;
+            width: 700px;
+            text: "Cybex OS uses the whole disk. You'll review everything before anything is erased.";
+        }
+        VerticalLayout {
+            x: 64px;
+            y: 214px;
+            width: 740px;
+            spacing: 12px;
+            alignment: start;
+            for disk in Store.disks: DiskCard {
+                data: disk;
+                clicked => { Store.choose-disk(disk.path); }
+            }
+            if Store.disks.length == 0: Text {
+                text: "No installation disk was found. Connect a writable disk of at least " + Store.minimum-gib + " GiB, then refresh.";
+                color: Theme.amber;
+                font-size: 16px;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                spacing: 18px;
+                alignment: start;
+                height: 34px;
+                more := Row {
+                    row-height: 34px;
+                    accessible-label: more-text.text;
+                    accessible-expandable: true;
+                    accessible-expanded: Store.show-all-disks;
+                    clicked => { Store.toggle-all-disks(); }
+                    width: more-row.preferred-width;
+                    more-row := HorizontalLayout {
+                        spacing: 6px;
+                        SlotIcon {
+                            d: Store.show-all-disks ? "M 5 9 L 12 16 L 19 9" : Icons.right;
+                            size: 16px;
+                        }
+                        more-text := Text {
+                            text: Store.show-all-disks ? "Fewer details" : Store.hidden-disks > 0 ? "More options · serial numbers and " + (Store.hidden-disks == 1 ? "1 disk" : Store.hidden-disks + " disks") + " that can't be used" : "More options · serial numbers";
+                            color: Theme.fog;
+                            font-size: 15px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                if Store.show-all-disks: LinkButton {
+                    text: "Refresh disks";
+                    vertical-alignment: center;
+                    clicked => { Store.rescan(); }
+                }
+            }
+            if Store.disk-error != "": Text {
+                text: Store.disk-error;
+                color: Theme.red;
+                font-size: 14px;
+                wrap: word-wrap;
+            }
+        }
+        Card {
+            x: 840px;
+            y: 214px;
+            width: 376px;
+            height: options.preferred-height;
+            options := VerticalLayout {
+                alignment: start;
+                Rectangle {
+                    height: enc-text.preferred-height + 40px;
+                    SlotIcon {
+                        x: 22px;
+                        d: Icons.lock;
+                        size: 22px;
+                    }
+                    enc-text := VerticalLayout {
+                        x: 60px;
+                        width: parent.width - 60px - 84px;
+                        alignment: center;
+                        spacing: 4px;
+                        Text {
+                            text: "Encrypt the disk";
+                            font-size: 17px;
+                            font-weight: 700;
+                            color: Theme.ink;
+                        }
+                        Text {
+                            text: Store.encrypted ? "Recommended. Your password unlocks Cybex OS at startup. Without encryption, anyone holding the disk can read your files." : "Off: anyone holding this disk can read your files. Your password is still required to sign in.";
+                            font-size: 14px;
+                            color: Store.encrypted ? Theme.fog : Theme.amber;
+                            wrap: word-wrap;
+                        }
+                    }
+                    Toggle {
+                        x: parent.width - 70px;
+                        label: "Encrypt the disk";
+                        on: Store.encrypted;
+                        toggled => { Store.toggle-encrypted(); }
+                    }
+                }
+                Rectangle {
+                    height: 1px;
+                    background: Theme.line;
+                }
+                Rectangle {
+                    height: layout-text.preferred-height + 36px;
+                    SlotIcon {
+                        x: 22px;
+                        d: Icons.disk;
+                        size: 22px;
+                    }
+                    layout-text := VerticalLayout {
+                        x: 60px;
+                        width: parent.width - 80px;
+                        alignment: center;
+                        spacing: 4px;
+                        Text {
+                            text: "Layout";
+                            font-size: 17px;
+                            font-weight: 700;
+                            color: Theme.ink;
+                        }
+                        // Plain words first; the partition table follows in
+                        // smaller mono for those who want it (2026-11-24 review).
+                        Text {
+                            text: Store.encrypted ? "Encrypted whole-disk install" : "Whole-disk install, not encrypted";
+                            font-size: 15px;
+                            color: Theme.ink;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "A " + Store.esp-gib + " GiB startup partition, then the rest of the disk" + (Store.encrypted ? ", encrypted." : ".");
+                            font-size: 14px;
+                            color: Theme.fog;
+                            wrap: word-wrap;
+                        }
+                        Rectangle { height: 2px; }
+                        Text {
+                            text: "GPT · " + Store.esp-gib + " GiB EFI system (FAT32)\nrest: ext4" + (Store.encrypted ? " inside LUKS2" : "");
+                            font-family: Theme.mono;
+                            font-size: 12px;
+                            color: Theme.faint;
+                        }
+                        Text {
+                            text: "Set by the release. Minimum disk " + Store.minimum-gib + " GiB.";
+                            font-size: 13px;
+                            color: Theme.faint;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+        }
+        Footer {
+            note: "Nothing is erased until you confirm on the review page.";
+            note-icon: Icons.shield;
+            back => { Store.navigate("welcome"); }
+            Btn {
+                x: 1216px - self.width;
+                y: 18px;
+                kind: "primary";
+                text: "Continue";
+                icon: Icons.right;
+                icon-right: true;
+                enabled: Store.disk-chosen;
+                clicked => { Store.navigate("account"); }
+            }
+        }
+    }
+    init => { keys.focus(); }
+}

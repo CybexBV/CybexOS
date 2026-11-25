@@ -56,7 +56,10 @@ PanelWindow {
   // mapped and child items have completed layout.
   property Item focusTarget: null
 
+  // Omarchy plugin compatibility: callers rely on KeyboardPanel's default child container.
+  // qmllint disable property-override
   default property alias contentItem: contentHolder.children
+  // qmllint enable property-override
 
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
@@ -138,7 +141,7 @@ PanelWindow {
   // from vertical centering of the widget row), which is why `cardOrigin`
   // below uses `barDepth` for the perpendicular axis instead of this y.
   readonly property point anchorScreenPos: {
-    anchorWatcher.transform  // reactive dependency
+    void anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
     return anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
   }

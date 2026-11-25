@@ -1,0 +1,178 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Store } from "../store.slint";
+import { Kicker, Heading, Lead, Btn, Card, Field } from "../widgets.slint";
+import { Wiz } from "../wiz.slint";
+import { ListArea } from "../sheets.slint";
+import { Pick, CheckLine } from "shared.slint";
+
+// ── welcome ──────────────────────────────────────────────────────────────────
+
+export component WelcomeScreen inherits Rectangle {
+    width: 1280px;
+    height: 800px;
+    keys := FocusScope {
+        enabled: Store.sheet == "";
+        focus-on-tab-navigation: false;
+        key-pressed(event) => {
+            if (!event.repeat && event.text == Key.Return && Store.sheet == "") {
+                if (Store.development) {
+                    Store.accept-development();
+                    return accept;
+                }
+                if (Store.can-start) {
+                    Store.start();
+                    return accept;
+                }
+            }
+            return reject;
+        }
+        VerticalLayout {
+            x: 64px;
+            y: 132px;
+            width: 600px;
+            alignment: start;
+            Kicker {
+                text: Store.version == "" ? "FRESH INSTALLATION" : "FRESH INSTALLATION · " + Store.version;
+                color: Theme.accent;
+            }
+            Rectangle { height: 14px; }
+            Heading { text: "Let's make this\ncomputer yours."; }
+            Rectangle { height: 14px; }
+            Lead { text: "Three short steps, then a review. Your disks stay untouched until you confirm."; }
+            Rectangle { height: 30px; }
+            Pick {
+                label: "LANGUAGE";
+                name: "Language";
+                value: Store.language-name;
+                clicked => { Store.open-sheet("language"); }
+            }
+            Rectangle { height: 10px; }
+            Pick {
+                label: "KEYBOARD";
+                name: "Keyboard layout";
+                value: Store.layout-name;
+                clicked => { Store.open-sheet("keyboard"); }
+            }
+            Rectangle { height: 10px; }
+            Field {
+                label: "Keyboard test";
+                placeholder: "Type here to test your keyboard";
+            }
+            Rectangle { height: 28px; }
+            if Store.development: Rectangle {
+                height: dev-text.preferred-height + 34px;
+                border-radius: 14px;
+                background: Theme.amber-tint;
+                border-width: 1px;
+                border-color: #f2c14e4d;
+                dev-text := Text {
+                    x: 18px;
+                    width: parent.width - 36px;
+                    text: Store.development-message;
+                    color: Theme.amber;
+                    font-size: 15px;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                }
+            }
+            if Store.development: Rectangle { height: 16px; }
+            if Store.preflight-error != "": Text {
+                text: Store.preflight-error;
+                color: Theme.red;
+                font-size: 15px;
+                wrap: word-wrap;
+            }
+            if Store.preflight-error != "": Rectangle { height: 16px; }
+            HorizontalLayout {
+                spacing: 14px;
+                alignment: start;
+                if Store.development: Btn {
+                    kind: "primary";
+                    text: "Use this test build";
+                    clicked => { Store.accept-development(); }
+                }
+                if !Store.development: Btn {
+                    kind: "primary";
+                    text: "Get started";
+                    icon: Icons.right;
+                    icon-right: true;
+                    enabled: Store.can-start;
+                    clicked => { Store.start(); }
+                }
+                if Store.offline || Store.preflight-error != "": Btn {
+                    text: "Connect to Wi-Fi";
+                    icon: Icons.wifi;
+                    clicked => { Store.open-sheet("wifi"); }
+                }
+                if Store.preflight-error != "": Btn {
+                    text: "Retry";
+                    icon: Icons.refresh;
+                    clicked => { Store.retry(); }
+                }
+            }
+        }
+        // Lower than the column, so Wiz fits on its edge under the top bar.
+        // Tall enough for every check without scrolling; it scrolls only
+        // past the canvas's bottom margin.
+        check-card := Card {
+            x: 704px;
+            y: 206px;
+            width: 512px;
+            height: min(checks.preferred-height, 570px);
+            ListArea {
+              width: parent.width;
+              height: parent.height;
+              content-height: checks.preferred-height;
+              checks := VerticalLayout {
+                width: parent.width;
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-top: 16px;
+                alignment: start;
+                HorizontalLayout {
+                    height: 30px;
+                    Kicker {
+                        text: "SYSTEM CHECK";
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: Store.check-summary;
+                        color: Theme.faint;
+                        font-family: Theme.mono;
+                        font-size: 12px;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                }
+                for check[i] in Store.checks: CheckLine {
+                    data: check;
+                    first: i == 0;
+                }
+                Rectangle {
+                    height: 50px;
+                    Rectangle {
+                        y: 0;
+                        height: 1px;
+                        background: Theme.line;
+                    }
+                    Text {
+                        text: "Checks run again right before the disk is erased.";
+                        color: Theme.faint;
+                        font-size: 13px;
+                        x: 0;
+                        vertical-alignment: center;
+                        height: parent.height;
+                    }
+                }
+              }
+            }
+        }
+        Wiz {
+            x: 1126px - self.width / 2;
+            y: check-card.y - self.feet;
+            pose: Store.check-pose;
+        }
+    }
+    init => { keys.focus(); }
+}

@@ -225,7 +225,7 @@ def main():
         fail(f'the full check of {tag} has no upgrade job; a release after 1.0.32 needs one')
 
     published = datetime.datetime.fromisoformat(target['published_at'].replace('Z', '+00:00'))
-    hours = (datetime.datetime.now(datetime.timezone.utc) - published).total_seconds() / 3600
+    hours = (datetime.datetime.now(datetime.UTC) - published).total_seconds() / 3600
     if not args.now and hours < args.soak:
         fail(f'{tag} has been on beta for {hours:.1f} hours, less than {args.soak:g}; '
              'wait, or pass --now to promote an urgent fix')

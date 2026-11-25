@@ -458,7 +458,7 @@ def main(argv=None):
     parser.add_argument('--no-browser', action='store_true', help='do not offer to open a GitHub issue')
     args = parser.parse_args(argv)
 
-    stamp = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+    stamp = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
     path = output_path(args.output, stamp.strftime('%Y%m%d-%H%M%S'))
     if not args.json:
         print('Collecting read-only system and desktop diagnostics…', file=sys.stderr, flush=True)

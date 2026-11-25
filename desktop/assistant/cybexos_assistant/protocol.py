@@ -128,7 +128,7 @@ async def stop_process(process, grace=3.0):
         return
     try:
         await asyncio.wait_for(process.wait(), grace)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         try:
             process.kill()
         except ProcessLookupError:

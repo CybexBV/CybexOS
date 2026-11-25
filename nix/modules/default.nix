@@ -107,7 +107,12 @@ in {
     # with AVX2, FMA, F16C and BMI2 (Intel 2013, AMD 2015 and later); the
     # voxtype unit does not start on one without (nix/modules/desktop.nix).
     dictationPackage = mkOption { type = types.package; default = (pkgs.voxtype.override { vulkanSupport = true; onnxSupport = true; }).overrideAttrs (old: {
-      patches = (old.patches or [ ]) ++ [ ../packages/voxtype-dictation.patch ];
+      patches = (old.patches or [ ]) ++ [
+        ../patches/voxtype/01-comma-separated-languages.patch
+        ../patches/voxtype/02-parakeet-sliding-window.patch
+        ../patches/voxtype/03-sliding-window-backlog-and-whole-transcript.patch
+        ../patches/voxtype/04-daemon-live-preview-and-recordings.patch
+      ];
       # Nixpkgs' Rust builds link native crates to system libraries instead of
       # bundled copies: this build's onig_sys (RUSTONIG_SYSTEM_LIBONIG) and
       # libsqlite3-sys (LIBSQLITE3_SYS_USE_PKG_CONFIG) need theirs.
