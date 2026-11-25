@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import os
 from pathlib import Path
 import re
@@ -38,39 +37,32 @@ import signal
 import socket
 import tempfile
 import time
-import urllib.parse
-import urllib.request
 
-from . import auth, desktop, history as history_module, mcp, policy, prompt, routines, speech, steps
+from . import auth, history as history_module, mcp, policy, prompt, routines, speech, steps
 from .changes import ChangeLog
 from .claude import ClaudeAgent, media_type
 from .codex import CodexAgent
+from .conversations import LANGUAGE, ROUTINE_TICK, ConversationsMixin
+from .desktop_tools import FLATHUB_TIMEOUT, SHELL_SLOW_TIMEOUT, SHELL_TIMEOUT, WALLHAVEN, DesktopError, DesktopToolsMixin
 from .history import History
 from .protocol import (
-    BUSY, LOG, MAX_CLIENT_BACKLOG, MAX_LINE, MAX_PROMPT, MAX_SCREENSHOT, NOT_FOUND, PROTOCOL,
-    UNAVAILABLE, RpcFault, default_state_dir, encode, error_frame, iter_lines, notification,
-    now_ms, parse_json, result_frame, screenshot_dir,
+    BUSY, LOG, MAX_LINE, MAX_PROMPT, NOT_FOUND, PROTOCOL, UNAVAILABLE, RpcFault,
+    default_state_dir, encode, error_frame, iter_lines, notification, now_ms, parse_json,
+    result_frame, screenshot_dir,
+)
+from .transport import (
+    ATTACHMENT_KINDS, IMAGE_SUFFIXES, MAX_ATTACHMENTS, MAX_FILE, Client, Lane,
+    collect_attachments, turn_context, unit_identity, validate_screenshot,
 )
 from .turn import FINAL, Turn
-
 
 AGENTS = {"claude": ClaudeAgent, "codex": CodexAgent}
 LABELS = {"claude": "Claude Code", "codex": "Codex"}
 DISCOVERY_SECONDS = 30.0
 STOP_WAIT = 8.0
 MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,79}$")
-LANGUAGE = re.compile(r"^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?$")
 RESTARTED = "The assistant service restarted."
 LANES = ("main", "side")
-MAX_ATTACHMENTS = 8
-MAX_FILE = 256 * 1024
-ATTACHMENT_KINDS = ("window", "selection", "file", "image", "text")
-IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
-SHELL_TIMEOUT = 30.0
-# Downloading a wallpaper takes longer than flipping a setting.
-SHELL_SLOW_TIMEOUT = 180.0
-FLATHUB_TIMEOUT = 900.0
-ROUTINE_TICK = 30.0
 # Renewal after an update changed this service's unit: how often to look, how
 # long nothing must have run first, and the exit status systemd answers with
 # a start of the new unit (RestartForceExitStatus in nix/modules/desktop.nix).
@@ -78,87 +70,17 @@ UNIT = "/etc/systemd/user/cybexos-assistant.service"
 RENEW_TICK = 5.0
 RENEW_QUIET = 120.0
 RENEW_EXIT = 75
-WALLHAVEN = "https://wallhaven.cc/api/v1"
+
+__all__ = [
+    "AGENTS", "ATTACHMENT_KINDS", "Client", "DISCOVERY_SECONDS", "DesktopError",
+    "FLATHUB_TIMEOUT", "IMAGE_SUFFIXES", "LABELS", "LANES", "LANGUAGE", "Lane",
+    "MAX_ATTACHMENTS", "MAX_FILE", "MODEL", "RENEW_EXIT", "RENEW_QUIET", "RENEW_TICK",
+    "RESTARTED", "ROUTINE_TICK", "SHELL_SLOW_TIMEOUT", "SHELL_TIMEOUT", "STOP_WAIT",
+    "Server", "UNIT", "WALLHAVEN", "turn_context", "unit_identity",
+]
 
 
-class DesktopError(Exception):
-    pass
-
-
-def turn_context(value):
-    """turn.start's context for the per-turn note; an unknown purpose is dropped."""
-    value = value if isinstance(value, dict) else {}
-    context = {key: value[key] for key in ("output", "speak", "language", "wide") if key in value}
-    if isinstance(value.get("purpose"), str) and value["purpose"] in prompt.PURPOSE_NOTES:
-        context["purpose"] = value["purpose"]
-    return context
-
-
-class Client:
-    """One connection; frames are queued so a slow reader never blocks the others."""
-
-    def __init__(self, writer):
-        self.writer = writer
-        self.queue = asyncio.Queue()
-        self.closed = False
-        # What the client called itself in hello: "quickshell" is the shell,
-        # which carries out the desktop tools only it can.
-        self.kind = ""
-        self.task = asyncio.create_task(self._write())
-
-    def send(self, frame):
-        if self.closed:
-            return
-        if self.queue.qsize() >= MAX_CLIENT_BACKLOG:
-            LOG.warning("disconnecting a client that stopped reading")
-            self.close()
-            return
-        self.queue.put_nowait(frame)
-
-    async def _write(self):
-        try:
-            while True:
-                frame = await self.queue.get()
-                self.writer.write(frame)
-                await self.writer.drain()
-        except (ConnectionError, OSError):
-            self.close()
-
-    def close(self):
-        if self.closed:
-            return
-        self.closed = True
-        self.task.cancel()
-        with contextlib.suppress(Exception):
-            self.writer.close()
-
-
-def unit_identity(path):
-    """The store file the user unit resolves to. NixOS links each unit to its
-    own store path, so the identity changes exactly when its text does."""
-    try:
-        return os.path.realpath(path, strict=True)
-    except (OSError, ValueError):
-        return None
-
-
-class Lane:
-    """One question in progress at most, its agents and its conversation."""
-
-    def __init__(self, name):
-        self.name = name
-        self.turn = None
-        self.task = None
-        # The conversation of the turn in progress, which receives the
-        # agent's session id.
-        self.active = None
-        self.adapters = {}
-
-    def busy(self):
-        return self.task is not None and not self.task.done()
-
-
-class Server:
+class Server(ConversationsMixin, DesktopToolsMixin):
     def __init__(self, socket_path, state_dir=None, home=None, env=None):
         self.env = dict(os.environ if env is None else env)
         self.home = Path(home or self.env.get("HOME") or Path.home())
@@ -383,6 +305,7 @@ class Server:
             if refresh:
                 self.discovered = (0.0, {})
             found = self.agents()
+
             async def inspect(name):
                 executable = found.get(name)
                 if not executable:
@@ -393,6 +316,7 @@ class Server:
                     state = await auth.status(name, executable, self.home, self.agent_env())
                     self.authentication[name] = (time.monotonic(), executable, state)
                 return name, {"available": True, "label": LABELS[name], "auth": state}
+
             return dict(await asyncio.gather(*(inspect(name) for name in AGENTS)))
 
     async def auth_status(self, params):
@@ -421,55 +345,10 @@ class Server:
         return {"argv": [executable, *auth.LOGIN_ARGS[name]], "cwd": str(self.home)}
 
     def screenshot(self, value):
-        if value in (None, ""):
-            return None
-        if not isinstance(value, str):
-            raise RpcFault(-32602, "Invalid screenshot")
-        try:
-            real = Path(value).resolve(strict=True)
-            root = self.shots.resolve(strict=True)
-        except OSError:
-            raise RpcFault(-32602, "The screenshot is no longer available.") from None
-        if not policy.under(str(real), str(root)) or real == root or not real.is_file() \
-                or real.suffix.lower() not in IMAGE_SUFFIXES or real.stat().st_size > MAX_SCREENSHOT:
-            raise RpcFault(-32602, "The screenshot must be a PNG or JPEG taken by the assistant.")
-        return real
+        return validate_screenshot(self.shots, value)
 
     def attachments(self, value):
-        """(text attachments for the note, images): what the person attached."""
-        if value in (None, ""):
-            return [], []
-        if not isinstance(value, list) or len(value) > MAX_ATTACHMENTS:
-            raise RpcFault(-32602, f"Attach at most {MAX_ATTACHMENTS} things to one question.")
-        notes, images = [], []
-        for item in value:
-            if not isinstance(item, dict) or item.get("kind") not in ATTACHMENT_KINDS:
-                raise RpcFault(-32602, "Invalid attachment")
-            kind = item["kind"]
-            label = " ".join(str(item.get("label") or "").split())[:200]
-            if kind == "image":
-                images.append(self.screenshot(item.get("path")))
-                notes.append({"kind": "image", "label": label})
-            elif kind == "file":
-                path = item.get("path")
-                if not isinstance(path, str) or not os.path.isabs(path):
-                    raise RpcFault(-32602, "Invalid file")
-                try:
-                    if os.path.getsize(path) > MAX_FILE:
-                        raise RpcFault(-32602, f"{os.path.basename(path)} is too large to attach (up to 256 KB).")
-                    text = Path(path).read_bytes().decode("utf-8")
-                except (OSError, UnicodeDecodeError):
-                    raise RpcFault(-32602, f"Only text files and images can be attached: "
-                                           f"{os.path.basename(path)} is neither.") from None
-                notes.append({"kind": "file", "label": label or os.path.basename(path), "text": text})
-            elif kind == "window":
-                notes.append({"kind": "window", "label": label})
-            else:
-                text = item.get("text")
-                if not isinstance(text, str) or not text.strip():
-                    continue
-                notes.append({"kind": kind, "label": label, "text": text[:MAX_FILE]})
-        return notes, images
+        return collect_attachments(self.shots, value)
 
     def _model(self, value):
         if value in (None, "", "default"):
@@ -708,300 +587,6 @@ class Server:
             await self._next()
         return {"ok": True}
 
-    # ---- changes ---------------------------------------------------------------
-
-    async def turn_undo(self, params):
-        """Undoes everything one answer changed that can still be undone."""
-        identifier = params.get("id")
-        rows = [row for row in self.changes.summaries(self._exists, turn=identifier) if row["undoable"]]
-        if not rows:
-            raise RpcFault(NOT_FOUND, "There is nothing to undo.")
-        restored, skipped = [], []
-        for row in rows:
-            entry = self.changes.get(row["id"])
-            reason = await self._undo_entry(entry)
-            shown = row.get("path") or "~/.config/cybexos/shell.json"
-            (skipped if reason else restored).append(shown)
-        self.publish_changes()
-        return {"restored": sorted(set(restored)), "skipped": sorted(set(skipped))}
-
-    async def change_list(self, params):
-        if self.changes.enforce():
-            self.changes.save()
-        return {"changes": self.changes.summaries(self._exists)}
-
-    async def change_undo(self, params):
-        ids = params.get("ids") if isinstance(params.get("ids"), list) else [params.get("id")]
-        if not ids or not all(isinstance(identifier, str) for identifier in ids):
-            raise RpcFault(-32602, "Name the change to undo.")
-        status = {row["id"]: row for row in self.changes.summaries(self._exists)}
-        restored, skipped = [], []
-        # Newest first, so one change never waits for another undone with it.
-        for identifier in sorted(ids, key=lambda value: (status.get(value) or {}).get("at", 0), reverse=True):
-            row = status.get(identifier)
-            entry = self.changes.get(identifier)
-            if row is None or entry is None:
-                skipped.append({"id": identifier, "reason": "That change is no longer in the log."})
-                continue
-            if row["status"] == "blocked":
-                skipped.append({"id": identifier, "reason": "A later change to the same thing comes first."})
-                continue
-            if row["status"] != "applied":
-                skipped.append({"id": identifier, "reason": "It was changed since, so it was left as it is."
-                                if row["status"] == "changed" else "It cannot be undone here."})
-                continue
-            reason = await self._undo_entry(entry)
-            if reason:
-                skipped.append({"id": identifier, "reason": reason})
-            else:
-                restored.append(identifier)
-            status = {row["id"]: row for row in self.changes.summaries(self._exists)}
-        self.publish_changes()
-        return {"restored": restored, "skipped": skipped}
-
-    async def _undo_entry(self, entry):
-        """"" once undone, else why it could not be."""
-        kind = entry["kind"]
-        if kind in ("setting", "file", "plugin"):
-            reason = self.changes.undo_local(entry)
-        elif kind == "app":
-            app = entry.get("app") or {}
-            action = "remove" if entry.get("op") == "installed" else "install"
-            try:
-                await self._flathub(action, app.get("id", ""), app.get("name") or app.get("id", ""))
-                reason = ""
-            except DesktopError as error:
-                reason = str(error)
-        elif kind == "routine":
-            data = (entry.get("routine") or {}).get("data")
-            if entry.get("op") == "created":
-                reason = "" if self.routines.delete(entry["routine"]["id"]) else "That routine is already gone."
-            elif isinstance(data, dict):
-                self.routines.items.append(data)
-                self.routines.save()
-                reason = ""
-            else:
-                reason = "That routine can no longer be restored."
-            self.publish_routines()
-        else:
-            reason = "Software Update undoes system changes."
-        if not reason:
-            self.changes.mark_undone(entry)
-        return reason
-
-    # ---- the history ---------------------------------------------------------
-
-    def _conversation(self, params):
-        identifier = params.get("id")
-        record = self.history.get(identifier) if isinstance(identifier, str) else None
-        if record is None:
-            raise RpcFault(NOT_FOUND, "That conversation is no longer in your history.")
-        return record
-
-    async def conversation_list(self, params):
-        query = params.get("query") or ""
-        if not isinstance(query, str) or len(query) > 200:
-            raise RpcFault(-32602, "Invalid query")
-        running = [lane.turn.conversation for lane in self.lanes.values() if lane.busy()]
-        if self.history.enforce(keep=running[0] if len(running) == 1 else None) | self.changes.enforce():
-            self.save()
-            self.changes.save()
-            self.publish_history()
-        return {"conversations": self.summaries(query.strip())}
-
-    async def conversation_open(self, params):
-        """The whole conversation, the running answer included as it stands."""
-        record = self._conversation(params)
-        turns = list(record["turns"])
-        live = None
-        for lane in self.lanes.values():
-            if lane.turn is not None and lane.turn.conversation == record["id"]:
-                if turns and turns[-1]["id"] == lane.turn.id:
-                    turns[-1] = self.history.entry(lane.turn)
-                live = self.snapshot(lane.turn)
-        return {"conversation": dict(self.history.summary(record, live), turns=turns,
-                                     resumable=bool(record["session"]))}
-
-    async def _stop_in(self, identifier=None):
-        """Stops a running question when it belongs to `identifier` (any
-        conversation when None) before that conversation is removed."""
-        for lane in self.lanes.values():
-            if lane.busy() and (identifier is None or lane.turn.conversation == identifier):
-                await self.turn_stop({"lane": lane.name})
-
-    async def conversation_delete(self, params):
-        record = self._conversation(params)
-        await self._stop_in(record["id"])
-        if self.history.delete(record["id"]) is None:
-            raise RpcFault(NOT_FOUND, "That conversation is no longer in your history.")
-        self.memories.pop(record["id"], None)
-        self.changes.forget_conversation(record["id"])
-        if self.queue is not None and self.queue["conversation"] == record["id"]:
-            await self.queue_remove({})
-        self.save()
-        self.publish_history()
-        for lane in self.lanes.values():
-            if lane.turn is not None and lane.turn.conversation == record["id"]:
-                self._turn_event("updated", lane.turn)
-        return {"ok": True}
-
-    async def conversation_restore(self, params):
-        identifier = params.get("id")
-        record = self.history.restore(identifier) if isinstance(identifier, str) else None
-        if record is None:
-            raise RpcFault(NOT_FOUND, "That conversation can no longer be restored.")
-        self.save()
-        self.publish_history()
-        for lane in self.lanes.values():
-            if lane.turn is not None and lane.turn.conversation == record["id"]:
-                self._turn_event("updated", lane.turn)
-        return {"conversation": self.history.summary(record)}
-
-    async def conversation_clear(self, params):
-        """Every conversation, the change log and the last answer kept for
-        the box. The agents' own session files are left alone."""
-        await self.queue_remove({})
-        await self._stop_in()
-        self.history.clear()
-        self.changes.clear()
-        self.memories = {}
-        for lane in self.lanes.values():
-            lane.active = None
-            lane.turn = None
-        await self._close_adapters()
-        self.save()
-        self.publish("turn.updated", {"turn": None, "lane": "main"})
-        self.publish("turn.updated", {"turn": None, "lane": "side"})
-        self.publish_history()
-        self.publish("changes.updated", {"count": 0})
-        return {"ok": True}
-
-    async def conversation_handoff(self, params):
-        main = self.lanes["main"]
-        identifier = params.get("id") or (main.turn.conversation if main.turn is not None else None)
-        record = self.history.get(identifier) if isinstance(identifier, str) else None
-        for lane in self.lanes.values():
-            if lane.busy() and (record is None or lane.turn.conversation == record["id"]):
-                raise RpcFault(BUSY, "Wait until the assistant has answered, then continue in a terminal.")
-        if record is None or not record["session"]:
-            raise RpcFault(UNAVAILABLE, "There is no conversation to continue.")
-        agent, session = record["agent"], record["session"]
-        executable = self.agents().get(agent) or agent
-        argv = [executable, "--resume", session] if agent == "claude" else [executable, "resume", session]
-        # The terminal continues the session from disk; a later question
-        # here resumes it again instead of forking the history.
-        for lane in self.lanes.values():
-            adapter = lane.adapters.get(agent)
-            if adapter is not None and adapter.conversation_id == session:
-                lane.adapters.pop(agent)
-                await adapter.close()
-        return {"argv": argv, "cwd": str(self.home)}
-
-    async def speech_say(self, params):
-        text = params.get("text")
-        if not isinstance(text, str) or len(text) > 64 * 1024:
-            raise RpcFault(-32602, "Invalid text")
-        language = params.get("language")
-        if language is not None and (not isinstance(language, str) or not LANGUAGE.fullmatch(language)):
-            language = None
-        return await self.speaker.say(text, language)
-
-    async def speech_stop(self, params):
-        await self.speaker.stop()
-        return {"ok": True}
-
-    # ---- routines --------------------------------------------------------------
-
-    async def routine_list(self, params):
-        return {"routines": self.routines.summaries()}
-
-    async def routine_create(self, params):
-        routine, error = self.routines.create(params.get("question"), params.get("schedule"),
-                                              params.get("title"), params.get("notify"), params.get("agent"),
-                                              version=prompt.release(self.release_path))
-        if error:
-            raise RpcFault(-32602, error)
-        if params.get("purpose") in prompt.PURPOSE_NOTES:
-            routine["purpose"] = params["purpose"]
-            self.routines.save()
-        self.publish_routines()
-        return {"routine": routine}
-
-    async def routine_update(self, params):
-        changes = {key: params[key] for key in ("question", "title", "notify", "enabled", "schedule") if key in params}
-        routine, error = self.routines.update(params.get("id"), changes)
-        if error:
-            raise RpcFault(-32602 if routine is None and "exists" not in error else NOT_FOUND, error)
-        self.publish_routines()
-        return {"routine": routine}
-
-    async def routine_delete(self, params):
-        routine = self.routines.delete(params.get("id"))
-        if routine is None:
-            raise RpcFault(NOT_FOUND, "That routine no longer exists.")
-        if routine["id"] in self.waiting_routines:
-            self.waiting_routines.remove(routine["id"])
-        self.publish_routines()
-        return {"ok": True}
-
-    async def routine_run(self, params):
-        routine = self.routines.get(params.get("id"))
-        if routine is None:
-            raise RpcFault(NOT_FOUND, "That routine no longer exists.")
-        if self.lanes["main"].busy() or self.queue is not None:
-            if routine["id"] not in self.waiting_routines:
-                self.waiting_routines.append(routine["id"])
-            return {"started": False, "waiting": True}
-        started = await self._start_routine(routine, raising=True)
-        return {"started": started, "waiting": False}
-
-    async def _start_routine(self, routine, raising=False):
-        context = {"purpose": routine["purpose"]} if routine.get("purpose") in prompt.PURPOSE_NOTES else {}
-        try:
-            await self._begin(self.lanes["main"], routine["question"], routine.get("agent") or "auto", None, None,
-                              context, [], [], routine=routine)
-            return True
-        except RpcFault as fault:
-            self.routines.ran(routine, prompt.release(self.release_path),
-                              {"status": "failed", "error": fault.message, "attention": True, "at": now_ms(),
-                               "conversation": None, "summary": fault.message})
-            self.publish_routines()
-            self.publish("routine.finished", {"routine": {"id": routine["id"], "title": routine["title"]},
-                                              "conversation": None, "attention": True, "notify": True,
-                                              "summary": fault.message})
-            if raising:
-                raise
-            return False
-
-    def _routine_finished(self, turn, record):
-        routine = self.routines.get(turn.routine["id"])
-        summary = history_module.collapse(turn.error if turn.status == "failed" else turn.text, 200)
-        notify = bool(turn.attention) or bool(routine and routine.get("notify") == "always")
-        if routine is not None:
-            self.routines.ran(routine, prompt.release(self.release_path),
-                              {"status": turn.status, "attention": bool(turn.attention), "at": now_ms(),
-                               "conversation": record["id"], "summary": summary})
-            self.publish_routines()
-        self.publish("routine.finished", {"routine": turn.routine, "conversation": record["id"],
-                                          "attention": bool(turn.attention), "notify": notify, "summary": summary})
-
-    async def _schedule(self):
-        await asyncio.sleep(5)
-        while not self.closing:
-            try:
-                version = prompt.release(self.release_path)
-                before = json.dumps(self.routines.items, sort_keys=True)
-                for routine in self.routines.due(now_ms(), version):
-                    if routine["id"] not in self.waiting_routines:
-                        self.waiting_routines.append(routine["id"])
-                if json.dumps(self.routines.items, sort_keys=True) != before:
-                    self.routines.save()
-                if self.waiting_routines and not self.lanes["main"].busy() and self.queue is None:
-                    await self._next()
-            except Exception:
-                LOG.exception("routine scheduling failed")
-            await asyncio.sleep(ROUTINE_TICK)
-
     # ---- renewal after an update -------------------------------------------------
 
     def outdated(self):
@@ -1032,224 +617,6 @@ class Server:
                     return
             except Exception:
                 LOG.exception("renewal check failed")
-
-    # ---- desktop tools -----------------------------------------------------------
-
-    async def desktop_call(self, params):
-        """A desktop tool the agent called through mcp.py: {isError, text}."""
-        name = desktop.tool_name(params.get("tool"))
-        arguments = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
-        lane = self.lanes.get(params.get("lane") or "main")
-        if lane is None or not lane.busy() or lane.turn is None:
-            return {"isError": True, "text": "No question is in progress, so the desktop tools are not available."}
-        turn = lane.turn
-        problem = desktop.validate(name, arguments)
-        if problem:
-            return {"isError": True, "text": problem}
-        spec = desktop.TOOLS[name]
-        decision = await self._desktop_decision(name, spec, arguments)
-        answer, note = await turn.authorize(decision)
-        if answer not in ("allow", "always"):
-            return {"isError": True, "text": note or "The person declined this."}
-        turn.add_step(steps.entry(spec["label"], desktop.detail(name, arguments), tool=True))
-        turn.set_step(desktop.PRESENT.get(name, "Working"))
-        try:
-            result = await self._desktop(name, arguments, turn)
-        except DesktopError as error:
-            return {"isError": True, "text": str(error)}
-        except Exception as error:
-            LOG.exception("desktop tool %s failed", name)
-            return {"isError": True, "text": str(error) or "The tool failed."}
-        text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
-        return {"isError": False, "text": text[:60000]}
-
-    async def _desktop_decision(self, name, spec, arguments):
-        kind = spec["kind"]
-        if kind == desktop.LOOK:
-            return policy.allow()
-        if kind == desktop.INSTALL:
-            app = arguments.get("id", "")
-            label = arguments.get("name") or app
-            verb = "Install" if name == "flatpak_install" else "Remove"
-            card = {"kind": "other", "title": f"{verb} {label}?", "detail": "",
-                    "facts": [{"label": "App", "value": f"{label} · {app}" if label != app else app},
-                              {"label": "From", "value": "Flathub"},
-                              {"label": "For", "value": "Your account only"}],
-                    "glyph": "download" if verb == "Install" else "delete"}
-            return policy.Decision("ask", card=card, key=("flatpak", name, app), changes=True)
-        if spec.get("always_ask"):
-            window = {}
-            with contextlib.suppress(DesktopError, asyncio.TimeoutError):
-                window = await self._ask_shell("window_info", {"address": arguments.get("address", "")}, 5)
-            title = window.get("title") if isinstance(window, dict) else ""
-            card = {"kind": "other", "title": "Close this window?",
-                    "detail": "The app may have unsaved work.",
-                    "facts": [{"label": "Window", "value": title or arguments.get("address", "")}]
-                    + ([{"label": "App", "value": window["app"]}] if isinstance(window, dict) and window.get("app") else []),
-                    "glyph": "close"}
-            return policy.Decision("ask", card=card, always=True, changes=True)
-        return policy.Decision("allow", changes=True)
-
-    async def _desktop(self, name, arguments, turn):
-        spec = desktop.TOOLS[name]
-        if spec["where"] == "shell":
-            if name == "wallpaper_set" and arguments.get("wallhaven"):
-                arguments = dict(arguments, record=await self._wallpaper_record(arguments["wallhaven"]))
-            timeout = SHELL_SLOW_TIMEOUT if name == "wallpaper_set" else SHELL_TIMEOUT
-            return await self._ask_shell(name, arguments, timeout)
-        if name == "wallpaper_search":
-            return await asyncio.to_thread(self._wallhaven_search, arguments["query"])
-        if name == "software_search":
-            found = await self._cybex(["software", "flathub", "search", arguments["query"]], 60)
-            rows = found.get("results") if isinstance(found, dict) else []
-            return {"results": [{key: row.get(key) for key in ("id", "name", "summary", "developer")
-                                 if key in row} for row in (rows or [])[:12] if isinstance(row, dict)]}
-        if name in ("flatpak_install", "flatpak_remove"):
-            app = arguments["id"]
-            label = arguments.get("name") or app
-            action = "install" if name == "flatpak_install" else "remove"
-            await self._flathub(action, app, label)
-            entry = self.changes.add(turn, "app", "app:" + app, app={"id": app, "name": label},
-                                     op="installed" if action == "install" else "removed")
-            self.changes.save()
-            self.publish_changes()
-            return {"done": True, "change": entry["id"]}
-        if name == "doctor_run":
-            return await self._cybex(["doctor", "--json"], 180)
-        if name == "routine_list":
-            return {"routines": self.routines.summaries()}
-        if name == "routine_create":
-            routine, error = self.routines.create(arguments["question"], arguments["schedule"],
-                                                  arguments.get("title"), arguments.get("notify"), turn.agent,
-                                                  version=prompt.release(self.release_path))
-            if error:
-                raise DesktopError(error)
-            turn.routines.append({"id": routine["id"], "title": routine["title"],
-                                  "schedule": routine["schedule"], "notify": routine["notify"]})
-            self.changes.add(turn, "routine", "routine:" + routine["id"], op="created",
-                             routine={"id": routine["id"], "title": routine["title"]})
-            self.changes.save()
-            self.publish_routines()
-            self.publish_changes()
-            return {"routine": routine}
-        if name == "routine_delete":
-            routine = self.routines.delete(arguments["id"])
-            if routine is None:
-                raise DesktopError("That routine no longer exists.")
-            self.changes.add(turn, "routine", "routine:" + routine["id"], op="deleted",
-                             routine={"id": routine["id"], "title": routine["title"], "data": routine})
-            self.changes.save()
-            self.publish_routines()
-            self.publish_changes()
-            return {"deleted": routine["id"]}
-        raise DesktopError(f"{name} is not available.")
-
-    async def _ask_shell(self, tool, arguments, timeout):
-        shells = [client for client in self.clients if client.kind == "quickshell" and not client.closed]
-        if not shells:
-            raise DesktopError("The desktop shell is not running, so this cannot be done now.")
-        identifier = "d-" + secrets.token_hex(8)
-        future = asyncio.get_running_loop().create_future()
-        self.desktop_pending[identifier] = future
-        frame = encode(notification("desktop.request", {"id": identifier, "tool": tool, "arguments": arguments}))
-        for client in shells:
-            client.send(frame)
-        try:
-            answer = await asyncio.wait_for(future, timeout)
-        except TimeoutError:
-            raise DesktopError("The desktop did not answer in time.") from None
-        finally:
-            self.desktop_pending.pop(identifier, None)
-        if not answer.get("ok"):
-            raise DesktopError(str(answer.get("error") or "The desktop could not do that."))
-        return answer.get("result")
-
-    async def desktop_respond(self, params):
-        future = self.desktop_pending.get(params.get("id"))
-        if future is None or future.done():
-            return {"ok": False}
-        future.set_result({"ok": bool(params.get("ok")), "result": params.get("result"),
-                           "error": params.get("error")})
-        return {"ok": True}
-
-    async def _cybex(self, args, timeout):
-        """`cybex …` with JSON output, run as the person."""
-        executable = shutil.which("cybex", path=self.agent_env()["PATH"]) or "cybex"
-        try:
-            process = await asyncio.create_subprocess_exec(
-                executable, *args, cwd=str(self.home), env=self.agent_env(), stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        except OSError as error:
-            raise DesktopError(f"cybex could not run: {error}") from None
-        try:
-            output, errors = await asyncio.wait_for(process.communicate(), timeout)
-        except TimeoutError:
-            with contextlib.suppress(ProcessLookupError):
-                process.kill()
-            raise DesktopError("cybex took too long.") from None
-        text = output.decode("utf-8", "replace")
-        try:
-            value = json.loads(text)
-        except json.JSONDecodeError:
-            value = None
-        if process.returncode != 0 and value is None:
-            raise DesktopError((errors.decode("utf-8", "replace").strip() or text.strip()
-                                or f"cybex failed with status {process.returncode}.")[:800])
-        return value if value is not None else text[:30000]
-
-    async def _flathub(self, action, app, label):
-        if not re.fullmatch(r"[A-Za-z0-9_.-]{3,255}", app or ""):
-            raise DesktopError("That is not a Flathub app id.")
-        started = await self._cybex(["software", "flathub", action, "--names", json.dumps({app: label}), app], 60)
-        task = started.get("task") if isinstance(started, dict) else None
-        if not task:
-            raise DesktopError(f"The {action} could not start.")
-        deadline = time.monotonic() + FLATHUB_TIMEOUT
-        while time.monotonic() < deadline:
-            await asyncio.sleep(2)
-            status = await self._cybex(["software", "flathub", "status"], 30)
-            current = status.get("task") if isinstance(status, dict) else None
-            if isinstance(current, dict) and current.get("id") == task:
-                if current.get("state") == "done":
-                    return
-                if current.get("state") == "failed":
-                    raise DesktopError(current.get("error") or f"The {action} failed.")
-        raise DesktopError(f"The {action} is still running; Software shows how it ends.")
-
-    def _wallhaven_get(self, path, query=None):
-        url = f"{WALLHAVEN}/{path}" + ("?" + urllib.parse.urlencode(query) if query else "")
-        request = urllib.request.Request(url, headers={"User-Agent": "Cybex OS Assistant"})
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                return json.loads(response.read(2 * 1024 * 1024).decode("utf-8"))
-        except (OSError, ValueError) as error:
-            raise DesktopError(f"Wallhaven could not be reached: {error}") from None
-
-    def _wallhaven_search(self, query):
-        data = self._wallhaven_get("search", {"q": query, "categories": "100", "purity": "100",
-                                              "sorting": "relevance", "atleast": "1920x1080"})
-        rows = data.get("data") if isinstance(data, dict) else []
-        results = []
-        for row in (rows or [])[:10]:
-            if not isinstance(row, dict) or not isinstance(row.get("id"), str):
-                continue
-            self.wallpapers[row["id"]] = row
-            results.append({"id": row["id"], "resolution": row.get("resolution"), "colors": row.get("colors"),
-                            "page": row.get("url"), "thumbnail": (row.get("thumbs") or {}).get("small")})
-        return {"results": results}
-
-    async def _wallpaper_record(self, identifier):
-        if not re.fullmatch(r"[a-z0-9]{4,12}", identifier or ""):
-            raise DesktopError("That is not a Wallhaven id.")
-        record = self.wallpapers.get(identifier)
-        if record is None:
-            data = await asyncio.to_thread(self._wallhaven_get, f"w/{identifier}")
-            record = data.get("data") if isinstance(data, dict) else None
-            if not isinstance(record, dict):
-                raise DesktopError("Wallhaven has no such wallpaper.")
-            if record.get("purity") != "sfw":
-                raise DesktopError("Only safe-for-work wallpapers can be set.")
-        return record
 
     # ---- persistence -------------------------------------------------------
 
@@ -1410,4 +777,3 @@ class Server:
             renewal.cancel()
         await self.shutdown()
         return RENEW_EXIT if self.renewing else 0
-
