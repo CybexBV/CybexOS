@@ -186,7 +186,9 @@ test("the named Hyprland blur rule persists and applies without remapping surfac
 
 // Runs looknfeel.lua under luajit with a minimal `hl` double against a stored
 // shell.json and returns whether the blur rule starts enabled.
-const luajit = ["/usr/bin/luajit", "/usr/local/bin/luajit"].find(file => fs.existsSync(file));
+const luajit = ["/usr/bin/luajit", "/usr/local/bin/luajit"].find(file => fs.existsSync(file))
+    || (require("node:child_process").spawnSync("sh", ["-c", "command -v luajit"], { encoding: "utf8" })
+        .stdout || "").trim();
 
 function persistedBlur(t, settings) {
     const root = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "cybexos-tests.glass."));

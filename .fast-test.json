@@ -21,13 +21,28 @@
       "timeout": 20
     },
     {
+      "name": "assistant-overlay",
+      "about": "The real Cybex OS Assistant window and service in a private headless Sway, when the assistant changed.",
+      "when": ["desktop/assistant/**", "desktop/quickshell/Assistant/**", "desktop/quickshell/AssistantWindow.qml",
+        "desktop/quickshell/Common/Assistant*", "tests/assistant-overlay.py", "tests/shell_fonts.py"],
+      "run": "nix --extra-experimental-features 'nix-command flakes' develop --command python3 -B tests/assistant-overlay.py",
+      "timeout": 20
+    },
+    {
+      "name": "installer-kiosk",
+      "about": "The Rust/Slint installer screen and its headless interaction, presentation and time-zone tests.",
+      "when": ["installer/kiosk/**", "nix/packages/installer.nix"],
+      "run": "nix --extra-experimental-features 'nix-command flakes' build --no-link .#packages.x86_64-linux.installer-ui.passthru.screen",
+      "timeout": 20
+    },
+    {
       "name": "single-tests",
       "about": "A changed standalone test script, one after the other. Each one's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
       "when": ["tests/*.py", "tests/nixos-native"],
       "unless": ["tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
         "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py",
-        "tests/settings-runtime.py", "tests/omarchy-runtime.py"],
+        "tests/assistant-overlay.py", "tests/settings-runtime.py", "tests/omarchy-runtime.py"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
     },
     {
