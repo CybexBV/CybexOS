@@ -1,15 +1,13 @@
-# Cybex OS 1.0.32
+# Cybex OS 1.0.34
 
-To install this release, first run `cybex update stage cybexos` once, then install it from Software Update. That prepares Cybex OS on the NixOS packages you already have; your computer's current update check would otherwise combine it with whatever NixOS packages are newest that day, the way earlier updates failed. After this release, updates take care of this themselves.
+Six connected-service widgets — Model Usage, Fusebox, GitHub, T3 Code, Hermes Agent and Remote Server — now ship as Cybex OS plugins that you install from Settings → Plugins instead of being built into the menubar. If you already configured any of them, your saved options stay in place and carry over when you install the plugin.
 
-Updates are steadier from now on. Until now your computer took the newest NixOS packages every day and combined them with Cybex OS, a mix nobody had built before; that is how 1.0.16, 1.0.27 and 1.0.31 failed to install. Now each Cybex OS release brings the NixOS packages it was checked with, and your computer moves to those only, never to untested ones and never back. NixOS packages arrive with Cybex OS releases instead of every day.
+The desktop UI is cleaner and steadier across the shell, terminal prompt and installer. In Hug bar mode, the two screen corners opposite the bar now round softly to match the bar's corners, and the Cybex OS mark sits centred in the terminal prompt. Control Center toggles show clearly when on, repeated alerts fold together, and Settings, Software, Shortcuts, Welcome and the installer share one primary action per step, plainer error and recovery messages, keyboard-only focus rings, gentler motion under Reduce motion, and updated Dutch translations.
 
-A Cybex OS release now always installs, even when new NixOS packages don't. If an update that brings both fails for any reason, Software Update prepares the Cybex OS release on its own, on the packages you already have.
+Omawrite updates to 0.7.8 and skips building its test suite on your computer during updates. Brave Origin updates to 1.100.59, Codex to 0.172.0 and Claude Code to 2.1.332.
 
-The connected-service widgets are now optional extras, turned on in Settings → Bar: Model Usage, Fusebox, T3 Code, Hermes Agent and Remote Server. If you see Model Usage today, you keep it; if you never changed a setting, turn it on there. The Hermes bridge now starts only once its widget is on, instead of in every session.
+Wired connections now use the network's own DNS by default while keeping manual DNS choices intact, and LocalSend opens only when local network services are enabled. On Dell XPS laptops, the `intel-lpmd` power daemon now comes prebuilt from Nixpkgs rather than a local source build; this switch has not yet been physically re-qualified on XPS hardware, and the XPS 13 (`0E53`) stays excluded until tested.
 
-Cybex OS's repository moved to CybexBV/CybexOS. Your computer moves to the new name with this update; nothing else changes.
-
-When an update's trial boot fails and your computer goes back to the previous version on the next start, the desktop now starts normally. Before, the bar could stay away and the keyring stay locked.
+Updates and cleanup are steadier: Software Update now reads every page of the release list, keeps boot generations intact when clearing an abandoned preview, moves NixOS branches forward only, and bounds update log memory.
 
 This is a source update with no new ISO. Installation, boot, physical hardware and staged-updater qualification are separate from source tests and package builds.
