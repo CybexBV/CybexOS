@@ -383,7 +383,11 @@ a candidate outside that matrix fails staging until qualified.
 No durable Cybex OS binary cache is configured. Before advertising fast public
 updates, provision a public Nix cache (for example an object-store-backed Nix
 cache or Cachix), publish its independent Nix cache signing public key and
-substituter URL, and prebuild each release/architecture. Add cache trust through
+substituter URL, and prebuild each release/architecture. `packages.<system>.cache-closure`
+collects every free Cybex OS local build (including Voxtype, Omasnap, Omawrite,
+`mdview`, titlebars, desktop, updater and installer, while excluding unfree vendor
+downloads) so a cache upload is a single `nix build .#cache-closure` and
+`nix copy --to <cache-url> .#cache-closure`. Add cache trust through
 the shared module after reviewing that key. GitHub Actions artifacts and GitHub
 Release download archives are not a public Nix binary cache. Source builds remain
 possible. Redistribution/license review remains required for the actual payload.

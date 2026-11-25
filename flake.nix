@@ -52,6 +52,26 @@
         claude-code = pkgs.callPackage ./nix/packages/claude-code {};
         titlebars = pkgs.callPackage ./nix/packages/titlebars.nix {};
         omasnap = pkgs.callPackage ./nix/packages/omasnap.nix {};
+        omawrite = pkgs.callPackage ./nix/packages/omawrite.nix {};
+        # Free Cybex OS local builds for publishing to a binary cache
+        # (docs/releasing.md). Unfree vendor downloads stay excluded.
+        cache-closure = let
+          isFree = pkg: nixpkgs.lib.all (l: l.free or true) (nixpkgs.lib.toList (pkg.meta.license or [ ]));
+          items = [
+            desktop desktop.images updater installer-ui installer-ui.passthru.screen
+            plymouth symbols-font titlebars omasnap omawrite
+            (pkgs.callPackage ./nix/packages/mdview.nix {})
+            (pkgs.callPackage ./nix/packages/assistant.nix {})
+            (pkgs.callPackage ./nix/packages/encryption-check.nix { source = self; })
+            (pkgs.callPackage ./nix/packages/lid-guard.nix {})
+            (pkgs.callPackage ./nix/packages/networkmanager-libreswan.nix {})
+            (pkgs.callPackage ./nix/packages/fonts.nix {})
+            (pkgs.callPackage ./nix/packages/space-grotesk.nix {})
+            installerPayload.config.cybexos.dictationPackage
+            installerPayload.config.cybexos.bootTheme
+          ];
+        in assert nixpkgs.lib.all isFree items;
+          pkgs.linkFarmFromDrvs "cybexos-cache-closure" items;
         iso = self.nixosConfigurations.installer.config.system.build.isoImage;
         default = desktop;
       });

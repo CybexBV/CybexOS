@@ -1,0 +1,77 @@
+Treat a comma-separated whisper.language string as a language list.
+
+`voxtype config set whisper.language en,nl` writes a single string rather
+than a TOML array. Parse comma-separated strings in LanguageConfig and
+Config::active_language so constrained auto-detection matches the schema.
+
+diff --git a/src/config/language.rs b/src/config/language.rs
+index e3aca1d..ef4738a 100644
+--- a/src/config/language.rs
++++ b/src/config/language.rs
+@@ -25,8 +25,17 @@ impl Default for LanguageConfig {
+ 
+ impl LanguageConfig {
+     /// Convert to a vector of language codes
++    ///
++    /// A single string may itself be a comma-separated list: that is what
++    /// `voxtype config set whisper.language en,fr` writes, and the schema
++    /// documents it as constraining auto-detection like an array does.
+     pub fn as_vec(&self) -> Vec<String> {
+         match self {
++            LanguageConfig::Single(s) if s.contains(',') => s
++                .split(',')
++                .map(|p| p.trim().to_string())
++                .filter(|p| !p.is_empty())
++                .collect(),
+             LanguageConfig::Single(s) => vec![s.clone()],
+             LanguageConfig::Multiple(v) => v.clone(),
+         }
+@@ -39,13 +48,13 @@ impl LanguageConfig {
+ 
+     /// Check if multiple languages are configured (constrained auto-detection)
+     pub fn is_multiple(&self) -> bool {
+-        matches!(self, LanguageConfig::Multiple(v) if v.len() > 1)
++        self.as_vec().len() > 1
+     }
+ 
+     /// Get the first/primary language (used for fallback or single-language mode)
+     pub fn primary(&self) -> &str {
+         match self {
+-            LanguageConfig::Single(s) => s,
++            LanguageConfig::Single(s) => s.split(',').next().map(str::trim).unwrap_or("en"),
+             LanguageConfig::Multiple(v) => v.first().map(|s| s.as_str()).unwrap_or("en"),
+         }
+     }
+@@ -72,6 +81,16 @@ mod tests {
+     use crate::config::WhisperConfig;
+     use serde::Deserialize;
+ 
++    #[test]
++    fn a_comma_separated_string_constrains_detection_like_an_array() {
++        let written = LanguageConfig::Single("en, nl".to_string());
++        assert!(written.is_multiple());
++        assert!(!written.is_auto());
++        assert_eq!(written.as_vec(), vec!["en".to_string(), "nl".to_string()]);
++        assert_eq!(written.primary(), "en");
++        assert!(!LanguageConfig::Single("en".to_string()).is_multiple());
++    }
++
+     #[test]
+     fn test_language_config_single() {
+         let toml_str = r#"
+diff --git a/src/config/root.rs b/src/config/root.rs
+index 3525480..b2758b7 100644
+--- a/src/config/root.rs
++++ b/src/config/root.rs
+@@ -407,8 +407,10 @@ impl Config {
+     pub fn active_language(&self) -> Option<&str> {
+         let code = match self.engine {
+             TranscriptionEngine::Whisper => match &self.whisper.language {
++                // A constrained detection set is not one language, whether
++                // written as an array or a comma-separated string.
++                language if language.is_multiple() => return None,
+                 super::language::LanguageConfig::Single(code) => code.as_str(),
+-                // A constrained detection set is not one language.
+                 super::language::LanguageConfig::Multiple(_) => return None,
+             },
+             TranscriptionEngine::Cohere => self.cohere.as_ref().map(|c| c.language.as_str())?,

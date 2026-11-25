@@ -1,0 +1,48 @@
+Stream batch Parakeet TDT models through the sliding-window transcriber.
+
+Multilingual Parakeet TDT v3 models lack a cache-aware streaming graph.
+When parakeet.streaming is enabled for a known non-streaming Parakeet
+model, wrap the batch transcriber in SlidingWindowStreamingTranscriber.
+
+diff --git a/src/transcribe/mod.rs b/src/transcribe/mod.rs
+index db42a05..28f3967 100644
+--- a/src/transcribe/mod.rs
++++ b/src/transcribe/mod.rs
+@@ -187,7 +187,17 @@ pub fn create_transcriber(config: &Config) -> Result<Box<dyn Transcriber>, Trans
+                     "Parakeet engine selected but [parakeet] config section is missing".to_string(),
+                 )
+             })?;
+-            if parakeet_config.streaming {
++            if parakeet_config.streaming && parakeet_streams_by_window(&parakeet_config.model) {
++                // A batch TDT model (the multilingual v3 family) has no
++                // cache-aware streaming graph. It streams the way Whisper
++                // does: the sliding window re-reads the growing recording.
++                let base: Box<dyn Transcriber> =
++                    Box::new(parakeet::ParakeetTranscriber::new(parakeet_config)?);
++                Ok(Box::new(SlidingWindowStreamingTranscriber::new(
++                    Arc::from(base),
++                    sliding_window_config(config, StreamingConfig::default(), "parakeet"),
++                )))
++            } else if parakeet_config.streaming {
+                 Ok(Box::new(
+                     parakeet_streaming::ParakeetStreamingTranscriber::new(parakeet_config)?,
+                 ))
+@@ -331,6 +341,18 @@ pub fn create_whisper_transcriber(
+     create_transcriber_with_config_path(config, None)
+ }
+ 
++/// Whether a streamed Parakeet session uses the sliding window over the
++/// batch model: a known model without the cache-aware streaming files.
++#[cfg(feature = "parakeet")]
++fn parakeet_streams_by_window(model: &str) -> bool {
++    let name = std::path::Path::new(model)
++        .file_name()
++        .and_then(|n| n.to_str())
++        .unwrap_or(model);
++    crate::setup::model::is_known_parakeet_model(name)
++        && !crate::setup::model::is_streaming_compatible_parakeet(name)
++}
++
+ /// Build the sliding-window engine config for the active backend.
+ ///
+ /// The shared `[streaming]` section (`config.streaming`) wins when present;
