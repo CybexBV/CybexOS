@@ -53,7 +53,7 @@ import sys
 import tempfile
 import time
 import tomllib
-from typing import Callable
+from collections.abc import Callable
 import urllib.error
 import urllib.request
 import uuid

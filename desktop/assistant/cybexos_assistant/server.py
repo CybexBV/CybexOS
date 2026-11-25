@@ -672,7 +672,7 @@ class Server:
             await adapter.interrupt()
         try:
             await asyncio.wait_for(asyncio.shield(task), STOP_WAIT)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
@@ -1156,7 +1156,7 @@ class Server:
             client.send(frame)
         try:
             answer = await asyncio.wait_for(future, timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise DesktopError("The desktop did not answer in time.") from None
         finally:
             self.desktop_pending.pop(identifier, None)
@@ -1183,7 +1183,7 @@ class Server:
             raise DesktopError(f"cybex could not run: {error}") from None
         try:
             output, errors = await asyncio.wait_for(process.communicate(), timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             with contextlib.suppress(ProcessLookupError):
                 process.kill()
             raise DesktopError("cybex took too long.") from None

@@ -868,7 +868,7 @@ class Daemon:
                     start_new_session=True)
                 output, _ = await asyncio.wait_for(process.communicate(json.dumps(payload).encode() if payload else b''), 60)
                 result = json.loads(output)
-            except (OSError, ValueError, asyncio.TimeoutError):
+            except (TimeoutError, OSError, ValueError):
                 result = {'success': False, 'error': 'Network setup could not run. Retry, or use nmtui on the recovery shell.'}
             finally:
                 if payload:
@@ -978,7 +978,7 @@ class Daemon:
             if process.returncode != 0 or not isinstance(result.get('text'), str):
                 raise ValueError('invalid details')
             return {'type': 'details', 'text': result['text'], 'truncated': bool(result.get('truncated')), 'error': ''}
-        except (OSError, ValueError, AttributeError, asyncio.TimeoutError):
+        except (TimeoutError, OSError, ValueError, AttributeError):
             return {'type': 'details', 'text': '', 'truncated': False,
                     'error': 'Installation details could not be read. On the recovery shell, run: less /run/cybexos-installer.log'}
         finally:
@@ -1043,7 +1043,7 @@ class Daemon:
                 worker.stdin.close()
             try:
                 await asyncio.wait_for(worker.wait(), 10)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 with contextlib.suppress(ProcessLookupError):
                     worker.terminate()
         stop.set()
@@ -1135,7 +1135,7 @@ async def request_power(kind, timeout=15):
             detail = error.decode(errors='replace').strip()[:500]
             raise Failure(f'The power request failed (exit {process.returncode}). '
                           + (detail or 'Open the recovery shell to check the system journal, then retry.'))
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise Failure('The power request timed out. Open the recovery shell to check the system journal, then retry.') from error
     except OSError as error:
         raise Failure('The power request could not start. Open the recovery shell to check the system journal, then retry.') from error
@@ -1185,7 +1185,7 @@ def save_log(device):
         return {'type': 'usb', 'targets': usb_targets(), 'error': 'That USB stick is no longer available.', 'saved': ''}
     mountpoint = RUNTIME / 'usb'
     mountpoint.mkdir(parents=True, exist_ok=True)
-    name = 'cybexos-install-' + datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S') + '.log'
+    name = 'cybexos-install-' + datetime.datetime.now(datetime.UTC).strftime('%Y%m%d-%H%M%S') + '.log'
     mounted = False
     try:
         subprocess.run(['mount', '-o', 'nosuid,nodev,noexec', device, str(mountpoint)], check=True,

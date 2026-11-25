@@ -46,7 +46,7 @@ class Fixture(unittest.TestCase):
         # cliphist decode: the payload for each line comes from entries.json.
         self.entries = root / "entries.json"
         self.entries.write_text(json.dumps({
-            TEXT_LINE: "deploy token\n  second line".encode().hex(),
+            TEXT_LINE: b"deploy token\n  second line".hex(),
             IMAGE_LINE: PNG.hex(),
             OTHER_IMAGE: (PNG + b"other").hex(),
             BINARY_LINE: b"\x00\x01binary".hex(),

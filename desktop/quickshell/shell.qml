@@ -496,13 +496,13 @@ ShellRoot {
             }
 
             Bar {
-                id: bar
+                id: barWindow
                 screen: barScope.output
                 visible: barScope.output !== null
             }
 
             BarPopoutWindow {
-                bar: bar
+                bar: barWindow
                 screen: barScope.output
             }
         }

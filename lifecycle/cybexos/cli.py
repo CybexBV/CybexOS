@@ -94,11 +94,11 @@ def enqueue_update(state, action, values):
         atomic(state / 'update-request.json', {'id': identifier}, 0o644)
         try:
             subprocess.run(['systemctl', 'start', '--no-block', unit], check=True)
-        except BaseException:
+        except BaseException as error:
             atomic(status, read(status) | {'state': 'failed', 'finishedAt': time.time(),
                                           'error': 'The supervised update service could not be started. Retry or inspect its system service log.'}, 0o644)
             payload.unlink(missing_ok=True)
-            raise Failure('The supervised update service could not be started. No update was applied.')
+            raise Failure('The supervised update service could not be started. No update was applied.') from error
         return {'accepted': True, 'requestId': identifier, 'unit': unit}
 
 

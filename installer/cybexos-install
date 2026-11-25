@@ -491,7 +491,7 @@ def interactive(release):
         for index, disk in enumerate(available, 1):
             print(f"  {index}. {disk['path']}  {disk['size'] // 1024**3} GiB  {(disk.get('model') or '').strip()}  serial: {disk.get('serial') or 'unavailable'}")
         print('\nThe entire selected disk will be erased, including every partition.')
-        def select(answer):
+        def select(answer, available=available):
             choice = next((disk for index, disk in enumerate(available, 1)
                            if answer in (str(index), disk['path'])), None)
             if choice is None:
@@ -574,7 +574,8 @@ def interactive(release):
         return plan, secrets
 
 
-def install(plan, secrets, source, revision, nar_hash, run=Runner(), *, channel):
+def install(plan, secrets, source, revision, nar_hash, run=None, *, channel):
+    run = run or Runner()
     validate(plan)
     if channel not in ('stable', 'beta'):
         raise Failure('Installation requires a supported release channel. No disk has been erased.')
@@ -906,7 +907,7 @@ def graphical_session(args, runner):
         except Failure as error:
             event('preflight-error', message=str(error))
             if ui_request().get('action') != 'retry':
-                raise Cancelled()
+                raise Cancelled() from error
     defaults = read(ETC / 'installer-defaults.json')
     if not isinstance(defaults, dict) or any(type(defaults.get(key)) is not bool for key in FEATURES):
         raise Failure('Installation medium is missing its shared application defaults')

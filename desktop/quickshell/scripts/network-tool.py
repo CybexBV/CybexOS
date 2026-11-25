@@ -25,7 +25,8 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 
 PHYSICAL_TYPES = {"802-3-ethernet": "ethernet", "802-11-wireless": "wifi"}
@@ -143,8 +144,7 @@ def run(
             argv,
             input=input_text,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             env=environment,
             timeout=limit,
             check=False,
@@ -777,7 +777,7 @@ def dns_action(request: dict[str, Any]) -> dict[str, Any]:
                 rollback_failures.append(profile["name"])
         if rollback_failures:
             raise ToolError("dns_rollback_failed",
-                            "DNS update failed and rollback also failed for " + ", ".join(rollback_failures))
+                            "DNS update failed and rollback also failed for " + ", ".join(rollback_failures)) from original
         raise original
 
     reconnect_devices: list[str] = []

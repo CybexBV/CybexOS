@@ -27,7 +27,7 @@ async def status(agent, executable, home, env):
             stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
         code = await asyncio.wait_for(process.wait(), STATUS_TIMEOUT)
         return "ready" if code == 0 else "required" if code == 1 else "unknown"
-    except (OSError, asyncio.TimeoutError):
+    except (TimeoutError, OSError):
         return "unknown"
     finally:
         if process is not None and process.returncode is None:

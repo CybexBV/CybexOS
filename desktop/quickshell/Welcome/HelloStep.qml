@@ -313,7 +313,7 @@ Item {
         readonly property string plainText: root.hello(Welcome.firstName, root.shortcut)
         // His eyes, where the tail points, kept off the rounded corners.
         readonly property real tailY: Math.max(radius + tail.reach, Math.min(height - radius - tail.reach,
-            wiz.y + wiz.height * wiz.layout.eyes[1] / 120 - y))
+            helloWiz.y + helloWiz.height * helloWiz.layout.eyes[1] / 120 - y))
         x: Kiosk.px(746)
         y: installed.y - Kiosk.px(18) - height
         width: Kiosk.px(326)
@@ -366,12 +366,12 @@ Item {
 
     // On the card's top edge, his feet on it: hat lifted for a moment, then at ease.
     Character.Wiz {
-        id: wiz
+        id: helloWiz
         objectName: "helloWiz"
         width: Kiosk.px(140)
         height: width
         x: Kiosk.px(1140) - width / 2
-        y: installed.y - height * wiz.layout.ground[1] / 120
+        y: installed.y - height * helloWiz.layout.ground[1] / 120
         pose: root.greeting ? "greeting" : "idle"
     }
 }

@@ -114,7 +114,10 @@ Item {
         command: root.domain === "sound" ? ["pactl", "subscribe"]
             : root.domain === "network" ? ["nmcli", "monitor"]
             : ["gdbus", "monitor", "--session", "--dest", "org.gnome.OnlineAccounts"]
+        // Quickshell's Process.environment is QVariantHash while QML object literals type as QVariantMap.
+        // qmllint disable incompatible-type
         environment: ({ LC_ALL: "C" })
+        // qmllint enable incompatible-type
         stdout: SplitParser { onRead: data => root.monitorEvent(data) }
         stderr: StdioCollector {}
     }

@@ -16,7 +16,8 @@ from pathlib import Path
 import sys
 import tempfile
 import time
-from typing import Any, Iterator
+from typing import Any
+from collections.abc import Iterator
 
 FAILURE_WINDOW = 120.0
 FAILURE_LIMIT = 3

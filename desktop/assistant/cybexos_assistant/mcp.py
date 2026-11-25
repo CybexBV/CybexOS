@@ -71,7 +71,7 @@ async def handle(message, socket_path, lane):
                 outcome = await asyncio.wait_for(call_service(socket_path, name, arguments, lane), CALL_TIMEOUT)
             except (OSError, ConnectionError):
                 outcome = {"isError": True, "text": "The Cybex OS Assistant service is not running."}
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 outcome = {"isError": True, "text": "The desktop did not answer in time."}
         result = {"content": [{"type": "text", "text": outcome["text"]}], "isError": outcome["isError"]}
     else:

@@ -65,7 +65,7 @@ def sources():
     if len(ids) != len(set(ids)) or not all(ID.fullmatch(i) for i in ids):
         raise SystemExit('sources.json: app ids must be unique, lowercase and short')
     categories = {c['id']: {s for s, _ in c['subcategories']} for c in data['categories']}
-    for app_id, attribute, appstream, category, subcategory in data['apps']:
+    for app_id, attribute, _appstream, category, subcategory in data['apps']:
         if not ATTRIBUTE.fullmatch(attribute) or subcategory not in categories.get(category, ()):
             raise SystemExit(f'sources.json: invalid attribute or category for {app_id}')
     for profile in data['profiles']:

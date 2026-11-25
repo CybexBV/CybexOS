@@ -343,7 +343,7 @@ class PromoteTests(unittest.TestCase):
         self.git('push', '--quiet', 'origin', 'main', 'v' + version)
         # The local tag is fetched from origin, as on a fresh checkout.
         self.git('tag', '--delete', 'v' + version)
-        published = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)
+        published = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=hours)
         if self.state.exists():
             # Promotions edit the published listing.
             self.listing = json.loads(self.state.read_text())

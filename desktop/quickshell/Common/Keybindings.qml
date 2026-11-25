@@ -7,10 +7,10 @@ import "KeybindingsModel.js" as Model
 // once without a claim, for the welcome guide's short-lived keycap reads.
 Singleton {
     id: root
-    readonly property bool loaded: { root.revision; return root.model.loaded; }
+    readonly property bool loaded: { void root.revision; return root.model.loaded; }
     readonly property bool busy: backend.busy || backend.loading
     readonly property string error: {
-        root.revision;
+        void root.revision;
         return root.localError || (backend.error ? I18n.tr(backend.error)
             : root.model.state.error ? root.preferencesError : "");
     }
@@ -20,28 +20,28 @@ Singleton {
     // backend's. While set, only resetAll() is accepted; applying that reset
     // replaces the file after a backup copy is kept.
     readonly property string preferencesError: {
-        root.revision;
+        void root.revision;
         const problem = Model.problem(root.model);
         return problem.lua ? I18n.tr("Your keybindings.json could not be used, so your changes are paused. Reset all to start again; the broken file is kept.")
             : problem.file ? I18n.tr(problem.file) : "";
     }
     readonly property string preferencesDetail: {
-        root.revision;
+        void root.revision;
         const problem = Model.problem(root.model);
         return problem.lua ? root.luaReason(problem.lua) : "";
     }
-    readonly property bool readOnly: { root.revision; return Model.broken(root.model); }
+    readonly property bool readOnly: { void root.revision; return Model.broken(root.model); }
     // { "<xkb keycode>": "<level-1 keysym>" } for the active layout, {} when
     // unknown. Pass it to KeybindEditor.fromKeyEvent so Shift combinations are
     // recorded as Hyprland binds them (SUPER + SHIFT + 1, not code:10).
-    readonly property var keymap: { root.revision; return root.model.keymap || ({}); }
+    readonly property var keymap: { void root.revision; return root.model.keymap || ({}); }
     readonly property var actions: root.rows.actions
     readonly property var userBinds: root.rows.userBinds
     readonly property var diagnostics: root.rows.diagnostics
-    readonly property bool dirty: { root.revision; return Model.dirty(root.model); }
-    readonly property var rows: { root.revision; return Model.view(root.model); }
+    readonly property bool dirty: { void root.revision; return Model.dirty(root.model); }
+    readonly property var rows: { void root.revision; return Model.view(root.model); }
     // [{ id, group, label, custom, before, after, removed }] that apply() would change.
-    readonly property var changes: { root.revision; return Model.changes(root.model); }
+    readonly property var changes: { void root.revision; return Model.changes(root.model); }
     readonly property var backend: SystemSettings.keybindings
     property var model: Model.create()
     property int revision: 0
@@ -98,9 +98,9 @@ Singleton {
             return reject(String(problem.message || problem));
         }
     }
-    function keysFor(id) { root.revision; return Model.keysFor(model, id); }
-    function action(id) { root.revision; return Model.action(model, id); }
-    function conflicts(keyString, exceptId) { root.revision; return Model.conflicts(model, keyString, exceptId); }
+    function keysFor(id) { void root.revision; return Model.keysFor(model, id); }
+    function action(id) { void root.revision; return Model.action(model, id); }
+    function conflicts(keyString, exceptId) { void root.revision; return Model.conflicts(model, keyString, exceptId); }
     function setKeys(id, keys) { return edit(() => Model.setKeys(root.model, id, keys)); }
     // [{ id, keys }] applied all or not at all.
     function setManyKeys(changes) { return edit(() => Model.setManyKeys(root.model, changes)); }

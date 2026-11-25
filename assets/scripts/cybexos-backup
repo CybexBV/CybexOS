@@ -53,7 +53,7 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 EXIT_OK = 0
@@ -212,11 +212,11 @@ class Context:
 
 
 def utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def stamp(moment):
-    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+    return moment.astimezone(UTC).isoformat(timespec="seconds")
 
 
 def parse_time(value):
@@ -228,7 +228,7 @@ def parse_time(value):
         moment = datetime.fromisoformat(value)
     except ValueError:
         return None
-    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
 def read_json(path, default):
@@ -1247,7 +1247,7 @@ def snapshot_list(context, config, password):
                        "files": summary.get("total_files_processed", 0),
                        "bytes": summary.get("total_bytes_processed", 0)})
     result.sort(key=lambda entry: parse_time(entry["time"]) or datetime.min.replace(
-        tzinfo=timezone.utc), reverse=True)
+        tzinfo=UTC), reverse=True)
     return result
 
 

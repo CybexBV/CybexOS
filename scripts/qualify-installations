@@ -743,7 +743,7 @@ subprocess.run(prefix + ['systemd-run', '--user', '--quiet', '--collect', '--uni
         status_command = ('runuser -u cybexqa -- env XDG_RUNTIME_DIR=/run/user/1000 '
                           'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus '
                           'cybexos-runtime ipc polkit status')
-        for attempt in range(90):
+        for _attempt in range(90):
             status = json.loads(self.command(status_command))
             if status.get('registered') and status.get('active') and status.get('responseRequired'):
                 break

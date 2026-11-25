@@ -66,7 +66,10 @@ PopupWindow {
     else root.open = false
   }
 
+  // Omarchy plugin compatibility: callers rely on PopupCard's default child container.
+  // qmllint disable property-override
   default property alias contentItem: contentHolder.children
+  // qmllint enable property-override
 
   visible: open || card.opacity > 0
   color: "transparent"
@@ -91,9 +94,12 @@ PopupWindow {
 
   anchor {
     window: root.anchorWindow
+    // Quickshell's PopupAnchor qmltypes omit these enum property types.
+    // qmllint disable missing-type
     adjustment: PopupAdjustment.Slide
     edges: Edges.Top | Edges.Left
     gravity: Edges.Bottom | Edges.Right
+    // qmllint enable missing-type
     rect.width: 1
     rect.height: 1
 
@@ -120,8 +126,8 @@ PopupWindow {
       if (!window) return
 
       if (root.attachedToBar) {
-        var attachedPoint = window.contentItem.mapFromItem(target, 0, 0)
-        var attachedX = root.centerOnBar ? window.width / 2 - popupWidth / 2
+        const attachedPoint = window.contentItem.mapFromItem(target, 0, 0)
+        const attachedX = root.centerOnBar ? window.width / 2 - popupWidth / 2
           : attachedPoint.x + target.width / 2 - popupWidth / 2
         root.anchor.rect.x = Math.round(Math.max(root.margin,
           Math.min(attachedX, window.width - popupWidth - root.margin)))
@@ -132,8 +138,8 @@ PopupWindow {
       }
 
       if (root.centerOnBar) {
-        var cx = 0;
-        var cy = 0;
+        let cx = 0;
+        let cy = 0;
         if (root.bar.position === "top" || root.bar.position === "bottom") {
           cx = window.width / 2 - popupWidth / 2
           cy = root.bar.position === "bottom" ? -popupHeight - root.margin : window.height + root.margin

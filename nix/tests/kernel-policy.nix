@@ -32,8 +32,8 @@ let
     } ];
   };
   overlaid = matched {
-    nixpkgs.overlays = [ (final: previous: {
-      linuxPackages_latest = previous.linuxPackages_latest.extend (finalKernel: previousKernel: {
+    nixpkgs.overlays = [ (_final: previous: {
+      linuxPackages_latest = previous.linuxPackages_latest.extend (_finalKernel: previousKernel: {
         kernel = previousKernel.kernel.overrideAttrs (old: { postPatch = (old.postPatch or "") + "\n# policy fixture\n"; });
       });
     }) ];

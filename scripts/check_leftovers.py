@@ -42,7 +42,7 @@ for n, raw in enumerate(pathlib.Path(args.allowlist).read_text().splitlines(), 1
 
 
 def allowed(path, subject):
-    for glob, rx, reason, n in rules:
+    for glob, rx, _reason, n in rules:
         if fnmatch.fnmatchcase(path, glob) and rx.search(subject):
             return n
     return None

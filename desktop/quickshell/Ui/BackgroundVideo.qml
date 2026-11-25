@@ -91,7 +91,7 @@ Item {
     id: player
     source: root.mediaSource
     videoOutput: output
-    audioOutput: audioLoader.item
+    audioOutput: audioLoader.item as AudioOutput
     loops: MediaPlayer.Infinite
     autoPlay: root.playbackEnabled
     onMediaStatusChanged: {
