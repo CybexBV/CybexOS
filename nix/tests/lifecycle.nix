@@ -47,9 +47,21 @@ let
     ({ lib, ... }: { time.timeZone = lib.mkOverride 900 "Europe/Berlin"; i18n.defaultLocale = lib.mkOverride 900 "nl_NL.UTF-8"; })
   ];
   # The interrupted preparation really builds: with a new package, NixOS
-  # rebuilds these from its own tools, which the VM then needs.
-  builders = let completions = software.environment.etc."fish/generated_completions".source; in
-    map (derivation: derivation.inputDerivation) ([
+  # rebuilds these from its own tools, which the VM then needs. For
+  # __structuredAttrs derivations (such as buildEnv's man-paths and system-path),
+  # nixpkgs' inputDerivation only dumps $NIX_ATTRS_SH_FILE, which drops nested
+  # JSON arrays like chosenOutputs (e.g. shellcheck-man / shellcheck-doc).
+  # Append $NIX_ATTRS_JSON_FILE so the VM store retains every input output.
+  builders = let
+    completions = software.environment.etc."fish/generated_completions".source;
+    retainInputs = derivation: let inp = derivation.inputDerivation; in
+      if (inp.__structuredAttrs or false) then
+        builtins.derivation (inp.drvAttrs // {
+          args = [ "-c" (builtins.elemAt inp.args 1 + "\nif [ -e \"$NIX_ATTRS_JSON_FILE\" ]; then printf \"%s\" \"$(< \"$NIX_ATTRS_JSON_FILE\")\" >> \"$out\"; fi\n") ];
+        })
+      else inp;
+  in
+    map retainInputs ([
       software.system.build.toplevel software.system.build.etc software.system.path
       software.documentation.man.man-db.manualPages software.environment.etc."dbus-1".source
       completions (builtins.head completions.paths)
