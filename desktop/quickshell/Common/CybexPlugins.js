@@ -21,6 +21,8 @@ var PLUGINS = [
             costKeeperUrl: "keeperUrl",
             costKeeperPasswordFile: "keeperPasswordFile"
         },
+        // And a renamed value: its settings schema offers direct or proxy.
+        values: { usageSource: { cliproxy: "proxy" } },
         name: "Model Usage",
         description: "Claude, Codex and Kimi quota limits, resets and cost estimates.",
         url: "https://github.com/DigitalPals/omarchy-modelusage"
@@ -82,6 +84,11 @@ function importedOptions(plugin, options) {
     Object.keys(renames).forEach(function(old) {
         if (old in options && !(renames[old] in out))
             out[renames[old]] = options[old];
+    });
+    var values = plugin.values || {};
+    Object.keys(values).forEach(function(key) {
+        if (key in out && Object.prototype.hasOwnProperty.call(values[key], out[key]))
+            out[key] = values[key][out[key]];
     });
     return out;
 }

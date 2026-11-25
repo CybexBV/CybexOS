@@ -96,7 +96,7 @@ class PublishTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.log.read_text().splitlines(), [
             'release create v1.0.1 --repo CybexHQ/CybexOS --verify-tag --title Cybex OS 1.0.1 '
-            '--notes-file release/notes.md --latest cybexos.iso'])
+            '--notes-file release/notes.md --prerelease=false --latest cybexos.iso'])
         self.assertIn('for stable and beta', result.stdout)
         self.assertNotIn('release/promote', result.stdout)
 
@@ -116,7 +116,7 @@ class PublishTests(unittest.TestCase):
         self.assertIn('Would publish v1.0.1', result.stdout)
         self.assertIn('for beta (--prerelease --latest=false)', result.stdout)
         result = self.publish('1.0.1', '--dry-run', '--stable')
-        self.assertIn('for stable and beta (--latest)', result.stdout)
+        self.assertIn('for stable and beta (--prerelease=false --latest)', result.stdout)
         self.assertEqual(self.git('tag'), '')
         self.assertFalse(self.log.exists())
 

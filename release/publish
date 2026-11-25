@@ -73,7 +73,8 @@ for commit in "$tagged" "$local_tag"; do
 done
 # GitHub's prerelease flag is what keeps a release off the stable channel.
 kind=(--prerelease --latest=false) channel=beta
-if ((stable)); then kind=(--latest) channel='stable and beta'; fi
+# --prerelease=false too: resuming a draft that gh left as a prerelease.
+if ((stable)); then kind=(--prerelease=false --latest) channel='stable and beta'; fi
 # Only a commit the full check passed reaches machines: every job of a
 # nixos.yml run on The Beast, dispatched or started by the push to main
 # (docs/releasing.md#the-full-check). Both check out exactly this commit; a

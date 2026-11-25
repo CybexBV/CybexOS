@@ -167,7 +167,7 @@ test("Model Usage's renamed options arrive under the names the plugin reads", ()
         costKeeperUrl: "https://keeper.example", refreshIntervalSec: 600
     });
     assert.deepEqual(imported, {
-        usageSource: "cliproxy", proxyUrl: "https://proxy.example", proxyKeyFile: "/home/me/key",
+        usageSource: "proxy", proxyUrl: "https://proxy.example", proxyKeyFile: "/home/me/key",
         keeperUrl: "https://keeper.example", refreshIntervalSec: 600
     });
     // A value already under the new name wins.

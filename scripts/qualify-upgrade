@@ -612,6 +612,18 @@ def upgrade(harness, iso, source, target, base, evidence, *, standin, applicatio
         if (vendor.get('state') != 'available' or vendor.get('available') != target['version']
                 or vendor.get('revision') != target['revision']):
             raise RuntimeError('The installed updater did not offer the release under test: ' + json.dumps(discovery)[:4000])
+        upstream_offer = discovery.get('upstream', {}).get('state')
+        if version(source['version']) >= RELEASE_PINNED:
+            # From 1.0.32 NixOS packages come with the release: when its pin
+            # moves this machine, the updater must offer them, or the
+            # combined update (and any branch move) silently never happens.
+            release_nixpkgs = root_input(target['lock'], 'nixpkgs')
+            moves = expected_nixpkgs(source['version'], 'both', before['nixpkgs']['locked'], {},
+                                     release_nixpkgs['locked'], before['nixpkgs']['original'].get('ref'),
+                                     release_nixpkgs['original'].get('ref')) != before['nixpkgs']['locked'].get('rev')
+            if upstream_offer not in ('available', 'current') or (moves and upstream_offer != 'available'):
+                raise RuntimeError('The installed updater did not offer the release\'s NixOS packages: '
+                                   + json.dumps(discovery)[:4000])
         steps['discovery'] = {'result': 'passed', 'cybexos': {key: vendor.get(key) for key in
                               ('state', 'installed', 'available', 'revision', 'releases', 'channel')},
                               'upstream': discovery.get('upstream')}
