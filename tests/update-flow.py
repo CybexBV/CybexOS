@@ -252,9 +252,9 @@ class Session(welcome.Session):
         entry = shell / 'shell.qml'
         text = entry.read_text().replace('    id: shell', '    id: shell\n' + IPC, 1)
         text = text.replace('Component.onCompleted: outputName = output ? output.name : ""',
-            'Component.onCompleted: { outputName = output ? output.name : ""; shell.updateTestBar = bar; shell.updateTestPopout = updatePopup; }', 1)
-        text = text.replace('            BarPopoutWindow {\n                bar: bar',
-            '            BarPopoutWindow {\n                id: updatePopup\n                bar: bar', 1)
+            'Component.onCompleted: { outputName = output ? output.name : ""; shell.updateTestBar = barWindow; shell.updateTestPopout = updatePopup; }', 1)
+        text = text.replace('            BarPopoutWindow {\n                bar: barWindow',
+            '            BarPopoutWindow {\n                id: updatePopup\n                bar: barWindow', 1)
         assert text.count('    SoftwareUpdateWindow {}\n') == 1
         text = text.replace('    SoftwareUpdateWindow {}\n',
             '    SoftwareUpdateWindow { id: updateWindow; Component.onCompleted: shell.updateTestWindow = updateWindow }\n')
