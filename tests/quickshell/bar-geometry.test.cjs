@@ -51,6 +51,24 @@ test("the live bar keeps borderless hug corners visual-only and attached square"
     assert.doesNotMatch(bar, /DropShadow/);
 });
 
+test("hug rounds the opposite screen edge's corners like the bar's own", () => {
+    const corners = fs.readFileSync(path.join(shellDir, "Bar/ScreenCorners.qml"), "utf8");
+    const shell = fs.readFileSync(path.join(shellDir, "shell.qml"), "utf8");
+    // Beside each output's bar, on the edge the bar is not on.
+    assert.match(shell, /ScreenCorners \{\s*bar: barWindow\s*screen: barScope\.output/);
+    assert.match(corners, /readonly property bool atTop: Settings\.position === "bottom"/);
+    assert.match(corners, /readonly property bool shown: Theme\.barHug && !bar\.hidden/);
+    // The bar's corner, at the bar corners' size, in black.
+    assert.equal((corners.match(/HugCorner \{/g) || []).length, 2);
+    assert.doesNotMatch(corners, /cornerSize:/, "the corners keep HugCorner's own size");
+    assert.match(corners, /implicitHeight: Theme\.hugCornerSize/);
+    assert.equal((corners.match(/fillColor: "#000000"/g) || []).length, 2);
+    // Visual only: no pointer, no keyboard, no reserved space.
+    assert.match(corners, /mask: Region \{\}/);
+    assert.match(corners, /exclusionMode: ExclusionMode\.Ignore/);
+    assert.match(corners, /keyboardFocus: WlrKeyboardFocus\.None/);
+});
+
 test("Hyprland and shell surfaces share the hug corner radius", () => {
     const theme = fs.readFileSync(path.join(shellDir, "Common/Theme.qml"), "utf8");
     const look = fs.readFileSync(
