@@ -1,4 +1,6 @@
 #!@bash@
+# shellcheck shell=bash
+# (@bash@ becomes Bash's store path when the package installs this file.)
 # Omasnap's notifications on Cybex OS. Omasnap runs Omarchy's
 # `omarchy-notification-send`; nix/packages/omasnap.nix installs this file
 # under that name on Omasnap's own PATH only. It accepts the same command

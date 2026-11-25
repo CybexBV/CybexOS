@@ -603,8 +603,6 @@ Singleton {
     // never slides the surface; the sheet hangs under the clock.
     readonly property int drawerWidth: scaled(Settings.drawerWidth, contentScale)
     readonly property int daySheetWidth: scaled(680, contentScale)
-    readonly property int t3MinWidth: 360
-    readonly property int t3MaxWidth: 520
     readonly property int surfacePadding: scaled(16)
     readonly property int controlHeight: scaled(46)
     // Inline action pills sit beside copy inside compact cards. They need a

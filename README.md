@@ -6,14 +6,16 @@
 
 # Cybex OS
 
-A personal, independently updatable NixOS desktop.
+A personal NixOS desktop with staged, reversible updates.
 
 Cybex OS is a NixOS desktop built around Hyprland, a custom Quickshell interface,
 keyboard-driven applications, and personal extensions that stay yours.
 NixOS on the rolling nixos-unstable branch, x86_64, is the current target; a
-default installation downloads prebuilt packages from cache.nixos.org. This is
-an **unreleased replacement**; [qualification and release blockers](docs/validation.md)
-describe its actual status.
+default installation downloads prebuilt packages from cache.nixos.org.
+Releases are published on GitHub on a beta and a stable channel
+([release operations](docs/releasing.md#channels)). The
+[validation status](docs/validation.md) records what has been tested and what
+has not, including physical hardware.
 
 The same NixOS modules define the installed product and the installation ISO,
 which boots straight into a native installer screen and carries the desktop as
@@ -36,20 +38,23 @@ file; personal modules and persistent data are separate from vendor releases.
 - [Matched laptops: Dell XPS 2026 and HP ZBook Ultra G1a](docs/laptop-support.md)
 - [Validation status](docs/validation.md)
 
-Upstream packages and Cybex OS are independently selectable:
+Each release pins the Nixpkgs revision its full check built, and an update
+moves a machine to that release and its Nixpkgs together
+([updates](docs/updates.md#nixpkgs-comes-with-the-release)):
 
 ```console
 cybex update check
-cybex update stage upstream  # or cybexos, both, local
+cybex update stage both      # or cybexos (the release alone), upstream, local
 cybex update status          # review the built changes and returned ID/token
 cybex update apply ID TOKEN
 # Reboot when you choose, sign in, then:
 cybex update confirm
 ```
 
-Both the desktop Update button and CLI use the supervised, serialized lifecycle.
-A failed combined preview can be retried explicitly with `stage upstream` while
-retaining installed Cybex OS. Personal inputs are never refreshed implicitly.
+Software Update and the CLI use the same supervised, serialized lifecycle.
+When the combined update fails, for example on a package NixOS hasn't built
+yet, it falls back to the release alone (`stage cybexos`) on the packages the
+machine already has. Personal inputs are never refreshed implicitly.
 
 For source work, use `nix develop` and `tests/run`. Build the ISO with
 `nix build .#iso`; use task-specific staging and the repository's ISO/PXE rules.

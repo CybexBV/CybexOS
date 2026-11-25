@@ -116,6 +116,15 @@ A row's explanation is one plain sentence. A tool's own message (a failed
 pointer download's Nix error, a keybindings parser error) waits behind a
 **Details** disclosure under it, in the mono face.
 
+The Bar page holds the built-in widgets. Model Usage, GitHub, T3 Code,
+Hermes Agent, Fusebox and Remote Server left it on 2026-11-24: they are Cybex
+OS plugins now, listed under **Plugins → Cybex OS plugins** with an Install
+button each, which runs `cybex plugin add <url>` and `cybex plugin enable <id>`
+([Omarchy plugins](omarchy-plugin-compatibility.md#cybex-os-plugins)), and
+then `cybex plugin merge <id>` with the options the built-in widget had
+saved, which `shell.json` keeps for that. The widget
+presets are Focused and Everything.
+
 A widget's options in the Bar page open in a sheet with one scroll: the
 option pages inside it are embedded (`SettingsPage.embedded`), so they share
 its right-hand edge and add no scroll, clip or fade of their own. Under the
@@ -321,3 +330,7 @@ first view.
   state system, the action tiers and Home's narrow-column reflow.
 - `tests/settings-runtime.py` is the installed-VM audit of every page and tab;
   see [the settings audit](measurements/settings-audit-2026-10-27.md).
+  `checks.x86_64-linux.settings-audit` runs its preferences suite, and
+  `tests/omarchy-runtime.py` after it, in a disposable desktop VM on every full
+  check; the extended cases (network, VPN, hotspot and display trials, backups)
+  stay manual.

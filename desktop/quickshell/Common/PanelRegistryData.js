@@ -66,11 +66,6 @@ var PANELS = [
 
     { name: "reminders", island: "center", moduleId: "indicators", source: "Popovers/ReminderPopover.qml" },
     { name: "media", island: "left", moduleId: "media", source: "Popovers/MediaPopover.qml" },
-    { name: "t3code", island: "right", moduleId: "t3", source: "Popovers/T3CodePopover.qml", attached: true },
-    { name: "hermes", island: "right", moduleId: "hermes", source: "Popovers/HermesPopover.qml" },
-    { name: "remote", island: "right", moduleId: "remote", source: "Popovers/RemoteServerPopover.qml" },
-    { name: "fusebox", island: "right", moduleId: "fusebox", source: "Popovers/FuseboxPopover.qml" },
-    { name: "github", island: "right", moduleId: "gh", source: "Popovers/GitHubPopover.qml" },
     { name: "overflow", island: "right", moduleId: "", source: "Popovers/OverflowPopover.qml" },
 
     // Compatibility route for bar actions and `popouts open settings` IPC.
@@ -84,13 +79,12 @@ var PANELS = [
 ];
 
 // Bar modules that own no panel of their own. `ws` has no detail view,
-// `tray` opens each item's own menu, and `modelusage` hosts the vendored
-// Model Usage panel, which opens its own plugin-style popup. `assistant`
+// `tray` opens each item's own menu. `assistant`
 // shows and hides the assistant's own overlay; "updates" opens the Software
 // Update window. Listed so the
 // test can insist the module id and panel spaces account for each other
 // completely rather than silently tolerating a typo'd moduleId.
-var PANEL_LESS_MODULES = ["ws", "tray", "modelusage", "assistant", "updates"];
+var PANEL_LESS_MODULES = ["ws", "tray", "assistant", "updates"];
 
 var SETTINGS = "settings";
 var NOTES = "notes";

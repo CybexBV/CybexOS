@@ -44,6 +44,17 @@ preferences in `~/.config/cybexos/plugins.json`, and state in
 data directory. Use `cybex plugin` and `cybex theme`; no personal package is
 copied into the vendor runtime or deleted during an OS rollback.
 
+Cybex OS's own optional widgets (Model Usage, GitHub, T3 Code, Hermes Agent,
+Fusebox and Remote Server) are plugins too, each in its own repository. Install
+them from Settings → Plugins → Cybex OS plugins, or for example:
+
+```bash
+cybex plugin add https://github.com/DigitalPals/omarchy-modelusage
+cybex plugin enable digitalpals.model-usage
+```
+
+The full list is in [Omarchy compatibility](omarchy-plugin-compatibility.md#cybex-os-plugins).
+
 [Widget API 1](architecture/user-widgets.md) and
 [Omarchy compatibility](omarchy-plugin-compatibility.md) are public contracts.
 The preserved native interface injects `pluginApi`; all six supported Omarchy

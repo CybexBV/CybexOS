@@ -15,12 +15,31 @@ def resolved(lock, name):
     return lock['nodes'][value]
 
 
+def branch_order(ref):
+    """Where a supported NixOS branch sits in Cybex OS's history, or None.
+
+    nixos-unstable comes first (Cybex OS followed it until NixOS 26.11), then
+    the stable branches from 26.11 on in release order. Machines only ever
+    move forward in this order.
+    """
+    if ref == 'nixos-unstable':
+        return (0, 0)
+    match = re.fullmatch(r'nixos-([0-9]{2})\.(05|11)', ref) if isinstance(ref, str) else None
+    if not match or (int(match[1]), int(match[2])) < (26, 11):
+        return None
+    return (int(match[1]), int(match[2]))
+
+
 def supported_branch(ref):
     """nixos-unstable, or a stable NixOS branch from 26.11 on (nixos-YY.MM)."""
-    if ref == 'nixos-unstable':
-        return True
-    match = re.fullmatch(r'nixos-([0-9]{2})\.(05|11)', ref) if isinstance(ref, str) else None
-    return bool(match) and (int(match[1]), int(match[2])) >= (26, 11)
+    return branch_order(ref) is not None
+
+
+def release_name(ref):
+    """A branch's short name, as release/compatibility.json lists it: "unstable" or "26.11"."""
+    if not supported_branch(ref):
+        raise Failure(f'Unsupported NixOS branch: {ref}')
+    return ref.removeprefix('nixos-')
 
 
 def validate_machine(lock):
@@ -119,9 +138,11 @@ def pin(value):
 def newer(pinned, lock):
     """Whether the machine lock's Nixpkgs moves to `pinned`. Never back.
 
-    A later revision on the same branch moves it. A release on another
-    branch moves it to that branch's revision: the move to a stable release
-    (nixos-26.11) is qualified as its own release.
+    A later revision on the same branch moves it. A release on a later
+    branch (branch_order: nixos-unstable, then nixos-26.11, nixos-27.05, ...)
+    moves it to that branch's revision, whatever the commit dates: the move to
+    a stable release is qualified as its own release. A release on an earlier
+    branch never moves it back.
     """
     current = identity(lock, 'nixpkgs')
     modified = current.get('lastModified')
@@ -130,10 +151,10 @@ def newer(pinned, lock):
         return False
     branch = resolved(lock, 'nixpkgs')['original'].get('ref')
     if pinned['ref'] != branch:
-        # A release on another branch (nixos-unstable to nixos-26.11) is the
-        # owner's qualified move, whatever its commit dates: a stable branch's
-        # commits can be dated before the machine's unstable revision.
-        return True
+        target, installed = branch_order(pinned['ref']), branch_order(branch)
+        # A stable branch's commits can be dated before the machine's
+        # unstable revision, so only the branch order decides.
+        return target is not None and installed is not None and target > installed
     return pinned['rev'] != current.get('rev') and pinned['lastModified'] > modified
 
 

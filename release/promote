@@ -36,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'lifecycle'))
 from cybexos.common import Failure  # noqa: E402
+from cybexos.inputs import pin, release_name  # noqa: E402
 from cybexos.trust import version  # noqa: E402
 
 REPO = os.environ.get('CYBEXOS_RELEASE_REPO', 'CybexBV/CybexOS')
@@ -54,11 +55,28 @@ def run(*arguments, check=True):
     return result
 
 
+def pages(text):
+    """Every page of a `gh api --paginate` listing as one list.
+
+    gh merges array pages into one array, or prints one array per page,
+    depending on its version.
+    """
+    decoder, position, listing = json.JSONDecoder(), 0, []
+    try:
+        while text[position:].strip():
+            position = len(text) - len(text[position:].lstrip())
+            page, position = decoder.raw_decode(text, position)
+            if not isinstance(page, list):
+                fail('GitHub returned an invalid release listing')
+            listing += page
+    except json.JSONDecodeError:
+        fail('GitHub returned an invalid release listing')
+    return listing
+
+
 def releases():
     """The release listing exactly as installed machines read it."""
-    listing = json.loads(run('gh', 'api', f'repos/{REPO}/releases?per_page=100').stdout)
-    if not isinstance(listing, list):
-        fail('GitHub returned an invalid release listing')
+    listing = pages(run('gh', 'api', '--paginate', f'repos/{REPO}/releases?per_page=100').stdout)
     found = []
     for item in listing:
         tag = item.get('tag_name') if isinstance(item, dict) else None
@@ -90,6 +108,15 @@ def declared(tag, name):
     return json.loads(match[1].replace("'", '"'))
 
 
+def nixos(tag):
+    """The NixOS branch a release follows ("unstable", "26.11"): the Nixpkgs
+    of its own flake.lock, in compatibility.json's short form."""
+    try:
+        return release_name(pin(json.loads(source(tag, 'flake.lock')))['ref'])
+    except (Failure, ValueError) as error:
+        fail(f'{tag} has no valid Nixpkgs branch in its flake.lock: {error}')
+
+
 def compatible(candidate, current):
     """Whether every machine on the current stable release can install the candidate."""
     wanted = json.loads(source(candidate, 'release/compatibility.json'))
@@ -104,9 +131,15 @@ def compatible(candidate, current):
     missing = set(have.get('architectures', [])) - set(wanted.get('architectures', []))
     if missing:
         problems.append(f'it drops architectures {", ".join(sorted(missing))}')
-    branch = declared(current, 'NIXOS')
+    branch = nixos(current)
     if branch not in wanted.get('nixos', []):
         problems.append(f'it does not support NixOS {branch}, which machines on {current} run')
+    # Machines that took a release alone (`stage cybexos`) keep their own
+    # branch, so any branch the current stable release accepts may still run.
+    dropped = set(have.get('nixos', [])) - set(wanted.get('nixos', [])) - {branch}
+    if dropped:
+        problems.append(f'it drops NixOS {", ".join(sorted(dropped))}, which {current} supports and machines '
+                        'that installed a release alone may still run')
     return problems
 
 
@@ -176,12 +209,20 @@ def main():
         fail(f'the tag {tag} is not available from origin')
     if source(tag, 'VERSION').strip() != args.version:
         fail(f'the VERSION file at {tag} is not {args.version}')
+    # A dispatched run or the one the push to main started: both check out
+    # exactly this commit (a pull request's run checks a merge commit). One
+    # whose upgrade job started from another release has its own title.
     passed = run('gh', 'run', 'list', '--repo', REPO, '--workflow', 'nixos.yml', '--commit', revision,
-                 '--event', 'workflow_dispatch', '--status', 'success', '--limit', '1',
-                 '--json', 'databaseId', '--jq', 'length').stdout.strip()
-    if passed != '1':
+                 '--status', 'success', '--limit', '100', '--json', 'event,displayTitle', '--jq',
+                 '[.[] | select((.event == "workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length').stdout.strip()
+    if not passed.isdigit() or int(passed) < 1:
         fail(f'the full check (nixos.yml) has not passed for {tag} ({revision[:12]}); '
              'stable gets only releases that passed it')
+    # A run passes only when every job of the commit's own workflow passed.
+    # After 1.0.32 that workflow must include the upgrade job.
+    workflow = run('git', 'show', f'{tag}:.github/workflows/nixos.yml', check=False).stdout
+    if version(args.version) > version('1.0.32') and not re.search(r'^  upgrade:', workflow, re.M):
+        fail(f'the full check of {tag} has no upgrade job; a release after 1.0.32 needs one')
 
     published = datetime.datetime.fromisoformat(target['published_at'].replace('Z', '+00:00'))
     hours = (datetime.datetime.now(datetime.timezone.utc) - published).total_seconds() / 3600

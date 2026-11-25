@@ -14,7 +14,7 @@ source tests/checks.bash
 
 # Checks that wait on real clocks (timeouts, a busy shell, restic) come first,
 # so they are already under way when only a few checks fit at a time.
-long=(test_runtime_ipc.py test_fusebox.py test_backup.py)
+long=(test_runtime_ipc.py test_backup.py)
 for module in "${long[@]}"; do
   [[ -f tests/nixos/$module ]] || { echo "tests/run: tests/nixos/$module is gone, update the list" >&2; exit 2; }
   check "tests/nixos/$module" python3 -B -m unittest discover -s tests/nixos -p "$module" -v
@@ -26,10 +26,11 @@ done
 node_jobs=$((jobs / 4))
 ((node_jobs < 1)) && node_jobs=1
 ((node_jobs > 8)) && node_jobs=8
+check tests/lint tests/lint
+
 check tests/quickshell node --test "--test-concurrency=$node_jobs" tests/quickshell/*.test.cjs
 
-for script in model-usage.py plugin-packages.py theme-packs.py system-settings.py settings-ownership.py \
-    nixos/hermes-bridge.py nixos/hermes-remote-runtime.py nixos/hermes-webui-auth.py \
+for script in plugin-packages.py theme-packs.py system-settings.py settings-ownership.py \
     nixos/default-agent.py nixos/camera-frame.py; do
   check "tests/$script" python3 -B "tests/$script"
 done

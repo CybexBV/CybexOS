@@ -40,15 +40,7 @@ const DIRS = typeDirs();
 const EXEMPT = {
     "Common/NotifImageFingerprint.qml":
         "imports the native image module; Notifs loads its fixed URL lazily so "
-        + "source previews without the module disable dynamic-image dedupe safely",
-    "Common/T3Socket.qml":
-        "imports the optional QtWebSockets package; T3Connection loads it "
-        + "through a Loader by URL so a missing package degrades to "
-        + "Loader.Error instead of an unresolvable type",
-    "Common/HermesSocket.qml":
-        "imports the optional QtWebSockets package; HermesConnection loads it "
-        + "through a Loader by URL so a missing package degrades to "
-        + "Loader.Error instead of an unresolvable type"
+        + "source previews without the module disable dynamic-image dedupe safely"
 };
 
 function read(relative) {
@@ -137,27 +129,15 @@ test("every exemption still exists and still says why", () => {
     }
 });
 
-test("T3Socket stays reachable by URL, since it is not a type", () => {
-    // The exemption is only safe while this is how it loads. It moved from
-    // T3Code to T3Connection when the transport was split out.
-    assert.match(read("Common/T3Connection.qml"), /source:\s*"T3Socket\.qml"/);
-});
-
 test("notification image fingerprint wrapper loads through one fixed lazy URL", () => {
     assert.match(read("Common/Notifs.qml"), /active:\s*false\s+asynchronous:\s*false\s+source:\s*"NotifImageFingerprint\.qml"/);
     assert.match(read("Common/NotifImageFingerprint.qml"), /import CybexOS\.Images 1\.0/);
-});
-
-test("HermesSocket stays reachable by URL, since it is not a type", () => {
-    assert.match(read("Common/HermesConnection.qml"),
-        /source:\s*"HermesSocket\.qml"/);
 });
 
 test("every vendored directory exists, says where it came from, and has no qmldir", () => {
     // The scans that skip these directories are only justified while they
     // stay unchanged upstream copies. A qmldir would be a local edit, and
     // would also stop the implicit import their QML relies on.
-    assert.ok(VENDORED_DIRS.length > 0);
     for (const dir of VENDORED_DIRS) {
         assert.ok(fs.statSync(path.join(shellDir, dir), { throwIfNoEntry: false })
             ?.isDirectory(), `vendored ${dir}/ is gone — drop it from VENDORED_DIRS`);

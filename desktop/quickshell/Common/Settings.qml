@@ -24,8 +24,6 @@ Singleton {
     readonly property string filePath:
         Quickshell.env("HOME") + "/.config/cybexos/shell.json"
 
-    readonly property bool connectedWidgetsConfigured:
-        Quickshell.env("CYBEXOS_CONNECTED_WIDGETS") === "1"
     // The installer's assistant feature (docs/assistant.md). Unset, as in a
     // source-tree run, it counts as on: the default.
     readonly property bool assistantConfigured:
@@ -564,12 +562,20 @@ Singleton {
         drawerOverview = SettingsHelpers.normalizeDrawerOverview(next);
     }
 
+    // A retired widget's saved options (schema 36 keeps them in the file):
+    // what its Cybex OS plugin starts with when Settings installs it.
+    function retiredWidgetOptions(id) {
+        if (SettingsHelpers.PLUGIN_WIDGET_IDS.indexOf(id) === -1)
+            return null;
+        const parsed = SettingsHelpers.parse(storeText);
+        const options = parsed.status === "ok" && parsed.value.modOpts ? parsed.value.modOpts[id] : null;
+        return options && typeof options === "object" && !(Array.isArray(options) || options instanceof Array)
+            && Object.keys(options).length ? options : null;
+    }
+
     function modulePresetIds(name) {
         return name === "everything"
             ? SettingsHelpers.MODULE_IDS
-            : name === "connected"
-            ? ["ws", "media", "indicators", "clock", "weather", "notes", "modelusage",
-                "updates", "gh", "t3", "hermes", "tray", "notifications", "vol", "wifi", "bt", "batt", "control"]
             : ["ws", "media", "indicators", "clock", "weather", "notes", "updates", "tray",
                 "notifications", "vol", "wifi", "batt", "control"];
     }
@@ -723,7 +729,6 @@ Singleton {
     SettingsDocument {
         id: document
         values: root.snapshot()
-        context: ({ connectedWidgets: root.connectedWidgetsConfigured })
     }
 
     function documentText() {
@@ -844,8 +849,7 @@ Singleton {
         }
         sourceDocument = result.value || ({});
         explicitOverrides = SettingsHelpers.overrideKeys(parsed);
-        const merged = SettingsHelpers.merge(parsed,
-            { connectedWidgets: root.connectedWidgetsConfigured });
+        const merged = SettingsHelpers.merge(parsed);
         if (loaded && SettingsHelpers.serialize(merged) === SettingsHelpers.serialize(snapshot())) {
             ready = true;
             return;

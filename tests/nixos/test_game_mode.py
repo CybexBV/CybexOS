@@ -57,7 +57,7 @@ class GameMode(unittest.TestCase):
             path.chmod(0o755)
         self.log = self.root / "calls.log"
         self.environment = {
-            "PATH": f"{self.bin}:{os.environ["PATH"]}", "FAKE_LOG": str(self.log),
+            "PATH": f"{self.bin}:{os.environ['PATH']}", "FAKE_LOG": str(self.log),
             "FAKE_UNITS": str(self.units), "XDG_RUNTIME_DIR": str(self.runtime),
             "HYPRLAND_INSTANCE_SIGNATURE": "instance-one", "HOME": str(self.root),
         }

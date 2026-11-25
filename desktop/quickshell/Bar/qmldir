@@ -12,10 +12,8 @@ BarTooltip BarTooltip.qml
 Cluster Cluster.qml
 ControlIconGlyph ControlIconGlyph.qml
 Divider Divider.qml
-HermesChip HermesChip.qml
 ModuleSlot ModuleSlot.qml
 PointerCheck PointerCheck.qml
 PopoutHost PopoutHost.qml
-T3Chip T3Chip.qml
 Workspaces Workspaces.qml
 UserWidgets UserWidgets.qml

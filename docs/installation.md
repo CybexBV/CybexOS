@@ -281,9 +281,13 @@ chosen by hand; **Detect again** asks once more.
 
 ### Network
 
-The medium and fresh installed systems start with Google DNS (`8.8.8.8`,
-`8.8.4.4` and their IPv6 equivalents); the initial wired profile ignores DNS
-advertised by DHCP, and Wi-Fi joined in the installer inherits it. The worker
+The medium and fresh installed systems use the DNS servers the network
+advertises (the network menu's **Automatic** choice), on the initial wired
+profile and on the first Wi-Fi network alike, so company resolvers and
+captive portals work. Google (`8.8.8.8`, `8.8.4.4` and their IPv6
+equivalents) is systemd-resolved's fallback when no network names a resolver,
+and one click away in the network menu; a later Wi-Fi network inherits the
+provider chosen there. The worker
 checks verified HTTPS access to the download service before setup and again
 before erasing the disk. A failure stops before any disk change and offers a
 retry; the private log records the resolver stub, upstream servers, routing
@@ -338,13 +342,13 @@ installer/cybexos-installerd --dump-static > static.json   # with lifecycle/ on 
 cd installer/kiosk && cargo run --features preview --bin installer-preview -- ../../static.json /tmp/renders
 ```
 
-New menubars leave the optional widgets (Model Usage, Hermes Agent, Remote
-Server, T3 Code, GitHub and Fusebox) available but off; turn them on in
-Settings -> Bar. Their code runs only while they are on, and the Hermes bridge
-starts only once its widget is on.
-Installing connected-service support does not enable them. Saved widget
-choices remain personal: a menubar from before 1.0.32 that showed Model Usage
-by default keeps it. LAN
+Model Usage, Hermes Agent, Remote Server, T3 Code, GitHub and Fusebox are
+not part of the menubar any more: they are Cybex OS plugins, installed from
+Settings -> Plugins -> Cybex OS plugins or with `cybex plugin add <url>`
+([Omarchy plugins](omarchy-plugin-compatibility.md#cybex-os-plugins)). The
+installer's **Calendar and online accounts** choice (the
+`cybexos.features.connectedWidgets` option) installs GNOME Calendar, GNOME
+Online Accounts and Evolution Data Server, which give the clock its events. LAN
 discovery is enabled by default: Avahi browses and publishes local addresses,
 `.local` resolution is available, and the firewall admits the discovery and
 selected application ports. Bibata Modern Classic is the default pointer across
@@ -353,10 +357,12 @@ Settings → Appearance → Pointer ([Settings](settings.md#pointer)) applies to
 desktop from the next login on. The login screen keeps Bibata.
 
 The ISO retains its tested flake input sources. A fresh machine's first lock
-starts with that exact Nixpkgs revision and content hash, retaining
-nixos-unstable as its upstream update source. Installation never resolves a newer
-branch head implicitly. Later upstream-only updates advance this machine-owned
-input independently of Cybex OS. This does not make installation fully offline:
+starts with that exact Nixpkgs revision and content hash, and its flake
+follows the branch that lock names (nixos-unstable, or a stable NixOS branch
+from 26.11 on). Installation never resolves a newer branch head implicitly.
+Later updates move this machine-owned input only to the revision a Cybex OS
+release pins ([updates](updates.md#nixpkgs-comes-with-the-release)).
+This does not make installation fully offline:
 packages not bundled on the medium require internet.
 
 Use a backed-up target disk of at least 64 GiB. Installation erases only the
@@ -373,7 +379,7 @@ Its layout and minimum disk size come from the shared Nix module contract.
 
 `nixos-generate-config` records actual hardware and filesystems. DMI/PCI/ACPI/
 EDID detection selects narrowly scoped XPS/NVIDIA declarations. The machine
-flake follows the nixos-unstable Nixpkgs input and pins the medium's exact Cybex OS
+flake follows the medium's NixOS branch and pins the medium's exact Cybex OS
 revision/NAR identity. The complete target is built and installed through the
 shared modules. First login installs missing vendor-skill discovery symlinks
 and never overwrites a pre-existing personal skill.

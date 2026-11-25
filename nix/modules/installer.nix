@@ -136,6 +136,9 @@ in {
       session required ${config.systemd.package}/lib/security/pam_systemd.so
     '';
 
+    # Its power buttons override other programs' shutdown blocks.
+    security.polkit.extraConfig = builtins.readFile ../../installer/power-ignore-inhibitors.rules;
+
     systemd.services.cybexos-installerd = {
       description = "Cybex OS installer state service";
       wantedBy = [ "multi-user.target" ];

@@ -203,7 +203,8 @@ class HardwareAssessmentTests(unittest.TestCase):
         lock = etc / 'flake.lock'
         lock.write_text(json.dumps({'root': 'machine', 'nodes': {
             'machine': {'inputs': {'nixpkgs': 'upstream', 'private': 'secret'}},
-            'upstream': {'locked': {'rev': 'b' * 40, 'narHash': 'sha256-upstream', 'url': 'DO-NOT-INCLUDE'}},
+            'upstream': {'locked': {'rev': 'b' * 40, 'narHash': 'sha256-upstream', 'url': 'DO-NOT-INCLUDE'},
+                         'original': {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'ref': 'nixos-unstable'}},
             'secret': {'locked': {'url': 'DO-NOT-INCLUDE'}}}}))
         before = lock.read_bytes()
         report = hardware.report(self.root, self.cpu, etc=etc, machine_lock=lock, catalogue=CATALOGUE, kernel_log='')
@@ -212,7 +213,7 @@ class HardwareAssessmentTests(unittest.TestCase):
         self.assertEqual(report['firmware'], {'uefi': True, 'secureBoot': True})
         self.assertEqual(set(report['qualification'].values()), {'not-run'})
         self.assertNotIn('DO-NOT-INCLUDE', json.dumps(report))
-        self.assertEqual(report['nixpkgs'], {'rev': 'b' * 40, 'narHash': 'sha256-upstream'})
+        self.assertEqual(report['nixpkgs'], {'rev': 'b' * 40, 'narHash': 'sha256-upstream', 'ref': 'nixos-unstable'})
         self.assertEqual(report['support'], report['assessment']['support'])
         self.assertEqual(lock.read_bytes(), before)
 

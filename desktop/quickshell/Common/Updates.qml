@@ -209,7 +209,7 @@ Singleton {
         else if (replacement)
             request(["stage", replacement.scope]);
     }
-    // After a failed combined preview: keep the installed Cybex OS.
+    // NixOS packages alone, up to the installed release's pinned revision.
     function prepareUpstream() { if (upstreamOnlyAvailable && !runActive) request(["stage", "upstream"]); }
     function apply() { if (actions.apply) request(["apply", deployment.transaction, deployment.reviewToken]); }
     function discard() { if (actions.discard) request(["discard", deployment.transaction]); }

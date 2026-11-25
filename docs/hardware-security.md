@@ -10,7 +10,7 @@ hardware support; no physical hardware was qualified during this implementation.
 | Generic desktop | Hyprland, Quickshell and Qt prebuilt from machine Nixpkgs; PipeWire, portals, Bluetooth, Gutenprint/free HPLIP printing and scanning, Orca/AT-SPI/speech-dispatcher, IBus typing booster, firmware/microcode, NetworkManager | Installed compositor/titlebar runtime, real login, suspend/resume, external displays and peripheral matrix |
 | Encryption | LUKS2 root, ext4, separate ESP, zram; runtime ancestry verification gates automatic login | Encrypted fresh install/first boot, wrong/missing unlock, every persistent storage branch and swap |
 | Login/authentication | Encrypted: SDDM automatic login once per verified boot, GNOME Keyring unlocked from the disk passphrase; otherwise and after logout, password login; fingerprint/FIDO2 alternatives for sudo, Polkit and lock with password fallback; no crash relogin | Physical readers/keys, PAM failure paths, keyring unlock and lock-before-suspend |
-| Firewall | Enabled; LocalSend 53317 TCP/UDP and mDNS 5353 UDP; gaming ports explicitly opt-in | Packet-level tests, VPN routing, application/container interactions |
+| Firewall | Enabled; LocalSend 53317 TCP/UDP and mDNS 5353 UDP only with local network services; gaming ports explicitly opt-in | Packet-level tests, VPN routing, application/container interactions |
 | NVIDIA | NixOS packaged driver, explicit open-module choice, modesetting/power options | Representative supported GPUs, hybrid graphics/PRIME choices, suspend, signing with Secure Boot |
 | Dell XPS 2026 | Exact DMI/SKU 0DB9/0DBA (XPS 14/16) and 0E53/0E54 (XPS 13), panel EDID and sensor gates; latest Nixpkgs kernel, panel PSR/Panel Replay quirks, CVS-after-amplifier load order, haptics, speaker filter, adaptive thermald and Intel LPMd ([matched laptops](laptop-support.md)) | All four SKUs, panel variants, audio routing/limiter, repeated suspend/hotplug, fingerprints |
 | HP ZBook Ultra G1a | Exact vendor/board 8D01 match; stock amdgpu, ISP4 camera, CS35L54 audio and MT7925; PMF Smart PC off | Panels, audio, camera, s2idle resume, Wi-Fi/Bluetooth after sleep, BIOS settings |
@@ -144,7 +144,7 @@ CVE-2026-91840/91841 and is excluded; insecure packages are not globally
 permitted. Real Cisco gateway authentication, routing, DNS and reconnect still
 require qualification. The native wrapped T3 Code AppImage builds but needs runtime
 qualification; native titlebar/compositor integration is still being completed.
-Connected account services and the Hermes bridge have native declarations;
-their real account/credential flows remain unqualified. Installing a related
+Connected account services have native declarations; their real
+account/credential flows remain unqualified. Installing a related
 command is not proof of product parity. See the current
 [validation record](validation.md).

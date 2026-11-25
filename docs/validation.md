@@ -1,9 +1,12 @@
 # Validation status and release blockers
 
-The NixOS implementation is unreleased and incomplete. There is no qualified
-production release, authenticated public NixOS channel or completed physical
-hardware/security qualification. This record describes development work on
-2026-10-22; results on earlier source snapshots do not qualify later edits.
+Cybex OS publishes beta and stable releases ([release operations](releasing.md)).
+Every release needs a passing full check on its exact commit
+([the full check](releasing.md#the-full-check)): fixture suites, NixOS VM
+tests and installations of the commit's own ISO in disposable VMs. Physical
+hardware and security qualification remain limited. The tables below record
+development evidence from 2026-10-22 onwards; each result belongs to the
+source snapshot it ran on and does not qualify later edits.
 
 The [2026-10-30–31 VM audit](measurements/release-vm-audit-2026-10-30.md)
 records later fixes and exact-source ISO/runtime evidence for beta.31. The
@@ -27,7 +30,7 @@ or establish physical/security/publication qualification.
 | Flathub and foreign programs | The Flathub backend against real Flatpak 1.18.4 and flathub.org in a throwaway home on the development host: the remote from the shipped repository file, search, an app's details, installing `org.vim.Vim` (and again), an app Flathub lacks, removal with its unused runtimes, and removing an app already gone; fixture suites for policy, validation, failures and dead workers; the real Software app in Quickshell under headless Sway with a scripted `cybex` (search, an app page with its sandbox, install → open, Installed with a confirmed removal, Flathub updates, the offer on a catalogue app NixOS cannot install yet); a NixOS VM session (`checks.x86_64-linux.hyprland-pointer`): the account's remote added once at sign-in and a removal kept, `cybex software flathub status`, a real transient worker, the shell's `XDG_DATA_DIRS` with Flatpak's exports, a distribution-style pigz (standard loader, no Nix library path) running through nix-ld, and AppImage binfmt registration; `scripts/check-prebuilt` (nothing compiles) and parity | A real Flathub install, launch and update inside an installed Cybex OS session (the VM has no network); Flatpak apps' fonts, icons, pointer theme, portals and file chooser under Hyprland; a real AppImage and downloaded vendor binaries; an ISO built from this source |
 | Default apps | `cybexos-apps` against real GIO and xdg-terminal-exec in disposable XDG directories (the nine roles, a choice waiting for its app and applied once it appears, reset to the system default keeping other associations, the terminal list, the web mail handlers never becoming an implicit default, Alacritty-style terminal options, the Files command); the catalogue generator resolving every role option against cache.nixos.org and Flathub; the real Software app in Quickshell under headless Sway with a scripted `cybex` and `cybexos-apps` (Firefox at once with Undo, Ghostty through the install list then used, Thunderbird from Flathub, Reset to Cybex picks, the offer on Firefox's page); the terminal theme targets rendered and Ghostty's and foot's configurations checked by the programs themselves; a NixOS VM session (`checks.x86_64-linux.hyprland-pointer`): the roles with Cybex OS's picks, a web mail handler chosen and reset, `cybexos-apps files` opening Nautilus in real Hyprland, and the seeded terminal configurations and themes | A real NixOS or Flathub install of an option in an installed session, then links, files and shortcuts opening it; Ghostty, Alacritty and foot running with the theme and Cybex OS's window options; email links through Gmail or Outlook in a real browser; an ISO built from this source |
 | Hardware | Pinned Intel camera HAL/GStreamer and PSYS packages built; private-ABI parser self-test passed | Actual kernel/private ABI and processed camera frames, both XPS SKUs, NVIDIA, fingerprint/FIDO2, Secure Boot and peripheral/power matrix |
-| Release delivery | `release/publish` and `release/promote` against a throwaway Git origin with a recording `gh` (beta first, promotion of the same tag, soak time, stable-updater compatibility, combined notes); channel selection, the runtime channel choice, `ahead` instead of a downgrade, a beta preview going stale on stable, exact-commit and source-declaration checks; the Software Update app under headless Sway choosing a channel through `Updates`, with no channel switch on its page and the `ahead` wording | A published release installed through the staged updater, and a durable custom cache |
+| Release delivery | `release/publish` and `release/promote` against a throwaway Git origin with a recording `gh` (beta first, promotion of the same tag, soak time, stable-updater compatibility, combined notes); channel selection, the runtime channel choice, `ahead` instead of a downgrade, a beta preview going stale on stable, exact-commit and source-declaration checks; the Software Update app under headless Sway choosing a channel through `Updates`, with no channel switch on its page and the `ahead` wording; since 2026-11-24 every full check installs the previous release's ISO and lets that release's own updater check, prepare, install and confirm the candidate through a stand-in release listing (the upgrade job, [release operations](releasing.md)), and 1.0.25 → 1.0.32 passed the same way | A durable custom cache |
 | Agent CLIs and vendor updates | Codex 0.167.0 and Claude Code 2.1.322 built from the vendors' own downloads (`nix/packages/codex`, `nix/packages/claude-code`); `checks.x86_64-linux.agent-clis`: both versions, Codex's bundled ripgrep and bubblewrap, `codex app-server` answering Wiz's `initialize` offline, every option Wiz passes Claude Code and the self-update switch in its wrapper; `codex doctor` reporting the package layout, its bundled search and no update command; `scripts/vendor-pins update` against the live GitHub, OpenAI and Anthropic answers (GitHub's digest against OpenAI's checksum list, both Claude Code manifests' signatures against Anthropic's release key) reproducing the pinned files; `tests/nixos/test_vendor_updates.py`: stable Codex releases only, Claude Code's latest channel, disagreeing checksums and unsigned or inconsistent manifests refused, all-or-none updates, one beta release for several pins, rebasing onto a moved `main` | A vendor-updates run on GitHub; real sign-ins and Wiz sessions with these builds; Codex's realtime voice (its helper is patched to start; its own ALSA was not tried with a microphone); the staged updater |
 
 Fixtures simulate command boundaries. They are regression coverage and cannot
@@ -85,7 +88,7 @@ tests and failures; inspect that evidence before using a particular image.
   host. A copied ISO is not advertised as PXE-ready until checksum verification,
   refresh, running service and image-list checks succeed there.
 
-1Password CLI/Polkit integration, connected-account services, the Hermes bridge, encrypted-backup timer,
+1Password CLI/Polkit integration, connected-account services, encrypted-backup timer,
 external-monitor lid handling, Voxtype and the required offline dictation model
 have native declarations. Their installed interactions still require testing.
 
@@ -120,7 +123,9 @@ sentinels for personal packages, VPNs, services, widget code/placement/preferenc
 plugin state and service data, and check them after updates and rollback.
 Hardware/security checks require representative physical machines.
 
-No workflow gates a release; the owner decides how far a release is qualified
-before publishing it ([release operations](releasing.md)). Record what was
+`release/publish` and `release/promote` refuse a commit without a passing full
+check on exactly that commit ([release operations](releasing.md#the-full-check)).
+That check is VM and fixture evidence, not physical hardware qualification;
+the owner decides what more a release needs. Record what was
 actually exercised on the exact released revision, and do not promote the
 development evidence in this document to a production-readiness claim.

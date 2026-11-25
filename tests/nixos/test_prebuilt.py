@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from unittest.mock import patch
 
 import test_lifecycle as lifecycle
@@ -33,6 +34,9 @@ WRAPPER = store('l', 'chatgpt-wayland-26.1.drv')
 APP = store('a', 'chatgpt-26.1.drv')
 CODEX = store('q', 'codex-0.167.0.drv')
 VOXTYPE = store('b', 'voxtype-1.1.1.drv')
+SYSTEM = store('m', 'nixos-system.drv')
+ZLIB = store('n', 'zlib-1.3.drv')
+GCC = store('p', 'gcc-15.drv')
 
 
 def node(*inputs, **env):
@@ -621,6 +625,110 @@ class UnchangedBoot(unittest.TestCase):
         self.engine.apply(record['id'], record['reviewToken'])
         self.assertIn(('cybexos-boot-trial', lifecycle.NEW_SYSTEM, lifecycle.OLD_SYSTEM), self.runner.calls)
         self.assertEqual(read(self.engine.status_path)['state'], 'awaiting-boot')
+
+
+
+def check_prebuilt():
+    """scripts/check-prebuilt as a module; its main() does not run."""
+    import importlib.machinery
+    import importlib.util
+    path = lifecycle.ROOT / 'scripts/check-prebuilt'
+    loader = importlib.machinery.SourceFileLoader('check_prebuilt', str(path))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader('check_prebuilt', loader))
+    loader.exec_module(module)
+    return module
+
+
+class CheckPrebuilt(unittest.TestCase):
+    """The cache walk of scripts/check-prebuilt, without a network."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.script = check_prebuilt()
+
+    def plan(self, graph, cached):
+        from concurrent.futures import ThreadPoolExecutor
+        asked = []
+        def check(path):
+            asked.append(path)
+            return path in cached
+        with ThreadPoolExecutor(4) as pool:
+            return self.script.plan(graph, SYSTEM, check, pool), asked
+
+    def test_every_output_a_dependency_needs_is_checked(self):
+        # The system uses zlib's out; a package built here needs its dev too.
+        def outputs(letter, *names):
+            return {name: {'path': store(letter, 'zlib-' + name)} for name in names}
+        graph = {
+            SYSTEM: {'outputs': outputs('s', 'out'), 'env': {}, 'inputDrvs': {ZLIB: {'outputs': ['out'], 'dynamicOutputs': {}},
+                                                                             TOOL: {'outputs': ['out'], 'dynamicOutputs': {}}}},
+            TOOL: {'outputs': outputs('t', 'out'), 'env': {}, 'inputDrvs': {ZLIB: ['dev']}},
+            ZLIB: {'outputs': outputs('z', 'out', 'dev', 'static'), 'env': {}, 'inputDrvs': {GCC: {'outputs': ['out']}}},
+            GCC: {'outputs': outputs('g', 'out'), 'env': {}, 'inputDrvs': {}},
+        }
+        zlib = graph[ZLIB]['outputs']
+        # Every needed output cached: the tool's and zlib's subtrees are covered.
+        missing, asked = self.plan(graph, {zlib['out']['path'], zlib['dev']['path'], graph[TOOL]['outputs']['out']['path']})
+        self.assertEqual(missing, {SYSTEM})
+        self.assertNotIn(zlib['static']['path'], asked, 'an output nothing needs is not asked for')
+        self.assertNotIn(graph[GCC]['outputs']['out']['path'], asked)
+        # The tool is built here. A cached out no longer hides the dev
+        # output it needs: zlib is built here too.
+        out, gcc = zlib['out']['path'], graph[GCC]['outputs']['out']['path']
+        missing, asked = self.plan(graph, {out, gcc})
+        self.assertEqual(missing, {SYSTEM, TOOL, ZLIB})
+        self.assertEqual(asked.count(out), 1, 'each output is asked for once')
+        self.assertIn(gcc, asked)
+        missing, _ = self.plan(graph, {out, zlib['dev']['path']})
+        self.assertEqual(missing, {SYSTEM, TOOL})
+        # An input without its output list counts every output; one without a path is never cached.
+        graph[TOOL]['inputDrvs'] = {ZLIB: {}}
+        missing, asked = self.plan(graph, {out, zlib['dev']['path'], gcc})
+        self.assertEqual(missing, {SYSTEM, TOOL, ZLIB})
+        self.assertIn(zlib['static']['path'], asked)
+        graph[TOOL]['inputDrvs'] = {ZLIB: ['dev']}
+        graph[ZLIB]['outputs']['dev'] = {}
+        missing, _ = self.plan(graph, {out, gcc})
+        self.assertEqual(missing, {SYSTEM, TOOL, ZLIB})
+
+    def answers(self, *answers):
+        import urllib.error
+        requests, sleeps = [], []
+        def urlopen(request, timeout):
+            requests.append((request.full_url, request.get_method()))
+            answer = answers[len(requests) - 1]
+            if isinstance(answer, int) and answer != 200:
+                raise urllib.error.HTTPError(request.full_url, answer, 'status', {}, None)
+            if isinstance(answer, BaseException):
+                raise answer
+            response = unittest.mock.MagicMock()
+            return response
+        return requests, sleeps, patch.object(self.script.urllib.request, 'urlopen', urlopen), \
+            patch.object(self.script.time, 'sleep', sleeps.append)
+
+    def test_cache_queries_retry_transient_failures(self):
+        import urllib.error
+        path = store('h', 'hello-2.12')
+        requests, sleeps, opener, sleeper = self.answers(503, TimeoutError(), urllib.error.URLError(ConnectionResetError()), 200)
+        with opener, sleeper:
+            self.assertTrue(self.script.cached(path))
+        self.assertEqual(requests, [('https://cache.nixos.org/' + 'h' * 32 + '.narinfo', 'HEAD')] * 4)
+        self.assertEqual(sleeps, [1, 2, 4])
+        # 404 is a definite answer at once.
+        requests, sleeps, opener, sleeper = self.answers(404)
+        with opener, sleeper:
+            self.assertFalse(self.script.cached(path))
+        self.assertEqual((len(requests), sleeps), (1, []))
+        # A rate limit is retried; a lasting failure still fails the check.
+        requests, sleeps, opener, sleeper = self.answers(429, 502, 503, 504)
+        with opener, sleeper, self.assertRaises(urllib.error.HTTPError):
+            self.script.cached(path)
+        self.assertEqual(len(requests), self.script.ATTEMPTS)
+        # Other client errors are not transient.
+        requests, sleeps, opener, sleeper = self.answers(403)
+        with opener, sleeper, self.assertRaises(urllib.error.HTTPError):
+            self.script.cached(path)
+        self.assertEqual(len(requests), 1)
 
 
 if __name__ == '__main__':

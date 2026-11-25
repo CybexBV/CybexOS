@@ -105,12 +105,13 @@ class WifiDefaultsTests(unittest.TestCase):
             tool.inherit_dns_for_new_profile('new-wifi', previous)
         return modify
 
-    def test_first_wifi_connection_defaults_to_google_for_both_address_families(self):
+    def test_first_wifi_connection_uses_the_networks_dns_for_both_address_families(self):
         settings = self.inherit([]).call_args.args[1]
-        self.assertEqual(settings['ipv4Dns'], ['8.8.8.8', '8.8.4.4'])
-        self.assertEqual(settings['ipv6Dns'], ['2001:4860:4860::8888', '2001:4860:4860::8844'])
-        self.assertTrue(settings['ipv4IgnoreAutoDns'])
-        self.assertTrue(settings['ipv6IgnoreAutoDns'])
+        self.assertEqual(settings['provider'], 'Automatic')
+        self.assertEqual(settings['ipv4Dns'], [])
+        self.assertEqual(settings['ipv6Dns'], [])
+        self.assertFalse(settings['ipv4IgnoreAutoDns'])
+        self.assertFalse(settings['ipv6IgnoreAutoDns'])
 
     def test_existing_provider_including_explicit_automatic_is_inherited(self):
         for provider in ('Automatic', 'Cloudflare', 'Google', 'Custom'):
@@ -119,9 +120,10 @@ class WifiDefaultsTests(unittest.TestCase):
                 self.assertEqual(modify.call_args.args, ('new-wifi', tool.provider_configuration(provider, '9.9.9.9')))
 
     def test_hotspots_and_vpns_do_not_override_the_first_wifi_default(self):
-        hotspot = {**self.profile('Automatic'), 'connectionType': '802-11-wireless', 'ipv4Method': 'shared'}
-        vpn = {**self.profile('Automatic'), 'connectionType': 'wireguard'}
-        self.assertEqual(self.inherit([hotspot, vpn]).call_args.args[1]['provider'], 'Google')
+        # Neither one's provider (Google here) is a person's Wi-Fi choice.
+        hotspot = {**self.profile('Google'), 'connectionType': '802-11-wireless', 'ipv4Method': 'shared'}
+        vpn = {**self.profile('Google'), 'connectionType': 'wireguard'}
+        self.assertEqual(self.inherit([hotspot, vpn]).call_args.args[1]['provider'], 'Automatic')
 
     def test_mixed_existing_dns_is_preserved(self):
         self.inherit([self.profile('Automatic'), self.profile('Custom')]).assert_not_called()

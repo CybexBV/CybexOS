@@ -2,9 +2,11 @@
 """List what a Cybex OS system would compile instead of downloading.
 
 Walks the system's derivation graph from its root, asking cache.nixos.org for
-each output, independent of what this computer's store already holds. A
-cached output covers its whole subtree. What remains is a fresh machine's
-build plan, judged as the updater judges it (`prebuilt.compiles`):
+every output a derivation's users need (a package's `out`, `dev`, `lib`, ...),
+independent of what this computer's store already holds. A derivation whose
+needed outputs are all cached covers its whole subtree; one with a needed
+output missing is built, and so are its own inputs' missing outputs. What
+remains is a fresh machine's build plan, judged as the updater judges it (`prebuilt.compiles`):
 configuration files (local-only by design), fixed-output downloads and the
 system's expected local builds (`system.build.cybexosExpectedBuilds`: Cybex
 OS's own packages and their declared parts, unfree vendor downloads, kernel
@@ -31,9 +33,11 @@ package it would compile is still reported.
     scripts/check-prebuilt --profile ID          # an approved hardware profile
 """
 import argparse
+import http.client
 import json
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -79,33 +83,77 @@ def evaluate(nvidia, packages, profile=None, xps=False, hardware=None):
     return json.loads(nix('eval', '--impure', '--json', '--expr', expression))
 
 
+CACHE = 'https://cache.nixos.org'
+ATTEMPTS = 4
+
+
 def cached(path):
+    """Whether cache.nixos.org holds a store path. 404 is a definite no.
+
+    A timeout, reset connection, rate limit or server error is tried again
+    with backoff before it fails the check: one transient 503 should not
+    cost a full check its run.
+    """
     digest = Path(path).name.split('-', 1)[0]
-    try:
-        with urllib.request.urlopen(f'https://cache.nixos.org/{digest}.narinfo', timeout=30):
-            return True
-    except urllib.error.HTTPError as error:
-        if error.code == 404:
-            return False
-        raise
+    request = urllib.request.Request(f'{CACHE}/{digest}.narinfo', method='HEAD')
+    for attempt in range(ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=30):
+                return True
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return False
+            if (error.code < 500 and error.code != 429) or attempt == ATTEMPTS - 1:
+                raise
+        except (urllib.error.URLError, http.client.HTTPException, OSError):
+            if attempt == ATTEMPTS - 1:
+                raise
+        time.sleep(2 ** attempt)
+
+
+def requested(value, info):
+    """The outputs of an input derivation its user needs; all of them when Nix doesn't say."""
+    outputs = value.get('outputs') if isinstance(value, dict) else value
+    if isinstance(outputs, list) and outputs and all(isinstance(output, str) for output in outputs):
+        return set(outputs)
+    return set(info['outputs'])
+
+
+def plan(graph, root, check, pool):
+    """The derivations a fresh machine builds: those with a needed output no cache holds.
+
+    A derivation is checked again when another user needs a further output
+    of it, so a cached `out` cannot hide a missing `dev` another package needs.
+    """
+    needed, missing, known = {}, set(), {}
+    pending = {root: set(graph[root]['outputs'])}
+    while pending:
+        work = {}
+        for drv, outputs in pending.items():
+            new = set() if drv in missing else outputs - needed.get(drv, set())
+            if new:
+                needed.setdefault(drv, set()).update(new)
+                work[drv] = new
+        paths = {(drv, output): (graph[drv]['outputs'].get(output) or {}).get('path')
+                 for drv, outputs in work.items() for output in outputs}
+        unknown = [path for path in dict.fromkeys(paths.values()) if path and path not in known]
+        known.update(zip(unknown, pool.map(check, unknown)))
+        pending = {}
+        for drv, outputs in work.items():
+            if all(paths[drv, output] and known[paths[drv, output]] for output in outputs):
+                continue
+            missing.add(drv)
+            for dependency, value in (graph[drv].get('inputDrvs') or {}).items():
+                pending.setdefault(dependency, set()).update(requested(value, graph[dependency]))
+    return missing
 
 
 def walk(root, expected, vendor, declared):
     graph = derivation_graph(json.loads(nix('derivation', 'show', '-r', root)))
-    seen, frontier, missing = set(), [root], set()
     with ThreadPoolExecutor(32) as pool:
-        while frontier:
-            batch = [d for d in dict.fromkeys(frontier) if d not in seen]
-            seen.update(batch)
-            outputs = [next((o['path'] for o in graph[d]['outputs'].values() if 'path' in o), None) for d in batch]
-            present = list(pool.map(lambda path: path is not None and cached(path), outputs))
-            frontier = []
-            for drv, hit in zip(batch, present):
-                if not hit:
-                    missing.add(drv)
-                    frontier.extend(graph[drv].get('inputDrvs') or {})
-    plan = {drv: graph[drv] for drv in missing}
-    found = compiles(lambda *arguments, **options: json.dumps({d: plan[d] for d in arguments[3:]}),
+        missing = plan(graph, root, cached, pool)
+    builds = {drv: graph[drv] for drv in missing}
+    found = compiles(lambda *arguments, **options: json.dumps({d: builds[d] for d in arguments[3:]}),
                      sorted(missing), root=root, expected=expected, vendor=vendor, declared=declared)
     # Configuration a declared build needs is part of that build.
     covered, frontier = set(), [d for d in declared if d in missing and d not in vendor]

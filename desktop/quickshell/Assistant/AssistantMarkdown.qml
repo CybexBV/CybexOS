@@ -3,7 +3,7 @@ import QtQuick
 import Quickshell
 import "../Common"
 import "../Common/AssistantHelpers.js" as AssistantHelpers
-import "../Common/T3CodeHelpers.js" as T3CodeHelpers
+import "../Common/NotesHelpers.js" as NotesHelpers
 
 // A reply as Wiz shows it: prose as Markdown, and each fenced code block in
 // its own well with the language and a Copy button (docs/assistant.md). Only
@@ -40,7 +40,7 @@ Column {
                     selectByMouse: true
                     textFormat: root.plain ? TextEdit.PlainText : TextEdit.MarkdownText
                     text: root.plain ? block.modelData.text
-                        : T3CodeHelpers.styleMarkdownLinks(block.modelData.text, Theme.accentText.toString())
+                        : NotesHelpers.styleMarkdownLinks(block.modelData.text, Theme.accentText.toString())
                     wrapMode: TextEdit.Wrap
                     color: root.color
                     selectionColor: Theme.accentSoft

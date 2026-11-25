@@ -20,7 +20,8 @@ import time
 from urllib.parse import urlencode
 
 from cybexos.common import CommandFailure, Failure, Runner, atomic, parse, read
-from cybexos.engine import copy_config
+from cybexos.engine import Engine, copy_config
+from cybexos.inputs import supported_branch
 from cybexos.credentials import validate_password
 from cybexos.hardware import detect, support_lines, validate_hardware
 from cybexos.installer_network import ensure_internet, retry_download
@@ -181,17 +182,14 @@ def build_progress():
         reporter.join()
 
 
-NIXPKGS_BRANCH = 'nixos-unstable'
-
-
 def vendor_nixpkgs(source):
     """Return the root Nixpkgs lock node that the vendor source was tested with.
 
     The source must already be authenticated (or explicitly selected for
     development). Only its lock file is read; nothing is evaluated. Seeding the
     machine lock with this node keeps the installer from resolving the moving
-    branch head, while the original branch selector still lets later upstream
-    updates advance independently.
+    branch head. Its branch (nixos-unstable or a supported stable branch such
+    as nixos-26.11) becomes the machine flake's own nixpkgs.url.
     """
     try:
         lock = read(Path(source) / 'flake.lock')
@@ -201,7 +199,9 @@ def vendor_nixpkgs(source):
         node = lock['nodes'][name] if isinstance(name, str) else None
         original, locked = node['original'], node['locked']
         if (set(node) != {'original', 'locked'}
-                or original != {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs', 'ref': NIXPKGS_BRANCH}
+                or not isinstance(original, dict) or set(original) != {'type', 'owner', 'repo', 'ref'}
+                or {k: original.get(k) for k in ('type', 'owner', 'repo')} != {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs'}
+                or not supported_branch(original.get('ref'))
                 or not isinstance(locked, dict)
                 or {k: locked.get(k) for k in ('type', 'owner', 'repo')} != {'type': 'github', 'owner': 'NixOS', 'repo': 'nixpkgs'}
                 or not set(locked) <= {'type', 'owner', 'repo', 'rev', 'narHash', 'lastModified'}
@@ -415,7 +415,7 @@ FEATURES = ('developer', 'proprietary', 'steam', 'docker', 'podman', 'tailscale'
 SYSTEM_FEATURES = (
     ('docker', 'Docker'), ('podman', 'Podman'), ('tailscale', 'Tailscale'),
     ('localNetworkServices', 'Local network discovery services'),
-    ('connectedWidgets', 'Connected desktop widgets'),
+    ('connectedWidgets', 'Calendar and online accounts'),
 )
 UNFREE_FEATURES = ('steam',)
 
@@ -462,7 +462,9 @@ def interactive(release):
     logo = Path(os.environ['CYBEXOS_UPDATER_SHARE']) / 'brand/ascii/cybexos-compact.fastfetch.txt'
     print(logo.read_text().replace('$1', '\033[38;2;243;242;236m').replace('$2', '\033[38;2;96;165;250m') + '\033[0m')
     media = read(ETC / 'release.json', {})
-    nixos = media.get('nixos', '') if isinstance(media, dict) and isinstance(media.get('nixos'), str) else ''
+    pinned = media.get('nixpkgs') if isinstance(media, dict) else None
+    ref = pinned.get('ref') if isinstance(pinned, dict) else None
+    nixos = ref.removeprefix('nixos-') if supported_branch(ref) else ''
     print(f'Fresh installation • UEFI • NixOS {nixos}'.rstrip() + '\n' + release)
     print('\nConnect to the internet and power before continuing. Back up the target disk.')
     print('You will review all settings before anything is erased. Ctrl+C cancels.\n')
@@ -679,6 +681,9 @@ def install(plan, secrets, source, revision, nar_hash, run=Runner(), *, channel)
             stage(3, 'Recording hardware and your machine configuration…')
             flake = (config / 'flake.nix').read_text().replace(f'github:{REPO}/REPLACE_WITH_AUTHENTICATED_REVISION', source)
             atomic(config / 'flake.nix', flake.encode(), 0o644)
+            # The machine follows the branch the medium was built with, so
+            # the lock below matches what its flake declares.
+            Engine.nixpkgs_branch(config, nixpkgs['original']['ref'])
             run('nixos-generate-config', '--root', target, '--dir', config)
             (config / 'configuration.nix').unlink(missing_ok=True)
             nix = json.dumps

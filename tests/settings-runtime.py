@@ -64,12 +64,14 @@ class Audit:
         raise AssertionError('Timed out: ' + expression)
 
     # Views the audit names, as the 2026-10 pages and tabs hold them: About
-    # became Home, Keyboard shortcuts a Keyboard tab, and Storage & cleanup
-    # the Disk space and Recovery points tabs of Backup & storage.
+    # became Home, Keyboard shortcuts a Keyboard tab, Storage & cleanup the
+    # Disk space and Recovery points tabs of Backup & storage, and Dictation
+    # the second tab of Assistant (Wiz is its first).
     VIEWS = {'about': ('home', ''), 'shortcuts': ('keyboard', 'shortcuts'), 'keyboard': ('keyboard', 'layouts'),
-             'storage': ('backup', 'storage'), 'recovery': ('backup', 'recovery'), 'backup': ('backup', 'backups')}
+             'storage': ('backup', 'storage'), 'recovery': ('backup', 'recovery'), 'backup': ('backup', 'backups'),
+             'assistant': ('assistant', 'wiz'), 'dictation': ('assistant', 'dictation')}
     KINDS = {'bar': 'ModulesPage', 'shortcuts': 'ShortcutsPage', 'storage': 'StoragePage', 'recovery': 'StoragePage',
-             'about': 'HomePage'}
+             'about': 'HomePage', 'dictation': 'DictationPage'}
 
     def page(self, page):
         target, tab = self.VIEWS.get(page, (page, ''))
@@ -147,6 +149,11 @@ class Audit:
         for path in [target,*target.rglob('*')]:
             if not path.is_symlink():os.chown(path,1000,100)
         config=Path('/home/cybexqa/.config/cybexos/dev-source')
+        # A fresh account has no Cybex OS settings yet.
+        for directory in (config.parent.parent, config.parent):
+            if not directory.exists():
+                directory.mkdir()
+                os.chown(directory,1000,100)
         config.write_text(str(target)+'\n')
         os.chown(config,1000,100)
         self.user(['systemctl','--user','restart','quickshell.service'])
@@ -788,7 +795,7 @@ class Audit:
         self.page('bar')
         before=self.evaluate('Settings.snapshot()')
         try:
-            for preset in ['focused','connected','everything']:
+            for preset in ['focused','everything']:
                 self.evaluate('shell.auditPage().preset='+json.dumps(preset)+';Settings.applyModulePreset('+json.dumps(preset)+')')
                 expected=self.evaluate('Settings.modulePresetIds('+json.dumps(preset)+')')
                 actual=self.evaluate('Object.values(Settings.mods).reduce((a,b)=>a.concat(b),[]).filter(m=>m.on).map(m=>m.id)')
@@ -801,7 +808,7 @@ class Audit:
                 self.wait('!shell.auditPage().membershipBusy')
                 self.evaluate('shell.auditPage().setEnabled(shell.auditPage().entries.find(e=>e.key==='+json.dumps(entry['key'])+'),true)')
                 self.wait('!shell.auditPage().membershipBusy')
-            return {'presets':3,'eachBuiltinMembership':len(entries),'saved':True}
+            return {'presets':2,'eachBuiltinMembership':len(entries),'saved':True}
         finally:
             self.evaluate('Settings.applyValues('+json.dumps(before)+',"Audit restore","")')
             self.saved()
@@ -1130,7 +1137,7 @@ class Audit:
     def run(self, *, scalars=True):
         self.test('one managed shell before audit', self.guard)
         # Every page, and the second views of the tabbed ones.
-        pages = self.evaluate('Settings.validPages') + ['shortcuts', 'recovery', 'storage']
+        pages = self.evaluate('Settings.validPages') + ['shortcuts', 'recovery', 'storage', 'dictation']
         for page in pages:
             if self.test('page: '+page, lambda page=page:self.inventory(page)) and scalars:
                 rows = self.report['pages'][page]

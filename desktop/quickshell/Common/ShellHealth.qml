@@ -24,25 +24,7 @@ Singleton {
     property bool busy: false
     property string refreshError: ""
 
-    // Naming a connection singleton constructs it. An integration whose bar
-    // module is off is reported as off — it contributes no issue — and the
-    // short-circuit keeps this page from being what brings it to life.
-    readonly property bool t3On: moduleOn("t3")
-    readonly property bool hermesOn: moduleOn("hermes")
-
-    readonly property var integrationIssues: {
-        const issues = [];
-        if (root.t3On && T3Connection.state === "offline"
-                && T3Connection.connectionError !== "")
-            issues.push("T3: " + T3Connection.connectionError);
-        if (root.hermesOn && HermesConnection.state === "offline"
-                && HermesConnection.connectionError !== "")
-            issues.push("Hermes: " + HermesConnection.connectionError);
-        if (GitHub.inboxError !== "")
-            issues.push("GitHub: " + GitHub.inboxError);
-        return issues;
-    }
-    readonly property int issueCount: integrationIssues.length + recentWarnings.length
+    readonly property int issueCount: recentWarnings.length
     readonly property bool healthy: serviceActive
         && deploymentStatus !== "failed" && deploymentStatus !== "rolled-back"
     readonly property string statusLabel: !serviceActive ? "Service unavailable"
@@ -50,12 +32,6 @@ Singleton {
         : deploymentStatus === "rolled-back" ? "Rolled back"
         : issueCount > 0 ? issueCount + (issueCount === 1 ? " issue" : " issues")
         : "Healthy"
-
-    function moduleOn(id) {
-        const mods = Settings.mods;
-        return ["left", "center", "right"].some(col =>
-            mods[col].some(m => m.id === id && m.on));
-    }
 
     function refresh() {
         if (probe.running)

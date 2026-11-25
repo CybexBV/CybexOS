@@ -53,5 +53,5 @@ scripts/i18n-catalog check nl                         # what the unit test check
 ```
 
 The catalog is shell source, so both installation paths receive it with the
-rest of the Quickshell tree. The vendored Model Usage widget keeps its
-upstream English text.
+rest of the Quickshell tree. Plugins, Cybex OS's own included, bring their
+own text.

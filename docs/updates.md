@@ -30,9 +30,12 @@ combination Cybex OS already built; only personal modules are new to it.
   release it would install (or the installed one) pins a newer revision. It
   reads the available release's `flake.lock` through the same GitHub API as
   the release listing (`Engine.release_pin`).
-- A release on another NixOS branch (from nixos-unstable to nixos-26.11)
-  also rewrites the literal `nixpkgs.url` in the machine flake, so the lock
-  stays what the flake declares. Stable branches before 26.11 are refused.
+- A release on a later NixOS branch (from nixos-unstable to nixos-26.11, or
+  from 26.11 to 27.05) also rewrites the literal `nixpkgs.url` in the machine
+  flake, so the lock stays what the flake declares. Branches only move
+  forward: nixos-unstable, then each stable branch in release order
+  (`inputs.branch_order`). A release on an earlier branch leaves the machine's
+  Nixpkgs where it is. Stable branches before 26.11 are refused.
 - A machine whose Nixpkgs is newer than a release's (moved by an updater
   before 1.0.32, or by hand) keeps its own until a release pins a newer one.
 
@@ -42,8 +45,10 @@ package NixOS hasn't built. Updaters from 1.0.27 fall back to the release
 alone only when packages are missing, not when a build fails; 1.0.25 and
 1.0.26 (stable until 1.0.32) don't fall back at all. So run `cybex update
 stage cybexos` once to prepare the release on its own, on the packages the
-computer already has, and install it from Software Update. Before 1.0.32 is
-promoted to stable, check that path on a computer or VM running 1.0.25. From then on the installed
+computer already has, and install it from Software Update. That path was
+checked on 2026-11-24: a VM installed from the v1.0.25 ISO, on stable,
+prepared 1.0.32 alone this way and started it with a healthy desktop
+(the full check's upgrade job, run `from=v1.0.25`). From then on the installed
 updater takes only release revisions. A machine that got ahead of the pinned
 revision that way stays on its own Nixpkgs until a release passes it, which
 is why 1.0.32 pins the channel head of the day it was checked.
@@ -332,11 +337,14 @@ and helper startup/timeout errors are visible in the review.
 full built diff, transaction, review token and `automatic` policy.
 `cybex update discard ID` clears an unapplied ready or stale preview, or
 dismisses a finished failure; it cannot discard a pending generation or
-recovery that needs attention.
+recovery that needs attention. Its log stays; storage cleanup releases its
+downloads and build three days later, like those of a failed, superseded or
+interrupted preview ([cleanup](recovery.md)).
 `cybex update apply ID TOKEN` runs under a supervised systemd worker and rejects
 stale review tokens or intervening personal edits. No widget/module is removed
 to make evaluation or runtime checks pass. Actual build progress is phase-based;
-private transaction logs hold build diagnostics. After a deliberate reboot and
+private transaction logs hold build diagnostics in full, while the updater
+keeps only the last mebibyte of a command's output in memory. After a deliberate reboot and
 authenticated desktop login, `cybex update confirm` validates system services,
 Hyprland, exactly one managed Quickshell and its current journal.
 The app distinguishes **Restart to finish** (before the trial boot) from
@@ -358,8 +366,12 @@ cannot use a lower semantic version as a normal update.
 Cybex OS follows nixos-unstable until it moves to the stable NixOS 26.11
 branch, and then each new stable release. A release that moves the branch
 names it in its pinned `flake.lock` and is qualified like an ISO release.
-Release metadata and `/etc/cybexos/release.json` name the branch
-(`"nixos": ["unstable"]`), not a version. Never change
+A release's `release/compatibility.json` lists the branches it supports
+(`"nixos": ["unstable"]`), not versions. The updater compares that list with
+the branch in the machine's own `flake.lock` (`Engine.installed_branch`), not
+with its release's: a release prepared alone keeps the machine's Nixpkgs, also
+across a branch move. `/etc/cybexos/release.json` names only the release's
+pinned Nixpkgs (`"nixpkgs"`, with its branch). Never change
 `system.stateVersion` as part of a routine update.
 
 ## Prebuilt packages only

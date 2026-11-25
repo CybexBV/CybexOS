@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# The linters, with the settings the repository keeps for them:
+#   Ruff        pyproject.toml   every Python file, also scripts without .py
+#   ShellCheck  .shellcheckrc    every shell script, warnings and errors
+#   actionlint  .github/actionlint.yaml   the workflows (and their run: steps)
+# Run in the dev shell (nix develop), which has all three.
+set -uo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." || exit 2
+
+for tool in ruff shellcheck actionlint; do
+  command -v "$tool" >/dev/null || { echo "tests/lint: $tool is missing; run it in the dev shell (nix develop)" >&2; exit 2; }
+done
+
+# Tracked files and new ones not yet added, by their first line.
+python=() shell=()
+while IFS= read -r -d '' path; do
+  [[ -f $path && ! -L $path ]] || continue
+  case $path in
+    *.py) python+=("$path"); continue ;;
+    *.sh|*.bash) shell+=("$path"); continue ;;
+  esac
+  IFS= read -r first <"$path" 2>/dev/null || continue
+  case $first in
+    '#!'*python*) python+=("$path") ;;
+    '#!'*bash*|'#!'*/sh|'#!'*/sh' '*|'#!'*'env sh'*) shell+=("$path") ;;
+  esac
+done < <(git ls-files -z --cached --others --exclude-standard)
+
+failed=0
+echo "== ruff (${#python[@]} files)"
+ruff check --no-cache --quiet --force-exclude "${python[@]}" || failed=1
+echo "== shellcheck (${#shell[@]} files)"
+# .shellcheckrc asks for warnings and errors; ShellCheck reads only its
+# directives from there, so the level is passed here.
+shellcheck --severity=warning "${shell[@]}" || failed=1
+echo "== actionlint"
+actionlint || failed=1
+((failed == 0)) && echo "Lint passed"
+exit "$failed"

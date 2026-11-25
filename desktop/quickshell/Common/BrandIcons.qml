@@ -12,20 +12,17 @@ Singleton {
     id: root
 
     readonly property var names: [
-        "claude", "cybexos", "fusebox", "gemini", "github", "grok", "kimi", "openai",
-        "slack", "t3", "tailscale", "whatsapp", "youtube"
+        "claude", "cybexos", "gemini", "grok", "kimi", "openai",
+        "slack", "tailscale", "whatsapp", "youtube"
     ]
     readonly property var files: ({
         claude: "claude.svg",
         cybexos: "cybexos.svg",
-        fusebox: "fusebox.svg",
         gemini: "gemini.svg",
-        github: "github.svg",
         grok: "grok.svg",
         kimi: "kimi.svg",
         openai: "openai.svg",
         slack: "slack.svg",
-        t3: "t3.svg",
         tailscale: "tailscale.svg",
         whatsapp: "whatsapp.svg",
         youtube: "youtube.svg"
@@ -36,15 +33,11 @@ Singleton {
     readonly property var highlightFiles: ({
         claude: "claude-white.svg",
         cybexos: "cybexos-white.svg",
-        fusebox: "fusebox-white.svg",
         gemini: "gemini-white.svg",
-        github: "github-white.svg",
         grok: "grok-white.svg",
         kimi: "kimi-white.svg",
         openai: "openai-white.svg",
         slack: "slack-white.svg",
-        // The canonical T3 wordmark is already white.
-        t3: "t3.svg",
         tailscale: "tailscale-white.svg",
         whatsapp: "whatsapp-white.svg",
         youtube: "youtube-white.svg"
@@ -52,14 +45,11 @@ Singleton {
     readonly property var labels: ({
         claude: "Claude",
         cybexos: "Cybex OS",
-        fusebox: "Fusebox",
         gemini: "Gemini",
-        github: "GitHub",
         grok: "Grok",
         kimi: "Kimi",
         openai: "OpenAI",
         slack: "Slack",
-        t3: "T3 Code",
         tailscale: "Tailscale",
         whatsapp: "WhatsApp",
         youtube: "YouTube"

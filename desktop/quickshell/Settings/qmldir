@@ -7,7 +7,6 @@ BarLayoutGroups BarLayoutGroups.qml
 BarBackgroundGroup BarBackgroundGroup.qml
 DrawerPage DrawerPage.qml
 FolderDialog FolderDialog.qml
-GitHubWatchList GitHubWatchList.qml
 ModuleDetailView ModuleDetailView.qml
 ModulesPage ModulesPage.qml
 NotificationsPage NotificationsPage.qml

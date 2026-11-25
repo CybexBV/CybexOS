@@ -129,33 +129,6 @@ test("calendar, weather, and notifications each have one widget and one view", (
     assert.doesNotMatch(read("Popovers/qmldir"), /NotifCenterPopover/);
 });
 
-test("Hermes Agent owns one right-side conversation client panel", () => {
-    assert.deepEqual(R.byName("hermes"), {
-        name: "hermes", island: "right", moduleId: "hermes",
-        source: "Popovers/HermesPopover.qml"
-    });
-    assert.match(read("Bar/Modules/Hermes.qml"), /moduleId:\s*"hermes"/);
-    assert.match(read("Bar/Modules/Hermes.qml"), /panelName:\s*"hermes"/);
-});
-
-test("T3 Code owns a dedicated attached widget-anchored panel", () => {
-    const panel = R.byName("t3code");
-    assert.deepEqual(panel, {
-        name: "t3code", island: "right", moduleId: "t3",
-        source: "Popovers/T3CodePopover.qml", attached: true
-    });
-    assert.notEqual(panel.source, "Popovers/Drawer/DrawerPopover.qml",
-        "T3 must not become a status-drawer tab");
-    assert.equal(R.edge("t3code"), "",
-        "T3 must follow its widget instead of pinning to a screen edge");
-    assert.equal(R.drawerTab("t3code"), "");
-    assert.equal(Object.hasOwn(panel, "tab"), false);
-    const widget = read("Bar/Modules/T3.qml");
-    assert.match(widget, /panelName:\s*"t3code"/);
-    assert.match(widget, /anchorItem:\s*root\.groupAnchor \?\? t3Chip/,
-        "T3 must publish the live widget anchor to the popout host");
-});
-
 test("Updates opens the Software Update window, not a panel", () => {
     assert.equal(R.byName("updates"), null, "the review has one surface: the Software Update window");
     assert.ok(R.PANEL_LESS_MODULES.includes("updates"));

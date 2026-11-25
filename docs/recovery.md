@@ -140,8 +140,24 @@ shared paths and filesystem compression can make reclaimed disk space differ.
 
 Retention keeps at least five confirmed deployments and 30 days of history,
 plus pins, the running system and its fallback, selected personal configurations,
-and unresolved or failed transactions. A failed build without pending activation
-can still be cleaned up, while its input roots and diagnostics are retained.
+the current preview or result, and unresolved transactions. A failed build
+without pending activation can still be cleaned up, while its input roots and
+diagnostics are retained.
+
+A transaction that ended unconfirmed records how it ended: `outcome.json`
+says discarded, failed (staging), superseded (a newer preview replaced it) or
+interrupted; `failed.json` marks a rollback. Three days after that, cleanup
+releases its input and system roots and retires it, as long as a confirmed
+deployment matches this boot. Three days leave time to read its log, retry
+over a weekend or prepare it again with its downloads still in the store;
+the weekly cleanup then stops last week's abandoned previews from keeping
+gigabytes reachable. A failed trial's boot generation stays: its system can
+also be that of a generation kept for another reason. Its
+record, log, `failed.json` and retry permission stay, so a system that
+failed health checks still needs `cybex update retry-failed`. A rolled-back
+confirmed deployment then follows the confirmed-deployment retention above.
+Without a recorded ending, or without a confirmed deployment for this boot,
+a transaction keeps every root.
 Before the first confirmed deployment,
 manual cleanup collects garbage while retaining every recovery reference;
 automatic cleanup skips that boot. Another kept transaction's input and

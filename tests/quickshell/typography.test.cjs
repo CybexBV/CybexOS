@@ -150,25 +150,12 @@ test("the shell pairs the installer's sans with a mono for labels and data", () 
     assert.match(apps, /space-grotesk\.nix/);
 });
 
-test("every dialog shares the menubar's face, including T3", () => {
-    // T3 used to hold a product face of its own. Beside a monospace menubar
-    // that reads as a second application docked inside the shell, so its views
-    // now take the same setting-driven face — through T3Theme.fontUi, which is
-    // the one place the indirection lives.
-    const t3Theme = fs.readFileSync(path.join(shellDir, "Common", "T3Theme.qml"), "utf8");
-    assert.match(t3Theme, /readonly property string fontUi:\s*Theme\.fontMenu/,
-        "T3's UI face must follow the shell's Typography setting");
-    assert.doesNotMatch(t3Theme, /property string fontSans/,
-        "the renamed token must not linger beside its replacement");
-
+test("every dialog shares the menubar's face", () => {
     for (const file of [...qmlFiles("Bar"), ...qmlFiles("Popovers"), ...qmlFiles("Settings")]) {
         const source = fs.readFileSync(file, "utf8");
         const label = path.relative(shellDir, file);
-        assert.doesNotMatch(source, /(?<!T3)Theme\.fontSans/,
+        assert.doesNotMatch(source, /Theme\.fontSans/,
             `${label} bypasses Theme.fontMenu`);
-        if (/^Popovers\/T3.*\.qml$/.test(label))
-            assert.match(source, /T3Theme\.fontUi/,
-                `${label} must draw its copy through the shared T3 UI face`);
     }
 
     // Nothing draws the default family directly any more: it is what fontMenu
@@ -189,7 +176,7 @@ test("every dialog shares the menubar's face, including T3", () => {
         if (path.relative(shellDir, file) === path.join("Common", "Theme.qml"))
             continue;
         const source = fs.readFileSync(file, "utf8");
-        assert.doesNotMatch(source, /(?<!T3)Theme\.fontSans/,
+        assert.doesNotMatch(source, /Theme\.fontSans/,
             `${path.relative(shellDir, file)} bypasses Theme.fontMenu`);
         // The widget editor once drew a fixed Figtree through Theme.fontUi,
         // so Widgets read as a different face from every other settings page.
@@ -240,7 +227,7 @@ test("all visible bar values use the menu face with tabular figures", () => {
 
     // Every bar file that draws a changing number. The four modules joined
     // the list when Bar.qml stopped drawing any of them itself.
-    for (const name of ["BarIcon.qml", "T3Chip.qml", "Workspaces.qml",
+    for (const name of ["BarIcon.qml", "Workspaces.qml",
                         "Modules/Clock.qml", "Modules/Weather.qml",
                         "Modules/Battery.qml", "Modules/Volume.qml"]) {
         const source = fs.readFileSync(path.join(shellDir, "Bar", name), "utf8");
@@ -287,7 +274,6 @@ test("only the classic floating bar and internal glows draw shadows", () => {
     // hence the allow-list rather than a blanket ban.
     const insideASurface = [
         "Bar/Bar.qml",               // the screenshot's floating slab shadow
-        "Bar/T3Chip.qml",            // the running dot's bloom, inside the bar
         "Settings/ModulesPage.qml",  // the drag proxy, over an opaque page
         "NotificationToasts.qml"     // the toast's shadow, with glass off only
     ];
@@ -418,20 +404,9 @@ test("no surface paints an accent field where a chip belongs", () => {
         // the current day, which is the calendar's workspace pill
         "Popovers/CalendarPopover.qml",
         // T3 and GitHub carry their own reviewed treatment
-        "Popovers/T3Composer.qml",
-        "Popovers/T3ThreadPage.qml",
-        "Popovers/T3InboxPage.qml",
-        "Popovers/T3ModelPicker.qml",
-        "Popovers/T3RequestCard.qml",
-        "Popovers/T3InlineSelect.qml",
-        "Popovers/T3Picker.qml",
-        "Popovers/T3NewThreadPage.qml",
-        "Popovers/T3CodePopover.qml",
-        "Popovers/GitHubPopover.qml",
         // the bar's own workspace pill and status marks
         "Bar/Workspaces.qml",
         "Bar/BarIcon.qml",
-        "Bar/T3Chip.qml",
         "Bar/Modules/Indicators.qml"
     ]);
     const walk = dir => {

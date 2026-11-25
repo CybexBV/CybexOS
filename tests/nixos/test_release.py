@@ -23,7 +23,13 @@ class PublishTests(unittest.TestCase):
             self.git('config', name, value)
         (self.work / 'release').mkdir()
         shutil.copy2(ROOT / 'release/publish', self.work / 'release/publish')
+        # --stable runs release/promote's compatibility check.
+        shutil.copy2(ROOT / 'release/promote', self.work / 'release/promote')
+        shutil.copytree(ROOT / 'lifecycle/cybexos', self.work / 'lifecycle/cybexos',
+                        ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copy2(ROOT / 'release/compatibility.json', self.work / 'release/compatibility.json')
+        # --stable reads the stable release's NixOS branch from its flake.lock.
+        shutil.copy2(ROOT / 'flake.lock', self.work / 'flake.lock')
         (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n')
         (self.work / 'VERSION').write_text('1.0.1\n')
         (self.work / 'cybexos.iso').write_bytes(b'iso')
@@ -32,14 +38,20 @@ class PublishTests(unittest.TestCase):
         self.git('remote', 'add', 'origin', str(self.origin))
         self.git('push', '--quiet', 'origin', 'main')
         tools = base / 'bin'; tools.mkdir()
-        # Answers whether the full check passed (GH_PASSED, default yes) and
-        # logs everything else.
-        (tools / 'gh').write_text('#!/bin/sh\nif [ "$1 $2" = "run list" ]; then printf "%s\\n" "$*" >> "$GH_RUNS";'
-                                  ' echo "${GH_PASSED-1}"; exit; fi\nprintf "%s\\n" "$*" >> "$GH_LOG"\n')
+        # Answers whether the full check passed (GH_PASSED, default yes),
+        # serves the release listing (GH_LISTING) and the draft flags of the
+        # release's tag (GH_DRAFTS), and logs everything else.
+        (tools / 'gh').write_text(
+            '#!/bin/sh\nif [ "$1 $2" = "run list" ]; then printf "%s\\n" "$*" >> "$GH_RUNS";'
+            ' echo "${GH_PASSED-1}"; exit; fi\n'
+            'if [ "$1" = api ]; then printf "%s\\n" "$*" >> "$GH_API"; case "$*" in'
+            ' *--jq*) printf "%s" "${GH_DRAFTS-}" ;; *) printf "%s\\n" "${GH_LISTING-[]}" ;; esac; exit; fi\n'
+            'printf "%s\\n" "$*" >> "$GH_LOG"\n')
         (tools / 'gh').chmod(0o755)
-        self.runs = base / 'runs.log'
+        self.runs, self.api = base / 'runs.log', base / 'api.log'
         self.environment = os.environ | {'PATH': f'{tools}:{os.environ["PATH"]}', 'GH_LOG': str(self.log),
-                                         'GH_RUNS': str(self.runs), 'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS'}
+                                         'GH_RUNS': str(self.runs), 'GH_API': str(self.api),
+                                         'CYBEXOS_RELEASE_REPO': 'CybexHQ/CybexOS', 'PYTHONDONTWRITEBYTECODE': '1'}
 
     def git(self, *arguments, cwd=None):
         return subprocess.run(['git', *arguments], cwd=cwd or self.work, check=True, capture_output=True, text=True).stdout
@@ -73,7 +85,9 @@ class PublishTests(unittest.TestCase):
         self.environment['GH_PASSED'] = '0'
         self.assert_refused('the full check has not passed for ' + revision, '1.0.1')
         self.assertIn(f'run list --repo CybexHQ/CybexOS --workflow nixos.yml --commit {revision} '
-                      '--event workflow_dispatch --status success', self.runs.read_text())
+                      '--status success --limit 100 --json event,displayTitle --jq [.[] | select((.event == '
+                      '"workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length',
+                      self.runs.read_text())
         self.environment['GH_PASSED'] = ''
         self.assert_refused('the full check has not passed', '1.0.1', '--dry-run')
 
@@ -82,7 +96,7 @@ class PublishTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.log.read_text().splitlines(), [
             'release create v1.0.1 --repo CybexHQ/CybexOS --verify-tag --title Cybex OS 1.0.1 '
-            '--notes-file release/notes.md --latest cybexos.iso'])
+            '--notes-file release/notes.md --prerelease=false --latest cybexos.iso'])
         self.assertIn('for stable and beta', result.stdout)
         self.assertNotIn('release/promote', result.stdout)
 
@@ -102,7 +116,7 @@ class PublishTests(unittest.TestCase):
         self.assertIn('Would publish v1.0.1', result.stdout)
         self.assertIn('for beta (--prerelease --latest=false)', result.stdout)
         result = self.publish('1.0.1', '--dry-run', '--stable')
-        self.assertIn('for stable and beta (--latest)', result.stdout)
+        self.assertIn('for stable and beta (--prerelease=false --latest)', result.stdout)
         self.assertEqual(self.git('tag'), '')
         self.assertFalse(self.log.exists())
 
@@ -127,15 +141,125 @@ class PublishTests(unittest.TestCase):
         self.assert_refused('compatibility.json is missing or invalid', '1.0.1')
 
     def test_a_published_version_is_never_reused(self):
-        self.git('tag', 'v1.0.1')
-        self.assert_refused('v1.0.1 already exists', '1.0.1')
+        # A tag on another commit is another release, local or on origin.
+        self.git('tag', 'v1.0.1', 'HEAD')
+        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n\nMore.\n')
+        self.git('commit', '--quiet', '-am', 'Later')
+        self.git('push', '--quiet', 'origin', 'main')
+        result = self.publish('1.0.1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('v1.0.1 already exists at', result.stderr)
         self.git('push', '--quiet', 'origin', 'v1.0.1')
         self.git('tag', '--delete', 'v1.0.1')
         result = self.publish('1.0.1')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('v1.0.1 already exists', result.stderr)
+        self.assertIn('v1.0.1 already exists at', result.stderr)
+        self.assertIn('a published version is never reused', result.stderr)
+        self.assertFalse(self.log.exists())
+        # So is a release that is already published, even at this commit.
+        self.git('push', '--quiet', '--force', 'origin', 'HEAD:refs/tags/v1.0.1')
+        self.environment['GH_DRAFTS'] = 'false\n'
+        result = self.publish('1.0.1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('v1.0.1 is already published', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.environment['GH_DRAFTS'] = 'true\ntrue\n'
+        result = self.publish('1.0.1')
+        self.assertIn('2 draft releases for v1.0.1', result.stderr)
         self.assertFalse(self.log.exists())
 
+    def test_a_publish_that_failed_after_its_tag_resumes(self):
+        revision = self.git('rev-parse', 'HEAD').strip()
+        # The push failed: the local tag is pushed and the release created.
+        self.git('tag', '--annotate', 'v1.0.1', '--message', 'Cybex OS 1.0.1')
+        result = self.publish('1.0.1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('ls-remote', 'origin', 'refs/tags/v1.0.1^{}').split()[0], revision)
+        self.assertNotIn('--jq', self.api.read_text(), 'a new tag has no draft release to look for')
+        self.log.unlink()
+        # gh failed before creating the release: it is created at the same tag.
+        self.git('tag', '--delete', 'v1.0.1')
+        result = self.publish('1.0.1', '--dry-run', 'cybexos.iso')
+        self.assertIn('Would finish publishing v1.0.1 at ' + revision, result.stdout)
+        self.assertFalse(self.log.exists())
+        result = self.publish('1.0.1', 'cybexos.iso')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Resuming: v1.0.1 already names ' + revision, result.stdout)
+        self.assertIn('api --paginate repos/CybexHQ/CybexOS/releases?per_page=100 --jq', self.api.read_text())
+        self.assertEqual(self.log.read_text().splitlines(), [
+            'release create v1.0.1 --repo CybexHQ/CybexOS --verify-tag --title Cybex OS 1.0.1 '
+            '--notes-file release/notes.md --prerelease --latest=false cybexos.iso'])
+        self.log.unlink()
+        # An upload failed and gh left a draft: its assets and release are completed.
+        self.environment['GH_DRAFTS'] = 'true\n'
+        result = self.publish('1.0.1', 'cybexos.iso')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.log.read_text().splitlines(), [
+            'release upload v1.0.1 --repo CybexHQ/CybexOS --clobber cybexos.iso',
+            'release edit v1.0.1 --repo CybexHQ/CybexOS --draft=false --title Cybex OS 1.0.1 '
+            '--notes-file release/notes.md --prerelease --latest=false'])
+        self.assertEqual(self.git('tag', '--list', 'v1.0.1').strip(), '', 'no new local tag is made')
+
+    def test_after_1_0_32_the_full_check_must_include_the_upgrade_job(self):
+        (self.work / 'VERSION').write_text('1.0.33\n')
+        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.33\n')
+        self.git('commit', '--quiet', '-am', 'Cybex OS 1.0.33')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.assert_refused('has no upgrade job; a release after 1.0.32 needs one', '1.0.33', '--dry-run')
+        workflow = self.work / '.github/workflows/nixos.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('jobs:\n  checks:\n    runs-on: x\n  upgrade:\n    runs-on: x\n')
+        self.git('add', '.')
+        self.git('commit', '--quiet', '-m', 'The upgrade job')
+        self.git('push', '--quiet', 'origin', 'main')
+        result = self.publish('1.0.33', '--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_release_must_be_newer_than_every_published_one(self):
+        self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.2', 'prerelease': True, 'draft': False}])
+        for arguments in (('1.0.1',), ('1.0.1', '--stable')):
+            result = self.publish(*arguments)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('it is not newer than v1.0.2', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertNotIn('v1.0.1', self.git('ls-remote', '--tags', 'origin'))
+
+    def test_no_release_drops_a_nixos_branch_the_newest_one_lists(self):
+        # 1.0.0 (a beta) lists unstable and 26.11; 1.0.1 lists 26.11 only.
+        compatibility = json.loads((self.work / 'release/compatibility.json').read_text())
+        (self.work / 'release/compatibility.json').write_text(json.dumps(compatibility | {'nixos': ['unstable', '26.11']}))
+        self.git('commit', '--quiet', '-am', 'Both branches')
+        self.git('tag', '--annotate', 'v1.0.0', '--message', 'Cybex OS 1.0.0')
+        self.git('push', '--quiet', 'origin', 'v1.0.0')
+        self.git('tag', '--delete', 'v1.0.0')
+        (self.work / 'release/compatibility.json').write_text(json.dumps(compatibility | {'nixos': ['26.11']}))
+        self.git('commit', '--quiet', '-am', 'Drop unstable')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.0', 'prerelease': True, 'draft': False}])
+        result = self.publish('1.0.1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('it drops NixOS unstable, which v1.0.0 supports', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertNotIn('v1.0.1', self.git('ls-remote', '--tags', 'origin'))
+
+    def test_stable_needs_what_promotion_to_stable_needs(self):
+        # 1.0.0 is stable; 1.0.1 changes the configuration API it installed.
+        self.git('tag', '--annotate', 'v1.0.0', '--message', 'Cybex OS 1.0.0')
+        self.git('push', '--quiet', 'origin', 'v1.0.0')
+        self.git('tag', '--delete', 'v1.0.0')
+        compatibility = json.loads((self.work / 'release/compatibility.json').read_text())
+        (self.work / 'release/compatibility.json').write_text(json.dumps(compatibility | {'configurationApi': 2}))
+        self.git('commit', '--quiet', '-am', 'New configuration API')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.0', 'prerelease': False, 'draft': False}])
+        result = self.publish('1.0.1', '--stable')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('stable machines on v1.0.0 cannot install it: its configurationApi 2 differs', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertNotIn('v1.0.1', self.git('ls-remote', '--tags', 'origin'))
+        # Beta machines take it; promotion checks stable again later.
+        result = self.publish('1.0.1')
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 # A recording gh that serves the release listing as installed machines read it
@@ -148,7 +272,12 @@ arguments = sys.argv[1:]
 with open(os.environ['GH_LOG'], 'a') as log:
     log.write(' '.join(arguments) + '\n')
 if arguments[0] == 'api':
-    print(json.dumps(listing))
+    # GitHub's pages; gh prints them all with --paginate, one array each.
+    size = int(os.environ.get('GH_PAGE_SIZE', '100'))
+    pages = [listing[start:start + size] for start in range(0, len(listing), size)] or [[]] \
+        if isinstance(listing, list) else [listing]
+    for page in pages if '--paginate' in arguments else pages[:1]:
+        print(json.dumps(page))
 elif arguments[:2] == ['run', 'list']:
     print(os.environ.get('GH_PASSED', '1'))
 elif arguments[:2] == ['release', 'edit']:
@@ -179,6 +308,7 @@ class PromoteTests(unittest.TestCase):
         shutil.copy2(ROOT / 'release/promote', self.work / 'release/promote')
         shutil.copytree(ROOT / 'lifecycle/cybexos', self.work / 'lifecycle/cybexos',
                         ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copy2(ROOT / 'flake.lock', self.work / 'flake.lock')
         self.git('remote', 'add', 'origin', str(self.origin))
         self.listing = []
         tools = base / 'bin'; tools.mkdir()
@@ -197,9 +327,14 @@ class PromoteTests(unittest.TestCase):
     def git(self, *arguments):
         return subprocess.run(['git', *arguments], cwd=self.work, check=True, capture_output=True, text=True).stdout
 
-    def release(self, version, prerelease=True, hours=200, compatibility=None, draft=False):
+    def release(self, version, prerelease=True, hours=200, compatibility=None, draft=False, branch=None):
         import datetime
         (self.work / 'VERSION').write_text(version + '\n')
+        if branch is not None:
+            # The release's own flake.lock names the NixOS branch it follows.
+            lock = json.loads((self.work / 'flake.lock').read_text())
+            lock['nodes'][lock['nodes'][lock['root']]['inputs']['nixpkgs']]['original']['ref'] = branch
+            (self.work / 'flake.lock').write_text(json.dumps(lock))
         declared = json.loads((ROOT / 'release/compatibility.json').read_text()) | (compatibility or {})
         (self.work / 'release/compatibility.json').write_text(json.dumps(declared))
         self.git('add', '.')
@@ -209,6 +344,9 @@ class PromoteTests(unittest.TestCase):
         # The local tag is fetched from origin, as on a fresh checkout.
         self.git('tag', '--delete', 'v' + version)
         published = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)
+        if self.state.exists():
+            # Promotions edit the published listing.
+            self.listing = json.loads(self.state.read_text())
         self.listing.insert(0, {'tag_name': 'v' + version, 'prerelease': prerelease, 'draft': draft,
                                 'published_at': published.strftime('%Y-%m-%dT%H:%M:%SZ'),
                                 'body': f'# Cybex OS {version}\n\n- Change in {version}.\n'})
@@ -253,6 +391,18 @@ class PromoteTests(unittest.TestCase):
         self.assertIn('including 1.0.2', result.stdout)
         self.assert_refused('already on the stable channel', '1.0.3', '--yes')
         self.assert_refused('not newer than the current stable release v1.0.3', '1.0.2', '--yes')
+
+    def test_the_whole_listing_is_read_beyond_its_first_page(self):
+        # With one release per page, the current stable 1.0.1 is on page 3.
+        self.environment['GH_PAGE_SIZE'] = '1'
+        result = self.promote('1.0.3', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Stable machines on v1.0.1 receive it, including 1.0.2.', result.stdout)
+        self.assertIn('since Cybex OS 1.0.1', self.published('1.0.3')['body'])
+        self.assertTrue(all('--paginate' in line for line in self.log.read_text().splitlines() if line.startswith('api')))
+        self.environment['GH_PAGE_SIZE'] = '100'
+        self.state.write_text('{"message": "Not Found"}')
+        self.assert_refused('invalid release listing', '1.0.3', '--yes')
 
     def test_a_single_release_keeps_its_own_notes(self):
         result = self.promote('1.0.2', '--yes')
@@ -309,10 +459,65 @@ class PromoteTests(unittest.TestCase):
         self.release('1.0.6', compatibility={'configurationApi': 2})
         self.assert_refused('configurationApi 2 differs from 1', '1.0.6', '--yes')
 
+    def test_the_stable_release_s_own_lock_names_the_branch_its_machines_run(self):
+        # 1.0.4 moves to NixOS 26.11 and still supports unstable machines.
+        self.release('1.0.4', compatibility={'nixos': ['unstable', '26.11']}, branch='nixos-26.11')
+        result = self.promote('1.0.4', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Now stable follows 26.11: a release without it can't reach stable,
+        # whatever the updater source of either release declares.
+        self.release('1.0.5', compatibility={'nixos': ['unstable']}, branch='nixos-unstable')
+        self.assert_refused('does not support NixOS 26.11, which machines on v1.0.4 run', '1.0.5', '--yes')
+        self.release('1.0.6', compatibility={'nixos': ['unstable', '26.11']}, branch='nixos-26.11')
+        result = self.promote('1.0.6', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Machines that installed 1.0.4 or 1.0.6 alone may still run unstable:
+        # a release can't reach stable while it drops a branch stable accepts.
+        self.release('1.0.7', compatibility={'nixos': ['26.11']}, branch='nixos-26.11')
+        self.assert_refused('it drops NixOS unstable, which v1.0.6 supports', '1.0.7', '--yes')
+
+    def test_a_stable_release_without_a_supported_nixos_branch_is_refused(self):
+        self.release('1.0.4', prerelease=False, hours=300, branch='nixos-26.05')
+        self.release('1.0.5', branch='nixos-unstable')
+        self.assert_refused('v1.0.4 has no valid Nixpkgs branch in its flake.lock', '1.0.5', '--yes')
+
+    def test_after_1_0_32_its_full_check_must_include_the_upgrade_job(self):
+        self.release('1.0.33', hours=200)
+        self.assert_refused('the full check of v1.0.33 has no upgrade job', '1.0.33', '--yes')
+        workflow = self.work / '.github/workflows/nixos.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('jobs:\n  checks:\n    runs-on: x\n  upgrade:\n    runs-on: x\n')
+        self.release('1.0.34', hours=199)
+        result = self.promote('1.0.34', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_github_must_confirm_the_promotion(self):
         result = self.promote('1.0.3', '--yes', GH_IGNORE_EDIT='1')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('still lists v1.0.3 as a prerelease', result.stderr)
+
+
+class FullCheckRunTests(unittest.TestCase):
+    """Which nixos.yml runs count for a commit, with the filter the scripts give gh."""
+
+    @unittest.skipUnless(shutil.which('jq'), 'jq is not installed')
+    def test_dispatched_and_push_runs_count_and_pull_requests_do_not(self):
+        title = 'NixOS qualification'
+        # A dispatch whose upgrade job started from another release doesn't count.
+        runs = [{'event': 'pull_request', 'displayTitle': title}, {'event': 'schedule', 'displayTitle': title},
+                {'event': 'workflow_dispatch', 'displayTitle': title + ' (upgrade from v1.0.25)'}]
+        for name in ('release/publish', 'release/promote'):
+            source = (ROOT / name).read_text()
+            start = source.index('[.[] | select(')
+            query = source[start:source.index('length', start) + len('length')]
+            def count(listing):
+                return subprocess.run(['jq', query], input=json.dumps(listing), capture_output=True,
+                                      text=True, check=True).stdout.strip()
+            with self.subTest(name):
+                self.assertEqual(count(runs), '0')
+                self.assertEqual(count(runs + [{'event': 'workflow_dispatch', 'displayTitle': title}]), '1')
+                self.assertEqual(count(runs + [{'event': 'push', 'displayTitle': title},
+                                               {'event': 'workflow_dispatch', 'displayTitle': title}]), '2')
 
 
 if __name__ == '__main__':

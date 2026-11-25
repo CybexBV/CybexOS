@@ -12,7 +12,7 @@
       systems = [ "x86_64-linux" ];
       each = nixpkgs.lib.genAttrs systems;
       # Carry the tested input sources in the live store. A fresh machine starts
-      # from this lock, without resolving the moving nixos-unstable branch during install.
+      # from this lock, without resolving its moving NixOS branch during install.
       inputNodes = builtins.genericClosure {
         startSet = map (value: { key = value.outPath; inherit value; })
           (builtins.attrValues (builtins.removeAttrs inputs [ "self" ]));
@@ -79,31 +79,6 @@
         xps-power-ordering = import ./nix/tests/xps-power-ordering.nix {
           inherit nixpkgs pkgs module system;
         };
-        lifecycle = pkgs.runCommand "cybexos-lifecycle-tests" {
-          nativeBuildInputs = [
-            (pkgs.python3.withPackages (p: [ p.websockets p.pygobject3 p.pillow p.dbus-python p.pexpect ]))
-            pkgs.openssl pkgs.git pkgs.dbus pkgs.restic pkgs.quickshell pkgs.systemd
-            pkgs.xdg-terminal-exec pkgs.desktop-file-utils pkgs.grub2_efi
-          ];
-          GI_TYPELIB_PATH = pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.networkmanager pkgs.glib ];
-          CYBEXOS_DBUS_SESSION_CONFIG = "${pkgs.dbus}/share/dbus-1/session.conf";
-          CYBEXOS_LIBCRYPT = "${pkgs.libxcrypt}/lib/libcrypt.so.2";
-        } ''
-          cp -r ${self} source; chmod -R u+w source
-          # Tests execute the same portable helper scripts as the packages.
-          # /usr/bin/env is not available inside a normal Nix build sandbox.
-          patchShebangs source
-          cd source
-          export PYTHONDONTWRITEBYTECODE=1
-          python3 -m unittest discover -s tests/nixos -v
-          python3 -B tests/nixos/hermes-bridge.py
-          python3 -B tests/nixos/hermes-remote-runtime.py
-          python3 -B tests/nixos/hermes-webui-auth.py
-          python3 -B tests/nixos/default-agent.py
-          python3 -B tests/nixos/camera-frame.py
-          python3 -B tests/system-settings.py
-          touch $out
-        '';
         # Codex and Claude Code run, report their pins and offer what Wiz uses.
         agent-clis = import ./nix/tests/agent-clis.nix {
           inherit pkgs;
@@ -179,6 +154,8 @@
         # Wiz on the disk unlock screen, the lock screen and in kitty.
         plymouth-unlock = import ./nix/tests/plymouth-unlock.nix { inherit pkgs; inherit (self.packages.${system}) plymouth; };
         lock-terminal = import ./nix/tests/lock-terminal.nix { inherit pkgs module; };
+        # Every Settings page and preference, and Omarchy plugin packages, in the installed desktop.
+        settings-audit = import ./nix/tests/settings-audit.nix { inherit pkgs module; source = self; };
         # Spotify on a 2x display: the product wrapper selects native Wayland
         # without session hints; compare sharpness and pointer with explicit X11.
         wayland-scale = import ./nix/tests/wayland-scale.nix {
@@ -196,6 +173,9 @@
         default = pkgs.mkShell {
           packages = with pkgs; [ openssl nixfmt git nodejs quickshell matugen grim wtype imagemagick qt6.qtdeclarative restic systemd
             qt6.qttools cmake ninja pkg-config qt6.qtbase sway qemu OVMF dbus util-linux lua5_5 jq procps hyprland xorriso mtools squashfsTools xdg-terminal-exec desktop-file-utils hostapd dnsmasq iw
+            ruff shellcheck actionlint
+            # tests/nixos/test_boot.py checks grubenv and the boot menu with GRUB's own tools.
+            grub2_efi
             (python3.withPackages (p: [ p.pexpect p.pillow p.pygobject3 p.dbus-python p.websockets p.pyside6 ])) ];
           CYBEXOS_OVMF = "${pkgs.OVMF.fd}/FV";
           CYBEXOS_QA_HOSTAPD = "${pkgs.hostapd}/bin/hostapd";

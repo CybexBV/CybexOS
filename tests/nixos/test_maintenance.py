@@ -1,11 +1,10 @@
 """Retention, review freshness and restartable cleanup command-boundary tests."""
 import json
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
 import test_lifecycle as lifecycle
-from cybexos.common import Failure, atomic, locked, read
+from cybexos.common import Failure, atomic, link, locked, read
 from cybexos.maintenance import DEFAULT_POLICY, Maintenance, policy, prepare
 
 
@@ -182,6 +181,95 @@ class MaintenanceTests(unittest.TestCase):
         self.maintenance.clean(plan['id'], plan['token'])
         self.assertTrue((failed / 'roots/source').is_symlink())
         self.assertIn(('nix-store', '--gc'), self.runner.calls)
+
+    def abandoned(self, number, ended, outcome='discarded', record=True, system=None):
+        """An unconfirmed transaction that ended `ended` seconds ago."""
+        identifier = f'{number:x}'.rjust(32, 'e')
+        tx = self.engine.tx(identifier); tx.mkdir()
+        current = self.records[-1]['system']
+        system = system or f'/nix/store/{number:032d}-candidate'
+        if record:
+            atomic(tx / 'deployment.json', {'id': identifier, 'system': system, 'previousSystem': current,
+                                            'createdAt': self.now - ended - 3600})
+        if outcome == 'rolled-back':
+            atomic(tx / 'failed.json', {'reason': 'Activation failed', 'at': self.now - ended})
+        elif outcome:
+            atomic(tx / 'outcome.json', {'outcome': outcome, 'at': self.now - ended})
+        (tx / 'build.log').write_text('private diagnostics')
+        roots = tx / 'roots'; roots.mkdir()
+        (roots / 'configuration').symlink_to(f'/nix/store/{number:032d}-source')
+        if record:
+            (roots / 'system').symlink_to(system); (roots / 'previous-system').symlink_to(current)
+        return tx
+
+    def test_ended_previews_release_their_roots_after_three_days(self):
+        from cybexos.maintenance import ABANDONED
+        self.setup_retention()
+        days = 86400
+        discarded = self.abandoned(1, 4 * days)
+        superseded = self.abandoned(2, 4 * days, 'superseded')
+        failed_stage = self.abandoned(3, 4 * days, 'failed', record=False)
+        rolled_back = self.abandoned(4, 4 * days, 'rolled-back')
+        atomic(rolled_back / 'retry-authorized.json', {'authorizedAt': 1})
+        trial = read(rolled_back / 'deployment.json')['system']
+        (self.profiles / 'system-11-link').symlink_to(trial)
+        same_system = self.abandoned(5, 4 * days, system=self.records[-1]['system'])
+        recent = self.abandoned(6, ABANDONED - 3600)
+        unrecorded = self.abandoned(7, 4 * days, outcome=None)
+        live = self.abandoned(8, 4 * days, 'failed')
+        atomic(self.engine.status_path, {'state': 'failed', 'transaction': live.name})
+        selected = self.abandoned(9, 4 * days, 'rolled-back')
+        (selected / 'previous-config').mkdir()
+        link(selected / 'previous-config', self.engine.state / 'deployed')
+        plan = self.maintenance.preview()
+        released = {discarded, superseded, failed_stage, rolled_back, same_system}
+        kept = {recent: 'Ended recently', unrecorded: 'Unresolved or failed deployment',
+                live: 'Unresolved or failed deployment', selected: 'Selected personal configuration'}
+        self.assertTrue({tx.name for tx in released} <= set(plan['candidates']))
+        for tx, reason in kept.items():
+            entry = next(d for d in plan['deployments'] if d['id'] == tx.name)
+            self.assertFalse(entry['eligible'], tx.name)
+            self.assertIn(reason, entry['reasons'])
+        # Boot entries stay: the failed trial's system could also be the one
+        # of a generation kept for another reason, and the running system's.
+        self.assertNotIn('11', plan['generations'])
+        self.assertNotIn('10', plan['generations'])
+        self.maintenance.clean(plan['id'], plan['token'])
+        for tx in released:
+            self.assertEqual(list((tx / 'roots').iterdir()), [], tx.name)
+            self.assertTrue((tx / 'retired.json').exists())
+            self.assertEqual((tx / 'build.log').read_text(), 'private diagnostics')
+        self.assertTrue((rolled_back / 'failed.json').exists())
+        self.assertTrue((rolled_back / 'retry-authorized.json').exists())
+        for tx in kept:
+            self.assertTrue((tx / 'roots/configuration').is_symlink(), tx.name)
+            self.assertFalse((tx / 'retired.json').exists())
+        self.assertTrue((self.profiles / 'system-11-link').is_symlink(), 'the failed trial\'s boot entry stays')
+        self.assertTrue((self.profiles / 'system-10-link').is_symlink())
+        self.assertTrue((self.engine.tx(self.records[-1]['id']) / 'roots/system').is_symlink())
+        # Released transactions are not offered again.
+        again = self.maintenance.preview()
+        self.assertFalse({tx.name for tx in released} & set(again['candidates']))
+
+    def test_ended_previews_keep_their_roots_without_a_confirmed_boot(self):
+        self.setup_retention()
+        for record in self.records: (self.engine.tx(record['id']) / 'good.json').unlink()
+        ended = self.abandoned(1, 30 * 86400)
+        plan = self.maintenance.preview()
+        self.assertEqual(plan['candidates'], [])
+        self.maintenance.clean(plan['id'], plan['token'])
+        self.assertTrue((ended / 'roots/system').is_symlink())
+
+    def test_rolled_back_confirmed_deployment_follows_recovery_point_retention(self):
+        self.setup_retention()
+        # The newest confirmed deployment was rolled back long ago: count keeps it.
+        newest = self.engine.tx(self.records[-2]['id'])
+        for ended, reasons in ((86400, ['Confirmed, pinned or retained by count', 'Ended recently']),
+                               (10 * 86400, ['Confirmed, pinned or retained by count'])):
+            atomic(newest / 'failed.json', {'reason': 'Explicit rollback requested', 'at': self.now - ended})
+            plan = self.maintenance.preview()
+            entry = next(d for d in plan['deployments'] if d['id'] == newest.name)
+            self.assertEqual(entry['reasons'], reasons)
 
     def test_status_distinguishes_personal_preferences_from_effective_cleanup_policy(self):
         from cybexos.maintenance import public_status

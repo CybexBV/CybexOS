@@ -296,10 +296,15 @@ def report(sysroot=Path('/sys'), cpuinfo=Path('/proc/cpuinfo'), *, etc=Path('/et
     try:
         # Read only the independently owned root input; never refresh the lock
         # or include personal input URLs in a shareable inventory.
-        from .inputs import identity
-        locked = identity(json.loads(Path(machine_lock).read_text()), 'nixpkgs')
+        from .inputs import identity, resolved
+        lock = json.loads(Path(machine_lock).read_text())
+        locked = identity(lock, 'nixpkgs')
         if isinstance(locked, dict):
             nixpkgs = {key: locked[key] for key in ('rev', 'narHash') if isinstance(locked.get(key), str)}
+        # The branch the machine follows: release.json no longer names it.
+        branch = resolved(lock, 'nixpkgs')['original'].get('ref')
+        if isinstance(branch, str):
+            nixpkgs['ref'] = branch
     except (OSError, ValueError, TypeError, KeyError, Failure):
         pass
     cpu = {}

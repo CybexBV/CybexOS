@@ -62,6 +62,14 @@ def initialize(home, defaults, share, proprietary, developer=False):
             print(f'Preserved personal skill at {slot}; vendor skill: {share / "skill"}')
 
 
+def has_remote(home, name):
+    """Whether this account's Flatpak installation has the remote, from its repository config."""
+    try:
+        return f'[remote "{name}"]' in (home / '.local/share/flatpak/repo/config').read_text()
+    except OSError:
+        return False
+
+
 def flathub(home, enabled, repository, run=subprocess.run):
     """Flathub for this account, once. A remote the person removes stays removed."""
     marker = home / '.local/state/cybexos/flathub-remote'
@@ -71,8 +79,11 @@ def flathub(home, enabled, repository, run=subprocess.run):
         run(['flatpak', 'remote-add', '--user', '--if-not-exists', 'flathub', str(repository)],
             check=True, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
-        print('Flathub was not added for this account; Software adds it with the first Flathub install.')
-        return
+        # Offline, flatpak adds the remote and then waits for its metadata
+        # until the timeout: the remote is there all the same.
+        if not has_remote(home, 'flathub'):
+            print('Flathub was not added for this account; Software adds it with the first Flathub install.')
+            return
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text('Cybex OS added the flathub remote for this account once. Removing it keeps it removed.\n')
 

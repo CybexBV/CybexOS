@@ -126,8 +126,7 @@ working installed Hyprland graphics stack.
    download. A missing Wi-Fi driver therefore matters even with an offline
    payload. WPA2 and WPA3 have virtual-radio evidence; enterprise certificates,
    hidden networks, captive portals and physical radios do not. The helper's
-   simple enterprise flow uses PEAP/MSCHAPv2, not every 802.1X method. The
-   editable Google DNS default also needs qualification on restricted networks.
+   simple enterprise flow uses PEAP/MSCHAPv2, not every 802.1X method.
 8. **The exact Dell XPS camera profile has a known blocker.** The IPU7
    private-ABI guard rejects the selected kernel layout; the camera stack
    builds but initialization fails closed; update health reports it without

@@ -4,8 +4,6 @@ import re
 import contextlib
 import hashlib
 import http.server
-import importlib.util
-import importlib.machinery
 import io
 import json
 import os
@@ -16,12 +14,13 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'lifecycle'))
-from cybexos.common import CommandFailure, Failure, Runner, atomic, digest, locked, parse, read, syncdir
+from cybexos.common import CommandFailure, Failure, Runner, atomic, locked, read, syncdir
 from cybexos import inputs, trust
 from cybexos.engine import Engine, NotPrebuilt, config_digest, configuration_paths, copy_config
 from cybexos.health import (USER_UNIT, baseline, preexisting_arguments, reported, system_services,
@@ -196,14 +195,24 @@ class TrustTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
 
+    FIRST = API + '/releases?per_page=30'
+    PAGE = 'https://api.github.com/repositories/1438845778/releases?per_page=30&page={}'
+
     def fetch(self, releases, commits=None):
-        api = self.API
+        """Serves a listing, or a list of listing pages linked as GitHub links them."""
+        api, first, page = self.API, self.FIRST, self.PAGE
+        pages = releases if isinstance(releases, list) else [releases]
+        urls = [first] + [page.format(number) for number in range(2, len(pages) + 1)]
         class Fetch:
             requests = []
+            def page(inner, url, limit=None, accept='application/vnd.github+json'):
+                inner.requests.append((url, accept))
+                if url in urls:
+                    index = urls.index(url)
+                    return pages[index], urls[index + 1] if index + 1 < len(urls) else ''
+                raise AssertionError('Unexpected request ' + url)
             def get(inner, url, limit=None, accept='application/vnd.github+json'):
                 inner.requests.append((url, accept))
-                if url == api + '/releases?per_page=100':
-                    return releases
                 tag = url.removeprefix(api + '/commits/')
                 if tag != url and accept == 'application/vnd.github.sha':
                     return (commits or {}).get(tag, REV_NEW).encode()
@@ -261,7 +270,7 @@ class TrustTests(unittest.TestCase):
         with self.assertRaises(trust.NoPublishedRelease):
             trust.discover(self.fetch(listing(('v1.1.0-beta.1', True, False), ('v1.2.0', False, True))), 'stable', '1.0.0')
         class Missing:
-            def get(self, url, limit=None, accept=None):
+            def page(self, url, limit=None, accept=None):
                 raise trust.EndpointNotFound('gone')
         with self.assertRaisesRegex(Failure, 'repository is unavailable'):
             trust.discover(Missing(), 'stable', '1.0.0')
@@ -289,7 +298,7 @@ class TrustTests(unittest.TestCase):
         redirected.__enter__ = Mock(return_value=redirected); redirected.__exit__ = Mock(return_value=False)
         with patch('cybexos.trust.urllib.request.urlopen', return_value=redirected), \
                 self.assertRaisesRegex(Failure, 'outside the trusted GitHub endpoints'):
-            trust.Fetcher(self.base / 'cache').get(self.API + '/releases?per_page=100')
+            trust.Fetcher(self.base / 'cache').get(self.API + '/releases?per_page=30')
 
     def test_interrupted_chunked_metadata_retains_cache_and_independent_upstream_result(self):
         class Interrupted(http.server.BaseHTTPRequestHandler):
@@ -304,7 +313,7 @@ class TrustTests(unittest.TestCase):
                 self.close_connection = True
             def log_message(self, *args):
                 pass
-        endpoint = 'https://api.github.com/repos/CybexBV/CybexOS/releases?per_page=100'
+        endpoint = 'https://api.github.com/repos/CybexBV/CybexOS/releases?per_page=30'
         requests = []
         real_urlopen = urllib.request.urlopen
         with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Interrupted) as server:
@@ -341,6 +350,114 @@ class TrustTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 thread.join(timeout=5)
+
+    def test_the_listing_is_read_page_by_page_back_to_the_installed_version(self):
+        # 1.0.65 to 1.0.36 on page 1 are beta; 1.0.20 on page 2 is the newest stable.
+        tags = [('v1.0.%d' % number, number not in (20, 10, 5), False)
+                for number in range(65, 0, -1)]
+        pages = [listing(*tags[start:start + 30]) for start in range(0, len(tags), 30)]
+        self.assertEqual(len(pages), 3)
+        fetch = self.fetch(pages)
+        def read():
+            return [url for url, _ in fetch.requests if '/releases' in url]
+        stable = trust.discover(fetch, 'stable', '1.0.10')
+        self.assertEqual((stable['version'], stable['releases']), ('1.0.20', ['1.0.20']))
+        # Page 2 still holds releases newer than 1.0.10; page 3 holds none.
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2), self.PAGE.format(3)])
+        fetch.requests.clear()
+        # A beta machine reads until a page holds nothing newer than it.
+        self.assertEqual(trust.discover(fetch, 'beta', '1.0.60')['releases'], ['1.0.65', '1.0.64', '1.0.63', '1.0.62', '1.0.61'])
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2)])
+        fetch.requests.clear()
+        # An up-to-date one reads one page.
+        trust.discover(fetch, 'beta', '1.0.65')
+        self.assertEqual(read(), [self.FIRST])
+        fetch.requests.clear()
+        # Combined notes span the pages back to the installed version.
+        behind = trust.discover(fetch, 'beta', '1.0.30')
+        self.assertEqual(behind['releases'], ['1.0.%d' % number for number in range(65, 30, -1)])
+        self.assertIn('## From Cybex OS 1.0.36\n\nNotes for v1.0.36', behind['notes'])
+        self.assertIn('## From Cybex OS 1.0.31\n\nNotes for v1.0.31', behind['notes'])
+        self.assertNotIn('1.0.30\n', behind['notes'])
+        self.assertEqual(read(), [self.FIRST, self.PAGE.format(2), self.PAGE.format(3)])
+        fetch.requests.clear()
+        # The walk is bounded. A machine further behind still gets the
+        # newest release, with the notes the pages it read hold; a channel
+        # with no release in reach is reported, not taken for none at all.
+        with patch('cybexos.trust.MAX_PAGES', 1):
+            far = trust.discover(fetch, 'beta', '1.0.1')
+            self.assertEqual((far['version'], far['releases'][-1]), ('1.0.65', '1.0.36'))
+            with self.assertRaisesRegex(Failure, 'No stable release is among the newest 30') as raised:
+                trust.discover(fetch, 'stable', '1.0.1')
+            self.assertNotIsInstance(raised.exception, trust.NoPublishedRelease)
+        # A listing that links back to a page it already read is refused.
+        looping = self.fetch(pages[:1])
+        looping.page = lambda url, limit=None, accept=None: (pages[0], self.FIRST)
+        with self.assertRaisesRegex(Failure, 'Invalid release listing'):
+            trust.discover(looping, 'stable', '1.0.10')
+
+    def test_a_page_of_drafts_and_other_tags_does_not_end_the_walk(self):
+        pages = [listing(('v1.0.35', False, False)),
+                 listing(('v1.0.40', False, True), ('nightly', False, False)),
+                 listing(('v1.0.36', False, False), ('v1.0.30', False, False))]
+        found = trust.discover(self.fetch(pages), 'stable', '1.0.30')
+        self.assertEqual((found['version'], found['releases']), ('1.0.36', ['1.0.36', '1.0.35']))
+
+    def test_a_higher_version_created_earlier_on_a_later_page_is_found(self):
+        # GitHub orders by creation: 1.0.36's draft was made before 1.0.35
+        # and published after it, so it sits on page 2.
+        pages = [listing(('v1.0.35', False, False), ('v1.0.34', False, False)),
+                 listing(('v1.0.36', False, False), ('v1.0.33', False, False)),
+                 listing(('v1.0.32', False, False))]
+        fetch = self.fetch(pages)
+        found = trust.discover(fetch, 'stable', '1.0.34')
+        self.assertEqual((found['version'], found['releases']), ('1.0.36', ['1.0.36', '1.0.35']))
+
+    def test_listing_pages_follow_only_trusted_links_and_keep_their_own_cache(self):
+        first = self.API + '/releases?per_page=30'
+        second = 'https://api.github.com/repositories/1438845778/releases?per_page=30&page=2'
+        responses, sent = {}, []
+
+        class Response(io.BytesIO):
+            def __init__(self, url, data, headers):
+                super().__init__(data)
+                self.url, self.headers = url, headers
+
+        def transport(request, timeout=30):
+            sent.append((request.full_url, request.get_header('If-none-match')))
+            status, data, headers = responses[request.full_url]
+            if status == 304:
+                raise urllib.error.HTTPError(request.full_url, 304, 'Not Modified', headers, None)
+            return Response(request.full_url, data, headers)
+
+        fetcher = trust.Fetcher(self.base / 'cache')
+        responses[first] = (200, b'[1]', {'ETag': '"one"', 'Link': f'<{second}>; rel="next", <{second}>; rel="last"'})
+        responses[second] = (200, b'[2]', {'ETag': '"two"', 'Link': f'<{first}>; rel="prev", <{first}>; rel="first"'})
+        with patch('cybexos.trust.urllib.request.urlopen', side_effect=transport):
+            self.assertEqual(fetcher.page(first), (b'[1]', second))
+            self.assertEqual(fetcher.page(second), (b'[2]', ''))
+            # Unchanged pages answer 304, each from its own cached body and link.
+            responses[first], responses[second] = (304, b'', {}), (304, b'', {})
+            self.assertEqual(fetcher.page(first), (b'[1]', second))
+            self.assertEqual(fetcher.page(second), (b'[2]', ''))
+            self.assertEqual(fetcher.get(first), b'[1]')
+            self.assertEqual(sent[2:], [(first, '"one"'), (second, '"two"'), (first, '"one"')])
+            # A next link that leaves the release listing on api.github.com is refused.
+            for link in ('https://example.com/repos/CybexBV/CybexOS/releases?page=2',
+                         'http://api.github.com/repositories/1438845778/releases?page=2',
+                         'https://api.github.com/repos/someone/else/releases?page=2',
+                         'https://api.github.com/repositories/1438845778/contents/flake.lock',
+                         'https://user:token@api.github.com/repositories/1/releases?page=2'):
+                responses[first] = (200, b'[3]', {'ETag': '"three"', 'Link': f'<{link}>; rel="next"'})
+                with self.subTest(link=link), self.assertRaisesRegex(Failure, 'outside the trusted GitHub endpoints'):
+                    fetcher.page(first)
+            # The refused page left the previous cached page and link in place.
+            responses[first] = (304, b'', {})
+            self.assertEqual(fetcher.page(first), (b'[1]', second))
+        self.assertEqual(trust.next_page('<https://api.github.com/repos/CybexHQ/CybexOS/releases?page=2>; rel="next"'),
+                         'https://api.github.com/repos/CybexHQ/CybexOS/releases?page=2')
+        self.assertEqual(trust.next_page(''), '')
+        self.assertEqual(trust.next_page(f'<{second}>; rel="last"'), '')
 
     def test_release_source_declares_its_version_and_requirements(self):
         trust.validate_source('1.1.0\n', COMPATIBILITY, release(), INSTALLED)
@@ -1077,6 +1194,39 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(Failure):
             self.engine.apply(first['id'], first['reviewToken'])
 
+    def test_transactions_record_how_they_ended(self):
+        # Storage cleanup releases an ended preview's roots after a few days.
+        outcome = lambda record: (read(self.engine.tx(record['id']) / 'outcome.json') or {}).get('outcome')
+        first = self.engine.stage('upstream')
+        self.assertIsNone(outcome(first))
+        # A failed attempt to prepare again ends; the prepared one stays.
+        self.runner.fail = lambda args: args[:2] == ('nix', 'build') and '--dry-run' not in args
+        with self.assertRaises(Failure):
+            self.engine.stage('both')
+        attempt = read(self.engine.status_path)['replacement']
+        self.assertIsNone(outcome(first))
+        failed = [tx for tx in (self.engine.state / 'transactions').iterdir() if tx.name != first['id']]
+        self.assertEqual([read(tx / 'outcome.json')['outcome'] for tx in failed], ['failed'])
+        self.assertEqual(attempt['state'], 'failed')
+        self.runner.fail = None
+        # A successful replacement supersedes it; a discard ends the new one.
+        second = self.engine.stage('both')
+        self.assertEqual(outcome(first), 'superseded')
+        self.engine.discard(second['id'])
+        self.assertEqual(outcome(second), 'discarded')
+        # A personal preview over nothing prepared; an interruption ends it.
+        third = self.engine.stage('local')
+        self.engine.status(state='building')
+        self.engine.recover()
+        self.assertEqual(outcome(third), 'interrupted')
+        self.engine.discard(third['id'])
+        self.assertEqual(outcome(third), 'interrupted', 'The first ending stays')
+        # A confirmed deployment follows recovery-point retention instead.
+        fourth = self.engine.stage('upstream')
+        atomic(self.engine.tx(fourth['id']) / 'good.json', {'at': 1})
+        self.engine.stage('local')
+        self.assertIsNone(outcome(fourth))
+
     def test_personal_changes_are_not_kept_over_by_a_failed_update(self):
         # Only a prepared update is kept; a prepared personal change is the
         # person's own and preparing an update over it behaves as before.
@@ -1211,6 +1361,52 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(moved['nodes']['nixpkgs']['original']['ref'], 'nixos-26.11')
         self.assertEqual(moved['nodes']['nixpkgs']['locked']['rev'], REV_OLD)
 
+    def test_nixpkgs_branch_moves_only_forward(self):
+        def on(ref):
+            data = lock(); data['nodes']['nixpkgs']['original']['ref'] = ref
+            return data
+        # Much later commit dates never take a machine back to an earlier branch.
+        later = PIN_NEW | {'lastModified': 10 ** 9}
+        for installed, offered, moves in (
+                ('nixos-unstable', 'nixos-26.11', True),
+                ('nixos-unstable', 'nixos-27.05', True),
+                ('nixos-26.11', 'nixos-27.05', True),
+                ('nixos-27.05', 'nixos-27.11', True),
+                ('nixos-26.11', 'nixos-unstable', False),
+                ('nixos-27.05', 'nixos-unstable', False),
+                ('nixos-27.05', 'nixos-26.11', False),
+                ('nixos-27.11', 'nixos-27.05', False),
+                # Never to or from a branch Cybex OS doesn't support.
+                ('nixos-unstable', 'nixos-26.05', False),
+                ('nixos-26.05', 'nixos-26.11', False)):
+            with self.subTest(installed=installed, offered=offered):
+                self.assertIs(inputs.newer(later | {'ref': offered}, on(installed)), moves)
+                self.assertIs(inputs.newer(PIN_NEW | {'ref': offered, 'lastModified': 1}, on(installed)), moves)
+        order = ['nixos-unstable', 'nixos-26.11', 'nixos-27.05', 'nixos-27.11', 'nixos-30.05']
+        self.assertEqual(sorted(reversed(order), key=inputs.branch_order), order)
+        for ref in ('nixos-26.05', 'nixos-26.12', 'nixpkgs-unstable', 'master', None):
+            self.assertIsNone(inputs.branch_order(ref))
+        self.assertEqual(inputs.release_name('nixos-unstable'), 'unstable')
+        self.assertEqual(inputs.release_name('nixos-26.11'), '26.11')
+        with self.assertRaises(Failure):
+            inputs.release_name('nixos-26.05')
+
+    def test_a_release_on_an_earlier_nixos_branch_leaves_the_machine_where_it_is(self):
+        data = lock(); data['nodes']['nixpkgs']['original']['ref'] = 'nixos-26.11'
+        atomic(self.config / 'flake.lock', data)
+        (self.config / 'flake.nix').write_text(
+            'inputs = {\n  nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";\n'
+            '  cybexos.url = "github:CybexHQ/CybexOS/' + REV_OLD + '";\n};\n')
+        self.runner.pinned = PIN_NEW | {'ref': 'nixos-unstable', 'lastModified': 10 ** 9}
+        # A release on nixos-unstable that still supports 26.11 machines.
+        with patch.dict(COMPATIBILITY, {'nixos': ['unstable', '26.11']}):
+            record = self.engine.stage('both')
+        config = self.engine.tx(record['id']) / 'config'
+        self.assertIn('nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.11";', (config / 'flake.nix').read_text())
+        staged = read(config / 'flake.lock')
+        node = staged['nodes'][inputs.root_inputs(staged)['nixpkgs']]
+        self.assertEqual((node['original']['ref'], node['locked']['rev']), ('nixos-26.11', REV_OLD))
+
     def test_packages_alone_never_take_a_newer_release_s_nixpkgs(self):
         # The machine already runs its installed release's revision; a newer
         # release brings a newer one, which packages alone can't take.
@@ -1266,6 +1462,32 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(self.system.readlink(),Path(OLD_SYSTEM))
             self.assertFalse(self.engine.pending_path.exists())
             self.assertEqual(read(self.engine.status_path)['state'],'failed')
+
+    def test_release_compatibility_follows_the_branch_the_machine_runs(self):
+        # The machine's own lock names its branch, not release.json: a
+        # release prepared alone keeps the machine's Nixpkgs.
+        original = self.runner
+        def declaring(branches):
+            def run(*args, **kwargs):
+                if tuple(map(str, args[:2])) == ('cat', STORE_SOURCE + '/release/compatibility.json'):
+                    return json.dumps(COMPATIBILITY | {'nixos': branches})
+                return original(*args, **kwargs)
+            run.log = None
+            return run
+        atomic(self.release, read(self.release) | {'nixos': '26.11'})
+        self.assertEqual(self.engine.installed_branch(), 'unstable')
+        self.engine.run = declaring(['26.11'])
+        with self.assertRaisesRegex(Failure, 'NixOS branch'):
+            self.engine.stage('cybexos')
+        data = lock(); data['nodes']['nixpkgs']['original']['ref'] = 'nixos-26.11'
+        atomic(self.config / 'flake.lock', data)
+        atomic(self.release, read(self.release) | {'nixos': 'unstable'})
+        self.assertEqual(self.engine.installed_branch(), '26.11')
+        record = self.engine.stage('cybexos')
+        self.assertEqual(read(self.engine.status_path)['state'], 'ready', record)
+        self.engine.run = declaring(['unstable'])
+        with self.assertRaisesRegex(Failure, 'NixOS branch'):
+            self.engine.stage('cybexos')
 
     def test_release_source_disagreements_are_rejected_before_build(self):
         # The tag, the release's own VERSION and compatibility declaration and

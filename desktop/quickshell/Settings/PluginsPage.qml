@@ -2,13 +2,15 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "../Common"
 import "PluginSource.js" as PluginSource
+import "../Common/CybexPlugins.js" as CybexPlugins
 
 // Omarchy plugins: community bar widgets, panels, overlays, menus and
 // services built for Omarchy's shell, which Cybex OS runs unchanged. The page
 // leads with where to find them (plugins.omarchy.org), then the three steps
 // from there to a running plugin — copy its install command, paste it into
 // Source, switch it on — and ends with the installed list, each plugin with
-// its switch. Plugin widgets are added from the Bar page's tray like any
+// its switch. Cybex OS's own plugins (Common/CybexPlugins.js), the widgets
+// that left the built-in bar, are listed first with an Install button each. Plugin widgets are added from the Bar page's tray like any
 // other widget, so this page no longer links there.
 //
 // The helper runs one command at a time and reports the last one. Its
@@ -28,6 +30,8 @@ SettingsPage {
     // A result for a plugin that is gone (removed, or replaced by its
     // clone) reads under the Source row instead of nowhere.
     readonly property bool targetListed: UserPlugins.plugins.some(plugin => plugin.id === actionTarget)
+    // A Cybex OS plugin's install reads under its own list.
+    readonly property bool cybexTarget: actionTarget.startsWith("cybex:")
     // What Install would install: the URL out of a pasted
     // "omarchy plugin add <url>" command, or the field as typed.
     readonly property string source: PluginSource.parse(sourceRow.text)
@@ -41,6 +45,17 @@ SettingsPage {
         if (page.source === "" || UserPlugins.busy)
             return;
         page.run("install", ["add", page.source]);
+    }
+
+    // `cybex plugin add <url>`, then `cybex plugin enable <id>`: these are
+    // Cybex OS's own, so they start on, with the options the built-in widget
+    // they replace had saved.
+    function installCybex(plugin) {
+        if (UserPlugins.busy)
+            return;
+        actionTarget = "cybex:" + plugin.id;
+        UserPlugins.enqueue(CybexPlugins.installCommand(UserPlugins.helper, plugin,
+            Settings.retiredWidgetOptions(plugin.widget)));
     }
 
     // One numbered step of the how-to: a small number in a chip on the row
@@ -171,6 +186,45 @@ SettingsPage {
 
         SettingsGroup {
             width: parent.width
+            title: I18n.tr("Cybex OS plugins")
+
+            SettingsHint {
+                width: parent.width
+                text: I18n.tr("Widgets made for Cybex OS, each updated on its own. Install adds one and switches it on.")
+            }
+
+            Repeater {
+                model: CybexPlugins.PLUGINS
+
+                delegate: ActionRow {
+                    id: cybexRow
+                    required property var modelData
+                    readonly property bool installed: CybexPlugins.installed(UserPlugins.plugins, modelData.id)
+                    width: parent.width
+                    label: modelData.name
+                    hint: I18n.tr(modelData.description)
+
+                    SettingsAction {
+                        text: cybexRow.installed ? I18n.tr("Installed") : I18n.tr("Install")
+                        glyph: cybexRow.installed ? "check" : "download"
+                        enabled: !cybexRow.installed && !UserPlugins.busy
+                        Accessible.description: cybexRow.installed
+                            ? cybexRow.modelData.name + " is installed; switch it on or off under Installed"
+                            : "Installs " + cybexRow.modelData.name + " from " + cybexRow.modelData.url
+                        onTriggered: page.installCybex(cybexRow.modelData)
+                    }
+                }
+            }
+            SettingsHint {
+                width: parent.width
+                text: page.cybexTarget ? page.status : ""
+                tone: page.statusTone
+                maximumLines: 6
+            }
+        }
+
+        SettingsGroup {
+            width: parent.width
             title: I18n.tr("Add a plugin")
 
             Column {
@@ -212,7 +266,7 @@ SettingsPage {
             }
             SettingsHint {
                 width: parent.width
-                text: page.targetListed ? "" : page.status
+                text: page.targetListed || page.cybexTarget ? "" : page.status
                 tone: page.statusTone
                 maximumLines: 6
             }

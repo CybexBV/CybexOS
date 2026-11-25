@@ -80,7 +80,7 @@ POWER_SUPPLY = Path("/sys/class/power_supply")
 RECOVERY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 RECOVERY_GROUPS = 6
 RECOVERY_GROUP_LENGTH = 5
-# The same trust rules as the Remote Server widget: the user's SSH keys and
+# Strict SSH trust rules: the user's SSH keys and
 # ~/.ssh/config, never a password prompt, never an unknown host key.
 SSH_ARGS = ("-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "
             "-o ServerAliveInterval=60 -o ServerAliveCountMax=240")

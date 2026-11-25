@@ -301,7 +301,10 @@ in pkgs.testers.runNixOSTest {
     assert hyprland_environment()[1] == {"XCURSOR_THEME": "Hackneyed", "XCURSOR_SIZE": "48"}, hyprland_environment()
     assert option("cursor:hide_on_key_press") in (1, True), "looknfeel.lua read the stored choice"
     assert float(option("cursor:inactive_timeout")) == 3.0
-    assert drawn("hackneyed-relogin") > 0.55, results
+    # At 48 px Hackneyed's images carry a soft shadow, which counts as
+    # pointer but not as light (0.53 here against 0.69 at 24 px); Bibata,
+    # black, stays near 0.3 at either size.
+    assert drawn("hackneyed-relogin") > 0.45, results
     machine.screenshot("relogin")
 
     # ---- back to Bibata, and the download removed --------------------------

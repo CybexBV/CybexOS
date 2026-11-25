@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-from subprocess import TimeoutExpired
 from tempfile import TemporaryDirectory
 import time
 import uuid
@@ -241,6 +240,26 @@ class Engine:
             raise Failure('Invalid deployment identifier')
         return self.state / 'transactions' / identifier
 
+    def conclude(self, identifier, outcome):
+        """Record how an unconfirmed transaction ended (operation lock held).
+
+        Storage cleanup releases the GC roots of a transaction that ended this
+        way once it is a few days old (maintenance.ABANDONED). A confirmed
+        one follows recovery-point retention instead; a rolled-back one
+        already has failed.json. The first outcome stays.
+        """
+        if not isinstance(identifier, str) or not re.fullmatch('[0-9a-f]{32}', identifier):
+            return
+        tx = self.tx(identifier)
+        try:
+            if not tx.is_dir() or (tx / 'good.json').exists() or (tx / 'outcome.json').exists():
+                return
+            atomic(tx / 'outcome.json', {'outcome': outcome, 'at': int(time.time())})
+        except OSError:
+            # Bookkeeping must not replace the error being reported. Without
+            # an outcome, cleanup keeps the transaction's roots.
+            pass
+
     def selected_channel(self):
         return channels.selected(self.channel_state, self.policy)['selected']
 
@@ -289,13 +308,26 @@ class Engine:
             raise Failure('Downloaded release source has no valid content identity')
         validate_source(self.run('cat', store + '/VERSION', sensitive=True),
                         parse(self.run('cat', store + '/release/compatibility.json', sensitive=True)),
-                        candidate, installed)
+                        candidate, installed | {'nixos': self.installed_branch()})
         if self.replaced(candidate, installed, nar_hash != installed.get('narHash')):
             raise Failure('Published version was replaced with different source content. Update rejected.')
         # The Nixpkgs revision this release was checked with, from its own
         # content-addressed source: what the machine's Nixpkgs moves to.
         pinned = inputs.pin(parse(self.run('cat', store + '/flake.lock', sensitive=True)))
         return candidate | {'narHash': nar_hash, 'nixpkgs': pinned}
+
+    def installed_branch(self):
+        """The NixOS branch this machine's Nixpkgs follows ("unstable", "26.11").
+
+        Its own flake.lock, not its release's: a release prepared alone keeps
+        the machine's Nixpkgs, also when the release itself moved to a later
+        branch, so only the machine's lock knows the branch it runs.
+        """
+        try:
+            ref = inputs.resolved(read(self.working / 'flake.lock'), 'nixpkgs')['original'].get('ref')
+        except (KeyError, TypeError, AttributeError, ValueError, OSError) as error:
+            raise Failure('The machine configuration names no NixOS branch. Check /etc/nixos/flake.lock.') from error
+        return inputs.release_name(ref)
 
     def release_pin(self, revision):
         """The Nixpkgs revision a published release was checked with: its
@@ -331,7 +363,7 @@ class Engine:
                               lambda m: m[1] + 'github:NixOS/nixpkgs/' + ref + m[2], flake.read_text())
         if count != 1:
             raise Failure('Machine flake must declare one literal nixpkgs.url. Keep personal modules in local/.')
-        atomic(flake, text.encode())
+        atomic(flake, text.encode(), flake.stat().st_mode & 0o777)
 
     @classmethod
     def move_nixpkgs(cls, config, old, pinned):
@@ -447,6 +479,9 @@ class Engine:
             # the new one is ready; until then that one stays installable.
             previous = read(self.status_path, {})
             replacing = kind == 'update' and scope != 'firmware' and self.replaceable(previous)
+            if not replacing:
+                # Its preview can no longer be applied: the status names this one.
+                self.conclude(previous.get('transaction'), 'superseded')
             candidate = None
             self.status(transaction=identifier, state='discovering', scope=scope, error='', progress=None,
                         phase='Checking selected sources and preparing your configuration',
@@ -628,8 +663,11 @@ class Engine:
                 # A failed preview must not spend explicit retry permission.
                 for authorization in retry_authorizations:
                     authorization.unlink(missing_ok=True)
+                if replacing:
+                    self.conclude(previous.get('transaction'), 'superseded')
                 return record
             except IncompatibleNixpkgs as error:
+                self.conclude(identifier, 'failed')
                 if replacing:
                     self.keep_prepared(previous, scope, request_id, candidate, error,
                                        incompatible=error.details, waiting=error.held)
@@ -641,6 +679,7 @@ class Engine:
                                 if error.held else 'Update the named file in your configuration, then prepare again.')
                 raise
             except NotPrebuilt as error:
+                self.conclude(identifier, 'failed')
                 if replacing:
                     self.keep_prepared(previous, scope, request_id, candidate, error, error.names)
                     raise
@@ -652,6 +691,7 @@ class Engine:
                                 else 'Correct the failure and prepare this change again.')
                 raise
             except BaseException as error:
+                self.conclude(identifier, 'failed')
                 if replacing:
                     self.keep_prepared(previous, scope, request_id, candidate, error)
                     raise
@@ -1091,6 +1131,7 @@ class Engine:
                         self.status(state='interrupted', phase=message,
                                     firmware=(status.get('firmware') or {}) | {'state': 'failed', 'error': message})
                     else:
+                        self.conclude(status.get('transaction'), 'interrupted')
                         self.status(state='interrupted', phase='Interrupted before activation; working system retained. Stage again.')
                 return
             self.run.log = self.tx(pending['id']) / 'build.log'
@@ -1203,6 +1244,7 @@ class Engine:
             if (self.pending_path.exists() or status.get('transaction') != identifier
                     or status.get('state') not in ('ready', 'stale', 'failed', 'interrupted', 'rolled-back')):
                 raise Failure('Only the current unapplied preview or a finished failure can be dismissed. Refresh its status.')
+            self.conclude(identifier, 'discarded')
             self.status(transaction=None, state='idle', changeKind=None, scope=None,
                         phase='Preview discarded. No update was applied.' if status['state'] in ('ready', 'stale')
                         else 'Dismissed. The running system was not changed.')

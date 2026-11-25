@@ -53,7 +53,11 @@ update, since every stable release is on beta too.
 `cybex update check` and `cybex update stage cybexos` read the release listing
 and resolve the selected tag to its exact commit through the GitHub API: only
 `api.github.com`, with bounded responses and an ETag cache (GitHub does not
-count a conditional 304 against its anonymous rate limit). Staging then:
+count a conditional 304 against its anonymous rate limit). The listing comes
+in pages of 30, newest first: the updater follows GitHub's next-page links
+(only to the release listing on `api.github.com`) until it has a release on
+its channel and has reached its installed version, at most 20 pages. Updaters
+up to 1.0.32 read a single page of 100 releases (2 MiB at most). Staging then:
 
 1. downloads that commit once with `nix flake prefetch` and records the
    content hash of what it received;
@@ -91,17 +95,29 @@ Development commits may be pushed directly to `main`. To publish a release:
    pass. One check covers the release and the work merged into it: prepare
    `VERSION` and the notes first, then check. Once it passes, move `main` to
    exactly that commit with `git push origin COMMIT:main`. When `main` moved
-   in the meantime the push fails: merge again and check again.
+   in the meantime the push fails: merge again and check again. The push
+   starts the full check on `main` once more; publishing needn't wait for it,
+   since the branch's run already checked that commit.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
-   the notes, refuses an existing tag, refuses a commit without a passing
-   dispatched `nixos.yml` run, creates and pushes the annotated
-   `vVERSION` tag and creates the GitHub release with `gh` as a prerelease:
+   the notes, refuses a tag on another commit, refuses a commit without a
+   passing `nixos.yml` run (dispatched, or started by a push to `main`),
+   creates and pushes the annotated `vVERSION` tag and creates the GitHub
+   release with `gh` as a prerelease:
    it reaches beta machines only. Pass asset paths (an ISO and its checksum)
    to upload them with the release, or `--dry-run` to only report the result.
    `--stable` publishes straight to both channels and marks the release as
    the latest. Keep it for an urgent fix, or a release that needs no beta
-   period; a prerelease version refuses it.
+   period; a prerelease version refuses it, and so does a release that
+   machines on the current stable release cannot install (the compatibility
+   check `release/promote` makes, below).
+
+   When `gh` fails after the tag is pushed (a network failure, an
+   interrupted upload), run the same command again from the same commit: a
+   tag that already names this commit is kept, and the release is created,
+   or the draft `gh` left behind gets its assets and is published. A tag on
+   another commit, or a release already published, means another session
+   published that version first: take the next one.
 4. Once the release has proven itself on beta, run
    `release/promote VERSION`. It changes nothing about the release's source:
    it clears the prerelease flag, marks it as the latest and replaces its notes
@@ -115,8 +131,10 @@ Development commits may be pushed directly to `main`. To publish a release:
      decision);
    - its `release/compatibility.json` suits the current stable release:
      `minUpdater` at most that release's updater API, the same schema,
-     configuration and plugin APIs, all of its architectures and its NixOS
-     branch.
+     configuration and plugin APIs, all of its architectures, its NixOS
+     branch (the one that release's own `flake.lock` follows) and every
+     other branch its `compatibility.json` lists: machines that installed a
+     release alone keep the branch they had.
 
    Stable machines skip the beta releases in between, so their What's New
    should cover those too. Promotion proposes combined notes, the release's
@@ -182,7 +200,7 @@ daily on a GitHub-hosted runner:
   enters the Nix store only through its pinned hash. The cache keeps one set,
   the newest.
 - **T3 Code, Intel LPMd and Omawrite** are reported, not updated: each needs a
-  review beyond its checksum (T3 Code's connected-widget bar API, for
+  review beyond its checksum (a new T3 Code nightly needs a desktop run, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
 
@@ -228,19 +246,74 @@ updater cannot install. Installed machines refuse a release that changes
 
 The **NixOS qualification** workflow (`.github/workflows/nixos.yml`) is the
 full check. It gates every release: `release/publish` and `release/promote`
-refuse a commit without a successful dispatched run. Start it with
+refuse a commit without a successful run for exactly that commit, either
+dispatched or started by a push to `main`. Both kinds check out the commit
+they were started for (each job verifies it); a pull request's run would
+check a merge commit, so it never counts. Nor does a run whose upgrade job
+started from another release (`-f from=`, below): its title says so, and
+the gate needs the upgrade from the release just before `VERSION`.
+
+It runs by itself on every push to `main`, and a newer push replaces a run
+still going on `main`. Start it on a branch with
 `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; it does not
-run automatically on pushes, pull requests or releases, and there is no
-nightly run. Run it on a branch before merging changes to the updater, the
-Nix modules, the installer, the release scripts, qualification or workflows.
+run on pull requests or releases, and there is no nightly run. Run it on a
+branch before merging changes to the updater, the Nix modules, the installer,
+the release scripts, qualification or workflows.
 
-It has two jobs that run side by side. The checks job runs the source
-tests, then builds the systems, the matched XPS stack and the VM tests in a
-single `nix build`, so packages both need build once, and checks what
-machines would compile. The image job builds the ISO, checks it against the
-source and installs it twice, plain and encrypted, in two VMs at once.
+It has three jobs that run side by side. The checks job runs the source tests
+(`tests/run`, which includes the linters in `tests/lint`: Ruff, ShellCheck
+and actionlint), the shell tests (`tests/shell-checks`: QML lint and every
+headless Quickshell test) and then builds **every** flake check
+(`checks.x86_64-linux.*`). It lists the flake's checks itself, so a new check
+is part of the gate the moment it is added. Omasnap's smoke suite, whose
+steps wait at most 5 s each, builds first and on its own: under the load of
+the other builds it once missed one. Then two `nix build`s share the
+packages: first the systems, the matched XPS and NVIDIA stacks, the source
+checks and the smaller VM tests; then the desktop VM tests of up to 8 GiB,
+three at a time (their names are in the workflow; put a new one of that size
+there). Each build uses `--keep-going` and runs after a failed one before it,
+so one run reports every failing check. The job also checks what machines would
+compile. The image job builds the ISO, checks it against the source and
+installs it twice, plain and encrypted, in two VMs at once. The upgrade job
+takes the path people take ([below](#the-upgrade-job)).
 
-Both jobs require a `cybexos-isolated` self-hosted runner;
+### The upgrade job
+
+The upgrade job installs the previous published release from its own ISO and
+lets that release's own updater move the machine to this commit, as if it
+were published as the next release (`scripts/qualify-upgrade`). The previous
+release is the newest published one older than `VERSION`: on a release
+branch the newest release, on any other branch the one before it. The
+`from` input of the workflow names another (`gh workflow run nixos.yml
+--ref <branch> -f from=v1.0.25`); such a run is titled
+"NixOS qualification (upgrade from v1.0.25)" and doesn't qualify a release.
+
+The old updater can't be changed, so the job answers it at the network. A
+small HTTPS stand-in for api.github.com runs on the runner; the guest trusts
+its throwaway test CA and reaches it through `/etc/hosts`, until the next
+boot. It serves the release listing with this commit's `VERSION` as the
+newest release (replacing a published one of that version) and that tag's
+commit. A machine on beta meets it as a prerelease, as `release/publish`
+publishes it; a stable one as a promoted release; every other request, such as a release's `flake.lock` or a source
+tarball, goes on to GitHub unchanged, so the job needs the pushed commit.
+
+In the guest, `cybex update check` must offer the release, then the updater
+prepares it as people would: 1.0.25 and 1.0.26 the release alone (`cybex
+update stage cybexos`), later ones what Software Update offers, and on an
+updater before 1.0.32 the release alone again when that fails. It applies
+the update. When the boot changed, it trial-boots, signs in and the desktop
+confirms it; when it didn't, the updater activates it at once and makes it
+the boot default, and the job restarts and signs in. The machine must then
+run this commit (`/etc/cybexos/release.json` and the `cybexos` lock), the
+Nixpkgs revision that updater should have chosen (the release's own from
+1.0.32 on), and a healthy desktop. The JSON evidence names both releases, the
+ISO's checksum, each step and every request the stand-in answered.
+
+`scripts/qualify-upgrade run ISO --from TAG --to TAG` runs the same test
+outside the workflow, for example with `--to` a published release. A plain
+installation in one VM of 16 GiB and 12 cores.
+
+All three jobs require a `cybexos-isolated` self-hosted runner;
 standard hosted runners do not provide enough space for the complete desktop,
 build dependencies, ISO copies and installation VMs. Provision a fresh,
 single-job disposable x86_64 Linux VM with at least 256 GiB of disk, 32 GiB
@@ -263,9 +336,9 @@ derivations, not another Nixpkgs universe; requalify their ABI/license
 constraints when updating them. Before publishing, `scripts/check-prebuilt`,
 `--nvidia` and `--catalogue` must report no build beyond the expected ones
 ([Prebuilt packages only](updates.md#prebuilt-packages-only)).
-T3 Code is an exact hashed upstream nightly AppImage wrapped with Nixpkgs, the
-client the connected widget was reviewed with; Nixpkgs' `t3code` is the 0.1.2
-release. Replace that source recipe with the maintained Nixpkgs package after
+T3 Code is an exact hashed upstream nightly AppImage wrapped with Nixpkgs;
+Nixpkgs' `t3code` is the 0.1.2 release. (Its bar widget is the
+`digitalpals.t3code` plugin now.) Replace that source recipe with the maintained Nixpkgs package after
 product runtime qualification; its successful wrapper build is not desktop
 validation.
 ChatGPT is Nixpkgs' maintained `chatgpt` package, so it updates with the

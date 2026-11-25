@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import unittest
 
@@ -130,6 +131,16 @@ class FlathubRemoteTests(unittest.TestCase):
             raise OSError('flatpak is missing')
         personal.flathub(self.home, True, Path('/repo'), run=fails)
         self.assertFalse((self.home / '.local/state/cybexos/flathub-remote').exists(), 'a later login tries again')
+
+    def test_a_remote_added_before_flatpak_gave_up_is_recorded(self):
+        # Offline, flatpak adds the remote, then waits for Flathub until the timeout.
+        def times_out(argv, **kwargs):
+            config = self.home / '.local/share/flatpak/repo/config'
+            config.parent.mkdir(parents=True)
+            config.write_text('[core]\nrepo_version=1\n\n[remote "flathub"]\nurl=https://dl.flathub.org/repo/\n')
+            raise subprocess.TimeoutExpired(argv, 60)
+        personal.flathub(self.home, True, Path('/repo'), run=times_out)
+        self.assertTrue((self.home / '.local/state/cybexos/flathub-remote').exists(), 'a removal must stay a removal')
 
     def test_shipped_repository_is_flathub_with_its_signing_key(self):
         text = (ROOT / 'lifecycle/cybexos/flathub.flatpakrepo').read_text()

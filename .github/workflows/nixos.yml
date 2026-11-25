@@ -1,17 +1,31 @@
 name: NixOS qualification
+# A run whose upgrade job starts from another release than the default says
+# so in its title; release/publish and release/promote count only runs with
+# the plain title, which upgraded from the release just before VERSION.
+run-name: ${{ inputs.from && format('NixOS qualification (upgrade from {0})', inputs.from) || 'NixOS qualification' }}
+# By hand on a branch (gh workflow run nixos.yml --ref BRANCH), and on every
+# push to main. release/publish and release/promote accept a successful
+# dispatched or push run for the exact commit: both check github.sha.
 on:
   workflow_dispatch:
+    inputs:
+      from:
+        description: 'Upgrade job: the installed release (a tag such as v1.0.25). Default: the release before VERSION'
+        required: false
+        default: ''
+  push:
+    branches: [main]
 permissions:
   contents: read
-# One run per branch at a time: a newer dispatch replaces the older one, so
-# daily update branches can't queue up on The Beast's single runner.
+# One run per branch at a time: a newer dispatch or push replaces the older
+# one, so update branches and main can't queue up on The Beast's runners.
 concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # Two jobs side by side, as many as The Beast's memory runs at once. Each
-  # job starts on an empty disposable runner and builds Cybex OS's own
-  # packages itself, so this job builds them once for every check below.
+  # Three jobs side by side, one per runner slot on The Beast. Each job
+  # starts on an empty disposable runner and builds Cybex OS's own packages
+  # itself, so this job builds them once for every check below.
   checks:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -30,25 +44,56 @@ jobs:
       - run: python3 -B scripts/check-ci-capacity --vm
       # The quick checks first, so a broken source fails within minutes.
       - run: nix flake check --no-build
+      # Source tests and the linters (Ruff, ShellCheck, actionlint).
       - run: nix develop -c tests/run
       - run: python3 -B scripts/check_leftovers.py --repo . --allowlist scripts/rename-leftovers-allowlist.txt
-      - run: nix develop -c tests/qml-lint
-      - run: nix develop -c python3 -B tests/user-plugins.py
+      # QML lint and the shell's runtime tests in private headless Sways.
+      - run: nix develop -c tests/shell-checks
       - run: nix develop -c python3 -B tests/assistant-overlay.py
-      - run: nix develop -c python3 -B tests/media-player.py
       - run: nix develop -c python3 -B tests/nixos-native
-      # One build: shared packages build once and the VM tests run side by
-      # side (12 + 4 + 4 + 1 GiB of the runner's 32).
-      - name: Build the systems, the matched XPS stack and the VM tests
+      # Every flake check is built, in two builds. The desktop VM tests (up to
+      # 8 GiB each) go second, three at a time; everything else goes first, so
+      # a new check is never left out. One nix build shares the packages its
+      # checks need, and --keep-going reports every failing check at once.
+      - name: Choose the checks
+        id: choose
         run: |
-          nix build -L --no-link \
-            .#checks.x86_64-linux.lifecycle .#checks.x86_64-linux.parity .#checks.x86_64-linux.voxtype \
-            .#checks.x86_64-linux.product .#checks.x86_64-linux.xps-system .#checks.x86_64-linux.nvidia-evaluation \
-            .#checks.x86_64-linux.vm .#checks.x86_64-linux.boot .#checks.x86_64-linux.firmware \
-            .#checks.x86_64-linux.lid-guard
+          set -euo pipefail
+          # Omasnap's smoke suite waits at most 5 s for each step; under the
+          # first build's load it once missed one, so it builds on its own.
+          alone=(omasnap)
+          desktop=(hyprland-pointer screenshots session-restarts passwordless-sudo dictation pointer
+                   lock-terminal wayland-scale browser-1password settings-audit)
+          nix eval --json .#checks.x86_64-linux --apply builtins.attrNames > "$RUNNER_TEMP/checks.json"
+          python3 -I -B - "$RUNNER_TEMP/checks.json" "${#alone[@]}" "${alone[@]}" "${desktop[@]}" >> "$GITHUB_ENV" <<'PYTHON'
+          import json, sys
+          names = json.load(open(sys.argv[1]))
+          alone = sys.argv[3:3 + int(sys.argv[2])]
+          desktop = sys.argv[3 + int(sys.argv[2]):]
+          missing = sorted(set(alone + desktop) - set(names))
+          if missing:
+              sys.exit(f'nixos.yml names checks the flake does not have: {missing}')
+          first = [name for name in names if name not in alone + desktop]
+          for key, chosen in (('ALONE', alone), ('FIRST', first), ('DESKTOP', desktop)):
+              print(f'CHECKS_{key}=' + ' '.join(f'.#checks.x86_64-linux.{name}' for name in chosen))
+          PYTHON
+      - name: Build the checks that need a quiet runner
+        run: |
+          read -ra checks <<< "$CHECKS_ALONE"
+          nix build -L --no-link --keep-going "${checks[@]}"
+      # The systems, the matched XPS and NVIDIA stacks and the other VM tests
+      # (at most 12 + 4 + 4 + 2 GiB of the runner's 32 at once).
+      - name: Build the systems, the matched XPS and NVIDIA stacks and the VM tests
+        if: ${{ !cancelled() && steps.choose.outcome == 'success' }}
+        run: |
+          read -ra checks <<< "$CHECKS_FIRST"
+          nix build -L --no-link --keep-going "${checks[@]}"
       # A fresh machine's update builds only what the updater expects: a new
-      # local build Cybex OS doesn't declare would hold every update.
+      # local build Cybex OS doesn't declare would hold every update. This and
+      # the desktop VM tests run after a failed build too, so one run reports
+      # every failure.
       - name: Check that machines build only expected packages
+        if: ${{ !cancelled() && steps.choose.outcome == 'success' }}
         run: |
           python3 -I -B scripts/check-prebuilt
           python3 -I -B scripts/check-prebuilt --nvidia
@@ -62,6 +107,11 @@ jobs:
             echo "== $profile"
             python3 -I -B scripts/check-prebuilt --profile "$profile"
           done
+      - name: Build the desktop VM tests
+        if: ${{ !cancelled() && steps.choose.outcome == 'success' }}
+        run: |
+          read -ra checks <<< "$CHECKS_DESKTOP"
+          nix build -L --no-link --keep-going --max-jobs 3 "${checks[@]}"
   image:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -83,17 +133,12 @@ jobs:
         run: |
           set -euo pipefail
           staging=$(mktemp -d "$RUNNER_TEMP/cybexos-image-XXXXXX")
-          revision=$(git rev-parse HEAD)
-          image="/data/pxe/iso/cybexos-$revision-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.iso"
-          trap 'rm -rf "$staging"; sudo rm -f "$image" "$image.sha256"' EXIT
+          trap 'rm -rf "$staging"' EXIT
           nix build .#iso -L --out-link "$staging/result"
-          sudo install -d -m 0755 /data/pxe/iso
-          sudo install -m 0644 "$staging"/result/iso/*.iso "$image"
-          (cd /data/pxe/iso; sha256sum "$(basename "$image")") > "$staging/checksum"
-          sudo install -m 0644 "$staging/checksum" "$image.sha256"
-          (cd /data/pxe/iso; sha256sum -c "$image.sha256")
-          # The disposable runner has no PXE service. Local PXE delivery
-          # separately requires the refresh/service/image-list checks in AGENTS.md.
+          # The ISO stays in the job's own staging directory: the disposable
+          # runner serves nothing, and testing ISOs reach PXE only by hand.
+          image=$(echo "$staging"/result/iso/*.iso)
+          test -f "$image"
           nix develop -c scripts/check-image-parity "$image" . --output "$staging/image-parity.json"
           # The plain and the encrypted installation are separate VMs with
           # their own disks and sockets (4 vCPUs each): run them side by side.
@@ -108,3 +153,48 @@ jobs:
           failed=0
           for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
           exit "$failed"
+  # The path people take: a machine on the previous published release, whose
+  # own updater discovers, prepares, applies, trial-boots and confirms this
+  # commit as the next release (scripts/qualify-upgrade). That updater asks
+  # api.github.com for the newest release; a stand-in on the runner answers
+  # with this commit and passes everything else on to GitHub.
+  upgrade:
+    runs-on: [self-hosted, linux, x64, cybexos-isolated]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      # Every job checks the commit the run was started for, not whatever its
+      # branch points to by the time the job gets the runner: release/publish
+      # trusts this run for exactly that commit.
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
+        with:
+          extra_nix_config: |
+            max-jobs = 4
+            cores = 0
+      # One installation VM of 16 GiB, built once the ISO is.
+      - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 24
+      - name: Upgrade the previous release to this commit with its own updater
+        env:
+          # Raises the API rate limit for the runner's own GitHub requests,
+          # and for the guest's reads of this repository through the stand-in
+          # (scripts/qualify-upgrade); the token itself never enters the guest.
+          GITHUB_TOKEN: ${{ github.token }}
+          CYBEXOS_UPGRADE_PROXY_TOKEN: ${{ github.token }}
+          FROM: ${{ inputs.from }}
+        run: |
+          set -euo pipefail
+          staging=$(mktemp -d "$RUNNER_TEMP/cybexos-upgrade-XXXXXX")
+          trap 'rm -rf "$staging"' EXIT
+          from=${FROM:-$(python3 -I -B scripts/qualify-upgrade previous)}
+          [[ $from =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$ ]] || { echo "Not a release tag: $from" >&2; exit 1; }
+          echo "Upgrading $from to $(cat VERSION) ($(git rev-parse HEAD))"
+          # That release's own ISO, built from its tag.
+          NIX_CONFIG="access-tokens = github.com=$GITHUB_TOKEN" \
+            nix build "github:CybexBV/CybexOS/$from#iso" -L --out-link "$staging/from"
+          # Minimal applications: the proprietary ones download from their
+          # vendors (Chrome's .deb, gone once superseded), which would tie the
+          # gate to their servers; the updater path is the same.
+          nix develop -c scripts/qualify-upgrade run "$staging"/from/iso/*.iso --from "$from" \
+            --applications minimal --work-dir "$staging" --output "$staging/upgrade.json"

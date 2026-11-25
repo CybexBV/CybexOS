@@ -1,8 +1,9 @@
 # Security
 
 Cybex OS configures a NixOS workstation's login, authorization, firewall and
-privileged update lifecycle. The NixOS port is unreleased and is not yet
-production-qualified. Report security issues privately through the repository's
+privileged update lifecycle. Releases are published on a beta and a stable
+channel; physical hardware and security qualification is still limited
+([validation status](docs/validation.md)). Report security issues privately through the repository's
 GitHub security advisories; do not include credentials or personal archives.
 
 Nixpkgs supplies upstream packages. Cybex OS releases are published GitHub

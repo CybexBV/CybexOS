@@ -1,7 +1,7 @@
 // Pure settings-schema helpers shared by QML and Node tests.
 // Keep this file free of Qt APIs so persistence stays deterministic.
 
-var VERSION = 35;
+var VERSION = 36;
 
 var BAR_STYLES = ["hug", "floating", "attached"];
 var PALETTE_MODES = ["wallpaper", "fixed"];
@@ -69,34 +69,34 @@ function controlIconIn(value, fallback) {
 // a Control Panel toggle. Schema 24 restores `control` as a configurable
 // widget, with the Cybex OS button's existing rightmost placement by default.
 // Schema 25 retired `usage`, the first built-in model usage widget, and its
-// drawer tab. Schema 26 builds Model Usage in as `modelusage`, vendored from
-// the digitalpals.model-usage Omarchy plugin (see ModelUsage/README.md).
-// Schema 28 adds `fusebox`, the Fusebox server widget, beside Model Usage.
+// drawer tab. Schema 26 built Model Usage in as `modelusage`, vendored from
+// the digitalpals.model-usage Omarchy plugin, and schema 28 added `fusebox`.
 // Schema 30 adds `assistant`, the button that shows and hides the Cybex OS
 // Assistant, before the notification and status widgets. Schema 32 moved
 // the default `control` to the start of the left column; schema 33 put it
 // back at the far right when it still led the left column. Schema 34 returns
 // it to the far right from wherever an older file holds it, and drops the
 // layout leftovers older writers kept after a reset (migrateMods,
-// staleModsLeftover).
+// staleModsLeftover). Schema 36 retires the six connected-service widgets
+// (Model Usage, Fusebox, GitHub, T3 Code, Hermes Agent and Remote Server):
+// they are Cybex OS plugins now, installed from Settings -> Plugins
+// (docs/omarchy-plugin-compatibility.md). Their layout entries are dropped
+// from the file on its next save (dropRetired); their options stay in it,
+// untouched, so installing the plugin from Settings -> Plugins brings them
+// along (Settings.retiredWidgetOptions, CybexPlugins.installCommand).
 var MODULE_IDS = [
-    "ws", "media", "indicators", "clock", "weather", "notes", "modelusage", "fusebox", "updates", "gh",
-    "t3", "hermes", "remote", "tray", "assistant",
+    "ws", "media", "indicators", "clock", "weather", "notes", "updates",
+    "tray", "assistant",
     "notifications", "vol", "wifi", "bt", "batt", "control"
 ];
 
-var RETIRED_MODULE_IDS = ["bell", "idle", "usage"];
+var RETIRED_MODULE_IDS = ["bell", "idle", "usage",
+    "modelusage", "fusebox", "gh", "t3", "hermes", "remote"];
+// Retired widgets that live on as Cybex OS plugins: their saved options are
+// the plugin's settings to import, so the file keeps them.
+var PLUGIN_WIDGET_IDS = ["modelusage", "fusebox", "gh", "t3", "hermes", "remote"];
 
-// Widgets for services the user signs in to. They start on only when the
-// install's connected-service feature is selected (CYBEXOS_CONNECTED_WIDGETS).
-var CONNECTED_WIDGET_IDS = ["modelusage", "fusebox", "gh", "t3", "hermes"];
-
-// Model Usage's quota providers, and the ones it can estimate costs for from
-// local transcripts.
-var MODEL_USAGE_PROVIDERS = ["claude", "codex", "kimi"];
-var MODEL_USAGE_COST_PROVIDERS = ["claude", "codex"];
-
-var DETAIL_IDS = ["remote", "media", "weather", "clock", "t3", "hermes", "gh", "updates",
+var DETAIL_IDS = ["media", "weather", "clock", "updates",
     "notifications", "vol", "batt"];
 var DETAIL_POLICIES = ["auto", "prefer", "compact"];
 
@@ -155,7 +155,7 @@ var BAR_COLOR_PRESETS = {
 // per the edge-drawer design. Notifications can opt back out in modOpts.
 var MODULE_GROUPS = {
     ws: "solo", media: "solo", indicators: "solo", clock: "time", weather: "time",
-    notes: "solo", modelusage: "solo", updates: "solo", gh: "chip", t3: "chip", hermes: "chip", tray: "solo",
+    notes: "solo", updates: "solo", tray: "solo",
     assistant: "solo",
     notifications: "status",
     vol: "status", wifi: "status", bt: "status", batt: "status", control: "solo"
@@ -376,11 +376,7 @@ function moduleGroup(id, options) {
     return entry ? enumIn(entry.group, NOTIFICATION_GROUPS, fallback) : fallback;
 }
 
-// The connected-service widgets (Model Usage, Fusebox, T3 Code, Hermes,
-// Remote Server) are optional extras, off until a person turns them on in
-// Settings -> Bar. Before schema 35 Model Usage was on by default; files from
-// then keep it (legacyDefaultMods, overrideKeys).
-function defaultMods(modelUsage) {
+function defaultMods() {
     function mod(id, on) {
         return { id: id, on: on, detail: "auto" };
     }
@@ -389,9 +385,7 @@ function defaultMods(modelUsage) {
         center: [mod("indicators", true), mod("clock", true), mod("weather", false),
             mod("notes", true)],
         right: [
-            mod("modelusage", modelUsage === true), mod("fusebox", false), mod("updates", true), mod("gh", false),
-            mod("t3", false),
-            mod("hermes", false), mod("remote", false),
+            mod("updates", true),
             mod("tray", false), mod("assistant", true), mod("notifications", true), mod("vol", true),
             mod("wifi", true), mod("bt", true), mod("batt", true), mod("control", true)
         ]
@@ -437,7 +431,6 @@ function defaultModOpts() {
             seconds: false, showDate: true, dateFormat: "ddd dd",
             showEvents: true, daysAhead: 14, pollMins: 15
         },
-        remote: { host: "", label: "", metric: "cpu", mount: "/", interface: "", showLabel: true, pollSecs: 5 },
         weather: { place: "", lat: 0, lon: 0, pollMins: 20 },
         notes: {
             titleProvider: "off",
@@ -445,36 +438,6 @@ function defaultModOpts() {
             codexEffort: "none",
             claudeModel: "fable",
             claudeEffort: "low"
-        },
-        t3: { showLabel: true },
-        hermes: { showLabel: true, activityDetail: "verb" },
-        // The management key is not a setting: scripts/fusebox.py keeps it in
-        // a private file of its own.
-        fusebox: { url: "", metric: "sessions", quotaDisplay: "used", hideEmails: true, notify: false },
-        // The upstream plugin's manifest defaults, key for key. Its panel
-        // reads and saves this object as its settings.
-        modelusage: {
-            refreshIntervalSec: 900,
-            enabledProviders: MODEL_USAGE_PROVIDERS.slice(),
-            usageSource: "direct",
-            cliproxyUrl: "http://127.0.0.1:8317",
-            cliproxyKeyFile: "",
-            hideAccountEmails: true,
-            liveAccountActivity: true,
-            squareUsageCards: true,
-            barDisplayMode: "Percentages",
-            barProviders: MODEL_USAGE_PROVIDERS.slice(),
-            warningThreshold: 25,
-            criticalThreshold: 10,
-            costPriceOverrides: "{}",
-            costKeeperUrl: "",
-            costKeeperPasswordFile: "",
-            costLocalProviders: MODEL_USAGE_COST_PROVIDERS.slice(),
-            costT3Servers: "[]"
-        },
-        gh: {
-            badge: "dot", repos: 8, pollMins: 5, ciActivity: true,
-            toasts: true, watch: []
         },
         updates: { pollMins: 30, flatpak: true, notify: true },
         tray: { expanded: false },
@@ -719,12 +682,6 @@ function textIn(value, maxLen, fallback) {
         return fallback;
     var trimmed = value.trim();
     return trimmed !== "" && trimmed.length <= maxLen ? trimmed : fallback;
-}
-
-// Like textIn, but an empty string is a value of its own: clearing an
-// optional URL or credential path must stick rather than fall back.
-function optionalTextIn(value, maxLen) {
-    return value === "" ? "" : textIn(value, maxLen, "");
 }
 
 function orderedIdsIn(value, known, fallback, appendMissing) {
@@ -1121,39 +1078,6 @@ function detailIn(value) {
     return enumIn(value, DETAIL_POLICIES, "auto");
 }
 
-// The GitHub module's watch list, as *storage*: canonical "owner/repo" only,
-// deduped case-insensitively (GitHub resolves names that way, and both
-// spellings in the list would poll the same repository twice), capped so a
-// hand-edited file cannot turn one poll into hundreds of API calls.
-//
-// Deliberately stricter and simpler than GitHubHelpers.repoSlug, which also
-// accepts a pasted browser URL or an SSH remote. Canonicalising a paste is the
-// settings row's job, at the point of entry; by the time a value reaches this
-// store it is already a slug, and anything else came from a hand edit.
-var MAX_WATCHED_REPOS = 20;
-var REPO_SLUG = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
-
-function repoListIn(value, fallback) {
-    if (!(Array.isArray(value) || value instanceof Array))
-        return fallback;
-    var out = [];
-    var seen = {};
-    for (var i = 0; i < value.length && out.length < MAX_WATCHED_REPOS; i++) {
-        if (typeof value[i] !== "string")
-            continue;
-        var slug = value[i].trim();
-        if (slug.length > 120 || !REPO_SLUG.test(slug)
-                || slug.split("/")[1] === "." || slug.split("/")[1] === "..")
-            continue;
-        var key = slug.toLowerCase();
-        if (seen[key])
-            continue;
-        seen[key] = true;
-        out.push(slug);
-    }
-    return out;
-}
-
 // Sanitize a persisted module layout: known ids only, first occurrence wins,
 // ids a newer schema knows about but the file does not are appended at their
 // default column's end so shipping a new module never requires migration.
@@ -1268,15 +1192,6 @@ var MOD_OPT_CHECKS = {
             return enumIn(v, ["ddd dd", "ddd d MMM", "dd MMM", "dd-MM"], d);
         }
     },
-    remote: {
-        host: function(v, d) { return textIn(v, 254, d).trim(); },
-        label: function(v, d) { return textIn(v, 40, d).trim(); },
-        metric: function(v, d) { return enumIn(v, ["cpu", "load", "memory", "memoryUsed", "memoryFree", "disk", "diskFree", "rx", "tx", "temperature"], d); },
-        mount: function(v, d) { return textIn(v, 256, d); },
-        interface: function(v, d) { return textIn(v, 64, d).trim(); },
-        showLabel: boolIn,
-        pollSecs: function(v, d) { return intIn(v, 2, 60, 1, d); }
-    },
     weather: {
         place: function(v, d) { return textIn(v, 40, d); },
         lat: function(v, d) { return realIn(v, -90, 90, 0.0001, d); },
@@ -1291,55 +1206,6 @@ var MOD_OPT_CHECKS = {
         codexEffort: function(v, d) { return enumIn(v, NOTE_CODEX_EFFORTS, d); },
         claudeModel: function(v, d) { return enumIn(v, NOTE_CLAUDE_MODELS, d); },
         claudeEffort: function(v, d) { return enumIn(v, NOTE_CLAUDE_EFFORTS, d); }
-    },
-    t3: { showLabel: boolIn },
-    fusebox: {
-        url: function(v, d) { return textIn(v, 512, d).trim(); },
-        metric: function(v, d) { return enumIn(v, ["sessions", "serving", "rpm", "faults", "clients"], d); },
-        quotaDisplay: function(v, d) { return enumIn(v, ["used", "remaining"], d); },
-        hideEmails: boolIn,
-        notify: boolIn
-    },
-    hermes: {
-        showLabel: boolIn,
-        activityDetail: function(v, d) {
-            return enumIn(v, ["full", "verb", "generic"], d);
-        }
-    },
-    // The manifest schema's bounds. Paths and URLs are only checked for shape
-    // here; the panel validates them before saving and its scripts again.
-    modelusage: {
-        refreshIntervalSec: function(v, d) { return intIn(v, 60, 3600, 60, d); },
-        enabledProviders: function(v, d) {
-            return orderedIdsIn(v, MODEL_USAGE_PROVIDERS, d, false);
-        },
-        usageSource: function(v, d) { return enumIn(v, ["direct", "cliproxy"], d); },
-        cliproxyUrl: function(v, d) { return textIn(v, 400, d); },
-        cliproxyKeyFile: function(v) { return optionalTextIn(v, 4096); },
-        hideAccountEmails: boolIn,
-        liveAccountActivity: boolIn,
-        squareUsageCards: boolIn,
-        barDisplayMode: function(v, d) { return enumIn(v, ["Icon", "Percentages"], d); },
-        barProviders: function(v, d) {
-            return orderedIdsIn(v, MODEL_USAGE_PROVIDERS, d, false);
-        },
-        warningThreshold: function(v, d) { return intIn(v, 1, 100, 1, d); },
-        criticalThreshold: function(v, d) { return intIn(v, 0, 100, 1, d); },
-        costPriceOverrides: function(v, d) { return textIn(v, 65536, d); },
-        costKeeperUrl: function(v) { return optionalTextIn(v, 400); },
-        costKeeperPasswordFile: function(v) { return optionalTextIn(v, 4096); },
-        costLocalProviders: function(v, d) {
-            return orderedIdsIn(v, MODEL_USAGE_COST_PROVIDERS, d, false);
-        },
-        costT3Servers: function(v, d) { return textIn(v, 65536, d); }
-    },
-    gh: {
-        badge: function(v, d) { return enumIn(v, ["dot", "count", "off"], d); },
-        repos: function(v, d) { return intIn(v, 3, 15, 1, d); },
-        pollMins: function(v, d) { return intIn(v, 1, 30, 1, d); },
-        ciActivity: boolIn,
-        toasts: boolIn,
-        watch: repoListIn
     },
     updates: {
         pollMins: function(v, d) { return intIn(v, 10, 240, 10, d); },
@@ -1420,7 +1286,7 @@ function migrateModOpts(raw, sourceVersion, rawSettings) {
 // policy; each schema addition below places its one new entry. Current-schema
 // layouts continue through normal normalization, where missing ids use their
 // defaults.
-function migrateMods(raw, sourceVersion, context) {
+function migrateMods(raw, sourceVersion) {
     if (!raw || typeof raw !== "object")
         return normalizeMods(raw);
 
@@ -1486,31 +1352,6 @@ function migrateMods(raw, sourceVersion, context) {
         });
     }
 
-    // Schema 14 adds the Hermes Agent client as its own chip and popover.
-    // Put it beside T3 in an older customized layout instead of silently
-    // appending it after whichever status widgets the user kept on the right.
-    // Every existing entry retains its column, ordering and saved flags.
-    var hermesPresent = ["left", "center", "right"].some(function(col) {
-        return migrated[col].some(function(entry) {
-            return entry && entry.id === "hermes";
-        });
-    });
-    if ((typeof sourceVersion !== "number" || sourceVersion < 14)
-            && !hermesPresent) {
-        for (var k = 0; k < 3; k++) {
-            var t3Col = ["left", "center", "right"][k];
-            var hermesIndex = migrated[t3Col].findIndex(function(entry) {
-                return entry && entry.id === "t3";
-            });
-            if (hermesIndex === -1)
-                continue;
-            migrated[t3Col].splice(hermesIndex + 1, 0, {
-                id: "hermes", on: false, detail: "auto"
-            });
-            break;
-        }
-    }
-
     // Schema 20 adds local Notes immediately after Weather. Follow Weather to
     // whichever column and position the user chose, preserving every existing
     // module's order, visibility and detail policy byte-for-byte.
@@ -1533,49 +1374,6 @@ function migrateMods(raw, sourceVersion, context) {
             });
             break;
         }
-    }
-
-    // Schema 26 builds Model Usage in where the plugin it replaces stood: the
-    // leading edge of the right column. Like the other connected-service
-    // widgets its fresh visibility is independent of installed service support.
-    var modelUsagePresent = ["left", "center", "right"].some(function(col) {
-        return migrated[col].some(function(entry) {
-            return entry && entry.id === "modelusage";
-        });
-    });
-    if ((typeof sourceVersion !== "number" || sourceVersion < 26)
-            && !modelUsagePresent) {
-        migrated.right.unshift({
-            id: "modelusage",
-            // A file without a version is no shell's (legacyDefaultLayout):
-            // optional widgets stay off there.
-            on: typeof sourceVersion === "number",
-            detail: "auto"
-        });
-    }
-
-    // Schema 28 adds the Fusebox server widget immediately after Model Usage,
-    // following it to whichever column and position the user chose. It is a
-    // connected-service widget too.
-    var fuseboxPresent = ["left", "center", "right"].some(function(col) {
-        return migrated[col].some(function(entry) {
-            return entry && entry.id === "fusebox";
-        });
-    });
-    if ((typeof sourceVersion !== "number" || sourceVersion < 28)
-            && !fuseboxPresent) {
-        var fusebox = { id: "fusebox", on: false, detail: "auto" };
-        var placed = ["left", "center", "right"].some(function(col) {
-            var usageIndex = migrated[col].findIndex(function(entry) {
-                return entry && entry.id === "modelusage";
-            });
-            if (usageIndex === -1)
-                return false;
-            migrated[col].splice(usageIndex + 1, 0, fusebox);
-            return true;
-        });
-        if (!placed)
-            migrated.right.unshift(fusebox);
     }
 
     // Schema 30 adds the Cybex OS Assistant's button immediately before the
@@ -1618,25 +1416,6 @@ function migrateMods(raw, sourceVersion, context) {
         });
         next.right.push(control || { id: "control", on: true, detail: "auto" });
     }
-    // Before schema 35 a layout without a Model Usage entry, or with one that
-    // has no on/off, showed it: the entry took its default, which was on. It
-    // still does for those files; an entry they hold on or off stays so.
-    var usage = null;
-    ["left", "center", "right"].forEach(function(col) {
-        migrated[col].forEach(function(entry) {
-            if (entry && entry.id === "modelusage")
-                usage = entry;
-        });
-    });
-    if (typeof sourceVersion === "number" && sourceVersion < 35
-            && (!usage || typeof usage.on !== "boolean")) {
-        ["left", "center", "right"].forEach(function(col) {
-            next[col].forEach(function(entry) {
-                if (entry.id === "modelusage")
-                    entry.on = true;
-            });
-        });
-    }
     return next;
 }
 
@@ -1678,9 +1457,7 @@ function migratePaletteMode(parsed, defaultsValue) {
     }) ? "fixed" : defaultsValue;
 }
 
-// `context.connectedWidgets` is the install's connected-service feature; it
-// supplies feature availability without changing saved widget visibility.
-function merge(raw, context) {
+function merge(raw) {
     var d = defaults();
     if (!raw || typeof raw !== "object")
         return d;
@@ -1782,8 +1559,8 @@ function merge(raw, context) {
         controlIcon: controlIconIn(parsed.controlIcon, d.controlIcon),
         controlIconPrompt: boolIn(parsed.controlIconPrompt, d.controlIconPrompt),
         mods: parsed.mods === undefined || staleModsLeftover(parsed)
-            ? (legacyDefaultLayout(parsed) ? defaultMods(true) : d.mods)
-            : migrateMods(parsed.mods, parsed.v, context),
+            ? d.mods
+            : migrateMods(parsed.mods, parsed.v),
         modOpts: migrateModOpts(parsed.modOpts, parsed.v, parsed),
         dock: boolIn(parsed.dock, d.dock),
         dockAutoHide: boolIn(parsed.dockAutoHide, d.dockAutoHide),
@@ -1935,20 +1712,7 @@ function overrideKeys(raw) {
         return Object.prototype.hasOwnProperty.call(known, key)
             && JSON.stringify(unknownFields(raw[key], schemaFor(key, known))) !== JSON.stringify(raw[key]);
     });
-    // The default layout such a file had, with Model Usage on, is stored
-    // with the first save, so the new default never takes it away.
-    if (legacyDefaultLayout(raw) && keys.indexOf("mods") === -1)
-        keys.push("mods");
     return keys;
-}
-
-// A file from before schema 35 that never chose a layout: it shows the
-// default layout of its day, with Model Usage on. The shell always writes a
-// version, so a file without one was written by something else (an
-// installation script) and is treated as new.
-function legacyDefaultLayout(raw) {
-    return !!raw && typeof raw === "object" && typeof raw.v === "number" && raw.v < 35
-        && (raw.mods === undefined || staleModsLeftover(raw));
 }
 
 // What a stored value is checked against for fields this schema understands.
@@ -2099,8 +1863,30 @@ function rebaseDocuments(base, desired, current, path) {
     throw new Error("Another writer changed " + (path || "/") + "; reload before retrying");
 }
 
+// A retired widget's layout entries and options are not a newer schema's
+// fields to carry along: they belong to a widget this shell no longer has.
+// A widget that became a plugin keeps its options for the plugin to import.
+function dropRetired(document) {
+    if (document.mods && typeof document.mods === "object") {
+        ["left", "center", "right"].forEach(function(col) {
+            if (Array.isArray(document.mods[col]) || document.mods[col] instanceof Array)
+                document.mods[col] = document.mods[col].filter(function(entry) {
+                    return !entry || RETIRED_MODULE_IDS.indexOf(entry.id) === -1;
+                });
+        });
+    }
+    if (document.modOpts && typeof document.modOpts === "object"
+            && !(Array.isArray(document.modOpts) || document.modOpts instanceof Array)) {
+        RETIRED_MODULE_IDS.forEach(function(id) {
+            if (PLUGIN_WIDGET_IDS.indexOf(id) === -1)
+                delete document.modOpts[id];
+        });
+    }
+    return document;
+}
+
 function serializeDocument(settings, original, explicitKeys) {
-    var out = clone(original || {});
+    var out = dropRetired(clone(original || {}));
     out.v = VERSION;
     Object.keys(defaults()).forEach(function(key) {
         if (explicitKeys.indexOf(key) !== -1)
@@ -2144,7 +1930,7 @@ var exported = {
     PALETTE_MODES: PALETTE_MODES,
     MODULE_IDS: MODULE_IDS,
     RETIRED_MODULE_IDS: RETIRED_MODULE_IDS,
-    CONNECTED_WIDGET_IDS: CONNECTED_WIDGET_IDS,
+    PLUGIN_WIDGET_IDS: PLUGIN_WIDGET_IDS,
     MODULE_GROUPS: MODULE_GROUPS,
     NOTIFICATION_GROUPS: NOTIFICATION_GROUPS,
     INDICATOR_ACTION_CHOICES: INDICATOR_ACTION_CHOICES,
@@ -2203,8 +1989,6 @@ var exported = {
     migratePaletteMode: migratePaletteMode,
     pathIn: pathIn,
     detailIn: detailIn,
-    repoListIn: repoListIn,
-    MAX_WATCHED_REPOS: MAX_WATCHED_REPOS,
     quietRange: quietRange,
     quietActive: quietActive,
     formatMinutes: formatMinutes,
@@ -2241,6 +2025,7 @@ var exported = {
     preserveUnknown: preserveUnknown,
     unknownFields: unknownFields,
     preserveUnknownMods: preserveUnknownMods,
+    dropRetired: dropRetired,
     staleModsLeftover: staleModsLeftover,
     serializeDocument: serializeDocument,
     rebaseDocuments: rebaseDocuments,
