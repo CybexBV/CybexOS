@@ -115,6 +115,7 @@ pkgs.testers.runNixOSTest {
     machine.send_chars("clear\n")
     time.sleep(2)
     machine.screenshot("prompt-cybexos")
+    machine.succeed(f"cp {icon_file} /tmp/prompt-icon")
     machine.succeed(f"runuser -u tester -- sh -c 'printf \"os\\n\" > {icon_file}'")
     machine.send_chars("clear\n")
     time.sleep(2)
@@ -134,5 +135,54 @@ pkgs.testers.runNixOSTest {
     crown = pixels("terminal-kitty", (0, 0, 640, 800), (0x35, 0x3A, 0x43), 6)
     machine.log(f"terminal-kitty: {crown} hat crown pixels")
     assert crown > 200, f"Wiz is not in kitty's fastfetch ({crown} pixels)"
+
+    # ---- where the mark sits -------------------------------------------------
+    # kitty draws the mark at its own size from the left of its cell, so Cybex
+    # OS Symbols places it for the prompt: in the middle of its dark segment,
+    # across and down. Measured in a large kitty, where a few font units are
+    # whole pixels. Across, the segment's body runs from the tip of the notch
+    # on its left to the base of the arrow on its right.
+    machine.succeed(f"cat /tmp/prompt-icon > {icon_file}")
+    machine.send_chars("exit\n")
+    machine.wait_until_fails(f"runuser -u tester -- env {session} hyprctl -i 0 -j clients | grep -q '\"class\": \"kitty\"'", timeout=30)
+    user("hyprctl -i 0 dispatch 'hl.dsp.exec_cmd(\"kitty -o font_size=28 -o background_opacity=1\")'")
+    machine.wait_until_succeeds(f"runuser -u tester -- env {session} hyprctl -i 0 -j clients | grep -q '\"class\": \"kitty\"'", timeout=60)
+    time.sleep(5)
+    machine.send_chars("clear\n")
+    time.sleep(2)
+    machine.screenshot("prompt-centre")
+    image = Image.open(out / "prompt-centre.png").convert("RGB")
+    width, height = image.size
+    data = image.tobytes()
+    rgb = lambda x, y: tuple(data[(y * width + x) * 3:(y * width + x) * 3 + 3])
+    SEGMENT, PATH, TEXT = (0x28, 0x2A, 0x36), (0xCC, 0xCC, 0xCC), (0xF8, 0xF8, 0xF2)
+    near = lambda p, c: all(abs(p[i] - c[i]) <= 3 for i in range(3))
+    bright = lambda p: sum(p) > (sum(SEGMENT) + sum(TEXT)) / 2
+    # Each row's dark span, up to the path segment (a run of its grey: the
+    # mark's own edge has grey pixels too). The prompt is the tallest band.
+    spans = {}
+    for y in range(height):
+        line = [rgb(x, y) for x in range(width)]
+        end = next((x for x in range(width - 3) if all(near(line[x + i], PATH) for i in range(4))), width)
+        dark = [x for x in range(end) if near(line[x], SEGMENT)]
+        if len(dark) > 10:
+            spans[y] = (dark[0], dark[-1])
+    bands = []
+    for y in sorted(spans):
+        if not bands or y != bands[-1][-1] + 1:
+            bands.append([])
+        bands[-1].append(y)
+    rows = {y: spans[y] for y in max(bands, key=len, default=[])}
+    assert len(rows) > 20, f"no prompt segment found ({len(rows)} rows)"
+    ink = [(x, y) for y, (left, right) in rows.items() for x in range(left, right + 1) if bright(rgb(x, y))]
+    assert ink, "no mark in the prompt segment"
+    across = (max(left for left, _ in rows.values()) + min(right for _, right in rows.values())) / 2
+    down = (min(rows) + max(rows)) / 2
+    mark_x = (min(x for x, _ in ink) + max(x for x, _ in ink)) / 2
+    mark_y = (min(y for _, y in ink) + max(y for _, y in ink)) / 2
+    machine.log(f"prompt mark: centre ({mark_x}, {mark_y}), segment centre ({across}, {down}), "
+                f"segment rows {min(rows)}-{max(rows)}, mark {len(ink)} pixels")
+    assert abs(mark_x - across) <= 1.5 and abs(mark_y - down) <= 1.5, \
+        f"the mark is off the middle of its segment by ({mark_x - across}, {mark_y - down}) pixels"
   '';
 }

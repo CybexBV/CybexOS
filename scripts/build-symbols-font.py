@@ -8,6 +8,13 @@ Area-B, which no Nerd Font uses. Terminals reach it through fontconfig's
 fallback, like any glyph their own font lacks, and draw it in the prompt's
 text colour.
 
+Those terminals draw a fallback glyph at its own size from the left edge of
+its cell, on the terminal font's baseline: they don't centre it. So the mark
+is placed for the default terminal font, JetBrains Mono Nerd Font, the way
+the prompt's icon slot needs it. The prompt gives the icon two cells (the
+icon and the space after it), and the mark is centred on the line between
+them and on the middle of the cell's height, where Nerd Font icons sit.
+
     build-symbols-font.py SVG OUTPUT.ttf
 
 nix/packages/symbols-font.nix runs this at build time. The Settings preview
@@ -28,12 +35,20 @@ FAMILY = 'Cybex OS Symbols'
 CODEPOINT = 0x1000CB
 GLYPH = 'cybexos'
 UNITS_PER_EM = 1000
-# Square, as Nerd Font icons are: a terminal fits a private-use glyph to its
-# cells, so the mark keeps its proportions. Its longer side spans the em less
-# a small margin.
+# Square, as Nerd Font icons are: a terminal that fits a private-use glyph to
+# its cells keeps the mark's proportions. Its longer side spans the em less a
+# small margin.
 ADVANCE = 1000
 MARGIN = 40
-ASCENT, DESCENT = 800, -200
+# JetBrains Mono's line (hhea and OS/2 alike): 1020 above the baseline, 300
+# below, in cells 600 wide.
+ASCENT, DESCENT = 1020, -300
+CELL = 600
+# Where the mark's centre goes: the end of the icon's own cell, half-way
+# across the two cells, and the middle of the line, as for Nerd Font icons
+# (NixOS's spans -74 to 794, Fedora's -140 to 860: both centred on 360).
+CENTRE_X = CELL
+CENTRE_Y = (ASCENT + DESCENT) / 2
 
 
 def mark_paths(svg):
@@ -58,11 +73,9 @@ def glyph(svg):
     size = UNITS_PER_EM - 2 * MARGIN
     scale = size / max(width, height)
     # SVG y grows downwards, a font's upwards: flip, and centre the mark's
-    # own outline (not its padded viewBox) horizontally in the advance and
-    # vertically on the middle of the em, where Nerd Font icons sit.
-    middle = (ASCENT + DESCENT) / 2
-    dx = (ADVANCE - width * scale) / 2 - left * scale
-    dy = middle + (top + bottom) / 2 * scale
+    # own outline (not its padded viewBox) on CENTRE_X and CENTRE_Y.
+    dx = CENTRE_X - (left + right) / 2 * scale
+    dy = CENTRE_Y + (top + bottom) / 2 * scale
     pen = TTGlyphPen(None)
     # TrueType outlines are quadratic and run clockwise; flipping y reversed
     # the SVG's direction, so it is reversed back.
