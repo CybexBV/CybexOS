@@ -200,6 +200,21 @@ class PublishTests(unittest.TestCase):
             '--notes-file release/notes.md --prerelease --latest=false'])
         self.assertEqual(self.git('tag', '--list', 'v1.0.1').strip(), '', 'no new local tag is made')
 
+    def test_after_1_0_32_the_full_check_must_include_the_upgrade_job(self):
+        (self.work / 'VERSION').write_text('1.0.33\n')
+        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.33\n')
+        self.git('commit', '--quiet', '-am', 'Cybex OS 1.0.33')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.assert_refused('has no upgrade job; a release after 1.0.32 needs one', '1.0.33', '--dry-run')
+        workflow = self.work / '.github/workflows/nixos.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('jobs:\n  checks:\n    runs-on: x\n  upgrade:\n    runs-on: x\n')
+        self.git('add', '.')
+        self.git('commit', '--quiet', '-m', 'The upgrade job')
+        self.git('push', '--quiet', 'origin', 'main')
+        result = self.publish('1.0.33', '--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_a_release_must_be_newer_than_every_published_one(self):
         self.environment['GH_LISTING'] = json.dumps([{'tag_name': 'v1.0.2', 'prerelease': True, 'draft': False}])
         for arguments in (('1.0.1',), ('1.0.1', '--stable')):
@@ -465,6 +480,16 @@ class PromoteTests(unittest.TestCase):
         self.release('1.0.4', prerelease=False, hours=300, branch='nixos-26.05')
         self.release('1.0.5', branch='nixos-unstable')
         self.assert_refused('v1.0.4 has no valid Nixpkgs branch in its flake.lock', '1.0.5', '--yes')
+
+    def test_after_1_0_32_its_full_check_must_include_the_upgrade_job(self):
+        self.release('1.0.33', hours=200)
+        self.assert_refused('the full check of v1.0.33 has no upgrade job', '1.0.33', '--yes')
+        workflow = self.work / '.github/workflows/nixos.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('jobs:\n  checks:\n    runs-on: x\n  upgrade:\n    runs-on: x\n')
+        self.release('1.0.34', hours=199)
+        result = self.promote('1.0.34', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_github_must_confirm_the_promotion(self):
         result = self.promote('1.0.3', '--yes', GH_IGNORE_EDIT='1')

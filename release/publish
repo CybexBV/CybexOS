@@ -84,6 +84,12 @@ qualified=$(gh run list --repo "$REPO" --workflow nixos.yml --commit "$revision"
     --json event,displayTitle --jq '[.[] | select((.event == "workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length') \
     || fail 'cannot ask GitHub whether the full check passed; nothing was published'
 [[ $qualified =~ ^[1-9][0-9]*$ ]] || fail "the full check has not passed for $revision; run gh workflow run nixos.yml --repo $REPO --ref main and publish once it passes"
+# A run passes only when every job of the commit's own workflow passed. After
+# 1.0.32 that workflow must include the upgrade job (docs/releasing.md#the-upgrade-job).
+if python3 -c 'import sys; sys.path.insert(0, "lifecycle"); from cybexos.trust import version; sys.exit(version(sys.argv[1]) <= version("1.0.32"))' "$version"; then
+    grep -Eq '^  upgrade:' .github/workflows/nixos.yml \
+        || fail 'the full check of this commit has no upgrade job; a release after 1.0.32 needs one'
+fi
 # Every release keeps each NixOS branch the newest published one lists: a
 # machine that installed a release alone keeps its branch, and a beta that
 # dropped it would refuse that machine. With --stable, also the check

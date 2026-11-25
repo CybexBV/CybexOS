@@ -159,3 +159,22 @@ test("Install merges the built-in widget's saved options into the plugin's setti
         fs.rmSync(base, { recursive: true, force: true });
     }
 });
+
+test("Model Usage's renamed options arrive under the names the plugin reads", () => {
+    const usage = P.PLUGINS.find(item => item.id === "digitalpals.model-usage");
+    const imported = P.importedOptions(usage, {
+        usageSource: "cliproxy", cliproxyUrl: "https://proxy.example", cliproxyKeyFile: "/home/me/key",
+        costKeeperUrl: "https://keeper.example", refreshIntervalSec: 600
+    });
+    assert.deepEqual(imported, {
+        usageSource: "cliproxy", proxyUrl: "https://proxy.example", proxyKeyFile: "/home/me/key",
+        keeperUrl: "https://keeper.example", refreshIntervalSec: 600
+    });
+    // A value already under the new name wins.
+    assert.equal(P.importedOptions(usage, { proxyUrl: "new", cliproxyUrl: "old" }).proxyUrl, "new");
+    const line = P.installCommand("/helper.py", usage, { cliproxyUrl: "https://proxy.example" });
+    assert.equal(line[line.length - 1], JSON.stringify({ proxyUrl: "https://proxy.example" }));
+    // Plugins without renames import their options as saved.
+    const t3 = P.PLUGINS.find(item => item.id === "digitalpals.t3code");
+    assert.deepEqual(P.importedOptions(t3, { showLabel: false }), { showLabel: false });
+});

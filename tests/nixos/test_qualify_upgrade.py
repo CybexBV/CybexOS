@@ -138,6 +138,13 @@ class UpdaterPathTests(unittest.TestCase):
         self.assertIsNone(upgrade.fallback_scope('1.0.31', 'cybexos', failed))
         self.assertIsNone(upgrade.fallback_scope('1.0.32', 'both', failed))
 
+    def test_a_release_pinned_updater_must_keep_the_combined_update(self):
+        self.assertFalse(upgrade.combined_held('1.0.32', 'both', 'cybexos'))
+        self.assertTrue(upgrade.combined_held('1.0.32', 'both', 'both'))
+        # Before release-pinned Nixpkgs the fallback is the documented path.
+        self.assertTrue(upgrade.combined_held('1.0.31', 'both', 'cybexos'))
+        self.assertTrue(upgrade.combined_held('1.0.25', 'cybexos', 'cybexos'))
+
     def test_expected_nixpkgs(self):
         before = {'rev': 'b' * 40, 'lastModified': 100}
         staged = {'rev': 'd' * 40, 'lastModified': 300}

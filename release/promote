@@ -218,6 +218,11 @@ def main():
     if not passed.isdigit() or int(passed) < 1:
         fail(f'the full check (nixos.yml) has not passed for {tag} ({revision[:12]}); '
              'stable gets only releases that passed it')
+    # A run passes only when every job of the commit's own workflow passed.
+    # After 1.0.32 that workflow must include the upgrade job.
+    workflow = run('git', 'show', f'{tag}:.github/workflows/nixos.yml', check=False).stdout
+    if version(args.version) > version('1.0.32') and not re.search(r'^  upgrade:', workflow, re.M):
+        fail(f'the full check of {tag} has no upgrade job; a release after 1.0.32 needs one')
 
     published = datetime.datetime.fromisoformat(target['published_at'].replace('Z', '+00:00'))
     hours = (datetime.datetime.now(datetime.timezone.utc) - published).total_seconds() / 3600

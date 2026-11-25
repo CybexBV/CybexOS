@@ -13,6 +13,14 @@ var PLUGINS = [
         id: "digitalpals.model-usage",
         // The built-in widget it replaces (schema 36), whose options it imports.
         widget: "modelusage",
+        // Options the plugin renamed after 1.4. Its manifest defaults fill the
+        // new names, so an old name it would still read never gets the chance.
+        renames: {
+            cliproxyUrl: "proxyUrl",
+            cliproxyKeyFile: "proxyKeyFile",
+            costKeeperUrl: "keeperUrl",
+            costKeeperPasswordFile: "keeperPasswordFile"
+        },
         name: "Model Usage",
         description: "Claude, Codex and Kimi quota limits, resets and cost estimates.",
         url: "https://github.com/DigitalPals/omarchy-modelusage"
@@ -60,7 +68,26 @@ var PLUGINS = [
 // only after `add` succeeded: its own error would otherwise replace the
 // reason the install failed. A plugin's `width` is the bar slot it needs;
 // `options`, the built-in widget's saved options, become its settings.
+// The built-in widget's options under the names the plugin reads now; a
+// renamed option keeps a value already saved under its new name.
+function importedOptions(plugin, options) {
+    if (!options || typeof options !== "object")
+        return options;
+    var renames = plugin.renames || {};
+    var out = {};
+    Object.keys(options).forEach(function(key) {
+        if (!renames[key])
+            out[key] = options[key];
+    });
+    Object.keys(renames).forEach(function(old) {
+        if (old in options && !(renames[old] in out))
+            out[renames[old]] = options[old];
+    });
+    return out;
+}
+
 function installCommand(helper, plugin, options) {
+    options = importedOptions(plugin, options);
     var args = [helper, plugin.url, plugin.id];
     var line = 'python3 "$1" add "$2" && python3 "$1" enable "$3"';
     if (plugin.width) {
@@ -82,6 +109,7 @@ function installed(plugins, id) {
 
 var exported = {
     PLUGINS: PLUGINS,
+    importedOptions: importedOptions,
     installCommand: installCommand,
     installed: installed
 };

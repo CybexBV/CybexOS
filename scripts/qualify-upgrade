@@ -140,6 +140,19 @@ def fallback_scope(source_version, scope, status):
     return None
 
 
+def combined_held(source_version, asked, prepared):
+    """Whether a combined update stayed combined where it must.
+
+    From 1.0.32 a combined update moves Nixpkgs to the release's own pinned
+    revision, the one this full check built: falling back to the release
+    alone (the updater does so by itself) then means the release's Nixpkgs,
+    or its NixOS branch move, can't be installed, which fails the job. An
+    older updater takes the channel head of the day, whose packages NixOS may
+    not have built yet; its fallback is the documented path.
+    """
+    return not (asked == 'both' and prepared == 'cybexos' and version(source_version) >= RELEASE_PINNED)
+
+
 def expected_nixpkgs(source_version, scope, before, staged, pinned, before_ref=None, pinned_ref=None):
     """The Nixpkgs revision the upgraded machine must run.
 
@@ -600,18 +613,23 @@ def upgrade(harness, iso, source, target, base, evidence, *, standin, applicatio
                               ('state', 'installed', 'available', 'revision', 'releases', 'channel')},
                               'upstream': discovery.get('upstream')}
 
-        scope = stage_scope(source['version'], discovery)
+        scope = asked = stage_scope(source['version'], discovery)
         attempts = []
         prepared = prepare(harness, vm, scope)
-        attempts.append({'scope': scope, **summary(prepared)})
+        attempts.append({**summary(prepared), 'asked': scope})
         if (alone := fallback_scope(source['version'], scope, prepared)):
             # What the release notes tell people on this updater to do.
             scope = alone
             prepared = prepare(harness, vm, scope)
-            attempts.append({'scope': scope, **summary(prepared)})
+            attempts.append({**summary(prepared), 'asked': scope})
         steps['prepare'] = {'result': 'passed' if prepared.get('state') == 'ready' else 'failed', 'attempts': attempts}
         if prepared.get('state') != 'ready':
             raise RuntimeError('The installed updater could not prepare the release under test: '
+                               + json.dumps(attempts)[:4000])
+        if not combined_held(source['version'], asked, prepared.get('scope') or scope):
+            steps['prepare']['result'] = 'failed'
+            raise RuntimeError('The combined update fell back to the release alone, so this release\'s '
+                               'Nixpkgs (and any NixOS branch move) never reached the machine: '
                                + json.dumps(attempts)[:4000])
 
         steps.update(apply_update(harness, vm, prepared))
