@@ -481,6 +481,14 @@ done
 {{ grep -v 'api\\.github\\.com' /etc/hosts; echo '127.0.0.1 api.github.com'; }} > /run/qa-hosts
 rm -f /etc/hosts
 install -m 0644 /run/qa-hosts /etc/hosts
+# systemd-resolved answers from its own copy of /etc/hosts, re-read only a
+# couple of seconds after a change: wait until the name resolves here.
+resolvectl flush-caches 2>/dev/null || true
+for n in $(seq 1 30); do
+  test "$(getent ahostsv4 api.github.com | awk 'NR == 1 {{print $1}}')" = 127.0.0.1 && break
+  test "$n" = 30 && {{ echo 'api.github.com does not resolve to the stand-in' >&2; exit 1; }}
+  sleep 1
+done
 systemd-run --unit=qa-github-forward --collect "$(command -v python3)" -I /run/qa-github-forward.py 10.0.2.2 {port}
 for n in $(seq 1 30); do python3 -c 'import socket; socket.create_connection(("127.0.0.1", 443), 2)' 2>/dev/null && exit 0; sleep 1; done
 exit 1''')
