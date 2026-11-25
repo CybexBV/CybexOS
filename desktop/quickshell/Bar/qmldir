@@ -15,5 +15,6 @@ Divider Divider.qml
 ModuleSlot ModuleSlot.qml
 PointerCheck PointerCheck.qml
 PopoutHost PopoutHost.qml
+ScreenCorners ScreenCorners.qml
 Workspaces Workspaces.qml
 UserWidgets UserWidgets.qml

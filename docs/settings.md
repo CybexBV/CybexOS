@@ -116,6 +116,12 @@ A row's explanation is one plain sentence. A tool's own message (a failed
 pointer download's Nix error, a keybindings parser error) waits behind a
 **Details** disclosure under it, in the mono face.
 
+The Bar page's **Hug** style joins the bar to the screen edge with two
+inverted corners in the bar's colour. The two corners on the opposite edge
+are rounded too, in black and at the same size (`Bar/ScreenCorners.qml`), so
+the desktop reads as one rounded screen. They hide while the bar auto-hides,
+and sit on the bar's layer, so a fullscreen window covers both.
+
 The Bar page holds the built-in widgets. Model Usage, GitHub, T3 Code,
 Hermes Agent, Fusebox and Remote Server left it on 2026-11-24: they are Cybex
 OS plugins now, listed under **Plugins → Cybex OS plugins** with an Install

@@ -505,6 +505,12 @@ ShellRoot {
                 bar: barWindow
                 screen: barScope.output
             }
+
+            ScreenCorners {
+                bar: barWindow
+                screen: barScope.output
+                visible: barScope.output !== null
+            }
         }
     }
 
