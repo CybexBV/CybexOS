@@ -134,8 +134,9 @@
         hyprland-pointer = import ./nix/tests/hyprland-pointer.nix { inherit pkgs module; };
         # Print, Shift+Print and Alt+Print through Omasnap in a real Hyprland session.
         screenshots = import ./nix/tests/screenshots.nix { inherit pkgs module; };
-        # Omasnap's own headless suite, which machines skip when they build it.
+        # Omasnap's and Omawrite's own headless suites, which machines skip when they build them.
         omasnap = (pkgs.callPackage ./nix/packages/omasnap.nix {}).tests.smoke;
+        omawrite = (pkgs.callPackage ./nix/packages/omawrite.nix {}).tests.suite;
         # Voxtype's test suite, with Cybex OS's dictation patch, which machines
         # skip when they build it too.
         voxtype = (nixpkgs.lib.nixosSystem {

@@ -100,8 +100,7 @@ features while excluding the XPS camera. It cannot remove separate security
 release blockers or claim whole-device support from partial evidence.
 
 The exact XPS profile enables adaptive thermald alongside Power Profiles
-Daemon. Intel LPMd 0.1.0 is a narrowly pinned native package because the selected
-Nixpkgs lacks it; remove the recipe when Nixpkgs supplies a maintained package.
+Daemon and Nixpkgs' prebuilt `intel-lpmd`.
 Its upstream Panther Lake policy and platform checks remain intact: the M204
 profile does not restrict CPUs under PPD, but supplies the SoC power slider.
 Do not infer measured power savings from the daemon being installed. LPMd,

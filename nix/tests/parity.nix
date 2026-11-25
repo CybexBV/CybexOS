@@ -472,10 +472,10 @@ assert builtins.all (unit: builtins.elem unit (health xps).reportedUnits)
 assert xps.services.thermald.enable && xps.services.thermald.configFile == null;
 assert xps.services.power-profiles-daemon.enable;
 assert !xps.services.tlp.enable && !xps.services.auto-cpufreq.enable && !(xps.services.tuned.enable or false);
-# LPMd uses upstream's unit and installed policy verbatim; nothing local tunes
-# CPU restriction, HFI or EPP. The D-Bus alias serves upstream's activation file.
-assert lpmd != null && lpmd.version == "0.1.0";
-assert xps.environment.etc."intel_lpmd".source == "${lpmd}/etc/intel_lpmd";
+# LPMd uses Nixpkgs' prebuilt package, upstream unit and installed policy verbatim;
+# nothing local tunes CPU restriction, HFI or EPP. The D-Bus alias serves upstream's activation file.
+assert lpmd != null && lpmd.drvPath == pkgs.intel-lpmd.drvPath;
+assert xps.environment.etc."intel_lpmd".source == "${lpmd}/share/intel-lpmd";
 assert builtins.elem lpmd xps.services.dbus.packages && xps.users.groups ? power;
 assert lib.all (c: c.systemd.services.intel_lpmd.wantedBy == [ "graphical.target" ]) [ xps xps13 ];
 assert xps.systemd.services.intel_lpmd.aliases == [ "org.freedesktop.intel_lpmd.service" ];

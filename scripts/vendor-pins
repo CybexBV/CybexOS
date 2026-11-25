@@ -277,8 +277,6 @@ PINS = [
     ClaudeCode(),
     GitHubRelease('t3-code', 'T3 Code', 'pingdotgg/t3code', 'nix/packages/t3-code.nix',
                   'review its connected-widget bar API with the release'),
-    GitHubRelease('intel-lpmd', 'Intel LPMd', 'intel/intel-lpmd', 'nix/packages/intel-lpmd.nix',
-                  'check the XPS power-service ordering with it'),
     GitHubRelease('omawrite', 'Omawrite', 'omacom/omawrite', 'nix/packages/omawrite.nix',
                   'check its Qt build with the machine Nixpkgs'),
 ]

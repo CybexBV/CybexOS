@@ -184,7 +184,7 @@ class VendorPinTests(unittest.TestCase):
 
     def test_status_reports_every_pin_behind_upstream(self):
         self.pages['/repos/brave/brave-browser/releases?per_page=100'] = []
-        for name in ('t3-code', 'intel-lpmd', 'omawrite'):
+        for name in ('t3-code', 'omawrite'):
             pin = self.pin(name)
             patch = mock.patch.object(pin, 'pinned', return_value='1.0.0')
             patch.start()

@@ -199,7 +199,7 @@ daily on a GitHub-hosted runner:
   runners lost api.snapcraft.io for days from 2026-11-11). A cached file
   enters the Nix store only through its pinned hash. The cache keeps one set,
   the newest.
-- **T3 Code, Intel LPMd and Omawrite** are reported, not updated: each needs a
+- **T3 Code and Omawrite** are reported, not updated: each needs a
   review beyond its checksum (a new T3 Code nightly needs a desktop run, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
