@@ -302,7 +302,12 @@ class StandIn(ThreadingHTTPServer):
         self.target = target
         self.token = os.environ.get('CYBEXOS_UPGRADE_PROXY_TOKEN')
         # GitHub links following release pages by repository id.
-        self.repository_id = json.loads(github(f'/repos/{REPO}'))['id'] if self.token else None
+        self.repository_id = None
+        if self.token:
+            try:
+                self.repository_id = json.loads(github(f'/repos/{REPO}'))['id']
+            except (OSError, ValueError, KeyError):
+                pass  # pages by id then go without the token, which still works
         self.nonce = os.urandom(8).hex()
         self.requests, self.lock = [], threading.Lock()
         super().__init__(('127.0.0.1', 0), StandInHandler)
@@ -508,13 +513,23 @@ exit 1''')
     # The updater's Python and Nix's own downloads both reach and trust it.
     # A fresh path each time: Nix keeps fetchurl results for an hour, across
     # reboots, and a cached answer would prove nothing.
-    fresh = os.urandom(6).hex()
     expected = f'cybexos-upgrade-test {standin.nonce}'
-    python = vm.command("python3 -I -c 'import urllib.request; "
-                        f"print(urllib.request.urlopen(\"https://api.github.com{PROBE}python/{fresh}\", timeout=30).read().decode().strip())'").strip()
-    nix = vm.command("nix --extra-experimental-features nix-command eval --raw --impure --expr "
-                     f"'builtins.readFile (builtins.fetchurl \"https://api.github.com{PROBE}nix/{fresh}\")'").strip()
-    if python != expected or nix != expected:
+    # A few tries: the resolver may still serve the old /etc/hosts for a moment.
+    for attempt in range(5):
+        fresh = os.urandom(6).hex()
+        python = nix = ''
+        try:
+            python = vm.command("python3 -I -c 'import urllib.request; "
+                                f"print(urllib.request.urlopen(\"https://api.github.com{PROBE}python/{fresh}\", timeout=30).read().decode().strip())'").strip()
+            nix = vm.command("nix --extra-experimental-features nix-command eval --raw --impure --expr "
+                             f"'builtins.readFile (builtins.fetchurl \"https://api.github.com{PROBE}nix/{fresh}\")'").strip()
+        except RuntimeError as error:
+            if attempt == 4:
+                raise RuntimeError(f'The guest did not reach the stand-in: {error}') from error
+        if python == expected and nix == expected:
+            break
+        time.sleep(3)
+    else:
         raise RuntimeError(f'The guest did not reach the stand-in: python {python!r}, nix {nix!r}')
     return {'result': 'passed', 'port': port, 'checks': ['Python urllib trusts the test CA', 'Nix downloads trust it']}
 
