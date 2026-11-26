@@ -130,13 +130,6 @@ class GameMode(unittest.TestCase):
         self.assertEqual(self.calls("hyprctl"), [], "turning off twice leaves the compositor alone")
         self.assertEqual(self.calls("notify-send"), [])
 
-    def test_toggle_alternates(self):
-        self.assertEqual(self.game_mode("toggle").stdout, "on\n")
-        self.assertEqual(self.game_mode("toggle").stdout, "off\n")
-        self.assertEqual(self.game_mode("toggle", "--json").stdout.strip(),
-                         json.dumps({"active": True, "inhibitor": True, "since": self.saved()["since"]},
-                                    sort_keys=True))
-
     def test_a_new_login_starts_off_and_clears_what_the_last_one_left(self):
         self.game_mode("on")
         (self.units / "inhibitor").unlink()

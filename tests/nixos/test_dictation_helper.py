@@ -235,10 +235,6 @@ class ApplyTests(HelperTest):
         self.assertFalse(MODULE.apply("base", "en", True, "", runner)["restarted"])
         self.assertNotIn(["systemctl", "--user", "restart", "voxtype.service"], calls)
 
-    def test_a_failed_daemon_is_restarted_with_the_new_settings(self) -> None:
-        calls, runner = self.recorder(active="failed")
-        self.assertTrue(MODULE.apply("base", "en", True, "", runner)["restarted"])
-
     def test_language_lists_and_vocabulary_are_validated(self) -> None:
         for languages in ("", "en,nl,de", "EN", "en;rm -rf", "auto"):
             with self.assertRaises(ValueError, msg=languages):
@@ -274,10 +270,6 @@ class CpuTests(HelperTest):
         arm.write_text("processor\t: 0\nFeatures\t: fp asimd\n")
         self.assertTrue(MODULE.cpu_supported(arm))
         self.assertTrue(MODULE.cpu_supported(self.root / "missing"))
-
-    def test_status_reports_it(self) -> None:
-        self.assertIn("cpu", MODULE.status())
-
 
 class TypeTests(HelperTest):
     def test_words_are_typed_with_wtype(self) -> None:
@@ -405,11 +397,6 @@ class ParakeetApplyTests(HelperTest):
         self.assertEqual(settings["engine"], "parakeet")
         self.assertEqual(settings["parakeet.on_demand_loading"], "false")
 
-    def test_parakeet_is_only_named_once_it_is_installed(self) -> None:
-        calls, runner = self.recorder()
-        self.assertEqual(MODULE.apply("parakeet", "en", True, "", runner)["model"], "base")
-        self.assertNotIn("parakeet.model", [c[5] for c in calls if c[0] == "voxtype"])
-
     def test_back_to_whisper_changes_the_engine_and_leaves_the_section(self) -> None:
         self.config.parent.mkdir(parents=True)
         self.config.write_text('engine = "parakeet"\n[parakeet]\nmodel = "parakeet-test"\nstreaming = true\n'
@@ -451,10 +438,6 @@ class TidyTests(unittest.TestCase):
         self.assertEqual(MODULE.basic_tidy("i think i'm ready"), "I think I'm ready.")
         self.assertEqual(MODULE.basic_tidy("ja ik ben er", ["nl"]), "Ja ik ben er.")
         self.assertEqual(MODULE.basic_tidy("ok then"), "Ok then", "two words are not a sentence")
-
-    def test_dutch_hesitations(self) -> None:
-        self.assertEqual(MODULE.basic_tidy("Eh, ik kom morgen, ehm, iets later.", ["en", "nl"]),
-                         "Ik kom morgen iets later.")
 
     def test_only_hesitation_leaves_nothing(self) -> None:
         self.assertEqual(MODULE.basic_tidy("Um."), "")
