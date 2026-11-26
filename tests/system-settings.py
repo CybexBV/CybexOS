@@ -277,6 +277,14 @@ class Accounts(unittest.TestCase):
             self.service.dispatch(dict(action='remove', id='1', confirmed=True))
         self.service.call.assert_not_called()
 
+    def test_accounts_carry_the_provider_type_for_their_mark(self):
+        service = object.__new__(accounts.AccountSettings)
+        props = {'Id': 'a', 'ProviderName': 'Microsoft 365', 'ProviderType': 'ms_graph',
+                 'PresentationIdentity': 'person@example.com'}
+        service.call = Mock(return_value=[{'/a': {accounts.ACCOUNT: props}}])
+        account, = service.accounts()
+        self.assertEqual((account['provider'], account['providerType']), ('Microsoft 365', 'ms_graph'))
+
     def test_calendar_toggle_only_sets_calendar_property(self):
         self.service.dispatch(dict(action='calendar', id='1', enabled=False))
         self.assertEqual(self.service.call.call_args.args[:3], ('/account', 'org.freedesktop.DBus.Properties', 'Set'))
