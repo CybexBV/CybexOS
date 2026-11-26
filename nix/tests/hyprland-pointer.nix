@@ -233,6 +233,53 @@ in pkgs.testers.runNixOSTest {
         for mime in filter(None, handler.split(";")):
             found = machine.succeed(f"runuser -u tester -- env XDG_DATA_DIRS={shlex.quote(dirs)} ${pkgs.glib.bin}/bin/gio mime {mime}")
             assert "\torg.gnome.OnlineAccounts.OAuth2.desktop" in found, (name, mime, found)
+    # Settings draws each provider's mark from the icon theme: the logos GOA
+    # installs, on the shell's data path through the desktop's icon folders.
+    # Qt reads the hicolor theme's index from any of those folders.
+    for icon in ["index.theme"] + [f"scalable/apps/goa-account-{mark}.svg" for mark in ("google", "ms365", "owncloud", "exchange")]:
+        machine.succeed("for d in " + " ".join(map(shlex.quote, data_dirs)) + "; do "
+                        f"test -e \"$d/icons/hicolor/{icon}\" && exit 0; done; exit 1")
+    # Settings' Add account: cybexos-goa-account lists this GOA build's kinds,
+    # opens GOA's own dialog for one in a window of its own (app id
+    # cybexos-online-accounts, no GNOME account list) and, cancelled the way
+    # Settings cancels it, reports that nothing was added. Nextcloud's
+    # dialog asks for a server before any browser opens.
+    providers = [p["type"] for p in json.loads(user("cybexos-goa-account list"))["providers"]]
+    assert {"google", "ms_graph", "owncloud", "exchange", "imap_smtp", "webdav", "kerberos"} <= set(providers), providers
+    assert "fedora" not in providers, providers
+    def goa_window():
+        # Hyprland can be slow to answer while a GTK window maps in the VM.
+        try:
+            return any(c["class"] == "cybexos-online-accounts" for c in hypr("clients"))
+        except Exception:
+            return False
+    wayland = machine.succeed(f"ls /run/user/{uid} | grep -xE 'wayland-[0-9]+' | head -n 1").strip()
+    machine.succeed(f"runuser -u tester -- env {session} WAYLAND_DISPLAY={wayland} sh -c 'cybexos-goa-account add owncloud"
+                    " > /tmp/goa-add.json 2> /tmp/goa-add.err & echo $! > /tmp/goa-add.pid; wait $!; echo $? > /tmp/goa-add.status'"
+                    " >/dev/null 2>&1 &")
+    shown = wait(goa_window, 90)
+    assert shown, machine.succeed("cat /tmp/goa-add.json /tmp/goa-add.err /tmp/goa-add.status 2>&1; true")
+    time.sleep(2)
+    machine.screenshot("goa-dialog")
+    # It floats at its own size in the top-right corner (looknfeel.lua).
+    dialog = next(c for c in hypr("clients") if c["class"] == "cybexos-online-accounts")
+    output = hypr("monitors")[0]
+    assert dialog["floating"] and dialog["at"][0] + dialog["size"][0] > output["width"] * 0.75, (dialog, output)
+    helper = machine.succeed("cat /tmp/goa-add.pid").strip()
+    machine.succeed(f"kill -TERM {helper}")
+    ended = wait(lambda: machine.execute(f"kill -0 {helper}")[0] != 0, 60)
+    report = machine.succeed("cat /tmp/goa-add.json /tmp/goa-add.err /tmp/goa-add.status 2>&1;"
+                             " ps -o pid,stat,args -u tester | grep -i -e goa -e ' sh ' ; true")
+    assert ended, report
+    assert json.loads(machine.succeed("cat /tmp/goa-add.json")) == {"result": "cancelled"}, report
+    machine.wait_until_succeeds("test -s /tmp/goa-add.status", timeout=15)
+    assert machine.succeed("cat /tmp/goa-add.status").strip() == "3", report
+    assert wait(lambda: not goa_window(), 15), hypr("clients")
+    objects = user("gdbus call --session --dest org.gnome.OnlineAccounts --object-path /org/gnome/OnlineAccounts"
+                   " --method org.freedesktop.DBus.ObjectManager.GetManagedObjects")
+    assert "org.gnome.OnlineAccounts.Account" not in objects, objects
+    reconnect = json.loads(machine.succeed(f"runuser -u tester -- env {session} cybexos-goa-account reconnect account_0 || true"))
+    assert reconnect == {"result": "failed", "reason": "gone"}, reconnect
     assert machine.succeed("${pkgs.patchelf}/bin/patchelf --print-interpreter --print-rpath ${foreign}").split() == ["/lib64/ld-linux-x86-64.so.2"]
     loader = " ".join(f"{key}={shell_env[key]}" for key in ("NIX_LD", "NIX_LD_LIBRARY_PATH"))
     assert "pigz" in machine.succeed(f"runuser -u tester -- env -i {loader} ${foreign} --version 2>&1")

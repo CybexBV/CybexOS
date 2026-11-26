@@ -70,6 +70,7 @@
             (pkgs.callPackage ./nix/packages/mdview.nix {})
             (pkgs.callPackage ./nix/packages/assistant.nix {})
             (pkgs.callPackage ./nix/packages/encryption-check.nix { source = self; })
+            (pkgs.callPackage ./nix/packages/goa-account.nix { source = self; })
             (pkgs.callPackage ./nix/packages/lid-guard.nix {})
             (pkgs.callPackage ./nix/packages/networkmanager-libreswan.nix {})
             (pkgs.callPackage ./nix/packages/fonts.nix {})
@@ -215,6 +216,10 @@
           CYBEXOS_SWAY_BINARY = "${pkgs.sway-unwrapped}/bin/sway";
           CYBEXOS_QML_IMPORT_PATH = "${pkgs.qt6.qtdeclarative}/lib/qt-6/qml:${pkgs.qt6.qtmultimedia}/lib/qt-6/qml:${pkgs.qt6.qtwebsockets}/lib/qt-6/qml:${pkgs.qt6.qt5compat}/lib/qt-6/qml:${pkgs.quickshell}/lib/qt-6/qml";
           CYBEXOS_QT_PLUGIN_PATH = "${pkgs.qt6.qtsvg}/lib/qt-6/plugins";
+          # GNOME Online Accounts' provider marks for tests/settings-pages.py,
+          # in the hicolor theme as an installed system has it (its index too).
+          CYBEXOS_GOA_ICONS = "${pkgs.symlinkJoin { name = "cybexos-goa-icons";
+            paths = [ "${pkgs.hicolor-icon-theme}/share/icons" "${pkgs.gnome-online-accounts}/share/icons" ]; }}";
           QT_QPA_PLATFORM = "offscreen";
           QT_QUICK_BACKEND = "software";
         };

@@ -15,7 +15,10 @@ and shows a failed download (nix-store is a fake that cannot reach the
 cache). `cybex` is a
 fake that records every call and answers the doctor, so the regional change
 the sheet prepares is checked as the one combined `cybex config region` call
-it sends, and nothing reaches pkexec. Only the PNG screenshots survive, and
+it sends, and nothing reaches pkexec. Online accounts opens its Add an account
+picker with this GNOME Online Accounts build's provider kinds (and GOA's own
+logos when CYBEXOS_GOA_ICONS names them), and a stand-in cybexos-goa-account
+shows that choosing one closes Settings and brings it back with the result. Only the PNG screenshots survive, and
 only in CYBEXOS_SETTINGS_SCREENSHOTS when it is set.
 """
 from __future__ import annotations
@@ -79,6 +82,29 @@ if args[:2] == ["config", "region"]:
 sys.exit(127)
 '''
 # Every pointer helper call that would reach the desktop or Nix, recorded.
+# Settings' bridge to GNOME Online Accounts (desktop/goa-account): the real
+# one's provider list; a dialog the person closes without adding anything;
+# and, for Microsoft 365, one that stays open until Settings cancels it.
+FAKE_GOA_ACCOUNT = r'''#!/usr/bin/env python3
+import json, os, signal, sys, time
+from pathlib import Path
+args = sys.argv[1:]
+with (Path(os.environ["HOME"]) / "goa-calls").open("a") as log:
+    log.write(json.dumps(args) + "\n")
+if args == ["list"]:
+    names = [("google", "Google"), ("webdav", "WebDAV"), ("owncloud", "Nextcloud"),
+             ("exchange", "Microsoft Exchange"), ("imap_smtp", "IMAP and SMTP"),
+             ("kerberos", "Kerberos"), ("ms_graph", "Microsoft 365")]
+    print(json.dumps({"providers": [{"type": t, "name": n} for t, n in names]})); sys.exit(0)
+def cancelled(*_):
+    print(json.dumps({"result": "cancelled"}), flush=True); sys.exit(3)
+if args == ["add", "ms_graph"]:
+    signal.signal(signal.SIGTERM, cancelled)
+    while True:
+        time.sleep(0.2)
+cancelled()
+'''
+
 FAKE_POINTER_TOOL = r'''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -145,6 +171,26 @@ TEST_IPC = '''
         function setValue(key: string, json: string): void { Settings.set(key, JSON.parse(json)); }
         function undoRecent(key: string): void { SettingsRecent.undo(SettingsRecent.rows.find(row => row.key === key)); }
         function pressEscape(): string { return String(shell.settingsView().handleEscape()); }
+        function accounts(): string {
+            const picker = shell.findNamed(shell.settingsRoot(), "accountPicker");
+            return JSON.stringify({ picker: SystemSettings.accountPickerOpen, shown: !!(picker && picker.visible),
+                loaded: SystemSettings.accountProvidersLoaded,
+                leading: picker ? picker.leading.map(p => p.type) : [], others: picker ? picker.others.map(p => p.type) : [],
+                running: SystemSettings.accountTaskRunning, notice: SystemSettings.accountNotice,
+                tone: SystemSettings.accountNoticeTone });
+        }
+        function openAccountPicker(): void { SystemSettings.accountPickerOpen = true; }
+        // Accounts as goa-daemon would list them; the next refresh replaces them.
+        function fakeAccounts(json: string): void {
+            SystemSettings.accounts.snapshot = JSON.parse(json);
+            SystemSettings.accounts.loaded = true;
+        }
+        function startAccount(type: string, label: string): string { return String(SystemSettings.addAccount(type, label)); }
+        function cancelAccount(): void { SystemSettings.cancelAccountTask(); }
+        function chooseAccount(type: string): void {
+            const picker = shell.findNamed(shell.settingsRoot(), "accountPicker");
+            picker.choose(SystemSettings.accountProviders.find(p => p.type === type));
+        }
         function mark(text: string): void { console.log("TEST-MARK " + text); }
         function pointer(): string {
             return JSON.stringify({ loaded: Pointer.loaded, applied: Pointer.applied, failure: Pointer.failure,
@@ -247,7 +293,8 @@ def main():
             path = base / 'bin' / name
             path.write_text(FAKE_POINTER_TOOL)
             path.chmod(0o700)
-        for name, program in (('hyprctl', EDITOR.FAKE_HYPRCTL), ('cybex', FAKE_CYBEX)):
+        for name, program in (('hyprctl', EDITOR.FAKE_HYPRCTL), ('cybex', FAKE_CYBEX),
+                              ('cybexos-goa-account', FAKE_GOA_ACCOUNT)):
             path = base / 'bin' / name
             path.write_text(program)
             path.chmod(0o700)
@@ -266,6 +313,13 @@ def main():
                'PYTHONDONTWRITEBYTECODE': '1', 'XCURSOR_PATH': f'~/.icons:~/.local/share/icons:{icons}',
                'CYBEXOS_POINTER_MACHINE': str(machine), 'GSETTINGS_BACKEND': 'memory',
                **shell_fonts.fontconfig(base)}
+        # GOA's provider marks, as the desktop wrapper adds them: its icons
+        # only, never its applications folder (which would hide the system's
+        # MIME index for GOA's OAuth2 handler).
+        if os.environ.get('CYBEXOS_GOA_ICONS'):
+            (base / 'goa-data').mkdir()
+            (base / 'goa-data/icons').symlink_to(os.environ['CYBEXOS_GOA_ICONS'])
+            env['XDG_DATA_DIRS'] = str(base / 'goa-data') + ':' + os.environ.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share')
         for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'DBUS_SESSION_BUS_ADDRESS',
                      'XCURSOR_THEME', 'XCURSOR_SIZE'):
             env.pop(name, None)
@@ -379,6 +433,58 @@ def main():
                               ('security', None), ('accounts', None), ('assistant', 'wiz'), ('applications', None),
                               ('region', None), ('backup', 'backups')):
                 show(page, tab)
+            # Online accounts: Settings' own picker, then GOA's dialog for the
+            # chosen kind with Settings out of the way, then the result.
+            show('accounts')
+            def accounts():
+                return json.loads(ipc('settings-test', 'accounts'))
+            ipc('settings-test', 'openAccountPicker')
+            picked = wait(lambda: (a := accounts())['shown'] and a['loaded'] and a, 'the Add an account picker')
+            assert picked['leading'] == ['google', 'ms_graph', 'owncloud'], picked
+            assert picked['others'] == ['imap_smtp', 'webdav', 'exchange', 'kerberos'], picked
+            screenshot('19-account-picker.png')
+            assert ipc('settings-test', 'pressEscape') == 'true'
+            wait(lambda: not accounts()['picker'] and state()['open'], 'Escape closes only the picker')
+            ipc('settings-test', 'openAccountPicker')
+            wait(lambda: accounts()['shown'], 'the picker again')
+            ipc('settings-test', 'chooseAccount', 'google')
+            goa_calls = home / 'goa-calls'
+            wait(lambda: goa_calls.exists() and '["add", "google"]' in goa_calls.read_text(), 'the helper opened for Google')
+            back = wait(lambda: (s := state())['open'] and s['page'] == 'accounts' and (a := accounts())['notice'] and a,
+                        'Settings back with the result')
+            assert back['notice'] == 'The sign-in was cancelled.' and not back['picker'], back
+            screenshot('20-account-result.png')
+            # Accounts on the page: the provider's logo, Reconnect for one that
+            # needs attention, the calendar switch.
+            ipc('settings-test', 'fakeAccounts', json.dumps({'success': True, 'available': True, 'accounts': [
+                {'id': 'a1', 'path': '/a1', 'provider': 'Google', 'providerType': 'google', 'identity': 'person@example.com',
+                 'attention': False, 'locked': False, 'calendar': True, 'calendarDisabled': False},
+                {'id': 'a2', 'path': '/a2', 'provider': 'Microsoft 365', 'providerType': 'ms_graph', 'identity': 'work@example.com',
+                 'attention': True, 'locked': False, 'calendar': True, 'calendarDisabled': True},
+                {'id': 'a3', 'path': '/a3', 'provider': 'IMAP and SMTP', 'providerType': 'imap_smtp', 'identity': 'mail@example.com',
+                 'attention': False, 'locked': True, 'calendar': False, 'calendarDisabled': True}]}))
+            time.sleep(0.5)
+            screenshot('21-account-rows.png')
+            # Settings reopened while GOA's dialog is open offers Cancel, and
+            # cancelling closes the dialog and says so.
+            assert ipc('settings-test', 'startAccount', 'ms_graph', 'Microsoft 365') == 'true'
+            wait(lambda: not state()['open'] and accounts()['running'], 'Settings out of the way')
+            show('accounts')
+            wait(lambda: accounts()['running'], 'the sign-in still running')
+            screenshot('22-account-signing-in.png')
+            ipc('settings-test', 'cancelAccount')
+            cancelled = wait(lambda: (a := accounts())['notice'] and not a['running'] and a, 'Cancel answered')
+            assert cancelled['notice'] == 'The sign-in was cancelled.', cancelled
+            # A helper that cannot start brings Settings back with a reason.
+            helper = base / 'bin/cybexos-goa-account'
+            helper.rename(base / 'cybexos-goa-account.away')
+            try:
+                assert ipc('settings-test', 'startAccount', 'google', 'Google') == 'true'
+                failed = wait(lambda: state()['open'] and (a := accounts())['notice'] and not a['running'] and a,
+                              'Settings back after a helper that could not start')
+                assert failed['tone'] == 'error' and 'could not open' in failed['notice'], failed
+            finally:
+                (base / 'cybexos-goa-account.away').rename(helper)
             show('plugins')
             screenshot('16-plugins.png')
             show('keyboard', 'layouts')
