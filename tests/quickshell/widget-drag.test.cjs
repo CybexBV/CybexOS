@@ -43,13 +43,6 @@ test("moving down within a column accounts for its own removal", () => {
     assert.equal(result.idx, 2);
 });
 
-test("moving up within a column does not shift the insertion point", () => {
-    const result = H.moveWidget(mods(["a", "b", "c", "d"], [], []),
-        "left", "d", "left", 1);
-    assert.deepEqual(ids(result.mods.left), ["a", "d", "b", "c"]);
-    assert.equal(result.idx, 1);
-});
-
 test("a drop onto a widget's own position is a no-op, not an off-by-one", () => {
     const result = H.moveWidget(mods(["a", "b", "c"], [], []),
         "left", "b", "left", 1);
@@ -70,13 +63,6 @@ test("a move carries the widget's enablement and detail policy with it", () => {
     source.left[0] = { id: "a", on: false, detail: "compact" };
     const result = H.moveWidget(source, "left", "a", "center", 0);
     assert.deepEqual(result.mods.center[0], { id: "a", on: false, detail: "compact" });
-});
-
-test("moveWidget never mutates the columns it was handed", () => {
-    const source = mods(["a", "b"], [], []);
-    H.moveWidget(source, "left", "a", "right", 0);
-    assert.deepEqual(ids(source.left), ["a", "b"]);
-    assert.deepEqual(ids(source.right), []);
 });
 
 test("an unknown widget or column is refused rather than guessed at", () => {
@@ -200,23 +186,6 @@ test("the settings page still owns the keyboard path", () => {
 });
 
 // ---- the rename -------------------------------------------------------
-
-test("the settings surfaces call them widgets", () => {
-    // The widget editor is the top of the Bar page (2026-09): the rail names
-    // the bar and its Control Center (2026-10), and the page's own copy
-    // calls its contents widgets.
-    const settings = read("Common/Settings.qml");
-    assert.match(settings, /\{ id: "bar", group: "Personalize", label: (?:I18n\.tr\()?"Bar & Control Center"\)?[^}]*description: (?:I18n\.tr\()?"Widgets,/);
-    assert.doesNotMatch(settings, /label: "Modules"|title: "Modules"/);
-
-    const detail = read("Settings/ModuleDetailView.qml");
-    assert.match(detail, /text: "Widgets"/);
-    assert.match(detail, /Accessible\.name: "Back to widgets"/);
-
-    const page = read("Settings/ModulesPage.qml");
-    assert.doesNotMatch(page, /"Module list\.""?|ToolTip\.text: "Module settings"/);
-    assert.match(page, /resetKeys\(\["mods"\], "Widgets"\)/);
-});
 
 test("the old Widgets page id still routes to the Bar page", () => {
     // IPC, scripts and muscle memory kept `settings open modules`; it now

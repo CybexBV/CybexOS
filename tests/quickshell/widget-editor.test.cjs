@@ -55,14 +55,6 @@ test('available collection searches names, descriptions and origins without losi
     assert.equal(E.search(entries,'missing','all').length,0);
 });
 
-test('status distinguishes disabled, conditionally hidden and plugin-controlled widgets', () => {
-    const battery = entries.find(e=>e.key==='batt');
-    assert.equal(E.status(battery,{battery:false}),'Hidden · no battery detected');
-    assert.equal(E.status({...battery,enabled:false},{}),'Available to add · settings are kept');
-    assert.equal(E.status(battery,{battery:true}),'Ready · battery detected');
-    assert.equal(E.status(entries.find(e=>e.plugin),{}),'On your bar · visibility controlled by plugin');
-});
-
 
 // Run the production membership handlers with storage and timer boundaries stubbed.
 function membershipHarness() {

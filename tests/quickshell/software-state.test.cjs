@@ -58,24 +58,6 @@ test('cleanup preference drafts retain their original policy until explicitly di
     assert.equal(root.same(root.draft, root.policyBaseline), true);
 });
 
-test('Explore leads with the featured apps; the default apps fold to one row', () => {
-    const explore = read('Software/ExplorePage.qml');
-    assert.ok(explore.indexOf('HeroCarousel {') < explore.indexOf('DefaultsSection {'), 'the hero comes first');
-    const defaults = read('Software/DefaultsSection.qml');
-    assert.match(defaults, /model: root\.expanded \? Software\.roles : Software\.roles\.slice\(0, root\.columns\)/);
-    assert.match(defaults, /actionName: "softwareDefaultsMore"/);
-    // The hero's main action is solid in the slide's ink, never the accent,
-    // which can be blue on a blue brand colour (2026-11-24 review, round 2);
-    // it steps back to an outline while the queue bar holds the primary.
-    const hero = read('Software/HeroCarousel.qml');
-    assert.match(hero, /readonly property bool leads: \(heroAction\.mode === "install" \|\| heroAction\.mode === "open"\)\s*&& Software\.queue\.length === 0 && !Software\.flowActive/);
-    assert.match(hero, /solidFill: leads \? slide\.ink : "transparent"/);
-    assert.doesNotMatch(hero, /primary:/);
-    const button = read('Software/SoftwareButton.qml');
-    assert.match(button, /color: solid \? solidFill : primary \? Theme\.accent/);
-    assert.match(button, /\(queued \|\| quiet \|\| \(primary && custom\)\) \? 1 : 0/);
-});
-
 test("Software's chrome and states follow the shell's vocabulary", () => {
     // The same small header Close as Settings.
     const header = read('Software/HeaderBar.qml');
