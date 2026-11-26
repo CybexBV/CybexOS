@@ -494,6 +494,12 @@ test("the review of a prepared update and its toasts stay free of Wiz", () => {
     assert.doesNotMatch(read("SoftwareUpdate/ReadyPage.qml"), /Wiz\b/);
     assert.doesNotMatch(read("Bar/Modules/Updates.qml"), /Wiz\b/);
     assert.match(read("SoftwareUpdate/StatusPage.qml"), /AssistantUi\.Wiz \{/);
+    // The ring round his star shows the page's measured fraction (a download
+    // with a known size, the firmware's percent) and nothing else.
+    assert.match(read("SoftwareUpdate/StatusPage.qml"),
+        /AssistantUi\.Wiz \{[\s\S]*?progress: root\.progress[\s\S]*?\}/);
+    assert.match(read("SoftwareUpdate/StatusPage.qml"),
+        /\/\/ A measured transfer fraction only; -1 means indeterminate activity\.\s*property real progress: -1/);
     assert.match(read("SoftwareUpdate/WhatsNewPage.qml"), /AssistantUi\.Wiz \{/);
 });
 

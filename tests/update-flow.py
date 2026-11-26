@@ -210,7 +210,7 @@ IPC = '''
                     dark: Theme.dark} : null,
                 primary: primary ? {label: primary.text, enabled: primary.enabled, amber: primary.attention} : null,
                 body: view ? view.current.body : null,
-                wiz: wiz ? {pose: wiz.pose, unread: wiz.unread} : null,
+                wiz: wiz ? {pose: wiz.pose, unread: wiz.unread, progress: wiz.progress} : null,
                 stance: view ? view.wiz.pose : null, celebrated: view ? view.celebrated : null,
                 whatsNew: Updates.whatsNew ? Updates.whatsNew.version : null, announced: Updates.announced,
                 assistantReply: Assistant.replyOpen,
@@ -505,8 +505,10 @@ def main():
             session.status(state='building',transaction='a'*32,elapsedSeconds=294,progress=telemetry)
             session.wait(lambda:session.state().get('activity')=='Compiling window manager','compilation progress')
             assert session.state()['elapsed']=='Elapsed: 4:54', session.state()
-            assert session.pose()==('working',False), session.state()
+            assert session.pose()==('brewing',False), session.state()
             assert session.state()['progress']=='In progress' and session.state()['buildLog'], session.state()
+            # Nothing measured: no ring round his star.
+            assert session.state()['wiz']['progress']==-1, session.state()
             session.call('updates','close')
             session.wait(lambda:not session.state().get('window'),'preparing app closed')
             session.call('updates','open')
@@ -515,6 +517,8 @@ def main():
             telemetry['components'] = []
             session.status(state='building',transaction='a'*32,elapsedSeconds=300,progress=telemetry)
             session.wait(lambda:session.state().get('progress')=='25%','measured download progress')
+            # The ring round Wiz's star fills with the same fraction.
+            assert session.state()['wiz']['progress']==0.25, session.state()
             shot('software-update-progress.png')
             session.status(state='idle')
             session.wait(lambda:session.state().get('page')=='available','preparation fixture reset')
@@ -567,7 +571,7 @@ def main():
             # reopens in the replacement shell and follows the update to its result.
             session.status(state='activating',transaction='a'*32,phase='Activating under supervision')
             session.wait(lambda:session.state().get('page')=='installing','installing')
-            assert session.pose()==('working',False), session.state()
+            assert session.pose()==('brewing',False), session.state()
             # Installing names its stage, as preparing does.
             assert session.state()['activity']=='Installing the new version and checking it…', session.state()
             shot('software-update-installing.png')
@@ -646,7 +650,7 @@ def main():
                 and (session.state().get('title') or {}).get('text')=="You're on Cybex OS 1.0.0-beta.21", 'kept release')
             state = session.state()
             assert state['primary']=={'label':"What's new",'enabled':True,'amber':False}, state
-            assert state['stance']=='finished', state
+            assert state['stance']=='proud', state
             session.wait(lambda:session.state().get('celebrated')=='kept 1.0.0-beta.21','Wiz celebrates the kept release')
             session.wait(lambda:session.pose()==('happy',False),'Wiz settles into happy')
             assert len(session.toasts())==toasts, ('an open app shows the kept release, not a toast', session.toasts()[toasts:])
@@ -660,7 +664,7 @@ def main():
                 "What's New")
             state = session.state()
             assert state['title']['text']=="What's new in Cybex OS 1.0.0-beta.21" and state['back'] and state['close'], state
-            assert state['stance']=='finished' and 'Wiz' in state['notes'] and 'https://example.com/notes' in state['notes'], state
+            assert state['stance']=='proud' and 'Wiz' in state['notes'] and 'https://example.com/notes' in state['notes'], state
             assert 'never-fetched' not in state['notes'], 'release notes never load images'
             session.wait(lambda:session.state().get('celebrated')=='whats-new 1.0.0-beta.21' and session.pose()==('happy',False),
                 "Wiz celebrates What's New")
@@ -791,7 +795,7 @@ def main():
                 'percent':42, 'requests':[{'id':'bios','kind':'immediate','message':'Reconnect the device.'}]})
             session.wait(lambda:session.state().get('page')=='installing' and session.state().get('firmwareRequests')==1
                 and session.state().get('progress')=='42%', 'firmware progress and instructions inside the app')
-            assert session.pose()==('working',False), session.state()
+            assert session.pose()==('brewing',False) and session.state()['wiz']['progress']==0.42, session.state()
             session.start_shell('qs-firmware.log')
             session.wait(lambda:session.state().get('window') and session.state().get('firmwareRequests')==1,
                 'firmware instructions survive shell restart')

@@ -47,6 +47,8 @@ Flickable {
             height: width
             pose: root.pose
             unread: root.unread
+            // The ring round his star fills with a measured fraction only.
+            progress: root.progress
             Accessible.ignored: true
         }
 
