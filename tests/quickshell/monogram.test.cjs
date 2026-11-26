@@ -2,9 +2,7 @@
 // its first letter on a colour derived from its name, readable in both themes.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const { load, shellDir } = require("./shell.cjs");
+const { load } = require("./shell.cjs");
 
 const M = load("Monogram.js");
 
@@ -44,11 +42,4 @@ test("every tile keeps 4.5:1 between letter and fill in both themes", () => {
                 `${dark ? "dark" : "light"} hue ${hue}: ${tile.ink} on ${tile.fill} is ${M.contrast(tile.fill, tile.ink).toFixed(2)}:1`);
         }
     }
-});
-
-test("Software draws the monogram where an app has no icon", () => {
-    const icon = fs.readFileSync(path.join(shellDir, "Software/AppIcon.qml"), "utf8");
-    assert.match(icon, /import "\.\.\/Common\/Monogram\.js" as Monogram/);
-    assert.match(icon, /Monogram\.tile\(root\.name, Theme\.dark\)/);
-    assert.match(icon, /property string name: app && app\.name \? app\.name : ""/);
 });

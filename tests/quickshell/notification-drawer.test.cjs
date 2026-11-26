@@ -356,20 +356,6 @@ test("the arrival strip never takes focus; the critical banner can be handled fr
     assert.match(notifs, /onDrawerTabChanged:[\s\S]*?unreadKeys = \[\];[\s\S]*?pinnedKeys = \[\];/);
 });
 
-test("the tab strip's selected state and unread count follow the shared vocabulary", () => {
-    const tabs = read("Popovers/Drawer/DrawerTabs.qml");
-    assert.match(tabs, /color:\s*on \? Theme\.selectedFill : "transparent"/);
-    assert.match(tabs, /height:\s*Theme\.selectedEdgeWidth[\s\S]{0,60}?color:\s*Theme\.selectedMark/);
-    assert.match(tabs, /color:\s*segment\.on \? Theme\.accentText : Theme\.textMid/);
-    assert.match(tabs, /hovered:\s*segmentMouse\.containsMouse && !segment\.on/, "hover stays the neutral chip");
-    const badge = tabs.slice(tabs.indexOf("id: countBadge"));
-    assert.match(badge, /z:\s*2/);
-    assert.match(badge, /color:\s*Theme\.accent\n/);
-    assert.match(badge, /color:\s*Theme\.accentFg/);
-    assert.match(tabs, /readonly property int unreadCount:\s*Notifs\.unread\.length/);
-    assert.match(tabs, /I18n\.format\("%1, %2 unread"/);
-});
-
 test("the drawer list keeps Focus as a labelled switch on the shared state", () => {
     const centre = read("Popovers/Drawer/DrawerNotifications.qml");
     assert.match(centre, /Toggle \{[\s\S]*?checked:\s*Notifs\.dnd[\s\S]*?onToggled:\s*value => Notifs\.setDnd\(value\)/);

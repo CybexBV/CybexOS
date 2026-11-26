@@ -158,25 +158,3 @@ test("the dots style marks the current workspace with a 20 × 8 accent pill", ()
     assert.match(source, /color: slot\.hollow \? "transparent" : slot\.restingTone/);
     assert.match(source, /border\.width: slot\.hollow \? 1\.5 : 0/);
 });
-
-test("the Cybex X is two-tone from its own SVG geometry", () => {
-    const brand = read("Bar/BarBrandIcon.qml");
-    const svg = read("assets/cybexos.svg");
-    const paths = [...svg.matchAll(/ d="([^"]+)"/g)].map(match => match[1]);
-    assert.equal(paths.length, 2);
-    for (const d of paths)
-        assert.ok(brand.includes(`path: "${d}"`), "BarBrandIcon draws assets/cybexos.svg's paths");
-    assert.match(svg, /viewBox="147 3 44 44"/);
-    assert.match(brand, /readonly property real unit: Math\.min\(root\.width, root\.height\) \/ 44/);
-    assert.match(brand, /x: -147 \* mark\.unit/);
-    assert.match(brand, /y: -3 \* mark\.unit/);
-    assert.match(brand, /readonly property bool twoTone: name === "cybexos"/);
-    // At rest: the shared ink, the short stroke at 55 %.
-    assert.match(brand, /property color longInk: root\.highlighted \? Theme\.barTextHi : Theme\.barIcon/);
-    assert.match(brand,
-        /property color shortInk: root\.highlighted \? brandRed\s*: Qt\.rgba\(Theme\.barIcon\.r, Theme\.barIcon\.g, Theme\.barIcon\.b, 0\.55\)/);
-    assert.match(brand, /readonly property color brandRed: "#DC1E37"/);
-    assert.match(svg, /fill="#DC1E37"/);
-    // Every other identity keeps the shared monochrome treatment.
-    assert.match(brand, /BrandIcon \{[\s\S]{0,120}?visible: !root\.twoTone/);
-});

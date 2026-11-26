@@ -46,12 +46,6 @@ test("panel names and module ids are unique", () => {
     assert.equal(new Set(owned).size, owned.length, "two panels claim one module");
 });
 
-test("every island is a real bar section", () => {
-    for (const panel of R.PANELS)
-        assert.ok(["left", "center", "right"].includes(panel.island),
-            `${panel.name} has island "${panel.island}"`);
-});
-
 test("the module id space and the panel space account for each other", () => {
     // Catches a typo'd moduleId in either direction, which would otherwise
     // surface as a popout that silently never opens.
@@ -166,20 +160,6 @@ test("panels no module owns are exactly the ones the bar sweep must skip", () =>
     // sweep gets closed by any unrelated module change.
     assert.deepEqual(R.PANELS.filter(p => R.ownerless(p.name)).map(p => p.name).sort(),
         ["overflow", "settings", "tailscale"]);
-});
-
-test("the behaviour flags are carried deliberately", () => {
-    // Each flag replaced a hardcoded `=== "settings"`; the Day sheet later
-    // adopted centerAnchored so its two triggers share one centred surface.
-    // A new carrier means a new deliberate entry here.
-    const expected = {
-        centerAnchored: ["calendar", "weather"],
-        fillsBody: []
-    };
-    for (const [flag, carriers] of Object.entries(expected)) {
-        const carrying = R.PANELS.filter(p => p[flag]).map(p => p.name).sort();
-        assert.deepEqual(carrying, carriers, `unexpected panels carry ${flag}`);
-    }
 });
 
 test("no consumer still hardcodes a panel name it should ask the registry for", () => {

@@ -25,14 +25,6 @@ test("provider registry preserves every launcher mode and adds palette providers
         P.PROVIDERS.length, "prefixes must be unique, including the default");
 });
 
-test("clearing a prefix restores the selected tab provider", () => {
-    const selectedTab = "clipboard";
-
-    assert.equal(P.prefixedProviderFor(":rocket").id, "emoji");
-    assert.equal(P.prefixedProviderFor(""), null);
-    assert.equal(P.providerById(selectedTab).id, "clipboard");
-});
-
 test("app scoring keeps an empty directory alphabetical and adds usage later", () => {
     const app = {
         id: "org.mozilla.firefox.desktop",

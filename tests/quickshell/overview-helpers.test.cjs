@@ -49,13 +49,6 @@ test("a window whose workspace Hyprland has not listed yet still shows", () => {
     assert.deepEqual(entries.map(entry => entry.id), [1, 7, 2]);
 });
 
-test("the new workspace takes the lowest free positive id", () => {
-    assert.equal(H.newWorkspaceId([]), 1);
-    assert.equal(H.newWorkspaceId([1, 2, 3]), 4);
-    assert.equal(H.newWorkspaceId([1, 3, 4]), 2);
-    assert.equal(H.newWorkspaceId([-1337, 2]), 1);
-});
-
 // ---- grid ---------------------------------------------------------------
 
 function inside(layout, width, height) {

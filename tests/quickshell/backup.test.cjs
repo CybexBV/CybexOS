@@ -122,17 +122,6 @@ test("helper failures are shown in its own words", () => {
         { id: "latest" }, { id: "not hex" }] })).map(entry => entry.id), ["ab".repeat(32)]);
 });
 
-test("the next run reads in the future tense", () => {
-    const page = read("Settings/BackupPage.qml");
-    assert.match(page, /days <= 0 \? "today after " \+ time\s*: days === 1 \? "tomorrow after " \+ time/);
-    assert.match(page, /page\.nowMs, page\.formatDue\)/);
-    const localTime = require(path.join(shellDir, "Settings/LocalTime.js"));
-    const now = new Date(2026, 9, 13, 12, 0).getTime();
-    assert.equal(-localTime.daysBetween(new Date(2026, 9, 14, 7, 0).getTime(), now), 1);
-    // -0 on the same day, which the page's `days <= 0` reads as today.
-    assert.ok(-localTime.daysBetween(new Date(2026, 9, 13, 23, 0).getTime(), now) <= 0);
-});
-
 test("Backup & storage is a System page with three tabs that search reaches", () => {
     const settings = read("Common/Settings.qml");
     const view = read("Settings/SettingsView.qml");

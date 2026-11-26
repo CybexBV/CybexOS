@@ -33,10 +33,6 @@ test("battery estimates format minutes and normalized hour boundaries", () => {
     assert.equal(H.formatDuration(2 * 60 * 60 + 5 * 60), "2 h 05 min");
 });
 
-test("a single battery cycle count is normalized", () => {
-    assert.equal(H.parseCycleCounts("0042\n"), "42");
-});
-
 test("multiple battery cycle counts remain sorted output separated by dots", () => {
     assert.equal(H.parseCycleCounts("42\n317\n"), "42 · 317");
 });

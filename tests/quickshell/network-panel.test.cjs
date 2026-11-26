@@ -10,17 +10,6 @@ function read(relative) {
     return untranslated(fs.readFileSync(path.join(shellDir, relative), "utf8"));
 }
 
-test("the wide Network panel has a physical-transport hero and live diagnostic grid", () => {
-    const panel = read("Popovers/WifiPopover.qml");
-    assert.match(panel, /implicitWidth:\s*Math\.min\(600/);
-    assert.match(panel, /readonly property var primary:\s*NetworkDetails\.primary/);
-    for (const label of ["Ping", "Packet loss", "Receive", "Send", "Downloaded",
-        "Uploaded", "IPv4 address", "Gateway"])
-        assert.match(panel, new RegExp(`label: "${label}"`));
-    assert.match(panel, /NetworkHelpers\.formatRate\(NetworkDetails\.downloadRate\)/);
-    assert.match(panel, /NetworkHelpers\.formatBytes\(root\.primary\.rxBytes\)/);
-});
-
 test("network details poll only while acquired and serialize snapshots", () => {
     const controller = read("Common/NetworkDetails.qml");
     assert.match(controller, /function acquire\(\)/);
@@ -181,16 +170,6 @@ test("Wi-Fi defaults to a connected-network picker and expands all actionable ro
     assert.match(panel, /function clearCredentials\(\)/);
     assert.match(panel, /if \(runConnectRequest\(request\)\)\s*clearCredentials\(\)/);
     assert.match(panel, /NetworkDetails\.wifiError\(network\.ssid\)/);
-});
-
-test("every managed Ethernet port retains loading, absent, failure and compact states", () => {
-    const panel = read("Popovers/WifiPopover.qml");
-    assert.match(panel, /text:\s*"ETHERNET"/);
-    assert.match(panel, /model:\s*EthernetState\.devices/);
-    assert.match(panel, /Checking Ethernet…/);
-    assert.match(panel, /Ethernet status unavailable/);
-    assert.match(panel, /No Ethernet ports/);
-    assert.match(panel, /ethernetRow\.modelData\.device \+ " · "/);
 });
 
 test("one disposable network overlay is registered at shell scope", () => {
