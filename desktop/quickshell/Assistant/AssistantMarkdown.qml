@@ -148,7 +148,7 @@ Column {
                     selectionColor: Theme.accentSoft
                     selectedTextColor: Theme.textHi
                     font.family: Theme.fontMenu
-                    font.pixelSize: block.modelData.level <= 2 ? Theme.typography.subtitle : Theme.typography.control
+                    font.pixelSize: block.modelData.level <= 2 ? Theme.typography.title : Theme.typography.control
                     font.weight: Theme.weightSemibold
                     onLinkActivated: link => root.openLink(link)
                     onHoveredLinkChanged: root.hoveredLink = hoveredLink
@@ -163,16 +163,13 @@ Column {
             Component {
                 id: labelBlock
 
-                TextEdit {
+                // A name, not prose: drawn, not selectable.
+                Text {
                     width: block.width
-                    readOnly: true
-                    selectByMouse: true
-                    textFormat: TextEdit.RichText
+                    textFormat: Text.RichText
                     text: root.html(block.modelData.text)
-                    wrapMode: TextEdit.Wrap
+                    wrapMode: Text.Wrap
                     color: Theme.textLow
-                    selectionColor: Theme.accentSoft
-                    selectedTextColor: Theme.textHi
                     font.family: Theme.fontMenu
                     font.pixelSize: Theme.typography.metadata
                     font.weight: Theme.weightSemibold
@@ -249,7 +246,7 @@ Column {
                                         selectionColor: Theme.accentSoft
                                         selectedTextColor: Theme.textHi
                                         font.family: Theme.fontMenu
-                                        font.pixelSize: Theme.typography.secondary
+                                        font.pixelSize: Theme.typography.control
                                         onLinkActivated: link => root.openLink(link)
                                         onHoveredLinkChanged: root.hoveredLink = hoveredLink
 
@@ -387,7 +384,7 @@ Column {
                     selectionColor: Theme.accentSoft
                     selectedTextColor: Theme.textHi
                     font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.secondary
+                    font.pixelSize: Theme.typography.control
                     onLinkActivated: link => root.openLink(link)
                     onHoveredLinkChanged: root.hoveredLink = hoveredLink
                 }
@@ -481,7 +478,7 @@ Column {
                         selectionColor: Theme.accentSoft
                         selectedTextColor: Theme.textHi
                         font.family: Theme.fontMono
-                        font.pixelSize: Theme.typography.secondary
+                        font.pixelSize: Theme.typography.control
                     }
                 }
             }
