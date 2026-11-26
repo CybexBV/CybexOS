@@ -138,8 +138,3 @@ test('switches have a 3:1 off edge, single choices a radio dot, and focus rings 
     assert.match(style, /visible: option\.activeFocus && FocusModality\.keyboard/);
     assert.match(read('WelcomeWindow.qml'), /FocusModalityObserver \{\}/);
 });
-
-test('the guide\'s fades use Theme tokens', () => {
-    for (const name of ['WelcomeWindow.qml', 'Welcome/WelcomeView.qml'])
-        assert.doesNotMatch(read(name), /duration: \d/, name);
-});

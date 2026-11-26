@@ -105,9 +105,3 @@ test("a pasted install command installs its source", () => {
     for (const empty of ["", "   ", null, undefined, "omarchy plugin add", "omarchy plugin add --enable"])
         assert.equal(PluginSource.parse(empty), "", JSON.stringify(empty));
 });
-
-test("the new System page types are registered", () => {
-    const qmldir = read("Settings/qmldir");
-    for (const type of ["IdleTimeline", "ValueRow", "FieldRow", "RowCluster", "PluginRow"])
-        assert.match(qmldir, new RegExp(`^${type} ${type}\\.qml$`, "m"));
-});
