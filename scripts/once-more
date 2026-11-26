@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Runs a full-check step (.github/workflows/nixos.yml) once more when it fails,
+# as fast-test does with a failing test. A warning on the run names the step,
+# whether or not it passes the second time, so a flaky test stays visible.
+set -uo pipefail
+"$@" && exit 0
+echo "::warning title=Step retried::$* failed and runs once more"
+"$@"

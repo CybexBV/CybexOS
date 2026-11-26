@@ -52,13 +52,14 @@ jobs:
       - run: python3 -B scripts/check-ci-capacity --vm
       # The quick checks first, so a broken source fails within minutes.
       - run: nix flake check --no-build
-      # Source tests and the linters (Ruff, ShellCheck, actionlint).
-      - run: nix develop -c tests/run
+      # Source tests and the linters (Ruff, ShellCheck, actionlint). These test
+      # steps run once more when they fail (scripts/once-more), as fast-test does.
+      - run: scripts/once-more nix develop -c tests/run
       - run: python3 -B scripts/check_leftovers.py --repo . --allowlist scripts/rename-leftovers-allowlist.txt
       # QML lint and the shell's runtime tests in private headless Sways.
-      - run: nix develop -c tests/shell-checks
-      - run: nix develop -c python3 -B tests/assistant-overlay.py
-      - run: nix develop -c python3 -B tests/nixos-native
+      - run: scripts/once-more nix develop -c tests/shell-checks
+      - run: scripts/once-more nix develop -c python3 -B tests/assistant-overlay.py
+      - run: scripts/once-more nix develop -c python3 -B tests/nixos-native
       # Every flake check is built, in two builds. The desktop VM tests (up to
       # 8 GiB each) go second, three at a time; everything else goes first, so
       # a new check is never left out. One nix build shares the packages its
