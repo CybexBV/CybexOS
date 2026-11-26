@@ -464,7 +464,7 @@ test("loops run only while live and busy, and Wiz holds still otherwise", () => 
     // it, and resume() only while he may move, so a loop gated on it is live.
     assert.deepEqual(code.match(/\bact = [^;]+;/g), ['act = "";', "act = pose;"]);
     assert.match(code, /function settle\(\) \{\s*act = "";/);
-    assert.match(code, /function resume\(\) \{\s*if \(!live\)\s*return;\s*act = pose;\s*gesture\(\);\s*if \(!looping\)\s*return;/);
+    assert.match(code, /function resume\(\) \{\s*if \(!live \|\| act !== ""\)\s*return;\s*act = pose;\s*gesture\(\);\s*if \(!looping\)\s*return;/);
     // Each infinite loop is gated on a live-derived condition, or is a wave,
     // which runs as its user says.
     const loops = [...wiz.matchAll(/(component Sine[XYR]: )?(?:SequentialAnimation|ParallelAnimation|[XY]Animator|RotationAnimator|ScaleAnimator)(?: on \w+)? \{\s*(?:id: \w+\s*)?(?:running: ([^\n]+)\s*)?loops: Animation\.Infinite/g)];
@@ -529,6 +529,28 @@ test("loops run only while live and busy, and Wiz holds still otherwise", () => 
     // Without motion everything a loop moved goes back to where it rests.
     assert.match(code, /\} else \{\s*settling\.stop\(\);\s*breath\.y = 0;\s*dimmer\.opacity = 0;\s*for \(const item of shifted\) \{\s*item\.x = 0;\s*item\.y = 0;\s*\}\s*for \(const item of turned\)\s*item\.rotation = 0;/);
     assert.match(code, /onLiveChanged: \{[\s\S]*settle\(\);\s*\}/);
+});
+
+// Measured in Quickshell (Qt 6.12): stopping an Animator finishes it too, so
+// its onFinished runs. settle() used to restart the settling animation, and a
+// pose that also ends his work (proud, a shrug, sorry) settles twice at once:
+// the second restart ended the first, which resumed him, and the new one
+// resumed him again 300 ms later, his gesture starting over. A Wiz made live
+// (the launcher's curious one, the notes popover's pointing one) settled
+// while he was being made and resumed twice the same way.
+test("what a pose does as it arrives starts once", () => {
+    // Only the end of a settling and his own completion resume him.
+    assert.equal(code.match(/\bresume\(\)/g).length, 3);
+    assert.match(code, /id: settling[\s\S]*?onFinished: root\.resume\(\)\s*\}/);
+    // A settling on its way is left to end; it is never started over.
+    assert.match(body(code, "settle"), /if \(animated\) \{\s*if \(!settling\.running\)\s*settling\.start\(\);\s*\} else \{/);
+    assert.doesNotMatch(code, /settling\.restart\(\)/);
+    // And resume() does its work once for each settle(), whoever calls it.
+    assert.match(code, /function settle\(\) \{\s*act = "";/);
+    assert.match(code, /function resume\(\) \{\s*if \(!live \|\| act !== ""\)\s*return;\s*act = pose;\s*gesture\(\);/);
+    assert.equal(code.match(/\bgesture\(\)/g).length, 2, "gesture() is called from resume() alone");
+    // Made live, he starts at once: the settling begun meanwhile is ended first.
+    assert.match(code, /Component\.onCompleted: \{[^}]*settling\.stop\(\);\s*resume\(\);\s*\}/);
 });
 
 // Qt's SineCurve is (1 - cos 2πt) / 2 and its CosineCurve (1 + sin 2πt) / 2
@@ -702,7 +724,7 @@ test("when he may no longer move, nothing ticks on", () => {
     }
     // settle() runs last: it stops the loops and the gestures, and puts his
     // hands and hat back at once instead of easing them.
-    assert.match(settled, /if \(animated\) \{\s*settling\.restart\(\);\s*\} else \{\s*settling\.stop\(\);/);
+    assert.match(settled, /if \(animated\) \{\s*if \(!settling\.running\)\s*settling\.start\(\);\s*\} else \{\s*settling\.stop\(\);/);
     // What a drag threw about goes with its part, and he is not dizzy.
     for (const step of ["tidy.stop();", "fuss = false;", "dizzy = false;", "ux = 0;", "uy = 0;"])
         assert.ok(off.includes(step), step);

@@ -1987,7 +1987,11 @@ Item {
         peering.stop();
         jabbing.stop();
         if (animated) {
-            settling.restart();
+            // Not again while it runs: ending it resumes him (an Animator
+            // that is stopped finishes too), and then a second time when
+            // the new one ends, his gesture with it.
+            if (!settling.running)
+                settling.start();
         } else {
             settling.stop();
             breath.y = 0;
@@ -2000,8 +2004,9 @@ Item {
                 item.rotation = 0;
         }
     }
+    // Once for each settle(): after that he is doing what the pose does.
     function resume() {
-        if (!live)
+        if (!live || act !== "")
             return;
         act = pose;
         gesture();
@@ -2017,6 +2022,9 @@ Item {
         festive = pose === "finished" || pose === "proud";
         if (turning)
             twirling.start();
+        // Nothing has moved yet, so there is nothing to settle: he starts
+        // at once, not after a settling begun while he was being made.
+        settling.stop();
         resume();
     }
 
