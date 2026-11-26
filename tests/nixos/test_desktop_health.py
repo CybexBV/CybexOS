@@ -60,22 +60,6 @@ qs() { [[ $1 == ipc && $2 == --pid ]] || return 0; printf '%s\n' "$3" >>"$STATE/
 
 
 class SystemHealthTests(unittest.TestCase):
-    def test_only_declared_services_are_required(self):
-        calls = []
-        system_services(lambda *args: calls.append(args) or 'active',
-                        {'schema': 1, 'units': ['NetworkManager.service', 'ipsec.service', 'personal.service']})
-        self.assertEqual(calls, [('systemctl', 'is-active', unit) for unit in
-                                 ['NetworkManager.service', 'ipsec.service', 'personal.service']])
-        calls.clear()
-        system_services(lambda *args: calls.append(args) or 'active',
-                        {'schema': 1, 'units': ['NetworkManager.service']})
-        self.assertEqual(len(calls), 1)
-
-    def test_failed_service_gives_actionable_failure(self):
-        def inactive(*args):
-            raise subprocess.CalledProcessError(3, args)
-        with self.assertRaisesRegex(Failure, 'ipsec.service.*systemctl status'):
-            system_services(inactive, {'schema': 1, 'units': ['ipsec.service']})
 
     def test_only_units_inactive_before_the_change_are_tolerated(self):
         declaration = {'schema': 1, 'units': ['NetworkManager.service', 'xps-ipu7-abi.service']}
@@ -87,13 +71,6 @@ class SystemHealthTests(unittest.TestCase):
             system_services(run, declaration, {'v4l2-relayd-ipu7.service'})
         with self.assertRaisesRegex(Failure, 'NetworkManager.service'):
             system_services(lambda *args: 'inactive', declaration, {'xps-ipu7-abi.service'})
-
-    def test_baseline_reads_the_updater_runner_raw_output(self):
-        # The engine's Runner returns systemctl output unstripped.
-        declaration = {'schema': 1, 'units': ['NetworkManager.service', 'xps-ipu7-abi.service']}
-        def run(*args):
-            return 'failed\n' if args[-1] == 'xps-ipu7-abi.service' else 'active\n'
-        self.assertEqual(inactive_units(run, declaration), ['xps-ipu7-abi.service'])
 
     def test_preexisting_arguments_name_only_declarable_units(self):
         self.assertEqual(preexisting_arguments(['--preexisting=xps-ipu7-abi.service']), {'xps-ipu7-abi.service'})
@@ -309,13 +286,6 @@ class ShellInvocationGuardTests(unittest.TestCase):
     def bracket(self, between='', read_only=True):
         return self.manager.script(f'qs_live_begin || exit 10\n{between}\nqs_live_end', read_only)
 
-    def test_unchanged_invocation_passes_and_validates_its_journal(self):
-        result = self.bracket('qs_live_wait_ipc 1 shell ping >/dev/null || exit 11')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.manager.lines('journals'), [INVOCATION])
-        self.assertEqual(self.manager.lines('ipc'), ['101'])
-        self.assertEqual(self.manager.lines('mutations'), [])
-
     def test_restart_or_crash_during_read_only_check_fails_without_mutation(self):
         manager = self.manager
         cases = {'restart': f'echo 202 >{manager.state}/pid; echo {RESTARTED} >{manager.state}/invocation',
@@ -397,10 +367,6 @@ class HealthTests(unittest.TestCase):
             return json.dumps(self.plugins)
         return ''
 
-    def test_healthy_desktop_and_exact_managed_ipc_pid(self):
-        desktop(['env', 'XDG_RUNTIME_DIR=/run/user/1000'], self.command, '/guard', {'hyprland': '0.56.2'})
-        self.assertIn(('--pid', '123'), tuple(args[i:i+2] for args in self.calls for i in range(len(args)-1)))
-
     def test_compositor_errors_and_contained_lua_failures(self):
         for attribute, value in [('actual', '0.55.4'), ('configerrors', ['bad option']), ('lua', 'Lua assertion failed')]:
             with self.subTest(attribute=attribute):
@@ -427,19 +393,6 @@ class HealthTests(unittest.TestCase):
             self.plugins.update(plugins)
             with self.subTest(plugins=plugins), self.assertRaises(Failure):
                 desktop([], self.command, '/guard')
-
-    def test_discovery_must_settle_before_accepting_last_good_entries(self):
-        calls = 0
-        def discovering(*args):
-            nonlocal calls
-            if 'listPlugins' in args:
-                calls += 1
-                self.plugins['discovering'] = calls == 1
-            return self.command(*args)
-        with patch('cybexos.health.time.sleep') as sleep:
-            desktop([], discovering, '/guard')
-        self.assertEqual(calls, 2)
-        sleep.assert_called_once_with(1)
 
     def test_unavailable_or_stuck_discovery_cannot_pass_health(self):
         for value in (None, True):

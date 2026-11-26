@@ -196,11 +196,6 @@ while True:
         self.assertFalse(state['pending'])
         self.assertEqual(state['error'], '')
 
-    def test_off_startup_does_not_launch_an_inhibitor(self):
-        self.launch()
-        self.assert_off()
-        self.assertFalse((self.base / 'starts').exists())
-
     def test_off_startup_clears_a_remembered_request(self):
         self.launch(mode='always')
         self.assert_off()

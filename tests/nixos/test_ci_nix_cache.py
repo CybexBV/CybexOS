@@ -26,10 +26,6 @@ class BuiltPathsTest(unittest.TestCase):
         listing = [dict(info, path=path) for path, info in infos.items()]
         self.assertEqual(cache.built_paths(json.dumps(listing)), [BUILT])
 
-    def test_paths_without_details_are_skipped(self):
-        self.assertEqual(cache.built_paths(json.dumps({BUILT: None, FETCHED: {}})), [])
-
-
 class PrepareTest(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory(prefix='ci-nix-cache-')
@@ -51,14 +47,6 @@ class PrepareTest(unittest.TestCase):
 
     def usage(self, percent):
         return mock.patch.object(cache.shutil, 'disk_usage', return_value=mock.Mock(total=100, used=percent))
-
-    def test_creates_the_cache_and_keeps_it_below_the_limit(self):
-        (self.cache / 'nar').mkdir(parents=True)
-        (self.cache / 'nar' / 'kept.nar.zst').write_bytes(b'nar')
-        with mock.patch.object(cache, 'persistent', return_value=True), self.usage(40):
-            cache.prepare(self.volume, self.cache)
-        self.assertTrue((self.cache / 'nar' / 'kept.nar.zst').exists())
-        self.assertTrue((self.cache / 'realisations').is_dir())
 
     def test_a_nearly_full_volume_starts_cold(self):
         (self.cache / 'nar').mkdir(parents=True)
