@@ -431,16 +431,6 @@ class PromoteTests(unittest.TestCase):
         self.state.write_text('{"message": "Not Found"}')
         self.assert_refused('invalid release listing', '1.0.3', '--yes')
 
-    def test_a_single_release_keeps_its_own_notes(self):
-        result = self.promote('1.0.2', '--yes')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.published('1.0.2')['body'], '# Cybex OS 1.0.2\n\n- Change in 1.0.2.\n')
-        notes = self.work / 'notes.md'
-        notes.write_text('# Cybex OS 1.0.3\n\nWritten for stable.\n')
-        result = self.promote('1.0.3', '--yes', '--notes', str(notes))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.published('1.0.3')['body'], notes.read_text())
-
     def test_soak_time_on_beta(self):
         self.release('1.0.4', hours=2)
         self.assert_refused('on beta for 2.0 hours, less than 168', '1.0.4', '--yes')

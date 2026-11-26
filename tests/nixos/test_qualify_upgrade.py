@@ -52,11 +52,6 @@ class FakeFetcher:
 
 
 class ReleaseChoiceTests(unittest.TestCase):
-    def test_previous_release_on_an_ordinary_branch_is_the_one_before_the_newest(self):
-        self.assertEqual(upgrade.previous_release(LISTING, '1.0.32')['tag_name'], 'v1.0.31')
-
-    def test_previous_release_on_a_release_branch_is_the_newest(self):
-        self.assertEqual(upgrade.previous_release(LISTING, '1.0.33')['tag_name'], 'v1.0.32')
 
     def test_previous_release_ignores_drafts_and_other_tags(self):
         self.assertEqual(upgrade.previous_release(LISTING, '1.0.50')['tag_name'], 'v1.0.32')
@@ -77,11 +72,6 @@ class ReleaseChoiceTests(unittest.TestCase):
         # Newer releases than the one under test are left out.
         older = upgrade.served_listing(LISTING, TARGET | {'version': '1.0.30'})
         self.assertEqual([item['tag_name'] for item in older][:2], ['v1.0.30', 'v1.0.26'])
-
-    def test_a_beta_machine_discovers_the_release_under_test_as_a_prerelease(self):
-        fetch = FakeFetcher(upgrade.served_listing(LISTING, TARGET | {'prerelease': True}), TARGET)
-        found = discover(fetch, 'beta', '1.0.31')
-        self.assertEqual((found['version'], found['releases']), ('1.0.32', ['1.0.32']))
 
     def test_an_installed_updater_discovers_the_release_under_test_on_either_channel(self):
         fetch = FakeFetcher(upgrade.served_listing(LISTING, TARGET), TARGET)

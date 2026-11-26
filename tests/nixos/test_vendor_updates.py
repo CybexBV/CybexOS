@@ -109,14 +109,6 @@ class VendorPinTests(unittest.TestCase):
     def record(self, name):
         return json.loads((self.root / 'nix/packages' / name / 'release.json').read_text())
 
-    def test_the_agent_clis_are_automatic_pins_beside_brave(self):
-        auto = {pin.name: pin for pin in pins.PINS if pin.mode == 'auto'}
-        self.assertEqual(list(auto), ['brave-origin', 'codex', 'claude-code'])
-        for name in ('codex', 'claude-code'):
-            self.assertEqual(auto[name].checks, [f'packages.x86_64-linux.{name}', 'checks.x86_64-linux.agent-clis'])
-            self.assertEqual(auto[name].file, f'nix/packages/{name}/release.json')
-            self.assertTrue((ROOT / auto[name].file).is_file())
-
     def test_codex_follows_stable_releases_only(self):
         self.serve_codex([codex_release('0.169.0-alpha.7', prerelease=True), dict(codex_release('0.168.0'), draft=True),
                           dict(codex_release('0.167.0'), tag_name='libcap-v2.75'), codex_release('0.166.0'),

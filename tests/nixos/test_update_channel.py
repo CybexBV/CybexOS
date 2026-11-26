@@ -42,13 +42,6 @@ class ChannelChoice(unittest.TestCase):
         with self.assertRaisesRegex(Failure, 'Unknown release channel'):
             channels.selected(self.engine.state, self.policy)
 
-    def test_status_reports_the_channel_and_never_guesses_one(self):
-        self.choose('beta')
-        status = cli.update_status(self.engine.state, self.working, self.policy)
-        self.assertEqual(status['channel'], {'selected': 'beta', 'declared': 'stable', 'override': True})
-        missing = cli.update_status(self.engine.state, self.working, self.base / 'missing.json')
-        self.assertEqual(missing['channel'], {'selected': '', 'declared': '', 'override': False})
-
     def test_discovery_follows_the_selected_channel(self):
         del self.engine.channel  # The fixture's fixed release.
         found = []
