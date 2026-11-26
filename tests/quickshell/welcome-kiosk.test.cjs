@@ -152,6 +152,13 @@ test('Connect turns its sign-ins off while known to be offline, and names only t
     assert.match(connect, /I18n\.format\("Your sign-in stays with %1;/);
 });
 
+test('Connect\'s Wiz snores with his own z\'s, not a second set drawn over him', () => {
+    const connect = read('Welcome/ConnectStep.qml');
+    assert.match(connect, /sourceComponent: Character\.Wiz \{\s*objectName: "connectWiz"\s*pose: card\.character\s*\}/);
+    assert.doesNotMatch(connect, /snore|text: "z"/);
+    assert.match(connect, /readonly property string wizPose: !Assistant\.connected \|\| root\.installed\.length === 0 \? "asleep"/);
+});
+
 test('Ready gives each finding its place and Ask Wiz as the secondary way', () => {
     const finish = read('Welcome/FinishStep.qml');
     assert.match(finish, /case "firmware-updates": return I18n\.tr\("Software Update…"\);/);
