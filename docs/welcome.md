@@ -57,9 +57,9 @@ assistant. Each opens windows, so the guide steps aside while you use them:
   back by itself once the agent reports you are signed in, and
   **Cancel sign-in** stops a sign-in you abandoned. Your sign-in stays with
   the agent; Cybex OS never stores it. Wiz stands in the card's corner:
-  asleep, with two small z's (none with reduced motion), while the service is
-  not running or no agent is signed in; attentive while you sign in; happy
-  once you have; sorry when the sign-in could not be checked.
+  asleep, his z's rising from his hat (still with reduced motion), while the
+  service is not running or no agent is signed in; attentive while you sign
+  in; happy once you have; sorry when the sign-in could not be checked.
 
 When you leave the guide, it closes the windows these sign-ins opened, as
 their close buttons would: a 1Password or Chrome window still open, and the

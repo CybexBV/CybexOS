@@ -117,9 +117,12 @@ menubar does. Release notes are prose: at most 72 characters a line, at
 Wiz, the assistant's character, heads every status page in the pose language
 he uses everywhere ([the assistant](assistant.md)); `UpdatesHelpers.statusPose`
 maps the page to it. He thinks while checking and while finishing after the
-restart, works while preparing, installing or restoring, and waits with his
-star amber when the next step is the person's: a restart or shutdown, a
-confirmation that failed, an interrupted or outdated preparation. He listens
+restart, brews (stirs his cauldron) while preparing, installing or
+restoring, and waits with his star amber when the next step is the person's:
+a restart or shutdown, a confirmation that failed, an interrupted or outdated
+preparation. While the page measures how far it is (a download whose size
+is known, or the firmware's percent), a ring round his star fills with the
+progress bar; otherwise there is no ring. He listens
 when the app asks whether everything works, is happy when the system is up to
 date, is sorry after a failure, a rollback or an unreachable source, and
 sleeps in the live session. An available update shows him idle with his
@@ -172,9 +175,10 @@ dismissed.
 
 When a confirmed update, kept by the person or by automatic confirmation,
 moved Cybex OS to a new version, the up-to-date page reads **You're on Cybex OS
-VERSION**. Wiz nods and sparkles once as the page comes into view and settles
-into happy, and **What's new** opens a page in the same window with that
-release's notes and its important changes (component versions, old to new).
+VERSION**. Wiz gives a thumbs-up and sparkles once as the page comes into
+view and settles into happy, and **What's new** opens a page in the same
+window with that release's notes and its important changes (component
+versions, old to new).
 **Back** or Escape returns. Notes render as Markdown without images or raw
 HTML, so the page fetches nothing; only web links open, in the browser.
 

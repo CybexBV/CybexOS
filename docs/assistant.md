@@ -52,7 +52,8 @@ or set up themselves.
     (Settings → **Include the focused window**, on by default);
   - selected text: `Super+Shift+I` opens the box with the primary
     selection attached;
-  - files and images dropped on Wiz (a ring shows where) or on the box, and
+  - files and images dropped on Wiz (a ring shows where, and he is curious,
+    hands out to catch it, while one is held over him) or on the box, and
     images pasted with `Ctrl+V`. Images go to the agent as images; other
     files as text, up to 256 KB, and the service refuses anything that is
     neither. Dropped and pasted images are copied to the scratch folder and
@@ -123,11 +124,23 @@ or set up themselves.
   send. The words are transcribed locally by Voxtype, with dictation's
   speech model and languages ([dictation.md](dictation.md)); no audio leaves
   the computer. `Esc` or the cancel button discards a recording.
-- **While it works** the character shows what it is doing (see
-  [The character](#the-character)) and the box a short line about the
-  current step. Clicking the character while it works tucks the box away;
-  a blue dot appears when the reply is ready. `Super+I` brings the box back
-  with its **Ask something else…** field.
+- **While it works** the character shows what kind of work the current
+  step is, and the box a short line about it: he thinks, reads a book,
+  searches an orb, writes on a scroll, casts a spell for a command or a
+  change, brews an install, or hands work to a helper (see
+  [The character](#the-character)). The star on his hat twinkles while he
+  works. Clicking the character while it works tucks the box away; his star
+  stays lit when the reply is ready. `Super+I` brings the box back with its
+  **Ask something else…** field.
+- **How it ended.** A finished question gets a nod and a sparkle, a
+  thumbs-up when it ran for a minute or more, and a shrug when the ownership
+  rules refused something it asked for (see the table below). A failed one
+  makes him sorry, with a red star. While the reply offers something to act
+  on, **Add to bar** or **Review change…**, he points his wand at it.
+- **Quiet.** After ten minutes in which nobody used the assistant (no
+  hover, click, question, box or drag) he gets drowsy, eyelids half down.
+  Anything of that kind wakes him. He never dozes while a question runs or
+  waits, a reply is unseen or a routine found something.
 - **A second question meanwhile** is answered alongside, in its own
   conversation, with permission only to look: read, search, the web, and
   read-only commands and desktop tools. If it needs to change something, it
@@ -135,7 +148,8 @@ or set up themselves.
   with changes allowed, as soon as the current question is done. **Run now**
   stops the current question first (after asking); × removes the waiting
   one. At most one question runs alongside and one waits; a question that
-  continues the running conversation waits too.
+  continues the running conversation waits too. While either is there, a
+  small wisp works beside Wiz; it also shows while a routine runs.
 - **A notification** says when a question that took longer than 20 seconds
   has finished, or when a question needs your answer, while the box was not
   in view on the screen you are using (hidden, tucked, another display, game
@@ -170,8 +184,10 @@ or set up themselves.
 - **Keeping out of the way.** Dragged near a corner or the middle of a side,
   he lands there (the spots show while dragging); anywhere else he stays
   exactly where he is dropped. Pushed past the left or right edge, he tucks
-  away with only his hat brim and one eye showing; his pips still show,
-  resting on him shows his status, and a click or `Super+I` brings him out.
+  away with only his hat brim and one eye showing. His star still shows
+  (behind the right edge he faces left, so it does), resting on him shows
+  his status, and a click or `Super+I` brings him out; picked up, he turns
+  back.
   A pointer that sweeps across him without stopping makes him fade to a
   ghost and lets its clicks through to the window underneath, until it moves
   away or rests on him for half a second (Settings → **Fade while working
@@ -270,7 +286,7 @@ missed while the computer was off runs once at the next chance. It only
 looks: its question may not change anything, and fixes wait for the person
 in its conversation, which History marks with a calendar. Its reply starts
 with a verdict line the service reads and removes. With a finding, or always
-when the routine says so, a notification follows and Wiz shows the amber pip
+when the routine says so, a notification follows and Wiz's star stays amber
 until the conversation is opened; with nothing to report, only History has
 the run. Routines are kept in `routines.json` beside the conversations, whatever
 **Keep conversations** says.
@@ -307,35 +323,37 @@ tip of his hat. His hands show at rest.
 
 `pose` on `Assistant/Wiz.qml` is one of these:
 
-| Pose | What he does | What it is for |
+| Pose | What he does | When the assistant shows it |
 | --- | --- | --- |
-| Idle | stands, blinks and glances around | nothing is going on |
-| Drowsy | eyelids half down, hands tucked in | a long quiet while |
-| Listening | leans in with a hand at his ear; the hat rises with your voice | the box is open, or you are talking |
-| Thinking | looks up, a finger tapping his chin; runes circle the hat | a question is being worked on |
-| Working | the same as casting | a tool is at work, of no particular kind |
-| Reading | holds an open book; his eyes run along the lines | reading a file, a page or a screenshot |
-| Searching | his hands round a glowing orb | searching the web, files or settings |
-| Writing | writes line after line on a scroll with a quill | writing or editing a file |
-| Casting | waves his wand; a spell glows at its tip | a command, a setting, a window |
-| Brewing | stirs a cauldron; bubbles rise | installing, preparing an update |
-| Delegating | an open hand towards the wisp beside him | a helper is doing the work |
-| Needs input | peeks from under the brim with a hand raised | a question waits for your answer |
-| Pointing | points his wand at the box: down, or up when it opens above him | look here |
-| Finished | happy eyes, a nod and a short sparkle | an answer arrived |
-| Proud | a thumbs-up and a sparkle | a long job is done |
-| Happy | happy eyes | speaking |
-| Greeting | tips his hat and waves | hello |
-| Shrug | open hands, one eyelid down | he may not or cannot do that |
-| Sorry | hat tipped down, worried eyes, wringing his hands | a reply failed |
-| Curious | leans in, one eye wide, hands out | something is handed to him |
+| Idle | stands, blinks and glances around | nothing else below applies |
+| Drowsy | eyelids half down, hands tucked in | ten minutes (`DROWSY_AFTER_MS`) without a hover, click, question, box or drag, while nothing runs or waits for you (no question at work, alongside or Up next, no unseen reply, no routine's finding) |
+| Listening | leans in with a hand at his ear; the hat rises with your voice | you are talking, or the box or History is open |
+| Thinking | looks up, a finger tapping his chin; runes circle the hat | the step is `think` or there is none yet, and while your words are transcribed |
+| Working | the same as casting | the step is `tool`, any other tool; also any tool step from a service that sends no `stepKind` |
+| Reading | holds an open book; his eyes run along the lines | the step is `read`: a file, a page, an image or a look-only desktop tool |
+| Searching | his hands round a glowing orb | the step is `search`: the web, files or the desktop's search tools |
+| Writing | writes line after line on a scroll with a quill | the step is `write`: editing a file |
+| Casting | waves his wand; a spell glows at its tip | the step is `run` (a command) or `change` (a desktop tool that changes or acts) |
+| Brewing | stirs a cauldron; bubbles rise | the step is `install`: adding or removing an app, staging or applying a system change |
+| Delegating | an open hand towards the wisp beside him | the step is `delegate`: a helper agent |
+| Needs input | peeks from under the brim with a hand raised | a question waits for your answer, or a routine found something |
+| Pointing | points his wand at the box: down, or up when it opens above him | the reply in view offers **Add to bar** (not yet added) or **Review change…** (built and checked), once the celebration is over |
+| Finished | happy eyes, a nod and a short sparkle | for 2.4 s after a question completed in under a minute |
+| Proud | a thumbs-up and a sparkle | for 2.4 s after a question completed that ran a minute or more (`PROUD_AFTER_MS`) |
+| Happy | happy eyes | speaking a reply |
+| Greeting | tips his hat and waves | not by the assistant: the welcome guide's hello |
+| Shrug | open hands, one eyelid down | for 2.4 s after a question completed in which the ownership rules refused something it asked for (`turn.refused`), however long it ran |
+| Sorry | hat tipped down, worried eyes, wringing his hands | the reply in view failed |
+| Curious | leans in, one eye wide, hands out | a file or image is held over him, about to be dropped |
 | Asleep | hat down, eyes closed, z's | the assistant service is not running |
 | Carried | see below | you are dragging him |
 
-The assistant's own turn shows idle, listening, thinking, working, needs
-input, finished, happy, sorry, asleep and carried
-(`AssistantHelpers.characterPose`). The other poses are there for whatever
-shows him.
+`AssistantHelpers.characterPose` picks the assistant's pose, the most urgent
+first: carried, asleep, curious, listening to your voice, needs input, the
+work pose (thinking while your words are transcribed), a routine's finding,
+the celebration (shrug, proud or finished), happy, drowsy, sorry, listening
+to the box, pointing, idle. Greeting is there for the welcome guide; other
+surfaces use the rest as [Wiz elsewhere](#wiz-elsewhere) says.
 
 The star on his hat is his one status light. It replaces the amber and the
 blue pip he used to carry:
@@ -351,10 +369,17 @@ blue pip he used to carry:
 
 A ring round the star fills as a job reports how far it is (`progress`, 0 to
 1; below 0 there is no ring). The star swings on its thread when he changes
-pose. `helper` puts the wisp beside him in any pose, for a second question
-answered alongside. `facing: -1` mirrors him, so he can point the other way
-and his star shows when he is tucked behind the right screen edge; what is
-written ("?!", the z's) still reads the right way round.
+pose. Only Software Update's status page sets `progress`, from the same
+measured fraction as its progress bar: a download whose size is known, or
+the firmware's percent. A turn reports only steps, never how far it is, so
+the assistant's Wiz has no ring.
+`helper` puts the wisp beside him in any pose: the assistant sets it while
+a second question is answered alongside, one waits Up next, or a routine
+runs (`Assistant.helper`), and only then, as the wisp keeps him drawing.
+`facing: -1` mirrors him, so he can point the other way and his star shows
+when he is tucked behind the right screen edge (`Assistant.facing`; picked
+up, he faces right again); what is written ("?!", the z's) still reads the
+right way round.
 
 His magic takes the theme's accent: the runes, the spell, the lit star and
 its ring, the orb, the cauldron's brew, the wisp, the lines he writes and the
@@ -448,9 +473,10 @@ only once, in the welcome guide's hello; everywhere else he only shows.
 | --- | --- |
 | Installer ([installation](installation.md)) | the system check (thinking, then happy, or the amber star), the Software step (the amber star), the installation (brewing), done (finished), stopped (the amber star) or failed (sorry) |
 | Welcome guide ([welcome](welcome.md)) | a greeting on Hello, asleep on Connect until an agent is signed in, the system check on Ready, then the hop to his corner |
-| Software Update ([updates](updates.md)) | every status page, and What's New once a new Cybex OS version is kept |
-| Launcher | **Ask Wiz** when nothing matches |
+| Software Update ([updates](updates.md)) | every status page: thinking while checking, brewing while preparing, installing or restoring, with the ring round his star when a download or the firmware reports how far it is; a thumbs-up for a kept Cybex OS version and its What's New |
+| Launcher | **Ask Wiz** when nothing matches: curious, hands out for your words |
 | Notifications | the empty notification centre; asleep under Focus |
+| Notes | the empty notes popover, pointing at **Write a note** |
 | The assistant's own notifications | a still picture of the news: finished, needs input or sorry |
 | Kitty's fastfetch ([branding](branding.md)) | a still picture: idle, the star dim |
 
