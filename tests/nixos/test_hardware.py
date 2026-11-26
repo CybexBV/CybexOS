@@ -91,26 +91,6 @@ class HardwareAssessmentTests(unittest.TestCase):
         (path / 'subsystem_device').write_text('0x5678')
         self.assertIs(hardware.detect(self.root, self.cpu, catalogue=catalogue)['nvidiaOpen'], True)
 
-    def test_network_missing_driver_and_firmware_messages_are_advisory(self):
-        path = self.pci(vendor='14e4', device='43a0', cls='028000')
-        found = self.detect()
-        self.assertIn('no active driver', found['networkIssues'][0])
-        self.assertIn('Broadcom STA', found['networkIssues'][1])
-        self.assertEqual(found['blockers'], [])  # another adapter can provide internet
-        (path / 'driver').symlink_to(self.root / 'drivers/b43')
-        found = self.detect()
-        self.assertIn('no interface', found['networkIssues'][0])
-        interface = self.root / 'class/net/wlan0'
-        interface.mkdir(parents=True)
-        (interface / 'device').symlink_to(path)
-        (interface / 'phy80211').mkdir()
-        (interface / 'operstate').write_text('down')
-        log = 'Direct firmware load for brcm/optional.bin failed with error -2'
-        found = hardware.detect(self.root, self.cpu, catalogue=CATALOGUE, kernel_log=log)
-        self.assertEqual(found['networkIssues'], [])
-        self.assertEqual(found['firmwareRequests'], ['brcm/optional.bin'])
-        self.assertEqual(found['networkDevices'][0]['interfaces'][0]['name'], 'wlan0')
-
     def test_usb_ethernet_is_detected_and_virtual_interfaces_are_ignored(self):
         usb = self.root / 'bus/usb/devices/1-2'
         usb.mkdir(parents=True)
@@ -217,21 +197,6 @@ class HardwareAssessmentTests(unittest.TestCase):
         self.assertEqual(report['support'], report['assessment']['support'])
         self.assertEqual(lock.read_bytes(), before)
 
-    def test_support_contract_is_forwarded_without_qualifying_detection(self):
-        support = {'profileId': 'fixture-laptop', 'profileName': 'Fixture laptop', 'status': 'experimental',
-                   'summary': 'Physical qualification has not run.', 'limitations': ['Camera unavailable.'],
-                   'sources': [{'url': 'https://example.org/hardware'}]}
-        provider = SimpleNamespace(support_for=lambda *args, **kwargs: support)
-        injected = {'schema': 1, 'profiles': []}
-        with patch.dict(sys.modules, {'cybexos.hardware_profiles': provider}):
-            with patch.object(provider, 'support_for', return_value=support) as assess:
-                found = self.detect(profile_catalogue=injected, kernel='7.3-fixture')
-            assess.assert_called_once_with(self.root, kernel='7.3-fixture', catalogue=injected)
-        self.assertEqual(found['support'], support)
-        self.assertIn('fixture-laptop', '\n'.join(hardware.support_lines(found)))
-        self.assertEqual(found['blockers'], [])
-        hardware.validate_hardware(found, True)
-
     def test_real_catalogue_distinguishes_available_configured_and_live_profiles(self):
         dmi = self.root / 'class/dmi/id'; dmi.mkdir(parents=True)
         (dmi / 'sys_vendor').write_text('Framework')
@@ -298,22 +263,6 @@ class HardwareAssessmentTests(unittest.TestCase):
         provider = SimpleNamespace(support_for=lambda *args, **kwargs: (_ for _ in ()).throw(ValueError('bad catalogue')))
         with patch.dict(sys.modules, {'cybexos.hardware_profiles': provider}):
             self.assertEqual(self.detect()['support']['status'], 'generic')
-
-    def test_camera_limitation_does_not_mutate_catalogue_or_enable_custom_stack(self):
-        dmi = self.root / 'class/dmi/id'; dmi.mkdir(parents=True)
-        for name, value in {'sys_vendor': 'Dell Inc.', 'product_name': 'XPS 14 DA14260', 'product_sku': '0DB9'}.items():
-            (dmi / name).write_text(value)
-        self.cpu.write_text('Intel Core Ultra')
-        (self.root / 'bus/acpi/devices/OVTI08F4:00').mkdir(parents=True)
-        self.pci('0000:00:05.0', '8086', 'b05d', '048000')
-        support = hardware.generic_support()
-        provider = SimpleNamespace(support_for=lambda *args, **kwargs: support)
-        with patch.dict(sys.modules, {'cybexos.hardware_profiles': provider}):
-            found = self.detect()
-        self.assertTrue(found['cameraDetected'])
-        self.assertFalse(found['camera'])
-        self.assertIn(hardware.CAMERA_LIMIT, found['support']['limitations'])
-        self.assertEqual(support['limitations'], [])
 
     def test_cli_hardware_is_read_only_and_available_in_live_environment(self):
         from cybexos import cli

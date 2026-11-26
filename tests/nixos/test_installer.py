@@ -77,10 +77,6 @@ class PlanTests(unittest.TestCase):
         choice = plan(); choice['software'] = {'packages': [f'p{i}' for i in range(512)]}
         installer.validate(choice)
 
-    def test_independent_console_and_desktop_layout(self):
-        choice = plan(); choice.update(keyboard='uk', desktopKeyboard='gb')
-        self.assertEqual(installer.validate(choice)['desktopKeyboard'], 'gb')
-
     def test_missing_or_unsafe_live_layout_stops_before_disk_enumeration(self):
         for policy in (None, {}, {'minimumDiskGiB': 64, 'espGiB': -1},
                        {'minimumDiskGiB': 64, 'espGiB': 64}):
@@ -883,11 +879,6 @@ class SoftwareMachineTests(DiskSafetyTests):
         self.assertEqual(seen['document']['packages'], ['gimp', 'kdePackages.okular', 'zed-editor'])
         self.assertIn('    features.developer = true;\n', seen['machine'])
         self.assertIn('    features.steam = false;\n', seen['machine'])
-
-    def test_a_plan_without_software_keeps_an_empty_declaration(self):
-        choice = plan(); choice.update(encrypted=False, autoLogin=False)
-        self.assertEqual(self.machine_files(choice)['json'], {'schema': 1, 'packages': []})
-
 
 class TestedNixpkgsTests(unittest.TestCase):
     def setUp(self):

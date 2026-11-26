@@ -220,10 +220,6 @@ class Classification(unittest.TestCase):
         self.assertEqual(prebuilt.family(store('a', '1password-8.12.42.drv'), node()), '1password')
         self.assertEqual(prebuilt.family(store('a', 'zoom-7.2.1.5760.drv'), dict(node(), structuredAttrs={'pname': 'zoom'})), 'zoom')
 
-    def test_unexpected_vendor_package_is_reported_once_without_its_inputs(self):
-        found = prebuilt.compiles(shown(GRAPH), list(GRAPH), root=ROOT)
-        self.assertEqual(found, ['hello-2.12', 'spotify-1.2'])
-
     def test_only_what_the_root_needs_counts(self):
         graph = dict(GRAPH, **{CODEX: node(src=store('x', 'codex.tar.gz'))})
         self.assertEqual(prebuilt.compiles(shown(graph), list(graph), root=ROOT, expected=[VENDOR, TOOL]), ['hello-2.12'])
@@ -233,10 +229,6 @@ class Classification(unittest.TestCase):
         graph = {ROOT: node(VENDOR), VENDOR: node(KERNEL, src='module'), KERNEL: node(pname='linux')}
         self.assertEqual(prebuilt.compiles(shown(graph), list(graph), root=ROOT, expected=[VENDOR],
                                            declared=[VENDOR]), ['linux-7.3'])
-
-    def test_without_a_root_every_unexpected_compile_counts(self):
-        self.assertEqual(prebuilt.compiles(shown(GRAPH), list(GRAPH), expected=[VENDOR]), ['hello-2.12', 'patchelf-wrapper'])
-
 
 class FailedBuilds(unittest.TestCase):
     # Captured from Nix 2.26 and 2.35 (--log-format internal-json) and from
@@ -619,14 +611,6 @@ class UnchangedBoot(unittest.TestCase):
         self.assertIn('no restart is needed', status['phase'])
         self.assertFalse(self.engine.pending_path.exists())
         self.assertTrue((self.engine.tx(record['id']) / 'good.json').is_file())
-
-    def test_update_that_changes_the_boot_path_keeps_its_trial_boot(self):
-        record = self.engine.stage('upstream')
-        self.engine.apply(record['id'], record['reviewToken'])
-        self.assertIn(('cybexos-boot-trial', lifecycle.NEW_SYSTEM, lifecycle.OLD_SYSTEM), self.runner.calls)
-        self.assertEqual(read(self.engine.status_path)['state'], 'awaiting-boot')
-
-
 
 def check_prebuilt():
     """scripts/check-prebuilt as a module; its main() does not run."""

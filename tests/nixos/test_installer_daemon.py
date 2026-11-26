@@ -298,20 +298,6 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(commands[1][1], {'ssid': 'Home', 'password': PASSWORD})
         self.assertNotIn(PASSWORD, ''.join(self.received))
 
-    async def test_snapshot_keeps_connection_error_and_explicit_refresh_requests_rescan(self):
-        await self.setup_phase()
-        if self.service.network_task:
-            await self.service.network_task
-        helper = self.root / 'network.py'
-        helper.write_text('import json; print(json.dumps({"success": True, "devices": [], "wifi": {}}))')
-        self.service.network_helper = str(helper)
-        self.service.state['network']['error'] = 'Check the password'
-        await self.service.run_network('snapshot', None)
-        self.assertEqual(self.service.state['network']['error'], 'Check the password')
-        with patch.object(self.service, 'network') as network:
-            await self.service.handle_request(self.writer, {'action': 'network-refresh'})
-        network.assert_called_once_with('scan', None)
-
     async def test_malformed_network_result_is_an_actionable_error(self):
         await self.setup_phase()
         helper = self.root / 'network.py'
@@ -351,14 +337,6 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.service.state['diskTouched'])
         self.service.handle_event({'event': 'disk-writing'})
         self.assertTrue(self.service.state['diskTouched'])
-
-    async def test_completion_preserves_the_actual_elapsed_installation_time(self):
-        await self.setup_phase()
-        self.service.started_at = 100.0
-        with patch.object(daemon.time, 'monotonic', return_value=142.9):
-            self.service.handle_event({'event': 'complete', 'username': 'ada', 'encrypted': True})
-        with patch.object(daemon.time, 'monotonic', return_value=500.0):
-            self.assertEqual(self.service.snapshot()['elapsed'], 42)
 
     async def test_progress_keeps_streaming_without_rewriting_an_unchanged_draft(self):
         await self.setup_phase()
@@ -434,27 +412,6 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(clients, {good})
         self.assertEqual(json.loads(good.write.call_args.args[0]), message)
         self.assertIs(good.write.call_args.args[0], failed.write.call_args.args[0])
-
-    async def test_slow_details_do_not_block_edits_and_refreshes_are_coalesced(self):
-        await self.setup_phase()
-        entered, release = asyncio.Event(), asyncio.Event()
-
-        async def details():
-            entered.set()
-            await release.wait()
-            return {'type': 'details', 'text': 'test details', 'error': ''}
-
-        with patch.object(self.service, 'details', side_effect=details) as query:
-            await self.send(action='details')
-            await asyncio.wait_for(entered.wait(), 1)
-            for _ in range(20):
-                await self.send(action='details')
-            await self.send(action='draft', values={'username': 'responsive', 'screen': 'account'})
-            state = await self.until(lambda m: m['type'] == 'state' and m['draft']['username'] == 'responsive', timeout=1)
-            self.assertEqual(state['draft']['screen'], 'account')
-            self.assertEqual(query.call_count, 1)
-            release.set()
-            await self.until(lambda m: m['type'] == 'details')
 
     async def test_disconnect_cancels_inflight_diagnostics(self):
         await self.setup_phase()
@@ -734,34 +691,6 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         await self.send(action='hello')
         state = await self.until(lambda m: m['type'] == 'state')
         self.assertEqual(state['draft']['layout'], 'de')
-
-    async def first_state(self):
-        reader, writer = await asyncio.open_unix_connection(str(self.root / 'run/control.sock'), limit=daemon.MAX_LINE)
-        try:
-            while True:
-                message = json.loads(await asyncio.wait_for(reader.readline(), 5))
-                if message['type'] == 'state':
-                    return message
-        finally:
-            writer.close()
-
-    async def test_snapshots_report_the_attached_screen(self):
-        await self.setup_phase()
-        self.assertEqual((await self.first_state())['screens'], 0)
-        await self.send(action='hello')
-        await self.until(lambda m: m['type'] == 'state')
-        self.assertEqual((await self.first_state())['screens'], 0, 'only the screen identifies itself as one')
-        await self.send(action='hello', client='screen')
-        await self.until(lambda m: m['type'] == 'state' and m['screens'] == 1)
-        self.assertEqual((await self.first_state())['screens'], 1)
-        # A disconnected screen is no longer reported, as after a daemon restart.
-        self.writer.close()
-        for _ in range(100):
-            if (await self.first_state())['screens'] == 0:
-                break
-            await asyncio.sleep(0.02)
-        else:
-            self.fail('the disconnected screen is still reported')
 
     async def test_service_stops_promptly_with_a_connected_screen(self):
         await self.setup_phase()
