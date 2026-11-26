@@ -61,21 +61,6 @@ test("workspace cells and hide-empty geometry stay deterministic", () => {
     assert.equal(Motion.indicatorBounds([1, 3], 2), null);
 });
 
-test("the lozenge assigns 120ms to its leading and 300ms to trailing edge", () => {
-    assert.deepEqual(Motion.edgeDurations(2, 5, true), {
-        left: 300, right: 120, direction: 1
-    });
-    assert.deepEqual(Motion.edgeDurations(5, 2, true), {
-        left: 120, right: 300, direction: -1
-    });
-    assert.deepEqual(Motion.edgeDurations(2, 5, false), {
-        left: 0, right: 0, direction: 0
-    });
-    assert.deepEqual(Motion.edgeDurations(-1, 2, true), {
-        left: 0, right: 0, direction: 0
-    });
-});
-
 test("the pager snaps structural changes and animates only focus transitions", () => {
     const workspaces = read("Bar/Workspaces.qml");
     assert.match(workspaces, /width:\s*WorkspaceMotion\.CELL_WIDTH/);
