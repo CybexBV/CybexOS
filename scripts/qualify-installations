@@ -23,6 +23,22 @@ import pexpect
 
 PASSWORD = 'Cybexos8!'
 
+# The guest's shell is software-rendered. While it opens a full-screen view
+# (the welcome guide, Settings, the Polkit prompt) its main thread can be busy
+# for longer than the interactive 2 s IPC limit, and a read of its state then
+# times out (exit 124) although nothing is wrong. Harness reads allow it this
+# long (CYBEXOS_IPC_TIMEOUT, as nix/tests/browser-1password.nix does); a shell
+# that does not answer at all still fails them.
+SHELL_IPC_TIMEOUT = 60
+
+
+def shell_ipc(arguments, timeout=SHELL_IPC_TIMEOUT):
+    """The guest command that calls the signed-in shell's IPC as its user."""
+    limit = max(1, min(120, int(timeout)))
+    return ('runuser -u cybexqa -- env HOME=/home/cybexqa XDG_RUNTIME_DIR=/run/user/1000 '
+            f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus CYBEXOS_IPC_TIMEOUT={limit} '
+            'cybexos-runtime ipc ' + arguments)
+
 
 def check_installed_identity(media, installed, source):
     """Require the ISO's exact content identity after a bundled installation.
@@ -213,6 +229,7 @@ class VM:
         self.process = None
         self.control_directory = None
         self.command_ready = False
+        self.slowest_prompt_status = 0
         # Encrypted installations sign the owner in once the disk unlocks.
         self.autologin = False
         self.firmware = Path(os.environ['CYBEXOS_OVMF'])
@@ -451,14 +468,10 @@ test "$(runuser -u cybexqa -- env XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BU
     def welcome(self, method):
         # Reach the installed shell as its session user, just like health and
         # keyring checks; root's IPC/configuration directory is unrelated.
-        return self.command("runuser -u cybexqa -- env HOME=/home/cybexqa "
-            "XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-            "cybexos-runtime ipc welcome " + method).strip()
+        return self.command(shell_ipc('welcome ' + method)).strip()
 
     def settings(self, method):
-        return self.command("runuser -u cybexqa -- env HOME=/home/cybexqa "
-            "XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-            "cybexos-runtime ipc settings " + method).strip()
+        return self.command(shell_ipc('settings ' + method)).strip()
 
     def hello_services(self, timeout=30):
         """The Hello step's installer summary comes from the region and input services."""
@@ -740,19 +753,22 @@ path = next(value[5:].decode() for value in environment if value.startswith(b'PA
 subprocess.run(prefix + ['systemd-run', '--user', '--quiet', '--collect', '--unit=qa-authorization-IDENTIFIER',
                         '--setenv=PATH=' + path, '/run/current-system/sw/bin/python3', str(script)], check=True)
 '''.replace('DIRECTORY', repr(directory)).replace('RUNNER', repr(runner)).replace('IDENTIFIER', identifier))
-        status_command = ('runuser -u cybexqa -- env XDG_RUNTIME_DIR=/run/user/1000 '
-                          'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus '
-                          'cybexos-runtime ipc polkit status')
-        for _attempt in range(90):
-            status = json.loads(self.command(status_command))
+        # The status is read while the shell opens the full-screen prompt, the
+        # moment its main thread is busiest. Each read may wait as long as the
+        # prompt itself may still take; the deadline bounds both.
+        deadline = time.monotonic() + 90
+        while True:
+            started = time.monotonic()
+            status = json.loads(self.command(shell_ipc('polkit status', deadline - started)))
+            self.slowest_prompt_status = max(self.slowest_prompt_status, time.monotonic() - started)
             if status.get('registered') and status.get('active') and status.get('responseRequired'):
                 break
             if self.command('test -f ' + directory + '/code && cat ' + directory + '/code || true').strip():
                 raise RuntimeError('Authorization request exited before the password prompt: '
                                    + self.command('cat ' + directory + '/stderr'))
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Desktop Polkit password prompt did not become ready: ' + json.dumps(status))
             time.sleep(0.5)
-        else:
-            raise RuntimeError('Desktop Polkit password prompt did not become ready: ' + json.dumps(status))
         if approve:
             self.type_text(PASSWORD)
             self.press('ret')
@@ -806,7 +822,8 @@ subprocess.run(prefix + ['systemd-run', '--user', '--quiet', '--collect', '--uni
         wait_state(self, ('idle',), timeout=120)
         evidence.update(result='passed', sshCancellation=True, sshEnable=True, sshDisable=True,
                         sudoCancellation=True, sudoEnable=True, sudoDisable=True,
-                        updateStage=True, passwordPrompts='real Quickshell agent and PAM')
+                        updateStage=True, passwordPrompts='real Quickshell agent and PAM',
+                        slowestPromptStatusSeconds=round(self.slowest_prompt_status, 1))
 
     def password_change(self, encrypted, evidence=None):
         evidence = {} if evidence is None else evidence

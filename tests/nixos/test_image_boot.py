@@ -1,7 +1,10 @@
 import importlib.machinery
 import importlib.util
+import json
 from pathlib import Path
+import re
 import unittest
+from unittest import mock
 
 
 loader = importlib.machinery.SourceFileLoader('image_parity', str(Path(__file__).resolve().parents[2] / 'scripts/check-image-parity'))
@@ -168,6 +171,82 @@ class BootMenuIdentityTests(unittest.TestCase):
         with self.assertRaises(parity.ParityFailure):
             parity.check_boot_menu(self.grub(self.profiles[0]), self.profiles, 'grub')
 
+
+def ipc_limit(command):
+    return int(re.search(r'CYBEXOS_IPC_TIMEOUT=([0-9]+) ', command).group(1))
+
+
+class ShellIpcTests(unittest.TestCase):
+    def test_reads_the_session_shell_with_the_vm_limit(self):
+        command = qualification.shell_ipc('welcome status')
+        self.assertTrue(command.startswith('runuser -u cybexqa -- env HOME=/home/cybexqa XDG_RUNTIME_DIR=/run/user/1000 '
+                                           'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus '))
+        self.assertTrue(command.endswith(' cybexos-runtime ipc welcome status'))
+        # Longer than the interactive 2 s a full-screen view can take to open.
+        self.assertEqual(ipc_limit(command), qualification.SHELL_IPC_TIMEOUT)
+        self.assertGreater(qualification.SHELL_IPC_TIMEOUT, 2)
+
+    def test_limit_stays_within_what_cybexos_runtime_accepts(self):
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', 0.4)), 1)
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', -5)), 1)
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', 89.7)), 89)
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', 900)), 120)
+
+
+class PromptStatusTests(unittest.TestCase):
+    """The Polkit prompt check reads the shell while it opens the prompt."""
+
+    NOT_YET = {'registered': True, 'active': True, 'responseRequired': False}
+    READY = {'registered': True, 'active': True, 'responseRequired': True}
+
+    class Guest(qualification.VM):
+        def __init__(self, statuses):  # no QEMU; only the serial command transport is faked
+            self.statuses, self.status_commands, self.keys = list(statuses), [], []
+            self.slowest_prompt_status = 0
+
+        def python(self, source, timeout=300):
+            return ''
+
+        def command(self, script, timeout=1800):
+            if 'cybexos-runtime ipc polkit status' in script:
+                self.status_commands.append(script)
+                return json.dumps(self.statuses.pop(0) if len(self.statuses) > 1 else self.statuses[0]) + '\n'
+            if script.startswith('cat ') and script.endswith('/code'):
+                return '0\n'
+            if script.startswith('cat ') and script.endswith('/stdout'):
+                return '{"success": true}\n'
+            return ''
+
+        def type_text(self, text):
+            self.keys.append('password')
+
+        def press(self, *keys):
+            self.keys.extend(keys)
+
+    def test_waits_for_the_prompt_with_reads_bounded_by_its_deadline(self):
+        guest = self.Guest([self.NOT_YET] * 3 + [self.READY])
+        with mock.patch.object(qualification.time, 'sleep'):
+            self.assertEqual(guest.authorize(['true']), (0, '{"success": true}'))
+        self.assertEqual(len(guest.status_commands), 4)
+        for command in guest.status_commands:
+            self.assertTrue(2 < ipc_limit(command) <= 90, command)
+        self.assertEqual(guest.keys, ['password', 'ret'])
+
+    def test_a_prompt_that_never_asks_still_fails(self):
+        guest = self.Guest([self.NOT_YET])
+        clock = iter(range(0, 10000, 7))
+        with mock.patch.object(qualification.time, 'sleep'), \
+                mock.patch.object(qualification.time, 'monotonic', lambda: next(clock)):
+            with self.assertRaisesRegex(RuntimeError, 'did not become ready'):
+                guest.authorize(['true'])
+        # No read may outlast the loop's own deadline: each may wait only for
+        # what remains of it.
+        limits = [ipc_limit(command) for command in guest.status_commands]
+        self.assertGreater(len(limits), 2)
+        self.assertLess(limits[0], 90)
+        self.assertEqual(limits, sorted(set(limits), reverse=True))
+        self.assertEqual(limits[-1], 1)
+        self.assertEqual(guest.keys, [])
 
 if __name__ == '__main__':
     unittest.main()
