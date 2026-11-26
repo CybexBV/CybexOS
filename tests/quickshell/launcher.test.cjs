@@ -508,9 +508,12 @@ test("the Ask Wiz row shows a listening Wiz, the quoted query and the Enter key"
         /Loader \{\s*active: root\.asking\s*width: resultList\.width\s*height: root\.askRowHeight\s*sourceComponent: AskWiz \{\}/);
     assert.match(view, /readonly property string askQuote: asking \? rows\[0\]\.subtitle : ""/);
 
-    assert.match(askRow, /Wiz \{[\s\S]*?width: root\.askWizSize[\s\S]*?pose: "listening"/);
+    // Curious, hands out for what is handed to him: a pose that moves once
+    // as it arrives, then holds still.
+    assert.match(askRow, /Wiz \{[\s\S]*?width: root\.askWizSize[\s\S]*?pose: "curious"/);
+    assert.equal(load("WizRig.js").light("curious", false), "ready", "his star lit, not at work");
     assert.doesNotMatch(askRow, /recording:|animated:/,
-        "he listens without the recording loop, and keeps the shared motion gate");
+        "he never loops, and keeps the shared motion gate");
     assert.match(askRow, /text: "Ask Wiz"/);
     // A typed "<b>" is shown, not interpreted.
     assert.match(askRow, /text: "“" \+ root\.askQuote\s*textFormat: Text\.PlainText[\s\S]*?elide: Text\.ElideRight/);
