@@ -1019,6 +1019,8 @@ def main():
 
 if __name__ == "__main__":
     if os.geteuid() == 0:
-        raise SystemExit(subprocess.call(["runuser", "-u", "nobody", "--", sys.executable, __file__, *sys.argv[1:]]))
+        # setpriv, not runuser: a bare container (fast-test's on The Beast) has no PAM, which runuser needs.
+        raise SystemExit(subprocess.call(["setpriv", "--reuid=nobody", "--regid=nobody", "--clear-groups", "--",
+                                          sys.executable, __file__, *sys.argv[1:]]))
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     main()

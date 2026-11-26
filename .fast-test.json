@@ -1,42 +1,47 @@
 {
-  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). Everything here runs on The Dragon in the dev shell, except the flake's evaluation, which runs in fast-test's Nix container on The Beast. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
+  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
   "steps": [
     {
       "name": "regression",
+      "where": "beast-nix",
       "about": "The source and fixture regression suite, with the linters (tests/lint: Ruff, ShellCheck, actionlint).",
       "unless": ["docs/**", "*.md", "release/notes.md", "assets/**", ".github/**"],
-      "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/run",
+      "run": "tests/fast-test-container tests/run",
       "timeout": 20
     },
     {
       "name": "shell",
+      "where": "beast-nix",
       "about": "QML lint and the shell's runtime tests (Settings, Software, Software Update, Welcome, shortcuts, wallpapers, displays, media, plugins), when the code they run changed. Each test's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
       "when": ["desktop/**", "assets/scripts/**", "lifecycle/cybexos/software.py", "lifecycle/cybexos/common.py",
-        "tests/qml-lint", "tests/shell-checks", "tests/checks.bash", "tests/shell_fonts.py",
+        "tests/qml-lint", "tests/shell-checks", "tests/checks.bash", "tests/shell_fonts.py", "tests/fast-test-container",
         "tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
         "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py",
         "tests/displays/**", "tests/fixtures/keybindings/**", "tests/quickshell/keybindings-support.cjs"],
-      "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/shell-checks",
+      "run": "tests/fast-test-container tests/shell-checks",
       "timeout": 20
     },
     {
       "name": "assistant-overlay",
+      "where": "beast-nix",
       "about": "The real Cybex OS Assistant window and service in a private headless Sway, when the assistant changed.",
       "when": ["desktop/assistant/**", "desktop/quickshell/Assistant/**", "desktop/quickshell/AssistantWindow.qml",
-        "desktop/quickshell/Common/Assistant*", "tests/assistant-overlay.py", "tests/shell_fonts.py"],
-      "run": "nix --extra-experimental-features 'nix-command flakes' develop --command python3 -B tests/assistant-overlay.py",
+        "desktop/quickshell/Common/Assistant*", "tests/assistant-overlay.py", "tests/shell_fonts.py",
+        "tests/fast-test-container"],
+      "run": "tests/fast-test-container python3 -B tests/assistant-overlay.py",
       "timeout": 20
     },
     {
       "name": "single-tests",
+      "where": "beast-nix",
       "about": "A changed standalone test script, one after the other. Each one's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
       "when": ["tests/*.py", "tests/nixos-native"],
       "unless": ["tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
         "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py",
         "tests/assistant-overlay.py", "tests/settings-runtime.py", "tests/omarchy-runtime.py"],
-      "run": "nix --extra-experimental-features 'nix-command flakes' develop --command sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
+      "run": "tests/fast-test-container sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
     },
     {
       "name": "lint",

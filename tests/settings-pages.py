@@ -696,6 +696,9 @@ def main():
                 print('combined region staging:', staged[0])
             else:
                 print('region service unavailable here: staging is covered by test_native_input_region')
+                # Discard reloads the touchpad from the input service, which the
+                # fake hyprctl never lets load: the draft is turned back by hand.
+                ipc('settings-test', 'draftTouchpad')
                 ipc('settings-test', 'discardAll')
                 wait(lambda: not state()['changes'], 'discard all')
             ipc('settings-test', 'discardAll')
