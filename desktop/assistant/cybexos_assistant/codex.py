@@ -24,6 +24,11 @@ STOP_GRACE = 5.0
 REQUEST_TIMEOUT = 60.0
 # Starting or resuming a thread also starts the person's MCP servers.
 THREAD_TIMEOUT = 180.0
+# Service tiers (turn/start `serviceTier`). The model catalog advertises Fast
+# as tier "priority" (the older config value is "fast"); "default" is standard
+# speed, which the app-server documents for clearing a turn's tier.
+FAST_TIER = "priority"
+STANDARD_TIER = "default"
 
 
 class CodexError(Exception):
@@ -33,6 +38,8 @@ class CodexError(Exception):
 class CodexAgent:
     name = "codex"
     label = "Codex"
+    # turn/start's `effort` values in the reviewed model catalog.
+    efforts = ("none", "low", "medium", "high", "xhigh", "max")
 
     def __init__(self, executable, home, instructions, status_path=None, conversation_id=None,
                  on_conversation=None, env=None, mcp=None, look_only=False):
@@ -162,7 +169,11 @@ class CodexAgent:
         self._record(identifier)
         self.loaded = identifier
 
-    async def run(self, turn, text, images=None, model=None):
+    async def run(self, turn, text, images=None, model=None, effort=None, fast=None):
+        """`effort` and `fast` hold for this turn and the thread's later ones.
+        Fast asks for the catalog's Fast tier ("priority"); off asks for
+        standard speed ("default") even when config.toml sets
+        `service_tier = "fast"`; None leaves Codex's own setting."""
         self._cancel_idle()
         loop = asyncio.get_running_loop()
         try:
@@ -178,6 +189,10 @@ class CodexAgent:
             params = {"threadId": self.conversation_id, "input": items}
             if model:
                 params["model"] = model
+            if effort in self.efforts:
+                params["effort"] = effort
+            if fast is not None:
+                params["serviceTier"] = FAST_TIER if fast else STANDARD_TIER
             if turn.stopping:
                 return {"status": "stopped", "text": None, "error": "", "kind": ""}
             started = await self.request("turn/start", params)

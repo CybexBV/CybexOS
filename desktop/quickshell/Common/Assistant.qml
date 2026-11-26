@@ -48,10 +48,14 @@ Singleton {
     readonly property string agentLabel: AssistantHelpers.AGENT_LABELS[agent] || agent
     readonly property bool agentInstalled: !!(agents[agent] && agents[agent].available)
     readonly property bool agentReady: agentInstalled && agents[agent].auth === "ready"
-    // Chosen with the box's agent chip, for this conversation only; Settings
-    // keeps the default.
+    // Chosen with the logo button in the box's field (AssistantModelPicker),
+    // for this conversation only; Settings keeps the defaults. Effort, like
+    // the model, takes "default" for the agent's own; Fast is -1 for the
+    // default, 0 off and 1 on.
     property string agentOverride: ""
     property string modelOverride: ""
+    property string effortOverride: ""
+    property int fastOverride: -1
     // Who answers the next question: a continued conversation keeps the
     // agent it started with, a new one takes the chip's choice or the default.
     readonly property string askAgent: continuingRow ? continuingRow.agent
@@ -60,6 +64,18 @@ Singleton {
         ? (modelOverride === "default" ? "" : modelOverride)
         : AssistantHelpers.modelFor(askAgent, Settings.assistantClaudeModel, Settings.assistantCodexModel)
     readonly property string askModelLabel: AssistantHelpers.modelLabel(askAgent, askModel === "" ? "default" : askModel)
+    // How hard the agent thinks; "" leaves it to the agent's own setting.
+    readonly property string askEffort: effortOverride !== ""
+        ? (effortOverride === "default" ? "" : effortOverride)
+        : AssistantHelpers.effortFor(askAgent, Settings.assistantClaudeEffort, Settings.assistantCodexEffort)
+    // Codex's Fast service tier, which an API-key sign-in does not offer.
+    readonly property bool fastAvailable: !!(agents.codex && agents.codex.fast !== false)
+    readonly property bool askFast: askAgent === "codex" && fastAvailable
+        && (fastOverride !== -1 ? fastOverride === 1 : Settings.assistantCodexFast === true)
+    // "Codex · Terra · High effort · Fast": the logo button's name.
+    readonly property string askSummary: [askAgentLabel, askModelLabel]
+        .concat(askEffort !== "" ? [I18n.format("%1 effort", [effortLabel(askEffort, false)])] : [])
+        .concat(askFast ? [I18n.tr("Fast")] : []).join(" · ")
     readonly property string askAgentLabel: AssistantHelpers.AGENT_LABELS[askAgent] || askAgent
     readonly property bool askReady: !!(agents[askAgent] && agents[askAgent].available
         && agents[askAgent].auth === "ready")
@@ -350,6 +366,8 @@ Singleton {
         replyOpen = false;
         agentOverride = "";
         modelOverride = "";
+        effortOverride = "";
+        fastOverride = -1;
         clearAttachments();
         stopSpeaking();
         if (Settings.assistantWindowContext)
@@ -462,6 +480,39 @@ Singleton {
         if (id !== "")
             continueConversation(id);
         openComposer(true);
+    }
+
+    // The answer on screen is the conversation its field continues, also
+    // after History showed another one meanwhile.
+    function followReply() {
+        const id = turn ? turn.conversation || "" : "";
+        if (id !== "" && continuing !== id) {
+            continuing = id;
+            thread = null;
+        }
+    }
+
+    // Answered from the reply's own field: the same conversation, without
+    // the composer. A question that cannot go yet waits in the composer, as
+    // any other (send).
+    function replyWith(text) {
+        followReply();
+        send(text);
+    }
+
+    // An effort as the picker and the logo button's name say it; `short` for
+    // the picker's narrow segments.
+    function effortLabel(value, short) {
+        switch (value) {
+        case "default": return I18n.tr("Auto");
+        case "none": return I18n.tr("None");
+        case "low": return I18n.tr("Low");
+        case "medium": return short ? I18n.tr("Med") : I18n.tr("Medium");
+        case "high": return I18n.tr("High");
+        case "xhigh": return short ? I18n.tr("XHigh") : I18n.tr("Extra high");
+        case "max": return I18n.tr("Max");
+        default: return value;
+        }
     }
 
     // ---- the history -------------------------------------------------------------
@@ -678,8 +729,7 @@ Singleton {
             return;
         }
         stopSpeaking();
-        const context = { output: screenName, speak: Settings.assistantSpeak, language: I18n.language,
-            wide: Settings.assistantExpanded };
+        const context = { output: screenName, speak: Settings.assistantSpeak, language: I18n.language };
         if (prompt === systemCheckQuestion)
             context.purpose = "system-check";
         const continued = continuing;
@@ -688,6 +738,8 @@ Singleton {
             text: prompt,
             agent: root.askAgent,
             model: root.askModel,
+            effort: root.askEffort,
+            fast: root.askFast,
             conversation: continued,
             screenshot: screenAttached ? screenPath : "",
             attachments: sent.map(item => ({ kind: item.kind, label: item.label, path: item.path || "",
@@ -1491,11 +1543,6 @@ Singleton {
             label: Updates.projectVersion !== "" ? I18n.format("Update · %1", [Updates.projectVersion])
                 : I18n.tr("Software Update"),
             detail: I18n.tr("failed"), text: updateFailureText() });
-    }
-
-    // ---- the wide view ---------------------------------------------------------------
-    function toggleExpanded() {
-        Settings.set("assistantExpanded", !Settings.assistantExpanded);
     }
 
     // ---- tucked behind an edge -------------------------------------------------------

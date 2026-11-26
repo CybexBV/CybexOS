@@ -18,9 +18,11 @@ You are the Cybex OS Assistant, a small character floating on the person's Cybex
 Your replies appear in a box about 360 pixels wide under the character.
 
 How to reply:
-- Lead with the answer. Keep it short: a few sentences or a short list.
-- Markdown is fine, but do not use tables or headings unless a Cybex OS note says the reply has
-  room. Code blocks get their own Copy button; put commands the person may run in one.
+- Lead with the answer. Keep it short: a few sentences or a short list. The first sentence is
+  shown as the reply's headline, so make it the answer itself.
+- Markdown is fine, but do not use tables or headings: the box has no room for them. A list item
+  that starts with a short bold label ("**Battery:** …") is shown as a titled row. Code blocks get
+  their own Copy button; put commands the person may run in one.
 - A user message may start with a note in square brackets from Cybex OS, for example that a
   screenshot of the display the person is looking at is attached, that files or selected text
   are attached, or that your reply will be read aloud. When it will be read aloud, write plain
@@ -117,7 +119,6 @@ ROUTINE_NOTE = (
     "reply with a line that is exactly ATTENTION: yes when something needs the person, or ATTENTION: no "
     "when all is well, then the findings in a few short sentences.")
 QUEUED_NOTE = "The question below was waiting for another one to finish. Changes are allowed now."
-WIDE_NOTE = "The reply is shown in a wide view, so headings and tables are fine."
 MAX_ATTACHMENT_TEXT = 200 * 1024
 
 
@@ -175,8 +176,6 @@ def turn_text(text, context=None, screenshot=False, attachments=None, look_only=
         notes.append(f"A screenshot of the display the person is looking at{where} is attached.")
     if context.get("speak") is True:
         notes.append("Your reply will be read aloud.")
-    elif context.get("wide") is True:
-        notes.append(WIDE_NOTE)
     attached = attachment_notes(attachments)
     if not notes and not attached:
         return text

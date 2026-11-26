@@ -5,13 +5,15 @@ import "../Common"
 
 // The assistant box's one button: a glyph, a label, or both. `primary` is
 // the action the card exists for (Send, Allow, Apply…); `danger` stops or
-// refuses. A glyph-only button still names itself for screen readers, and
+// refuses. `brand` draws a brand mark in its own colours instead of the
+// glyph (the agent's logo in the field, AssistantModelPicker). A glyph-only button still names itself for screen readers, and
 // `tip` shows a longer name on hover or keyboard focus. However small it is
 // drawn, it takes the pointer over at least 32 px.
 Rectangle {
     id: root
 
     property string glyph: ""
+    property string brand: ""
     property string label: ""
     property string accessibleName: label
     property bool primary: false
@@ -68,9 +70,17 @@ Rectangle {
         anchors.centerIn: parent
         spacing: Theme.scaled(6)
 
+        BrandIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.brand !== ""
+            width: Theme.iconMedium
+            height: Theme.iconMedium
+            name: root.brand
+        }
+
         Sym {
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.glyph !== ""
+            visible: root.glyph !== "" && root.brand === ""
             name: root.glyph
             size: Theme.iconMedium
             color: root.ink

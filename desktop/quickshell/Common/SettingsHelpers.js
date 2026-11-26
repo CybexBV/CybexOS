@@ -247,11 +247,13 @@ var NOTE_CLAUDE_EFFORTS = NOTE_CLAUDE_EFFORT_CHOICES.map(
 
 // The Cybex OS Assistant (docs/assistant.md). "auto" follows the `cybex agent`
 // default when it is one of the two, else whichever is installed. The model
-// lists reuse the reviewed Notes catalogs; "default" leaves the choice to the
-// agent's own configuration.
+// and effort lists reuse the reviewed Notes catalogs; "default" leaves the
+// choice to the agent's own configuration.
 var ASSISTANT_AGENTS = ["auto", "claude", "codex"];
 var ASSISTANT_CLAUDE_MODELS = ["default"].concat(NOTE_CLAUDE_MODELS);
 var ASSISTANT_CODEX_MODELS = ["default"].concat(NOTE_CODEX_MODELS);
+var ASSISTANT_CLAUDE_EFFORTS = ["default"].concat(NOTE_CLAUDE_EFFORTS);
+var ASSISTANT_CODEX_EFFORTS = ["default"].concat(NOTE_CODEX_EFFORTS);
 var ASSISTANT_HISTORY = ["month", "forever", "session"];
 // When Wiz says a question finished or needs an answer (notifications):
 // only while the box is closed, always, or never.
@@ -504,6 +506,10 @@ function defaults() {
         assistantApprovalPolicy: "always",
         assistantClaudeModel: "default",
         assistantCodexModel: "default",
+        assistantClaudeEffort: "default",
+        assistantCodexEffort: "default",
+        // Codex's Fast tier (a ChatGPT plan's); off asks for standard speed.
+        assistantCodexFast: false,
         assistantSpeak: false,
         // Off until enabled: the screen button attaches a screenshot only
         // to the question it was pressed for.
@@ -521,9 +527,6 @@ function defaults() {
         // The focused window's app and title go with a new question, as a
         // chip the person can remove.
         assistantWindowContext: true,
-        // The wide view for long answers, and its width.
-        assistantExpanded: false,
-        assistantExpandedWidth: 560,
         assistantTuck: "",
         // Where the character was left. Runtime state, persisted so a shell
         // reload or a new session finds it there; -1 is the default corner.
@@ -1178,6 +1181,11 @@ function merge(raw) {
             d.assistantClaudeModel),
         assistantCodexModel: enumIn(parsed.assistantCodexModel, ASSISTANT_CODEX_MODELS,
             d.assistantCodexModel),
+        assistantClaudeEffort: enumIn(parsed.assistantClaudeEffort, ASSISTANT_CLAUDE_EFFORTS,
+            d.assistantClaudeEffort),
+        assistantCodexEffort: enumIn(parsed.assistantCodexEffort, ASSISTANT_CODEX_EFFORTS,
+            d.assistantCodexEffort),
+        assistantCodexFast: boolIn(parsed.assistantCodexFast, d.assistantCodexFast),
         assistantSpeak: boolIn(parsed.assistantSpeak, d.assistantSpeak),
         assistantScreenContext: boolIn(parsed.assistantScreenContext, d.assistantScreenContext),
         assistantHistory: enumIn(parsed.assistantHistory, ASSISTANT_HISTORY, d.assistantHistory),
@@ -1185,8 +1193,6 @@ function merge(raw) {
         assistantHover: enumIn(parsed.assistantHover, ASSISTANT_HOVER, d.assistantHover),
         assistantFade: boolIn(parsed.assistantFade, d.assistantFade),
         assistantWindowContext: boolIn(parsed.assistantWindowContext, d.assistantWindowContext),
-        assistantExpanded: boolIn(parsed.assistantExpanded, d.assistantExpanded),
-        assistantExpandedWidth: intIn(parsed.assistantExpandedWidth, 420, 1200, 1, d.assistantExpandedWidth),
         assistantTuck: enumIn(parsed.assistantTuck, ASSISTANT_TUCK, d.assistantTuck),
         assistantShown: boolIn(parsed.assistantShown, d.assistantShown),
         assistantScreen: textIn(parsed.assistantScreen, 64, d.assistantScreen),
@@ -1346,6 +1352,8 @@ var exported = {
     ASSISTANT_AGENTS: ASSISTANT_AGENTS,
     ASSISTANT_CLAUDE_MODELS: ASSISTANT_CLAUDE_MODELS,
     ASSISTANT_CODEX_MODELS: ASSISTANT_CODEX_MODELS,
+    ASSISTANT_CLAUDE_EFFORTS: ASSISTANT_CLAUDE_EFFORTS,
+    ASSISTANT_CODEX_EFFORTS: ASSISTANT_CODEX_EFFORTS,
     moduleGroup: moduleGroup,
     FILLED_GROUP_KINDS: FILLED_GROUP_KINDS,
     groupFilled: groupFilled,

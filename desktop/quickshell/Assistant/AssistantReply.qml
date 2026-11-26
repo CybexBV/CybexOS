@@ -3,89 +3,148 @@ import QtQuick
 import "../Common"
 import "../Common/AssistantHelpers.js" as AssistantHelpers
 
-// The answer, under the question it answers. It stays until closed. What the
-// turn left behind gets its own row: a staged system change to review and
-// apply, a new widget to add to the bar, a routine it created, and what it
-// changed, each with its own Undo (AssistantChanges). "What Wiz did" lists
-// its steps. `room` is the height the box may use on this side of the
-// character; a long reply scrolls inside it, and Expand opens the wide view.
+// The answer, under the question it answers (2026-11-26 redesign,
+// docs/assistant.md). It stays until closed. The question keeps its own
+// bubble on the right, whole up to three lines; the answer leads with its
+// first sentence (AssistantMarkdown `lead`). What the turn left behind
+// follows it in raised blocks: a failure and its one fix, a staged system
+// change to review and apply, a routine it created, what it changed, each
+// with its own Undo (AssistantChanges), and a new widget to add to the bar.
+// Answer and blocks scroll together within `room`, the height the box may
+// use on this side of the character, their cut edge fading with More to
+// read on. Quiet actions follow, then a field to answer
+// in right here: Enter continues this conversation without the composer, and
+// the agent's logo there picks who answers and how (AssistantModelPicker).
 AssistantSurface {
     id: root
 
     property real room: 400
+    property bool pickerOpen: false
     readonly property var turn: Assistant.turn
+    readonly property string turnId: turn ? turn.id || "" : ""
     readonly property bool failed: turn !== null && turn.status === "failed"
+    readonly property string answerText: turn ? turn.text || "" : ""
+    readonly property string prompt: turn ? turn.prompt || "" : ""
     readonly property var plugins: turn && turn.plugins ? turn.plugins : []
     readonly property var changes: turn && turn.changes ? turn.changes.filter(change => change.kind !== "system") : []
-    readonly property var steps: turn && turn.steps ? turn.steps : []
     readonly property var routinesMade: turn && turn.routines ? turn.routines : []
-    // The answer is longer than the box shows: Expand says so in words.
+    // A failure names its one fix.
+    readonly property var fixAction: failed ? AssistantHelpers.errorAction(turn.errorKind, turn.agent) : null
+    // The answer is longer than the box shows: its edge fades and More reads on.
     readonly property bool overflowing: bodyFlick.contentHeight > bodyFlick.height + 1
+    readonly property bool atEnd: bodyFlick.contentY + bodyFlick.height >= bodyFlick.contentHeight - 1
     // The build this turn staged, while the updater still holds it.
     readonly property bool staged: turn !== null && !!turn.staged
         && Updates.deployment.transaction === turn.staged
     readonly property string deploymentState: staged ? (Updates.deployment.state || "") : ""
     readonly property var closure: AssistantHelpers.closureChanges(
         staged ? Updates.deployment.changes || "" : "", 5)
-    readonly property real chromeHeight: header.height + actions.height
-        + extras.height + spacing * 3 + padding * 2
+    // What the quiet actions offer; the row reads these, not its buttons'
+    // own visibility, which follows the row's.
+    readonly property bool canSpeak: Assistant.speechAvailable && !failed && answerText !== ""
+    readonly property bool canCopy: !failed && answerText !== ""
+    readonly property bool canHandoff: turn !== null && turn.resumable === true
+    readonly property bool hasExtras: failed || staged || routinesMade.length > 0 || changes.length > 0
+        || plugins.length > 0 || Assistant.notice !== ""
+    // Everything but the answer and its blocks, which take what is left of
+    // the room, and never less than a few lines.
+    readonly property real chromeHeight: padding * 2 + header.height
+        + (question.visible ? question.height + spacing : 0)
+        + (body.visible ? spacing : 0)
+        + (actions.visible ? actions.height + spacing : 0)
+        + (speechBar.visible ? speechBar.height + spacing : 0)
+        + (picker.visible ? picker.height + spacing : 0)
+        + field.height + spacing
 
-    // ---- the question ------------------------------------------------------------
+    onTurnIdChanged: bodyFlick.contentY = 0
+    onVisibleChanged: {
+        pickerOpen = false;
+        if (visible)
+            Assistant.followReply();
+        else
+            replyInput.text = "";
+    }
+
+    function sendReply() {
+        const text = replyInput.text.trim();
+        if (text === "")
+            return;
+        pickerOpen = false;
+        // The field empties once the reply has gone (onVisibleChanged); a
+        // question that could not go keeps its words here.
+        Assistant.replyWith(text);
+    }
+
+    // Spoken, the reply goes through the composer, which listens.
+    function talk() {
+        pickerOpen = false;
+        Assistant.draft = replyInput.text;
+        Assistant.reply();
+        Assistant.toggleMicrophone();
+    }
+
+    function togglePicker() {
+        if (!AssistantHelpers.anyAgent(Assistant.agents)) {
+            Settings.showPanel("assistant", Assistant.screenName);
+            return;
+        }
+        Assistant.followReply();
+        pickerOpen = !pickerOpen;
+    }
+
+    function readOn() {
+        scroller.to = Math.min(bodyFlick.contentHeight - bodyFlick.height,
+            bodyFlick.contentY + bodyFlick.height * 0.8);
+        scroller.restart();
+    }
+
+    // ---- who answered ------------------------------------------------------------
     Item {
         id: header
         width: parent.width
         height: Theme.scaled(28)
 
-        BrandIcon {
-            id: agentMark
+        Row {
             anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: Theme.iconSmall
-            height: Theme.iconSmall
-            name: root.turn ? AssistantHelpers.AGENT_ICONS[root.turn.agent] || "" : ""
-            colorized: true
-            tint: Theme.textLow
-            normalizeTintSource: true
-        }
-
-        Text {
-            anchors.left: agentMark.right
-            anchors.leftMargin: Theme.scaled(7)
-            anchors.right: duration.left
+            anchors.right: close.left
             anchors.rightMargin: Theme.scaled(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: root.turn ? I18n.format("You · %1", [root.turn.prompt]) : ""
-            textFormat: Text.PlainText
-            elide: Text.ElideRight
-            color: Theme.textLow
-            font.family: Theme.fontMenu
-            font.pixelSize: Theme.typography.secondary
-        }
+            spacing: Theme.scaled(7)
 
-        Text {
-            id: duration
-            anchors.right: expand.left
-            anchors.rightMargin: Theme.scaled(4)
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.turn !== null && root.turn.finishedAt > 0
-            text: root.turn ? AssistantHelpers.elapsedLabel(root.turn.finishedAt - root.turn.startedAt) : ""
-            color: Theme.textFaint
-            font.family: Theme.fontNumeric
-            font.pixelSize: Theme.typography.secondary
-            font.features: Theme.tabularNumberFeatures
-        }
+            Text {
+                id: who
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("Wiz")
+                color: Theme.textHi
+                font.family: Theme.fontMenu
+                font.pixelSize: Theme.typography.control
+                font.weight: Theme.weightSemibold
+            }
 
-        AssistantButton {
-            id: expand
-            anchors.right: close.left
-            anchors.rightMargin: Theme.scaled(2)
-            anchors.verticalCenter: parent.verticalCenter
-            glyph: Settings.assistantExpanded ? "close_fullscreen" : "open_in_full"
-            label: !Settings.assistantExpanded && root.overflowing ? I18n.tr("Expand") : ""
-            accessibleName: Settings.assistantExpanded ? I18n.tr("Back to the small box") : I18n.tr("Expand")
-            controlHeight: Theme.scaled(28)
-            color: !Settings.assistantExpanded && root.overflowing ? Theme.chip : "transparent"
-            onTriggered: Assistant.toggleExpanded()
+            BrandIcon {
+                id: agentMark
+                anchors.verticalCenter: parent.verticalCenter
+                visible: name !== ""
+                width: Theme.iconSmall
+                height: Theme.iconSmall
+                name: root.turn ? AssistantHelpers.AGENT_ICONS[root.turn.agent] || "" : ""
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, parent.width - who.width - (agentMark.visible ? agentMark.width + parent.spacing : 0)
+                    - parent.spacing)
+                text: !root.turn ? ""
+                    : (AssistantHelpers.AGENT_LABELS[root.turn.agent] || root.turn.agent || "")
+                        + (root.turn.finishedAt > 0
+                            ? " · " + AssistantHelpers.elapsedLabel(root.turn.finishedAt - root.turn.startedAt) : "")
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                color: Theme.textFaint
+                font.family: Theme.fontMenu
+                font.pixelSize: Theme.typography.secondary
+                font.features: Theme.tabularNumberFeatures
+            }
         }
 
         AssistantButton {
@@ -100,290 +159,442 @@ AssistantSurface {
         }
     }
 
-    // ---- the answer ----------------------------------------------------------------
-    Flickable {
-        id: bodyFlick
+    // ---- the question --------------------------------------------------------------
+    Item {
+        id: question
         width: parent.width
-        height: Math.max(Theme.scaled(24), Math.min(body.implicitHeight,
-            root.room - root.chromeHeight))
-        contentWidth: width
-        contentHeight: body.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        interactive: contentHeight > height
+        visible: root.prompt !== "" && !root.pickerOpen
+        height: visible ? bubble.height : 0
 
-        AssistantMarkdown {
-            id: body
-            width: bodyFlick.width
-            blockRadius: root.innerRadius
-            plain: root.failed
-            text: root.failed ? (root.turn.error || I18n.tr("Something went wrong."))
-                : root.turn ? root.turn.text || "" : ""
-            color: root.failed ? Theme.redText : Theme.textHi
+        Rectangle {
+            id: bubble
+            anchors.right: parent.right
+            width: questionText.width + Theme.scaled(22)
+            height: questionText.height + Theme.scaled(14)
+            radius: root.innerRadius
+            bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
+            color: Theme.chipHover
+
+            Text {
+                id: questionText
+                x: Theme.scaled(11)
+                y: Theme.scaled(7)
+                width: Math.min(implicitWidth, question.width * 0.86 - Theme.scaled(22))
+                text: root.prompt
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+                maximumLineCount: 3
+                elide: Text.ElideRight
+                color: Theme.textHi
+                font.family: Theme.fontMenu
+                font.pixelSize: Theme.typography.secondary
+            }
         }
     }
 
-    // ---- what the turn left behind ---------------------------------------------------
-    Column {
-        id: extras
+    // ---- the answer ----------------------------------------------------------------
+    Item {
+        id: body
         width: parent.width
-        spacing: Theme.scaled(8)
+        visible: (root.answerText !== "" || root.hasExtras) && !root.pickerOpen
+        height: visible ? bodyFlick.height : 0
 
-        // A failure names its one fix.
-        AssistantButton {
-            readonly property var action: root.failed
-                ? AssistantHelpers.errorAction(root.turn.errorKind, root.turn.agent) : null
-            visible: action !== null
-            label: !action ? ""
-                : root.turn.errorKind === "auth" ? I18n.tr("Sign in")
-                : root.turn.errorKind === "missing" ? I18n.tr("Assistant settings")
-                : I18n.tr("Start the assistant")
-            primary: true
-            onTriggered: Assistant.fix(root.turn.errorKind)
-        }
-
-        // A system change built and checked by the updater, waiting for review.
-        Rectangle {
+        Flickable {
+            id: bodyFlick
             width: parent.width
-            visible: root.staged
-            height: visible ? stagedColumn.implicitHeight + Theme.scaled(18) : 0
-            radius: root.innerRadius
-            color: Theme.cardFill
-            border.width: 1
-            border.color: Theme.hairline
+            height: Math.min(bodyColumn.implicitHeight,
+                Math.max(Theme.scaled(72), root.room - root.chromeHeight))
+            contentWidth: width
+            contentHeight: bodyColumn.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
 
             Column {
-                id: stagedColumn
-                x: Theme.scaled(9)
-                y: Theme.scaled(9)
-                width: parent.width - Theme.scaled(18)
-                spacing: Theme.scaled(4)
+                id: bodyColumn
+                width: bodyFlick.width
+                spacing: root.spacing
 
-                Text {
+                AssistantMarkdown {
+                    id: answer
                     width: parent.width
-                    text: root.deploymentState === "ready" ? I18n.tr("Staged change · built and checked")
-                        : root.deploymentState === "done" || root.deploymentState === "awaiting-boot"
-                            || root.deploymentState === "awaiting-login" ? I18n.tr("Applied")
-                        : Updates.deployment.phase || ""
-                    elide: Text.ElideRight
+                    visible: root.answerText !== ""
+                    blockRadius: root.innerRadius
+                    lead: true
+                    text: root.answerText
                     color: Theme.textHi
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.secondary
-                    font.weight: Theme.weightSemibold
                 }
 
-                Repeater {
-                    model: root.deploymentState === "ready" ? root.closure.rows : []
-
-                    delegate: Text {
-                        required property var modelData
-                        width: stagedColumn.width
-                        text: (modelData.kind === "added" ? "+ " : modelData.kind === "removed" ? "− " : "~ ")
-                            + modelData.name + "  " + modelData.change
-                        elide: Text.ElideRight
-                        color: modelData.kind === "added" ? Theme.ok
-                            : modelData.kind === "removed" ? Theme.redText : Theme.textMid
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.typography.metadata
-                    }
-                }
-
-                Text {
-                    width: parent.width
-                    visible: root.deploymentState === "awaiting-boot"
-                    text: Updates.rebootRecommendation
-                    wrapMode: Text.WordWrap
-                    color: Theme.textLow
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.metadata
-                }
-
-                Row {
-                    spacing: Theme.scaled(6)
-                    visible: root.deploymentState === "ready"
-                    topPadding: Theme.scaled(4)
-
-                    AssistantButton {
-                        objectName: "assistantReviewChange"
-                        label: I18n.tr("Review change…")
-                        primary: true
-                        onTriggered: Assistant.reviewStagedChange()
-                    }
-
-                }
-            }
-        }
-
-        // Routines this answer created: when they run, and their settings.
-        Repeater {
-            model: root.routinesMade
-
-            delegate: Rectangle {
-                id: routineCard
-                required property var modelData
-                width: extras.width
-                height: routineColumn.implicitHeight + Theme.scaled(16)
-                radius: root.innerRadius
-                color: Theme.cardFill
-
+                // What the turn left behind, under the answer.
                 Column {
-                    id: routineColumn
-                    x: Theme.scaled(10)
-                    y: Theme.scaled(8)
-                    width: parent.width - Theme.scaled(20)
-                    spacing: Theme.scaled(3)
+                    id: extras
+                    width: parent.width
+                    visible: root.hasExtras
+                    spacing: Theme.scaled(8)
 
-                    Row {
-                        spacing: Theme.scaled(6)
+                    // Why it failed, and its one fix.
+                    Rectangle {
+                        width: parent.width
+                        visible: root.failed
+                        height: visible ? failureColumn.implicitHeight + Theme.scaled(22) : 0
+                        radius: root.innerRadius
+                        color: Theme.redBgSoft
+                        border.width: 1
+                        border.color: Qt.rgba(Theme.red.r, Theme.red.g, Theme.red.b, 0.3)
 
                         Sym {
-                            anchors.verticalCenter: parent.verticalCenter
-                            name: "event"
-                            size: Theme.iconSmall
-                            color: Theme.accentText
+                            id: failureGlyph
+                            x: Theme.scaled(11)
+                            y: Theme.scaled(12)
+                            name: "error"
+                            size: Theme.iconMedium
+                            color: Theme.redText
                         }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: I18n.tr("Routine created")
-                            color: Theme.textHi
-                            font.family: Theme.fontMenu
-                            font.pixelSize: Theme.typography.secondary
-                            font.weight: Theme.weightSemibold
+
+                        Column {
+                            id: failureColumn
+                            anchors.left: failureGlyph.right
+                            anchors.leftMargin: Theme.scaled(9)
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.scaled(11)
+                            y: Theme.scaled(11)
+                            spacing: Theme.scaled(10)
+
+                            Text {
+                                width: parent.width
+                                text: root.failed ? root.turn.error || I18n.tr("Something went wrong.") : ""
+                                textFormat: Text.PlainText
+                                wrapMode: Text.Wrap
+                                color: Theme.textHi
+                                font.family: Theme.fontMenu
+                                font.pixelSize: Theme.typography.secondary
+                            }
+
+                            AssistantButton {
+                                visible: root.fixAction !== null
+                                label: !root.fixAction ? ""
+                                    : root.turn.errorKind === "auth" ? I18n.tr("Sign in")
+                                    : root.turn.errorKind === "missing" ? I18n.tr("Assistant settings")
+                                    : I18n.tr("Start the assistant")
+                                primary: true
+                                onTriggered: Assistant.fix(root.turn.errorKind)
+                            }
                         }
                     }
+
+                    // A system change built and checked by the updater, waiting for review.
+                    Rectangle {
+                        width: parent.width
+                        visible: root.staged
+                        height: visible ? stagedColumn.implicitHeight + Theme.scaled(22) : 0
+                        radius: root.innerRadius
+                        color: Theme.cardFill
+                        border.width: 1
+                        border.color: Theme.hairline
+
+                        Column {
+                            id: stagedColumn
+                            x: Theme.scaled(11)
+                            y: Theme.scaled(11)
+                            width: parent.width - Theme.scaled(22)
+                            spacing: Theme.scaled(9)
+
+                            Row {
+                                width: parent.width
+                                spacing: Theme.scaled(10)
+
+                                Rectangle {
+                                    id: stagedMark
+                                    width: Theme.scaled(32)
+                                    height: width
+                                    radius: Theme.concentricRadius(root.innerRadius, Theme.scaled(11))
+                                    color: Theme.chip
+
+                                    Sym {
+                                        anchors.centerIn: parent
+                                        name: "deployed_code_update"
+                                        size: Theme.iconMedium
+                                        color: Theme.accentText
+                                    }
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - stagedMark.width - parent.spacing
+                                    text: root.deploymentState === "ready" ? I18n.tr("Staged change · built and checked")
+                                        : root.deploymentState === "done" || root.deploymentState === "awaiting-boot"
+                                            || root.deploymentState === "awaiting-login" ? I18n.tr("Applied")
+                                        : Updates.deployment.phase || ""
+                                    wrapMode: Text.Wrap
+                                    color: Theme.textHi
+                                    font.family: Theme.fontMenu
+                                    font.pixelSize: Theme.typography.secondary
+                                    font.weight: Theme.weightSemibold
+                                }
+                            }
+
+                            // What the build adds, removes and changes, in a well.
+                            Rectangle {
+                                width: parent.width
+                                visible: root.deploymentState === "ready" && root.closure.rows.length > 0
+                                height: visible ? closureColumn.implicitHeight + Theme.scaled(14) : 0
+                                radius: Theme.concentricRadius(root.innerRadius, Theme.scaled(11))
+                                color: Theme.well
+
+                                Column {
+                                    id: closureColumn
+                                    x: Theme.scaled(9)
+                                    y: Theme.scaled(7)
+                                    width: parent.width - Theme.scaled(18)
+
+                                    Repeater {
+                                        model: root.deploymentState === "ready" ? root.closure.rows : []
+
+                                        delegate: Text {
+                                            required property var modelData
+                                            width: closureColumn.width
+                                            text: (modelData.kind === "added" ? "+ " : modelData.kind === "removed" ? "− " : "~ ")
+                                                + modelData.name + "  " + modelData.change
+                                            elide: Text.ElideRight
+                                            color: modelData.kind === "added" ? Theme.ok
+                                                : modelData.kind === "removed" ? Theme.redText : Theme.textMid
+                                            font.family: Theme.fontMono
+                                            font.pixelSize: Theme.typography.metadata
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                visible: root.deploymentState === "awaiting-boot"
+                                text: Updates.rebootRecommendation
+                                wrapMode: Text.WordWrap
+                                color: Theme.textLow
+                                font.family: Theme.fontMenu
+                                font.pixelSize: Theme.typography.metadata
+                            }
+
+                            AssistantButton {
+                                objectName: "assistantReviewChange"
+                                width: parent.width
+                                visible: root.deploymentState === "ready"
+                                label: I18n.tr("Review change…")
+                                primary: true
+                                onTriggered: Assistant.reviewStagedChange()
+                            }
+                        }
+                    }
+
+                    // Routines this answer created: when they run, and their settings.
+                    Repeater {
+                        model: root.routinesMade
+
+                        delegate: Rectangle {
+                            id: routineCard
+                            required property var modelData
+                            width: extras.width
+                            height: routineColumn.implicitHeight + Theme.scaled(20)
+                            radius: root.innerRadius
+                            color: Theme.cardFill
+                            border.width: 1
+                            border.color: Theme.hairline
+
+                            Column {
+                                id: routineColumn
+                                x: Theme.scaled(11)
+                                y: Theme.scaled(10)
+                                width: parent.width - Theme.scaled(22)
+                                spacing: Theme.scaled(3)
+
+                                Row {
+                                    spacing: Theme.scaled(6)
+
+                                    Sym {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        name: "event"
+                                        size: Theme.iconSmall
+                                        color: Theme.accentText
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: I18n.tr("Routine created")
+                                        color: Theme.textHi
+                                        font.family: Theme.fontMenu
+                                        font.pixelSize: Theme.typography.secondary
+                                        font.weight: Theme.weightSemibold
+                                    }
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: routineCard.modelData.title
+                                    elide: Text.ElideRight
+                                    textFormat: Text.PlainText
+                                    color: Theme.textMid
+                                    font.family: Theme.fontMenu
+                                    font.pixelSize: Theme.typography.metadata
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: Assistant.routineLabel(routineCard.modelData) + " · "
+                                        + (routineCard.modelData.notify === "always" ? I18n.tr("always tells you")
+                                            : I18n.tr("tells you only when something needs attention"))
+                                    wrapMode: Text.WordWrap
+                                    color: Theme.textLow
+                                    font.family: Theme.fontMenu
+                                    font.pixelSize: Theme.typography.metadata
+                                }
+                                Row {
+                                    topPadding: Theme.scaled(4)
+                                    spacing: Theme.scaled(4)
+
+                                    AssistantButton {
+                                        label: I18n.tr("Edit")
+                                        controlHeight: Theme.scaled(26)
+                                        onTriggered: Assistant.showRoutines()
+                                    }
+                                    AssistantButton {
+                                        label: I18n.tr("Run now")
+                                        glyph: "play_arrow"
+                                        controlHeight: Theme.scaled(26)
+                                        onTriggered: Assistant.runRoutine(routineCard.modelData.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Everything the answer changed, each with its own Undo.
+                    AssistantChanges {
+                        width: parent.width
+                        radius: root.innerRadius
+                        changes: root.changes
+                    }
+
+                    // Widgets the turn created. They stay off until added.
+                    Repeater {
+                        model: root.plugins
+
+                        delegate: Rectangle {
+                            id: pluginRow
+                            required property var modelData
+                            width: extras.width
+                            height: Theme.scaled(44)
+                            radius: root.innerRadius
+                            color: Theme.cardFill
+                            border.width: 1
+                            border.color: Theme.hairline
+
+                            Sym {
+                                id: pluginGlyph
+                                anchors.left: parent.left
+                                anchors.leftMargin: Theme.scaled(11)
+                                anchors.verticalCenter: parent.verticalCenter
+                                name: "widgets"
+                                size: Theme.iconMedium
+                                color: Theme.accentText
+                            }
+
+                            Column {
+                                anchors.left: pluginGlyph.right
+                                anchors.leftMargin: Theme.scaled(9)
+                                anchors.right: addButton.left
+                                anchors.rightMargin: Theme.scaled(8)
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    width: parent.width
+                                    text: pluginRow.modelData.name || pluginRow.modelData.id
+                                    elide: Text.ElideRight
+                                    color: Theme.textHi
+                                    font.family: Theme.fontMenu
+                                    font.pixelSize: Theme.typography.secondary
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: I18n.format("%1 · off until added", [pluginRow.modelData.id])
+                                    elide: Text.ElideRight
+                                    color: Theme.textLow
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.typography.metadata
+                                }
+                            }
+
+                            AssistantButton {
+                                id: addButton
+                                anchors.right: parent.right
+                                anchors.rightMargin: Theme.scaled(7)
+                                anchors.verticalCenter: parent.verticalCenter
+                                label: I18n.tr("Add to bar")
+                                primary: true
+                                controlHeight: Theme.scaled(28)
+                                onTriggered: Assistant.addWidget(pluginRow.modelData.id)
+                            }
+                        }
+                    }
+
                     Text {
                         width: parent.width
-                        text: routineCard.modelData.title
-                        elide: Text.ElideRight
-                        textFormat: Text.PlainText
+                        visible: Assistant.notice !== ""
+                        text: Assistant.notice
+                        wrapMode: Text.WordWrap
                         color: Theme.textMid
                         font.family: Theme.fontMenu
                         font.pixelSize: Theme.typography.metadata
                     }
-                    Text {
-                        width: parent.width
-                        text: Assistant.routineLabel(routineCard.modelData) + " · "
-                            + (routineCard.modelData.notify === "always" ? I18n.tr("always tells you")
-                                : I18n.tr("tells you only when something needs attention"))
-                        wrapMode: Text.WordWrap
-                        color: Theme.textLow
-                        font.family: Theme.fontMenu
-                        font.pixelSize: Theme.typography.metadata
-                    }
-                    Row {
-                        topPadding: Theme.scaled(4)
-                        spacing: Theme.scaled(4)
-
-                        AssistantButton {
-                            label: I18n.tr("Edit")
-                            controlHeight: Theme.scaled(26)
-                            onTriggered: Assistant.showRoutines()
-                        }
-                        AssistantButton {
-                            label: I18n.tr("Run now")
-                            glyph: "play_arrow"
-                            controlHeight: Theme.scaled(26)
-                            onTriggered: Assistant.runRoutine(routineCard.modelData.id)
-                        }
-                    }
                 }
             }
         }
 
-        // Everything the answer changed, each with its own Undo.
-        AssistantChanges {
-            width: parent.width
-            radius: root.innerRadius
-            changes: root.changes
+        NumberAnimation {
+            id: scroller
+            target: bodyFlick
+            property: "contentY"
+            duration: Theme.reducedMotion ? 0 : 260
+            easing.type: Easing.OutCubic
         }
 
-        AssistantSteps {
-            width: parent.width
-            steps: root.steps
-            folded: AssistantHelpers.stepsFolded(root.turn ? root.turn.text : "", root.steps)
-        }
-
-        // Widgets the turn created. They stay off until added.
-        Repeater {
-            model: root.plugins
-
-            delegate: Rectangle {
-                id: pluginRow
-                required property var modelData
-                width: extras.width
-                height: Theme.scaled(40)
-                radius: root.innerRadius
-                color: Theme.cardFill
-
-                Sym {
-                    id: pluginGlyph
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.scaled(10)
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: "widgets"
-                    size: Theme.iconMedium
-                    color: Theme.accentText
-                }
-
-                Column {
-                    anchors.left: pluginGlyph.right
-                    anchors.leftMargin: Theme.scaled(9)
-                    anchors.right: addButton.left
-                    anchors.rightMargin: Theme.scaled(8)
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Text {
-                        width: parent.width
-                        text: pluginRow.modelData.name || pluginRow.modelData.id
-                        elide: Text.ElideRight
-                        color: Theme.textHi
-                        font.family: Theme.fontMenu
-                        font.pixelSize: Theme.typography.secondary
-                    }
-                    Text {
-                        width: parent.width
-                        text: I18n.format("%1 · off until added", [pluginRow.modelData.id])
-                        elide: Text.ElideRight
-                        color: Theme.textLow
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.typography.metadata
-                    }
-                }
-
-                AssistantButton {
-                    id: addButton
-                    anchors.right: parent.right
-                    anchors.rightMargin: Theme.scaled(6)
-                    anchors.verticalCenter: parent.verticalCenter
-                    label: I18n.tr("Add to bar")
-                    primary: true
-                    controlHeight: Theme.scaled(28)
-                    onTriggered: Assistant.addWidget(pluginRow.modelData.id)
-                }
+        // The cut edge fades into the box, opaque at the edge.
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: Theme.scaled(40)
+            visible: root.overflowing && !root.atEnd
+            gradient: Gradient {
+                GradientStop { position: 0; color: Qt.rgba(root.fill.r, root.fill.g, root.fill.b, 0) }
+                GradientStop { position: 1; color: root.fill }
             }
         }
 
-        Text {
-            width: parent.width
-            visible: Assistant.notice !== ""
-            text: Assistant.notice
-            wrapMode: Text.WordWrap
-            color: Theme.textMid
-            font.family: Theme.fontMenu
-            font.pixelSize: Theme.typography.metadata
+        AssistantButton {
+            objectName: "assistantMore"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            visible: root.overflowing && !root.atEnd
+            glyph: "expand_more"
+            label: I18n.tr("More")
+            controlHeight: Theme.scaled(26)
+            color: Theme.menuBg
+            onTriggered: root.readOn()
         }
     }
 
-    // ---- actions -------------------------------------------------------------------
-    Flow {
+    // ---- quiet actions ---------------------------------------------------------------
+    // Ghost buttons, their words lined up with the answer's.
+    Row {
         id: actions
-        width: parent.width
-        spacing: Theme.scaled(4)
+        x: -Theme.scaled(6)
+        visible: (root.canSpeak || root.canCopy || root.canHandoff) && !root.pickerOpen
+        spacing: Theme.scaled(2)
 
         AssistantButton {
-            visible: Assistant.speechAvailable && !root.failed && root.turn !== null && (root.turn.text || "") !== ""
+            id: speakButton
+            visible: root.canSpeak
             label: Assistant.speaking ? I18n.tr("Stop") : I18n.tr("Speak")
             glyph: Assistant.speaking ? "stop" : "volume_up"
+            controlHeight: Theme.scaled(28)
+            color: "transparent"
             onTriggered: {
                 if (Assistant.speaking)
                     Assistant.stopSpeaking();
@@ -393,38 +604,39 @@ AssistantSurface {
         }
 
         AssistantButton {
-            label: I18n.tr("Reply")
-            glyph: "reply"
-            onTriggered: Assistant.reply()
-        }
-
-        AssistantButton {
+            id: copyButton
             objectName: "assistantCopyReply"
             visible: !root.failed && root.turn !== null && (root.turn.text || "") !== ""
             glyph: "content_copy"
             label: I18n.tr("Copy")
             accessibleName: I18n.tr("Copy the reply")
             tip: I18n.tr("Copy the reply")
+            controlHeight: Theme.scaled(28)
+            color: "transparent"
             onTriggered: Assistant.copyReply()
         }
 
         AssistantButton {
+            id: handoffButton
             objectName: "assistantHandoff"
-            visible: root.turn !== null && root.turn.resumable === true
+            visible: root.canHandoff
             glyph: "terminal"
             label: I18n.tr("Terminal")
             accessibleName: I18n.tr("Continue in a terminal")
             tip: I18n.tr("Continue in a terminal")
+            controlHeight: Theme.scaled(28)
+            color: "transparent"
             onTriggered: Assistant.handoff()
         }
     }
 
     // Sentence by sentence while it is read aloud.
     Rectangle {
+        id: speechBar
         width: parent.width
         height: 2
         radius: 1
-        visible: Assistant.speaking && Assistant.speechCount > 0
+        visible: Assistant.speaking && Assistant.speechCount > 0 && !root.pickerOpen
         color: Theme.hairline
 
         Rectangle {
@@ -435,6 +647,131 @@ AssistantSurface {
 
             Behavior on width {
                 NumberAnimation { duration: Theme.chipFadeDuration }
+            }
+        }
+    }
+
+    // ---- who answers, and how ----------------------------------------------------------
+    // Open, it stands in for the answer above the field, as a sheet over it
+    // would, and the box stays within its room however little there is.
+    AssistantModelPicker {
+        id: picker
+        width: parent.width
+        visible: root.pickerOpen
+        radius: root.innerRadius
+        continuing: true
+        tailSide: "bottom"
+        tailX: fieldButtons.x + agentButton.x + agentButton.width / 2
+        onCloseRequested: root.pickerOpen = false
+    }
+
+    // ---- the reply field ---------------------------------------------------------------
+    Rectangle {
+        id: field
+        width: parent.width
+        height: Math.max(Theme.scaled(42), replyFlick.height + Theme.scaled(16))
+        radius: root.innerRadius
+        color: Theme.well
+        border.width: 1
+        border.color: replyInput.activeFocus ? Theme.accent : Theme.hairline
+
+        Behavior on border.color {
+            ColorAnimation { duration: Theme.chipFadeDuration }
+        }
+
+        Flickable {
+            id: replyFlick
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.scaled(12)
+            anchors.right: fieldButtons.left
+            anchors.rightMargin: Theme.scaled(6)
+            anchors.verticalCenter: parent.verticalCenter
+            height: Math.min(Theme.scaled(96), Math.max(Theme.scaled(22), replyInput.contentHeight))
+            contentWidth: width
+            contentHeight: Math.max(height, replyInput.contentHeight)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            TextEdit {
+                id: replyInput
+                objectName: "assistantReplyField"
+                width: replyFlick.width
+                height: Math.max(replyFlick.height, contentHeight)
+                wrapMode: TextEdit.Wrap
+                selectByMouse: true
+                color: Theme.textHi
+                selectionColor: Theme.accentSoft
+                selectedTextColor: Theme.textHi
+                font.family: Theme.fontMenu
+                font.pixelSize: Theme.typography.control
+                Accessible.name: I18n.tr("Reply to Wiz…")
+                Accessible.description: I18n.tr("Enter sends. Shift Enter inserts a newline.")
+
+                onCursorRectangleChanged: {
+                    if (cursorRectangle.y + cursorRectangle.height > replyFlick.contentY + replyFlick.height)
+                        replyFlick.contentY = cursorRectangle.y + cursorRectangle.height - replyFlick.height;
+                    else if (cursorRectangle.y < replyFlick.contentY)
+                        replyFlick.contentY = cursorRectangle.y;
+                }
+
+                // Esc backs out one step: the picker, then the reply.
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Escape) {
+                        if (root.pickerOpen)
+                            root.pickerOpen = false;
+                        else
+                            Assistant.closeReply();
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (event.modifiers & Qt.ShiftModifier)
+                            replyInput.insert(replyInput.cursorPosition, "\n");
+                        else
+                            root.sendReply();
+                        event.accepted = true;
+                    }
+                }
+
+                Text {
+                    visible: replyInput.text === ""
+                    width: parent.width
+                    text: I18n.tr("Reply to Wiz…")
+                    elide: Text.ElideRight
+                    color: Theme.textFaint
+                    font: replyInput.font
+                }
+            }
+        }
+
+        Row {
+            id: fieldButtons
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.scaled(6)
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.scaled(6)
+            spacing: Theme.scaled(2)
+
+            AssistantAgentButton {
+                id: agentButton
+                open: root.pickerOpen
+                onTriggered: root.togglePicker()
+            }
+
+            AssistantButton {
+                visible: Assistant.voiceAvailable
+                glyph: "mic"
+                accessibleName: I18n.tr("Talk instead of typing")
+                color: "transparent"
+                onTriggered: root.talk()
+            }
+
+            AssistantButton {
+                objectName: "assistantReplySend"
+                visible: replyInput.text.trim() !== ""
+                glyph: "send"
+                primary: true
+                accessibleName: I18n.tr("Send")
+                enabled: Assistant.connected && !Assistant.busy
+                onTriggered: root.sendReply()
             }
         }
     }

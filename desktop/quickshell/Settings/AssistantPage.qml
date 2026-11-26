@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import "../Common"
 import "../Common/AssistantHelpers.js" as AssistantHelpers
+import "../Common/SettingsHelpers.js" as SettingsHelpers
 import "../Common/SettingsSearchData.js" as SettingsSearchData
 
 // Assistant: who answers, what it may see and hear, how it behaves on the
@@ -270,12 +271,39 @@ SettingsPage {
             }
             SelectRow {
                 width: parent.width
+                label: I18n.tr("Claude Code effort")
+                settingKey: "assistantClaudeEffort"
+                model: [{ value: "default", label: I18n.tr("Claude Code's default") }]
+                    .concat(SettingsHelpers.NOTE_CLAUDE_EFFORT_CHOICES)
+            }
+            SelectRow {
+                width: parent.width
                 label: I18n.tr("Codex model")
                 settingKey: "assistantCodexModel"
                 model: [{ value: "default", label: I18n.tr("Codex's default") },
                     { value: "gpt-5.6-luna", label: "Luna" }, { value: "gpt-5.6-terra", label: "Terra" },
                     { value: "gpt-5.6-sol", label: "Sol" }]
                 hint: page.installedLabel(page.codexInstalled)
+            }
+            SelectRow {
+                width: parent.width
+                label: I18n.tr("Codex effort")
+                settingKey: "assistantCodexEffort"
+                model: [{ value: "default", label: I18n.tr("Codex's default") }]
+                    .concat(SettingsHelpers.NOTE_CODEX_EFFORT_CHOICES)
+            }
+            SwitchRow {
+                width: parent.width
+                label: I18n.tr("Codex Fast mode")
+                settingKey: "assistantCodexFast"
+                description: I18n.tr("Quicker answers from your ChatGPT plan, which uses up its limits faster.")
+                // Only a ChatGPT sign-in has Fast (agents.codex.fast); unknown keeps it on offer.
+                disabledReason: Assistant.agents.codex && Assistant.agents.codex.fast === false
+                    ? I18n.tr("Fast needs Codex signed in with ChatGPT.") : ""
+            }
+            SettingsHint {
+                width: parent.width
+                text: I18n.tr("Wiz's model button changes these for one conversation.")
             }
         }
 
@@ -362,12 +390,6 @@ SettingsPage {
                 label: I18n.tr("Include the focused window")
                 settingKey: "assistantWindowContext"
                 description: I18n.tr("A new question carries the app and title of the window you were using, as a chip you can remove.")
-            }
-            SwitchRow {
-                width: parent.width
-                label: I18n.tr("Wide view for answers")
-                settingKey: "assistantExpanded"
-                description: I18n.tr("Opens answers beside Wiz with room for tables and code. Expand and its edge change this too.")
             }
         }
 

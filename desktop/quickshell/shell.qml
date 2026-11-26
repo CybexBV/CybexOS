@@ -195,7 +195,7 @@ ShellRoot {
                 turnConversation: Assistant.turn ? Assistant.turn.conversation || "" : "",
                 side: Assistant.side ? Assistant.side.status : "", queued: Assistant.queue !== null,
                 attachments: Assistant.attachments.map(item => item.kind), tuck: Settings.assistantTuck,
-                expanded: Settings.assistantExpanded, attention: Assistant.attentionConversation,
+                attention: Assistant.attentionConversation,
                 statusShown: Assistant.statusShown,
                 routines: Assistant.routines.length});
         }

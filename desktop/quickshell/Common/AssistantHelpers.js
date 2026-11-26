@@ -356,25 +356,241 @@ function opensLastConversation(state) {
 }
 
 // ---- replies ------------------------------------------------------------------
-// A reply split into its prose and its fenced code blocks, so each code block
-// can carry its own Copy button: [{kind: "text", text}, {kind: "code", lang, text}].
-// An unclosed fence (a reply still streaming) runs to the end.
+// A reply as blocks Wiz draws one by one (AssistantMarkdown.qml), so each has
+// its own spacing and look rather than Qt's Markdown defaults (paragraphs
+// without space between them, deep list indents):
+//   {kind: "text", text}             a paragraph; single newlines break the line
+//   {kind: "heading", level, text}
+//   {kind: "label", text}            a short line ending in ":" that introduces a list
+//   {kind: "group", items: [{title, text}]}   a bullet list whose items all start
+//                                    with a bold lead-in ("**Title:** rest")
+//   {kind: "list", ordered, items: [{marker, text}]}
+//   {kind: "quote", text}, {kind: "table", text}, {kind: "rule"}
+//   {kind: "code", lang, text}       a fenced block, with its own Copy button
+// Text stays Markdown; inlineHtml() draws a block's inline formatting. An
+// unclosed fence (a reply still streaming) runs to the end.
+var LABEL_MAX = 60;
+var GROUP_TITLE_MAX = 80;
+
+function lineIndent(line) {
+    var width = 0;
+    for (var i = 0; i < line.length; i++) {
+        if (line.charAt(i) === " ")
+            width += 1;
+        else if (line.charAt(i) === "\t")
+            width += 4 - width % 4;
+        else
+            break;
+    }
+    return width;
+}
+
+function thematicBreak(line) {
+    return /^\s{0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(line);
+}
+
+// A list item's line; a lone "-" or "1." is an item still being written.
+function listItemOf(line) {
+    var match = /^(\s*)([-*+]|\d{1,9}[.)])(?:[ \t]+(.*)|[ \t]*)$/.exec(line);
+    if (!match || thematicBreak(line))
+        return null;
+    return {
+        indent: lineIndent(match[1]),
+        ordered: /\d/.test(match[2]),
+        marker: match[2],
+        text: match[3] || ""
+    };
+}
+
+// "**The details:**" or "The details:" alone on its line, before a list.
+function labelText(text) {
+    var line = String(text || "").trim();
+    if (line === "" || line.indexOf("\n") !== -1)
+        return "";
+    var wrapped = /^(\*\*|__)([\s\S]+)\1$/.exec(line);
+    if (wrapped)
+        line = wrapped[2].trim();
+    if (line.charAt(line.length - 1) !== ":")
+        return "";
+    line = line.slice(0, -1).trim();
+    var inner = /^(\*\*|__)([\s\S]+)\1$/.exec(line);
+    if (inner)
+        line = inner[2].trim();
+    return line !== "" && line.length <= LABEL_MAX ? line : "";
+}
+
+// "**Title:** rest", "**Title.** rest", "**Title** — rest", "**Title**: rest"
+// or a bold title alone. A bold word that only starts a sentence ("**Don't**
+// unplug it") is no title. While a reply streams, the last item may still be
+// typing its lead-in.
+function leadIn(text, last) {
+    var source = String(text || "");
+    var match = /^(\*\*|__)([\s\S]+?)\1([\s\S]*)$/.exec(source);
+    if (match) {
+        var inside = match[2].trim();
+        var separated = /[:.]$/.test(inside) || /^\s*(?::|—|–|-(?=\s))/.test(match[3]) || match[3].trim() === "";
+        var title = inside.replace(/\s*[:.]$/, "").trim();
+        if (!separated || title === "" || title.length > GROUP_TITLE_MAX || title.indexOf("\n") !== -1)
+            return null;
+        return { title: title, text: match[3].replace(/^\s*(?::|—|–|-(?=\s))?\s*/, "") };
+    }
+    var partial = /^(\*\*|__)([^*_\n]*)$/.exec(source);
+    if (last && partial && partial[2].length <= GROUP_TITLE_MAX)
+        return { title: partial[2].trim(), text: "" };
+    return null;
+}
+
+function listBlock(list) {
+    var items = list.items.map(function(item) {
+        return { marker: item.marker, text: item.lines.join("\n").replace(/\s+$/, "") };
+    });
+    if (!list.ordered) {
+        var rows = [];
+        for (var i = 0; i < items.length; i++) {
+            var row = leadIn(items[i].text, i === items.length - 1);
+            if (!row)
+                break;
+            rows.push(row);
+        }
+        if (rows.length === items.length && rows.length > 0)
+            return { kind: "group", items: rows };
+    }
+    return {
+        kind: "list",
+        ordered: list.ordered,
+        items: items.map(function(item) {
+            return { marker: list.ordered ? item.marker.replace(")", ".") : "", text: item.text };
+        })
+    };
+}
+
+function proseBlocks(lines, blocks) {
+    var paragraph = [];
+    var list = null;
+    var quote = null;
+    var table = null;
+
+    function flushParagraph() {
+        var joined = paragraph.join("\n").replace(/^\s+|\s+$/g, "");
+        if (joined !== "")
+            blocks.push({ kind: "text", text: joined });
+        paragraph = [];
+    }
+    function flushList() {
+        if (list)
+            blocks.push(listBlock(list));
+        list = null;
+    }
+    function flushQuote() {
+        if (quote)
+            blocks.push({ kind: "quote", text: quote.join("\n").replace(/^\s+|\s+$/g, "") });
+        quote = null;
+    }
+    function flushTable() {
+        if (table)
+            blocks.push({ kind: "table", text: table.join("\n") });
+        table = null;
+    }
+    function flushAll() {
+        flushParagraph();
+        flushList();
+        flushQuote();
+        flushTable();
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/\r$/, "");
+        if (line.trim() === "") {
+            flushParagraph();
+            flushQuote();
+            flushTable();
+            if (list)
+                list.blank = true;
+            continue;
+        }
+        var item = listItemOf(line);
+        var indent = lineIndent(line);
+        var heading = /^\s{0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
+        var interrupts = !!heading || thematicBreak(line) || /^\s{0,3}>/.test(line) || /^\s*\|/.test(line);
+
+        if (list) {
+            var last = list.items[list.items.length - 1];
+            if (item && item.indent <= list.indent + 1 && item.ordered === list.ordered) {
+                list.items.push({ marker: item.marker, lines: [item.text] });
+                list.blank = false;
+                continue;
+            }
+            if (!interrupts && (indent >= list.indent + 2 || (!list.blank && !item))) {
+                // A nested item reads as a line of its own inside its parent.
+                var nested = indent >= list.indent + 2 ? listItemOf(line) : null;
+                last.lines.push(nested ? (nested.ordered ? nested.marker.replace(")", ".") + " " : "◦ ") + nested.text
+                    : line.trim());
+                list.blank = false;
+                continue;
+            }
+            flushList();
+        }
+
+        if (heading) {
+            flushAll();
+            blocks.push({ kind: "heading", level: heading[1].length, text: heading[2] });
+            continue;
+        }
+        // A setext underline; one "-" is more likely a list item being written.
+        if (paragraph.length > 0 && /^\s{0,3}(={2,}|-{2,})[ \t]*$/.test(line)) {
+            var title = paragraph.join("\n").trim();
+            paragraph = [];
+            blocks.push({ kind: "heading", level: line.trim().charAt(0) === "=" ? 1 : 2, text: title });
+            continue;
+        }
+        if (thematicBreak(line)) {
+            flushAll();
+            blocks.push({ kind: "rule" });
+            continue;
+        }
+        var quoted = /^\s{0,3}>[ \t]?(.*)$/.exec(line);
+        if (quoted) {
+            flushParagraph();
+            flushTable();
+            quote = quote || [];
+            quote.push(quoted[1]);
+            continue;
+        }
+        flushQuote();
+        if (/^\s*\|/.test(line)) {
+            flushParagraph();
+            table = table || [];
+            table.push(line);
+            continue;
+        }
+        flushTable();
+        if (item) {
+            flushParagraph();
+            // A short line ending in ":" right before the list names it.
+            var previous = blocks[blocks.length - 1];
+            var label = previous && previous.kind === "text" ? labelText(previous.text) : "";
+            if (label !== "")
+                blocks[blocks.length - 1] = { kind: "label", text: label };
+            list = { ordered: item.ordered, indent: item.indent, blank: false,
+                items: [{ marker: item.marker, lines: [item.text] }] };
+            continue;
+        }
+        paragraph.push(line);
+    }
+    flushAll();
+}
+
 function markdownBlocks(text) {
     var lines = String(text || "").split("\n");
     var blocks = [];
     var prose = [];
     var code = null;
-    function flushProse() {
-        var joined = prose.join("\n");
-        if (joined.trim() !== "")
-            blocks.push({ kind: "text", text: joined.replace(/^\n+|\n+$/g, "") });
-        prose = [];
-    }
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
         var fence = /^\s{0,3}(`{3,}|~{3,})\s*([^`\s]*)/.exec(line);
         if (code === null && fence) {
-            flushProse();
+            proseBlocks(prose, blocks);
+            prose = [];
             code = { marker: fence[1], lang: fence[2] || "", lines: [] };
         } else if (code !== null && new RegExp("^\\s{0,3}" + code.marker.charAt(0) + "{" + code.marker.length + ",}\\s*$").test(line)) {
             blocks.push({ kind: "code", lang: code.lang, text: code.lines.join("\n") });
@@ -387,15 +603,157 @@ function markdownBlocks(text) {
     }
     if (code !== null)
         blocks.push({ kind: "code", lang: code.lang, text: code.lines.join("\n") });
-    flushProse();
+    proseBlocks(prose, blocks);
     return blocks;
 }
 
-// The step list starts folded after a short answer and open after a long one.
-var FOLD_STEPS_BELOW = 400;
+// A block's inline Markdown as the small HTML subset Qt's rich text draws:
+// bold, italics, strikethrough, `code` on a faint chip, links (web, mail and
+// bare URLs), and a line break for each newline. Everything else, raw HTML
+// included, shows as written. `style`: {link, code, mono} — the link colour,
+// the code chip's fill and the monospace family.
+function escapeHtml(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
-function stepsFolded(text, steps) {
-    return (steps || []).length > 0 && String(text || "").length < FOLD_STEPS_BELOW;
+function inlineHtml(text, style) {
+    var options = style || {};
+    var tokens = [];
+    function token(html) {
+        tokens.push(html);
+        return "" + (tokens.length - 1) + "";
+    }
+    function link(href, labelHtml) {
+        var inner = options.link ? "<font color=\"" + escapeHtml(options.link) + "\">" + labelHtml + "</font>" : labelHtml;
+        return token("<a href=\"" + escapeHtml(href) + "\">" + inner + "</a>");
+    }
+    var source = String(text || "").replace(/[]/g, "");
+
+    // Code spans first: nothing inside them is Markdown.
+    var out = "";
+    var i = 0;
+    while (i < source.length) {
+        if (source.charAt(i) !== "`") {
+            out += source.charAt(i);
+            i += 1;
+            continue;
+        }
+        var run = 1;
+        while (source.charAt(i + run) === "`")
+            run += 1;
+        var ticks = source.substr(i, run);
+        var close = -1;
+        var search = i + run;
+        while (search < source.length) {
+            var at = source.indexOf(ticks, search);
+            if (at === -1)
+                break;
+            if (source.charAt(at + run) !== "`" && source.charAt(at - 1) !== "`") {
+                close = at;
+                break;
+            }
+            search = at + run;
+            while (source.charAt(search) === "`")
+                search += 1;
+        }
+        if (close === -1) {
+            out += ticks;
+            i += run;
+            continue;
+        }
+        var code = source.slice(i + run, close).replace(/\n/g, " ");
+        if (/^ [\s\S]*[^ ][\s\S]* $/.test(code))
+            code = code.slice(1, -1);
+        var css = "white-space:pre-wrap;";
+        if (options.mono)
+            css += "font-family:'" + String(options.mono).replace(/['"<>]/g, "") + "';";
+        if (options.code)
+            css += "background-color:" + escapeHtml(options.code) + ";";
+        out += token("<span style=\"" + css + "\"> " + escapeHtml(code) + " </span>");
+        i = close + run;
+    }
+    source = out;
+
+    source = source.replace(/\\([!-\/:-@\[-`{-~])/g, function(match, character) {
+        return token(escapeHtml(character));
+    });
+    source = source.replace(/<((?:https?:\/\/|mailto:)[^\s<>]+)>/gi, function(match, href) {
+        return link(href, escapeHtml(href));
+    });
+    source = source.replace(/!?\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)/g,
+        function(match, label, href) {
+            if (match.charAt(0) === "!")
+                return label;
+            return link(href, inlineHtml(label, { mono: options.mono, code: options.code }));
+        });
+    source = source.replace(/(^|[\s(])((?:https?:\/\/)[^\s<>]+?)(?=[.,;:!?)\]]*(?:\s|$))/gi, function(match, before, href) {
+        return before + link(href, escapeHtml(href));
+    });
+
+    source = escapeHtml(source);
+    source = source.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, "<b>$1</b>");
+    source = source.replace(/(^|[^A-Za-z0-9_])__(?=\S)([\s\S]*?\S)__(?![A-Za-z0-9_])/g, "$1<b>$2</b>");
+    source = source.replace(/~~(?=\S)([\s\S]*?\S)~~/g, "<s>$1</s>");
+    source = source.replace(/(^|[^*\\])\*(?=[^\s*])([\s\S]*?[^\s*\\])\*(?!\*)/g, "$1<i>$2</i>");
+    source = source.replace(/(^|[^A-Za-z0-9_])_(?=[^\s_])([\s\S]*?[^\s_])_(?![A-Za-z0-9_])/g, "$1<i>$2</i>");
+    source = source.replace(/(?: {2,}|\\)?\n/g, "<br>");
+
+    var restored = source;
+    for (var guard = 0; guard < 4 && //.test(restored); guard++) {
+        restored = restored.replace(/(\d+)/g, function(match, index) {
+            return tokens[Number(index)];
+        });
+    }
+    return restored;
+}
+
+// The reply's first paragraph as its headline: the first sentence stands out,
+// the rest of the paragraph follows quieter. Null when the paragraph has no
+// short first sentence to lead with. A sentence still streaming leads whole.
+var LEAD_SENTENCE_MAX = 180;
+var ABBREVIATIONS = /(?:^|[\s(])(?:e\.g|i\.e|etc|vs|approx|incl|Mr|Mrs|Ms|Dr|St|No|Nr)\.$/i;
+
+function balanced(text) {
+    var source = String(text).replace(/`[^`]*`/g, "");
+    var count = function(pattern) {
+        var found = source.match(pattern);
+        return found ? found.length : 0;
+    };
+    return count(/\*\*/g) % 2 === 0 && count(/__/g) % 2 === 0 && count(/`/g) % 2 === 0
+        && count(/\[/g) === count(/\]/g) && count(/\(/g) === count(/\)/g);
+}
+
+function leadParts(text) {
+    var source = String(text || "").replace(/^\s+|\s+$/g, "");
+    if (source === "")
+        return null;
+    var pattern = /[.!?…]["'”’)\]*_]*(?=\s)/g;
+    var match;
+    while ((match = pattern.exec(source)) !== null) {
+        var end = match.index + match[0].length;
+        var first = source.slice(0, end);
+        if (ABBREVIATIONS.test(first) || !balanced(first))
+            continue;
+        if (first.length > LEAD_SENTENCE_MAX)
+            return null;
+        return { first: first, rest: source.slice(end).replace(/^\s+/, "") };
+    }
+    return source.length <= LEAD_SENTENCE_MAX ? { first: source, rest: "" } : null;
+}
+
+// The headline as rich text, or "" when the paragraph has none. `style` adds
+// `rest`: the colour of the quieter part.
+function leadHtml(text, style) {
+    var parts = leadParts(text);
+    if (!parts)
+        return "";
+    var options = style || {};
+    var html = "<span style=\"font-weight:600;\">" + inlineHtml(parts.first, options) + "</span>";
+    if (parts.rest !== "") {
+        var rest = inlineHtml(parts.rest, options);
+        html += " " + (options.rest ? "<span style=\"color:" + escapeHtml(options.rest) + ";\">" + rest + "</span>" : rest);
+    }
+    return html;
 }
 
 // ---- what changed ------------------------------------------------------------------
@@ -609,28 +967,6 @@ function tuckedX(side, size, width) {
     return side === "left" ? shown - size : width - shown;
 }
 
-// ---- the wide view ------------------------------------------------------------------------
-// The expanded box stands beside the character, on the side with more room,
-// from the top of the free area down; `width` is the person's chosen width.
-function expandedPlacement(bubble, size, output, width, topReserve) {
-    var w = output.width || 0;
-    var h = output.height || 0;
-    var reserve = Math.max(0, topReserve || 0);
-    var leftRoom = bubble.x - GAP - EDGE;
-    var rightRoom = w - (bubble.x + size + GAP) - EDGE;
-    var onLeft = leftRoom >= rightRoom;
-    var room = Math.max(0, onLeft ? leftRoom : rightRoom);
-    var boxWidth = Math.round(clamp(width || 560, Math.min(320, room), Math.max(Math.min(320, room), room)));
-    var top = Math.max(reserve + EDGE, Math.min(bubble.y, h - EDGE - 320));
-    return {
-        x: Math.round(onLeft ? bubble.x - GAP - boxWidth : bubble.x + size + GAP),
-        y: Math.round(top),
-        width: boxWidth,
-        height: Math.round(Math.max(240, Math.min(720, h - top - EDGE))),
-        onLeft: onLeft
-    };
-}
-
 // ---- agent and model ------------------------------------------------------------------
 var CLAUDE_MODELS = [{ value: "default", label: "Default" }, { value: "fable", label: "Fable" },
     { value: "sonnet", label: "Sonnet" }, { value: "opus", label: "Opus" }];
@@ -648,6 +984,43 @@ function modelLabel(agent, value) {
             return choices[i].label;
     }
     return value || "Default";
+}
+
+// How hard the agent thinks. "default" leaves it to the agent's own
+// configuration; Codex also has "none". `short` fits the picker's segments.
+var EFFORT_LEVELS = [
+    { value: "default", label: "Auto", short: "Auto" },
+    { value: "none", label: "None", short: "None" },
+    { value: "low", label: "Low", short: "Low" },
+    { value: "medium", label: "Medium", short: "Med" },
+    { value: "high", label: "High", short: "High" },
+    { value: "xhigh", label: "XHigh", short: "XHigh" },
+    { value: "max", label: "Max", short: "Max" }
+];
+var CLAUDE_EFFORTS = EFFORT_LEVELS.filter(function(choice) { return choice.value !== "none"; });
+var CODEX_EFFORTS = EFFORT_LEVELS;
+
+function effortChoices(agent) {
+    return agent === "codex" ? CODEX_EFFORTS : CLAUDE_EFFORTS;
+}
+
+// The effort sent with a turn: "" leaves it to the agent, like modelFor.
+function effortFor(agent, claudeEffort, codexEffort) {
+    var value = agent === "codex" ? codexEffort : claudeEffort;
+    if (!value || value === "default")
+        return "";
+    return effortChoices(agent).some(function(choice) { return choice.value === value; }) ? value : "";
+}
+
+function effortLabel(agent, value) {
+    if (!value || value === "default")
+        return "Auto";
+    var choices = effortChoices(agent);
+    for (var i = 0; i < choices.length; i++) {
+        if (choices[i].value === value)
+            return choices[i].label;
+    }
+    return value;
 }
 
 // ---- telling the person ----------------------------------------------------------------
@@ -746,8 +1119,10 @@ var exported = {
     opensLastConversation: opensLastConversation,
     conversationText: conversationText,
     markdownBlocks: markdownBlocks,
-    FOLD_STEPS_BELOW: FOLD_STEPS_BELOW,
-    stepsFolded: stepsFolded,
+    inlineHtml: inlineHtml,
+    leadParts: leadParts,
+    leadHtml: leadHtml,
+    LEAD_SENTENCE_MAX: LEAD_SENTENCE_MAX,
     humanizeKey: humanizeKey,
     formatValue: formatValue,
     settingLabel: settingLabel,
@@ -764,9 +1139,11 @@ var exported = {
     TUCK_VISIBLE: TUCK_VISIBLE,
     tuckSide: tuckSide,
     tuckedX: tuckedX,
-    expandedPlacement: expandedPlacement,
     modelChoices: modelChoices,
     modelLabel: modelLabel,
+    effortChoices: effortChoices,
+    effortFor: effortFor,
+    effortLabel: effortLabel,
     NOTIFY_AFTER_MS: NOTIFY_AFTER_MS,
     notifies: notifies,
     isImagePath: isImagePath,

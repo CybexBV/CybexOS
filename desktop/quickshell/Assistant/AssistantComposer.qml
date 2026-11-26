@@ -12,7 +12,8 @@ import "../Common/AssistantHelpers.js" as AssistantHelpers
 // A new conversation offers History, suggestions and the three most recent
 // conversations. A continued one (Reply, or a row in History) shows its
 // questions and answers above the field; `room` is the height the box may
-// use, which that transcript scrolls within.
+// use, which that transcript scrolls within. The agent's logo in the field
+// picks who answers and how (AssistantModelPicker), for this conversation.
 AssistantSurface {
     id: root
 
@@ -22,15 +23,16 @@ AssistantSurface {
     // As many of the three as fit in the room on this side of the character.
     readonly property real recentRowHeight: Theme.scaled(38)
     readonly property real baseHeight: header.height + field.height + suggestionFlow.height
-        + agentLine.height + root.spacing * 5 + root.padding * 2 + Theme.scaled(64)
+        + (agentLine.visible ? agentLine.height : 0) + (picker.visible ? picker.height + root.spacing : 0)
+        + root.spacing * 5 + root.padding * 2 + Theme.scaled(64)
     readonly property var recent: Assistant.conversations.slice(0, Math.max(0, Math.min(
         AssistantHelpers.RECENT_LIMIT, Math.floor((root.room - root.baseHeight) / root.recentRowHeight))))
     property bool menuOpen: false
-    // The agent and model menu under the chip.
-    property bool modelMenuOpen: false
+    // The agent, model and effort picker under the field.
+    property bool pickerOpen: false
     onVisibleChanged: {
         menuOpen = false;
-        modelMenuOpen = false;
+        pickerOpen = false;
     }
 
     readonly property bool listening: Assistant.listening
@@ -89,8 +91,8 @@ AssistantSurface {
     function backOut() {
         if (Assistant.listening || Assistant.transcribing)
             Assistant.cancelListening();
-        else if (root.modelMenuOpen)
-            root.modelMenuOpen = false;
+        else if (root.pickerOpen)
+            root.pickerOpen = false;
         else if (root.menuOpen)
             root.menuOpen = false;
         else
@@ -168,15 +170,6 @@ AssistantSurface {
 
             AssistantButton {
                 visible: root.continuing
-                glyph: Settings.assistantExpanded ? "close_fullscreen" : "open_in_full"
-                accessibleName: Settings.assistantExpanded ? I18n.tr("Back to the small box") : I18n.tr("Expand")
-                controlHeight: Theme.scaled(26)
-                color: "transparent"
-                onTriggered: Assistant.toggleExpanded()
-            }
-
-            AssistantButton {
-                visible: root.continuing
                 glyph: "more_horiz"
                 accessibleName: I18n.tr("More for this conversation")
                 controlHeight: Theme.scaled(26)
@@ -250,12 +243,12 @@ AssistantSurface {
     // ---- the conversation so far -----------------------------------------------------
     Flickable {
         id: transcriptFlick
-        readonly property real chrome: header.height + field.height + agentLine.height
+        readonly property real chrome: header.height + field.height + (agentLine.visible ? agentLine.height : 0)
+            + (picker.visible ? picker.height + root.spacing : 0)
             + root.spacing * 4 + root.padding * 2 + Theme.scaled(24)
         width: parent.width
         visible: root.continuing && root.thread !== null && !root.listening && !Assistant.setupRequired
-        height: visible ? Math.max(Theme.scaled(60), Math.min(transcript.implicitHeight,
-            root.room - chrome, Theme.scaled(420))) : 0
+        height: visible ? Math.max(Theme.scaled(60), Math.min(transcript.implicitHeight, root.room - chrome)) : 0
         contentWidth: width
         contentHeight: transcript.implicitHeight
         clip: true
@@ -281,13 +274,14 @@ AssistantSurface {
                     width: transcript.width
                     spacing: Theme.scaled(6)
 
-                    // The question, on the right.
+                    // The question, on the right, in the reply's bubble.
                     Rectangle {
                         anchors.right: parent.right
                         width: Math.min(parent.width * 0.85, question.implicitWidth + Theme.scaled(20))
                         height: question.implicitHeight + Theme.scaled(12)
                         radius: root.innerRadius
-                        color: Theme.chip
+                        bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
+                        color: Theme.chipHover
 
                         Text {
                             id: question
@@ -314,12 +308,6 @@ AssistantSurface {
                                 ? I18n.tr("Stopped.")
                             : exchange.modelData.text || ""
                         color: exchange.failed ? Theme.redText : exchange.active ? Theme.textLow : Theme.textHi
-                    }
-
-                    AssistantSteps {
-                        width: parent.width
-                        steps: exchange.modelData.steps || []
-                        folded: true
                     }
 
                     Text {
@@ -640,6 +628,18 @@ AssistantSurface {
             anchors.bottomMargin: Theme.scaled(7)
             spacing: Theme.scaled(2)
 
+            AssistantAgentButton {
+                id: agentButton
+                visible: !root.listening && !root.transcribing
+                open: root.pickerOpen
+                onTriggered: {
+                    if (!AssistantHelpers.anyAgent(Assistant.agents))
+                        Settings.showPanel("assistant", Assistant.screenName);
+                    else
+                        root.pickerOpen = !root.pickerOpen;
+                }
+            }
+
             AssistantButton {
                 visible: Settings.assistantScreenContext && !root.listening && !root.transcribing
                 glyph: "photo"
@@ -679,12 +679,24 @@ AssistantSurface {
         }
     }
 
+    // ---- who answers, and how ----------------------------------------------------------
+    AssistantModelPicker {
+        id: picker
+        width: parent.width
+        visible: root.pickerOpen && !Assistant.setupRequired && !root.listening
+        radius: root.innerRadius
+        continuing: root.continuing
+        tailSide: "top"
+        tailX: buttons.x + agentButton.x + agentButton.width / 2
+        onCloseRequested: root.pickerOpen = false
+    }
+
     // ---- first questions -----------------------------------------------------------
     Flow {
         id: suggestionFlow
         width: parent.width
         spacing: Theme.scaled(6)
-        visible: Assistant.draft === "" && !root.continuing
+        visible: Assistant.draft === "" && !root.continuing && !root.pickerOpen
             && !root.listening && !root.transcribing && Assistant.connected && !Assistant.setupRequired
 
         Repeater {
@@ -773,8 +785,8 @@ AssistantSurface {
     // ---- the last three conversations ---------------------------------------------------
     Column {
         width: parent.width
-        visible: !root.continuing && root.recent.length > 0 && !root.listening && !root.transcribing
-            && Assistant.connected && !Assistant.setupRequired
+        visible: !root.continuing && !root.pickerOpen && root.recent.length > 0 && !root.listening
+            && !root.transcribing && Assistant.connected && !Assistant.setupRequired
         spacing: 0
 
         Rectangle {
@@ -829,84 +841,24 @@ AssistantSurface {
         onTriggered: Assistant.fix("service")
     }
 
-    // ---- who answers, and how to talk --------------------------------------------------
+    // ---- how to talk ------------------------------------------------------------------
     Item {
         id: agentLine
         width: parent.width
         height: Theme.scaled(22)
-        visible: !Assistant.setupRequired
-
-        Rectangle {
-            id: agentChip
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: agentRow.implicitWidth + Theme.scaled(14)
-            height: Theme.scaled(22)
-            radius: Theme.chipRadius
-            color: agentMouse.containsMouse || root.modelMenuOpen ? Theme.chipHover : Theme.chip
-            Accessible.role: Accessible.Button
-            Accessible.name: I18n.format("Answered by %1 · %2. Change the agent or model.",
-                [Assistant.askAgentLabel, Assistant.askModelLabel])
-
-            Row {
-                id: agentRow
-                anchors.centerIn: parent
-                spacing: Theme.scaled(5)
-
-                BrandIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Theme.iconSmall
-                    height: Theme.iconSmall
-                    name: AssistantHelpers.AGENT_ICONS[Assistant.askAgent] || ""
-                    colorized: true
-                    tint: Theme.textMid
-                    normalizeTintSource: true
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    readonly property bool installed: !!(Assistant.agents[Assistant.askAgent]
-                        && Assistant.agents[Assistant.askAgent].available)
-                    text: !installed && Assistant.connected
-                        ? I18n.format("%1 is not installed", [Assistant.askAgentLabel])
-                        : Assistant.askAgentLabel + " · " + Assistant.askModelLabel
-                    color: installed || !Assistant.connected ? Theme.textMid : Theme.redText
-                    font.family: Theme.fontMenu
-                    font.pixelSize: Theme.typography.metadata
-                }
-
-                Sym {
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: root.modelMenuOpen ? "expand_less" : "expand_more"
-                    size: Theme.iconSmall
-                    color: Theme.textLow
-                }
-            }
-
-            MouseArea {
-                id: agentMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (!AssistantHelpers.anyAgent(Assistant.agents))
-                        Settings.showPanel("assistant", Assistant.screenName);
-                    else
-                        root.modelMenuOpen = !root.modelMenuOpen;
-                }
-            }
-        }
+        // Nothing to say takes no room, and the open picker speaks for itself.
+        visible: !Assistant.setupRequired && !root.pickerOpen && hint.text !== ""
 
         Text {
-            anchors.left: agentChip.right
-            anchors.leftMargin: Theme.scaled(8)
+            id: hint
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.scaled(2)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideLeft
+            elide: Text.ElideRight
             text: Assistant.notice !== "" ? Assistant.notice
                 : Assistant.busy ? I18n.tr("Wiz is still working on another question.")
-                // The agent chip says who continues; the keys are as in a new box.
+                // The logo says who continues; the keys are as in a new box.
                 : root.continuing && !root.listening && !root.transcribing ? ""
                 : root.listening ? (Assistant.voiceLatched ? I18n.tr("Tap the microphone to send")
                     : I18n.tr("Release to send · Esc cancels"))
@@ -916,113 +868,6 @@ AssistantSurface {
             color: Assistant.notice !== "" ? Theme.textMid : Theme.textFaint
             font.family: Theme.fontMenu
             font.pixelSize: Theme.typography.metadata
-        }
-    }
-
-    // ---- agent and model, for this conversation ---------------------------------------
-    Rectangle {
-        id: modelMenu
-        width: parent.width
-        visible: root.modelMenuOpen && !Assistant.setupRequired
-        height: visible ? menuColumn.implicitHeight + Theme.scaled(10) : 0
-        radius: root.innerRadius
-        color: Theme.cardFill
-        border.width: 1
-        border.color: Theme.hairline
-
-        Column {
-            id: menuColumn
-            x: Theme.scaled(5)
-            y: Theme.scaled(5)
-            width: parent.width - Theme.scaled(10)
-            spacing: Theme.scaled(1)
-
-            Text {
-                leftPadding: Theme.scaled(6)
-                topPadding: Theme.scaled(2)
-                text: I18n.tr("Agent").toUpperCase()
-                color: Theme.textFaint
-                font.family: Theme.fontMenu
-                font.pixelSize: Theme.typography.metadata
-                font.weight: Theme.weightSemibold
-                font.letterSpacing: 0.6
-            }
-
-            Repeater {
-                model: AssistantHelpers.AGENT_IDS
-
-                delegate: AssistantMenuRow {
-                    required property string modelData
-                    readonly property var status: Assistant.agents[modelData] || {}
-                    width: menuColumn.width
-                    radius: Theme.concentricRadius(modelMenu.radius, menuColumn.x)
-                    glyphBrand: AssistantHelpers.AGENT_ICONS[modelData]
-                    label: AssistantHelpers.AGENT_LABELS[modelData]
-                    // A conversation continues with the agent it started with.
-                    enabled: !root.continuing && status.available === true
-                    checked: Assistant.askAgent === modelData
-                    detail: root.continuing && Assistant.askAgent !== modelData
-                        ? I18n.format("Started with %1", [Assistant.askAgentLabel])
-                        : status.available !== true ? I18n.tr("Not installed")
-                        : status.auth !== "ready" ? I18n.tr("Sign in…") : ""
-                    onChosen: {
-                        if (status.auth !== "ready") {
-                            root.modelMenuOpen = false;
-                            Assistant.signIn(modelData);
-                            return;
-                        }
-                        Assistant.agentOverride = modelData === Assistant.agent ? "" : modelData;
-                        Assistant.modelOverride = "";
-                    }
-                }
-            }
-
-            Rectangle {
-                width: parent.width
-                height: 1
-                color: Theme.hairline
-            }
-
-            Text {
-                leftPadding: Theme.scaled(6)
-                topPadding: Theme.scaled(2)
-                text: I18n.tr("Model").toUpperCase()
-                color: Theme.textFaint
-                font.family: Theme.fontMenu
-                font.pixelSize: Theme.typography.metadata
-                font.weight: Theme.weightSemibold
-                font.letterSpacing: 0.6
-            }
-
-            Repeater {
-                model: AssistantHelpers.modelChoices(Assistant.askAgent)
-
-                delegate: AssistantMenuRow {
-                    required property var modelData
-                    width: menuColumn.width
-                    radius: Theme.concentricRadius(modelMenu.radius, menuColumn.x)
-                    label: modelData.value === "default" ? I18n.tr("Default") : modelData.label
-                    detail: modelData.value === "default"
-                        ? I18n.format("%1's own", [Assistant.askAgentLabel]) : ""
-                    checked: (Assistant.askModel === "" ? "default" : Assistant.askModel) === modelData.value
-                    onChosen: {
-                        Assistant.modelOverride = modelData.value;
-                        root.modelMenuOpen = false;
-                    }
-                }
-            }
-
-            Text {
-                width: parent.width
-                leftPadding: Theme.scaled(6)
-                rightPadding: Theme.scaled(6)
-                bottomPadding: Theme.scaled(3)
-                text: I18n.tr("Only for this conversation. Your default stays in Settings.")
-                wrapMode: Text.WordWrap
-                color: Theme.textFaint
-                font.family: Theme.fontMenu
-                font.pixelSize: Theme.typography.metadata
-            }
         }
     }
 

@@ -76,14 +76,11 @@ PanelWindow {
     // The box steps out of the way while the character is dragged.
     readonly property bool dockShown: boxOpen && !dragging
 
-    // ---- the wide view ------------------------------------------------------------
-    // Long answers, and a conversation being read, open beside Wiz in the wide
-    // view once it is chosen (Expand); its edge drags to resize it.
-    property real wideWidth: Settings.assistantExpandedWidth
-    readonly property bool wide: Settings.assistantExpanded
-        && (showReply || showHistory || (showComposer && Assistant.continuing !== ""))
-    readonly property var widePlace: AssistantHelpers.expandedPlacement({ x: root.bubbleX, y: root.bubbleY },
-        root.size, { width: root.width, height: root.height }, Theme.scaled(root.wideWidth), root.topReserve)
+    // The box's tail points at him from the edge nearest him, and his light
+    // falls on it in his mood's colour: amber while he waits on the person,
+    // red after a failure, the accent otherwise (AssistantSurface).
+    readonly property string tailSide: dockPlace.above ? "bottom" : "top"
+    readonly property color mood: Assistant.failed ? Theme.red : Assistant.waiting ? Theme.amber : Theme.accent
 
     // The keyboard goes to the box only when it was asked for. Exclusive
     // first, so the compositor hands it over without a click; then OnDemand
@@ -588,13 +585,14 @@ PanelWindow {
             readonly property Item current: root.showHistory ? history
                 : root.showWorking ? working
                 : root.showReply ? replyCard : root.showComposer ? composer : null
-            readonly property real room: root.wide ? root.widePlace.height : root.dockPlace.room
+            readonly property real room: root.dockPlace.room
+            // Where he stands, in the box's own coordinates.
+            readonly property real tailX: character.x + root.size / 2 - x
 
-            x: root.wide ? root.widePlace.x : root.dockPlace.x
-            width: root.wide ? root.widePlace.width : root.dockPlace.width
+            x: root.dockPlace.x
+            width: root.dockPlace.width
             height: current ? current.height : 0
-            y: root.wide ? root.widePlace.y
-                : root.dockPlace.above ? root.dockPlace.anchorY - height : root.dockPlace.anchorY
+            y: root.dockPlace.above ? root.dockPlace.anchorY - height : root.dockPlace.anchorY
             opacity: root.dockShown ? 1 : 0
             visible: opacity > 0.01
 
@@ -610,6 +608,9 @@ PanelWindow {
             AssistantComposer {
                 id: composer
                 width: parent.width
+                tailX: dock.tailX
+                tailSide: root.tailSide
+                glow: root.mood
                 visible: root.showComposer
                 room: dock.room
             }
@@ -617,6 +618,9 @@ PanelWindow {
             AssistantHistory {
                 id: history
                 width: parent.width
+                tailX: dock.tailX
+                tailSide: root.tailSide
+                glow: root.mood
                 visible: root.showHistory
                 room: dock.room
             }
@@ -624,6 +628,9 @@ PanelWindow {
             AssistantWorking {
                 id: working
                 width: parent.width
+                tailX: dock.tailX
+                tailSide: root.tailSide
+                glow: root.mood
                 visible: root.showWorking
                 room: dock.room
             }
@@ -631,50 +638,20 @@ PanelWindow {
             AssistantReply {
                 id: replyCard
                 width: parent.width
+                tailX: dock.tailX
+                tailSide: root.tailSide
+                glow: root.mood
                 visible: root.showReply
                 room: dock.room
-            }
-
-            // The wide view's inner edge: drag to make it wider or narrower.
-            Rectangle {
-                visible: root.wide
-                x: root.widePlace.onLeft ? -Theme.scaled(9) : parent.width + Theme.scaled(4)
-                y: Math.round(parent.height / 2 - height / 2)
-                width: Theme.scaled(5)
-                height: Theme.scaled(44)
-                radius: width / 2
-                color: resizeArea.containsMouse || resizeArea.pressed ? Theme.textMid : Theme.hairline
-
-                MouseArea {
-                    id: resizeArea
-                    anchors.fill: parent
-                    anchors.margins: -Theme.scaled(6)
-                    hoverEnabled: true
-                    cursorShape: Qt.SizeHorCursor
-                    property real startX: 0
-                    property real startWidth: 0
-                    onPressed: mouse => {
-                        startX = mapToItem(stage, mouse.x, 0).x;
-                        startWidth = root.wideWidth;
-                    }
-                    onPositionChanged: mouse => {
-                        if (!pressed)
-                            return;
-                        const moved = (mapToItem(stage, mouse.x, 0).x - startX) / Theme.scaled(1);
-                        root.wideWidth = AssistantHelpers.clamp(startWidth + (root.widePlace.onLeft ? -moved : moved),
-                            420, 1200);
-                    }
-                    onReleased: Settings.set("assistantExpandedWidth", Math.round(root.wideWidth))
-                }
             }
         }
 
         // What the input mask admits of the box: nothing while it is hidden.
         Item {
             id: dockMask
-            x: dock.x - (root.wide ? Theme.scaled(16) : 0)
+            x: dock.x
             y: dock.y
-            width: root.dockShown ? dock.width + (root.wide ? Theme.scaled(32) : 0) : 0
+            width: root.dockShown ? dock.width : 0
             height: root.dockShown ? dock.height : 0
         }
 
@@ -709,14 +686,6 @@ PanelWindow {
     // Pointer vs keyboard modality for focus rings (Common/FocusModality):
     // a click in the box leaves no ring, the first Tab shows one.
     FocusModalityObserver {}
-
-    // The resize handle follows the setting when it changes elsewhere.
-    Connections {
-        target: Settings
-        function onAssistantExpandedWidthChanged() {
-            root.wideWidth = Settings.assistantExpandedWidth;
-        }
-    }
 
     property point lastPointer: Qt.point(0, 0)
 

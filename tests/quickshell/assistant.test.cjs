@@ -88,6 +88,26 @@ test("automatic follows the cybex agent default, then whichever is installed", (
     assert.equal(A.modelFor("codex", "sonnet", "default"), "");
 });
 
+test("effort: Auto leaves it to the agent, Codex alone has None", () => {
+    assert.deepEqual(A.effortChoices("claude").map(choice => choice.value),
+        ["default", "low", "medium", "high", "xhigh", "max"]);
+    assert.deepEqual(A.effortChoices("codex").map(choice => choice.value),
+        ["default", "none", "low", "medium", "high", "xhigh", "max"]);
+    assert.deepEqual(A.effortChoices("codex").map(choice => choice.short),
+        ["Auto", "None", "Low", "Med", "High", "XHigh", "Max"]);
+    assert.deepEqual(A.effortChoices("claude")[0], { value: "default", label: "Auto", short: "Auto" });
+    assert.equal(A.effortFor("claude", "high", "low"), "high");
+    assert.equal(A.effortFor("codex", "high", "none"), "none");
+    assert.equal(A.effortFor("codex", "high", "default"), "");
+    assert.equal(A.effortFor("claude", "none", "low"), "", "Claude Code has no None");
+    assert.equal(A.effortFor("claude", "turbo", "low"), "", "an unknown effort is left to the agent");
+    assert.equal(A.effortFor("claude", "", "low"), "");
+    assert.equal(A.effortLabel("claude", "default"), "Auto");
+    assert.equal(A.effortLabel("codex", ""), "Auto");
+    assert.equal(A.effortLabel("codex", "medium"), "Medium");
+    assert.equal(A.effortLabel("claude", "xhigh"), "XHigh");
+});
+
 test("turn statuses", () => {
     assert.ok(A.active({ status: "waiting" }) && !A.active({ status: "completed" }));
     assert.ok(A.finished({ status: "stopped" }) && !A.finished(null));
@@ -482,7 +502,7 @@ test("the box keeps one family of corners and keyboard-only focus rings", () => 
     assert.match(surface, /radius: Theme\.panelRadius/);
     assert.match(surface, /readonly property int innerRadius: Theme\.concentricRadius\(radius, padding\)/);
     for (const name of ["AssistantComposer", "AssistantHistory", "AssistantReply", "AssistantWorking", "AssistantApproval",
-        "AssistantChanges", "AssistantConversationRow", "AssistantMenuRow", "AssistantMarkdown"]) {
+        "AssistantChanges", "AssistantConversationRow", "AssistantModelPicker", "AssistantAgentButton", "AssistantMarkdown"]) {
         const source = read(`Assistant/${name}.qml`);
         assert.doesNotMatch(source, /radius: Theme\.scaled\(/, `${name} takes its corner from Theme`);
         assert.doesNotMatch(source, /radius: height \/ 2/, `${name} has no pills`);

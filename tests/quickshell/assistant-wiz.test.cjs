@@ -1,7 +1,8 @@
-// Wiz's newer shell rules (docs/assistant.md): replies with code blocks, what
-// changed and how it reads, the suggestion that fits the moment, snapping and
-// tucking, the wide view, notifications, attachments, and the wiring that
-// connects them to the service, the settings and the compositor.
+// Wiz's newer shell rules (docs/assistant.md): how a reply reads (its blocks,
+// headline and inline formatting), what changed and how it reads, the
+// suggestion that fits the moment, snapping and tucking, notifications,
+// attachments, and the wiring that connects them to the service, the settings
+// and the compositor.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -29,10 +30,104 @@ test("a reply splits into prose and code blocks, each code block copyable on its
     assert.match(markdown, /if \(\/\^\(https\?\|mailto\):\/i\.test\(link\)\)/, "only web and mail links open");
 });
 
-test("the steps fold after a short answer and stay open after a long one", () => {
-    assert.equal(A.stepsFolded("Done.", [{ label: "Read a file" }]), true);
-    assert.equal(A.stepsFolded("x".repeat(A.FOLD_STEPS_BELOW), [{ label: "Read a file" }]), false);
-    assert.equal(A.stepsFolded("Done.", []), false);
+test("a reply reads as blocks: paragraphs apart, a label before its list, titled items grouped", () => {
+    const reply = [
+        "Good news — every check passed. No problems found.",
+        "",
+        "**The details:**",
+        "",
+        "- **Drivers & graphics:** Every device has a driver.",
+        "- **Everything else is healthy** — no failed services.",
+        "",
+        "Two notes for context:",
+        "- Secure Boot is off",
+        "- a restart is pending",
+        "",
+        "One small thing.",
+        "Nothing else."
+    ].join("\n");
+    assert.deepEqual(A.markdownBlocks(reply), [
+        { kind: "text", text: "Good news — every check passed. No problems found." },
+        { kind: "label", text: "The details" },
+        { kind: "group", items: [
+            { title: "Drivers & graphics", text: "Every device has a driver." },
+            { title: "Everything else is healthy", text: "no failed services." }] },
+        { kind: "label", text: "Two notes for context" },
+        { kind: "list", ordered: false, items: [
+            { marker: "", text: "Secure Boot is off" }, { marker: "", text: "a restart is pending" }] },
+        { kind: "text", text: "One small thing.\nNothing else." }
+    ]);
+    assert.deepEqual(A.markdownBlocks("Para one.\n\nPara two."),
+        [{ kind: "text", text: "Para one." }, { kind: "text", text: "Para two." }], "each paragraph is its own block");
+    // Only a short line of its own, right before a list, becomes its label.
+    assert.equal(A.markdownBlocks("A long sentence that happens to end in a colon and goes on for quite a while:\n- x")[0].kind,
+        "text");
+    assert.equal(A.markdownBlocks("First line\nThe details:\n- x")[0].kind, "text");
+    assert.equal(A.markdownBlocks("The details:\n\nMore text\n- x")[0].kind, "text");
+    // A bold word that only starts a sentence is no title.
+    assert.equal(A.markdownBlocks("- **Don't** unplug it\n- **Wait** — then go")[0].kind, "list");
+    assert.deepEqual(A.markdownBlocks("- **Keyless releases.** A release.")[0],
+        { kind: "group", items: [{ title: "Keyless releases", text: "A release." }] });
+    // Numbered lists keep their numbers; nested items stay inside their parent.
+    assert.deepEqual(A.markdownBlocks("1. Open Settings\n2) Pick **Display**\n   - the screen\n3. Done"), [
+        { kind: "list", ordered: true, items: [
+            { marker: "1.", text: "Open Settings" },
+            { marker: "2.", text: "Pick **Display**\n◦ the screen" },
+            { marker: "3.", text: "Done" }] }]);
+    assert.deepEqual(A.markdownBlocks("## Summary\n> quoted\n> more\n\n---\n| a | b |\n|---|---|"), [
+        { kind: "heading", level: 2, text: "Summary" },
+        { kind: "quote", text: "quoted\nmore" },
+        { kind: "rule" },
+        { kind: "table", text: "| a | b |\n|---|---|" }]);
+    assert.deepEqual(A.markdownBlocks("Title\n==\nText"),
+        [{ kind: "heading", level: 1, text: "Title" }, { kind: "text", text: "Text" }]);
+    // While a reply streams: an item still writing its bold title keeps the group.
+    assert.deepEqual(A.markdownBlocks("- **One:** a\n- **Tw"),
+        [{ kind: "group", items: [{ title: "One", text: "a" }, { title: "Tw", text: "" }] }]);
+    assert.deepEqual(A.markdownBlocks("Text\n-"), [
+        { kind: "text", text: "Text" }, { kind: "list", ordered: false, items: [{ marker: "", text: "" }] }],
+        "a lone dash is a list item being written, not a heading underline");
+});
+
+test("inline Markdown draws as safe rich text, code on a chip", () => {
+    const style = { link: "#7cb6fb", code: "#29ffffff", mono: "JetBrainsMono Nerd Font" };
+    assert.equal(A.inlineHtml("runs `amdgpu` now", style),
+        "runs <span style=\"white-space:pre-wrap;font-family:'JetBrainsMono Nerd Font';background-color:#29ffffff;\">"
+        + " amdgpu </span> now");
+    assert.equal(A.inlineHtml("`a*b <c>`"), "<span style=\"white-space:pre-wrap;\"> a*b &lt;c&gt; </span>",
+        "nothing inside code is Markdown or HTML");
+    assert.equal(A.inlineHtml("**bold** _it_ *em* ~~gone~~"), "<b>bold</b> <i>it</i> <i>em</i> <s>gone</s>");
+    assert.equal(A.inlineHtml("snake_case_name and 2 * 3 and x\\*y"), "snake_case_name and 2 * 3 and x*y");
+    assert.equal(A.inlineHtml("<b>raw</b> & \"quoted\""), "&lt;b&gt;raw&lt;/b&gt; &amp; &quot;quoted&quot;",
+        "raw HTML shows as written");
+    assert.equal(A.inlineHtml("[the guide](https://example.com/a_b)", style),
+        "<a href=\"https://example.com/a_b\"><font color=\"#7cb6fb\">the guide</font></a>");
+    assert.equal(A.inlineHtml("see https://example.com/x_y."),
+        "see <a href=\"https://example.com/x_y\">https://example.com/x_y</a>.", "a bare URL links, without its full stop");
+    assert.equal(A.inlineHtml("<mailto:me@example.com>"), "<a href=\"mailto:me@example.com\">mailto:me@example.com</a>");
+    assert.equal(A.inlineHtml("![a picture](https://example.com/p.png)"), "a picture");
+    assert.equal(A.inlineHtml("one\ntwo"), "one<br>two", "a newline breaks the line");
+    assert.equal(A.inlineHtml("unfinished **bold"), "unfinished **bold", "an open marker shows while it streams");
+});
+
+test("the first paragraph leads with its first sentence", () => {
+    assert.deepEqual(A.leadParts("Good news — every check passed. No problems found."),
+        { first: "Good news — every check passed.", rest: "No problems found." });
+    assert.deepEqual(A.leadParts("Still streaming the first sentence"),
+        { first: "Still streaming the first sentence", rest: "" });
+    assert.deepEqual(A.leadParts("Use e.g. this one. Then that."), { first: "Use e.g. this one.", rest: "Then that." });
+    assert.deepEqual(A.leadParts("**Done. All good** now. Next."), { first: "**Done. All good** now.", rest: "Next." },
+        "a sentence never ends inside bold");
+    assert.deepEqual(A.leadParts("Version 96.6 is out! Update now."), { first: "Version 96.6 is out!", rest: "Update now." });
+    assert.equal(A.leadParts("x".repeat(A.LEAD_SENTENCE_MAX + 1) + ". More."), null, "a long sentence is no headline");
+    assert.equal(A.leadParts(""), null);
+    assert.equal(A.leadHtml("Passed `x`. The rest.", { rest: "#c3c0b7" }),
+        "<span style=\"font-weight:600;\">Passed <span style=\"white-space:pre-wrap;\"> x </span>.</span> "
+        + "<span style=\"color:#c3c0b7;\">The rest.</span>");
+    const markdown = read("Assistant/AssistantMarkdown.qml");
+    assert.match(markdown, /property bool lead: false/);
+    assert.match(markdown, /root\.lead && block\.index === 0/);
+    assert.match(markdown, /font\.pixelSize: headline !== "" \? Theme\.typography\.title/);
 });
 
 test("a change reads as what it is, with its old and new value", () => {
@@ -111,18 +206,6 @@ test("a drop near a corner or a side lands there; past a side edge he tucks away
     assert.match(window, /zone \? zone\.x : AssistantHelpers\.clamp\(root\.dragX/);
 });
 
-test("the wide view stands beside Wiz on the side with more room", () => {
-    const right = A.expandedPlacement({ x: 1800, y: 60 }, 88, { width: 1920, height: 1080 }, 560, 40);
-    assert.equal(right.onLeft, true);
-    assert.equal(right.x + right.width, 1800 - A.GAP);
-    const left = A.expandedPlacement({ x: 40, y: 60 }, 88, { width: 1920, height: 1080 }, 560, 40);
-    assert.equal(left.onLeft, false);
-    assert.equal(left.x, 40 + 88 + A.GAP);
-    assert.ok(left.height <= 720 && left.y >= 40);
-    const narrow = A.expandedPlacement({ x: 600, y: 60 }, 88, { width: 1280, height: 720 }, 900, 0);
-    assert.ok(narrow.width <= 600 - A.GAP - A.EDGE, "never wider than the room beside him");
-});
-
 test("a finished question notifies only when it took a while and the box was not in view", () => {
     assert.equal(A.notifies("closed", "finished", false, 25000), true);
     assert.equal(A.notifies("closed", "finished", true, 25000), false);
@@ -195,14 +278,16 @@ test("Ask Wiz appears where things go wrong and only prepares the question", () 
 
 test("Settings offers the new behaviour, the change log and routines", () => {
     const page = read("Settings/AssistantPage.qml");
-    for (const key of ["assistantHover", "assistantNotify", "assistantFade", "assistantWindowContext", "assistantExpanded"])
+    for (const key of ["assistantHover", "assistantNotify", "assistantFade", "assistantWindowContext"])
         assert.match(page, new RegExp(`settingKey: "${key}"`));
+    assert.doesNotMatch(page, /assistantExpanded/, "the wide view is gone");
     assert.match(page, /searchAnchor: "assistant-changes"/);
     assert.match(page, /searchAnchor: "assistant-routines"/);
     const H = load("SettingsHelpers.js");
     const d = H.defaults();
-    assert.deepEqual([d.assistantHover, d.assistantFade, d.assistantWindowContext, d.assistantExpanded,
-        d.assistantExpandedWidth, d.assistantTuck], ["status", true, true, false, 560, ""]);
-    assert.equal(H.merge({ assistantExpandedWidth: 5000 }).assistantExpandedWidth, 1200, "kept within its range");
+    assert.deepEqual([d.assistantHover, d.assistantFade, d.assistantWindowContext, d.assistantTuck],
+        ["status", true, true, ""]);
+    assert.deepEqual([d.assistantClaudeEffort, d.assistantCodexEffort, d.assistantCodexFast], ["default", "default", false]);
+    assert.equal("assistantExpanded" in d || "assistantExpandedWidth" in d, false, "the wide view is gone");
     assert.equal(H.merge({ assistantTuck: "top" }).assistantTuck, "");
 });
