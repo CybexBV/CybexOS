@@ -21,8 +21,9 @@
 ## Testing
 
 - After a change, run `fast-test` in your worktree. It tests only what changed since `main` (commits, staged and
-  unstaged edits, new files) and runs every step here on The Dragon in the dev shell, except the flake's evaluation
-  (`flake-check`), which runs in fast-test's Nix container on The Beast. `fast-test --dry-run` shows
+  unstaged edits, new files). The source, shell and test-script steps and the flake's evaluation run in fast-test's
+  Nix container on The Beast (the tests in the dev shell, through `tests/fast-test-container`); only the linters'
+  quick step runs here on The Dragon. `fast-test --dry-run` shows
   what it would run and why.
 - Exit 0 passed, 1 failed, 2 couldn't run (say so; don't run the full suite here instead). When it fails, its output
   ends with the failing step's last lines; the whole log is in `.git/fast-test/`.
