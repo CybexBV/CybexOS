@@ -1,0 +1,19 @@
+#!/bin/sh
+# Runs a command in the dev shell inside fast-test's Nix container on The Beast (.fast-test.json's steps there).
+#
+#   tests/fast-test-container <command>...
+#
+# The container is a bare Nix image run as root, not a desktop host, so first it gets what the tests take from one:
+# the interpreters the scripts' first lines name (/usr/bin/python3, /bin/bash), and a copy that the tests which run
+# themselves as nobody can read. Its copy of the repository is one commit deep, which Nix accepts only when told.
+set -eu
+[ "${WHOMBAT_CHECK:-}" = 1 ] || { echo "fast-test-container: only for fast-test's container on The Beast" >&2; exit 2; }
+[ $# -gt 0 ] || { echo "usage: tests/fast-test-container <command>..." >&2; exit 2; }
+chmod go+rx .
+flake="git+file://$PWD?shallow=1"
+# shellcheck disable=SC2016 # the inner shell expands them
+exec nix --extra-experimental-features 'nix-command flakes' develop "$flake" --command sh -c '
+  mkdir -p /usr/bin
+  [ -e /usr/bin/python3 ] || ln -s "$(command -v python3)" /usr/bin/python3
+  [ -e /bin/bash ] || ln -s "$(command -v bash)" /bin/bash
+  exec "$@"' sh "$@"

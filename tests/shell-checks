@@ -10,6 +10,15 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." || exit 2
 
 source tests/checks.bash
 
+# The installed desktop's fonts (tests/shell_fonts.py), built once for every
+# check here instead of by each at the same time: in an empty Nix store (a new
+# fast-test store on The Beast) the eight builds side by side all failed.
+if [[ -z ${CYBEXOS_TEST_FONTS_ETC:-} ]]; then
+  CYBEXOS_TEST_FONTS_ETC=$(python3 -B -c 'import sys; sys.path.insert(0, "tests"); import shell_fonts; print(shell_fonts.installed_fonts_etc())') ||
+    { echo "Couldn't build the desktop's fonts (tests/shell_fonts.py)" >&2; exit 2; }
+  export CYBEXOS_TEST_FONTS_ETC
+fi
+
 check tests/qml-lint tests/qml-lint
 check tests/user-plugins.py python3 -B tests/user-plugins.py
 check tests/media-player.py python3 -B tests/media-player.py
