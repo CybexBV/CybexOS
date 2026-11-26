@@ -392,7 +392,7 @@ tip of his hat. His hands show at rest.
 | Searching | his hands round a glowing orb | the step is `search`: the web, files or the desktop's search tools |
 | Writing | writes line after line on a scroll with a quill | the step is `write`: editing a file |
 | Casting | waves his wand; a spell glows at its tip | the step is `run` (a command) or `change` (a desktop tool that changes or acts) |
-| Brewing | stirs a cauldron; bubbles rise | the step is `install`: adding or removing an app, staging or applying a system change |
+| Brewing | stirs a cauldron; bubbles rise | the step is `install`: adding, removing or updating an app, or staging or applying a system change |
 | Delegating | an open hand towards the wisp beside him | the step is `delegate`: a helper agent |
 | Needs input | peeks from under the brim with a hand raised | a question waits for your answer, or a routine found something |
 | Pointing | points his wand at the box: down, or up when it opens above him | the reply in view offers **Add to bar** for a widget that is not on the bar yet, however it would have got there (the shell's own list, `UserPlugins.enabledWidgets`), or **Review change…** (built and checked), once the celebration is over |
@@ -755,9 +755,10 @@ A conversation summary:
 Codex: `think` (reasoning, planning), `read` (files, web pages, images and the
 look-only desktop tools that read), `search` (the web, files and the desktop
 search tools), `write` (editing files), `run` (a command), `change` (a desktop
-tool that changes or acts), `install` (adding or removing an app, or staging
-or applying a system change), `delegate` (a helper agent), `tool` (any other
-tool), or `""` when there is no step. While a card waits, it keeps the kind of
+tool that changes or acts), `install` (adding, removing or updating an app,
+or staging or applying a system change, the guided `cybex update` among
+them), `delegate` (a helper agent), `tool` (any other tool), or `""` when
+there is no step. While a card waits, it keeps the kind of
 the action waiting. `refused` turns true once the ownership rules refused a
 tool request in this question (the Refused rows above, and the recovery
 commands such as `cybex update rollback`) and stays true until it ends; the
