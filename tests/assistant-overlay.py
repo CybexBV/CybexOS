@@ -12,7 +12,10 @@ errors throughout.
 
 The launcher's Ask Wiz row is typed into with wtype: a query nothing matches
 reaches the assistant once the launcher has closed, kept behind sign-in while
-no agent is signed in. With --screenshots DIR (grim, and the installed
+no agent is signed in. The reply's own field and the model picker are used
+with real pointer clicks and typed keys: a click gives the field the
+keyboard (the box's on-demand keyboard mode), and an effort chosen in the
+picker reaches the agent. With --screenshots DIR (grim, and the installed
 desktop's fonts from tests/shell_fonts.py), that row and the empty
 notification centre, with Do Not Disturb off and on, are saved there. Those
 runs draw with OpenGL on Mesa's llvmpipe (CYBEXOS_TEST_MESA, or the flake's
@@ -162,6 +165,28 @@ FRAME_COUNTER = '''
         enabled: shell.testCounting
         function onFrameSwapped() { shell.testFrames++; }
     }
+    // Where an item of the assistant's window is, by objectName, in output
+    // coordinates; a shown one before a hidden one of the same name.
+    function testItem(name) {
+        const window = assistantLoader.item;
+        let found = null;
+        const walk = node => {
+            if (!node || (found && found.visible))
+                return;
+            if (node.objectName === name && (!found || node.visible))
+                found = node;
+            const kids = node.children || [];
+            for (let i = 0; i < kids.length; i++)
+                walk(kids[i]);
+        };
+        if (window)
+            walk(window.contentItem);
+        if (!found)
+            return "{}";
+        const at = found.mapToItem(null, 0, 0);
+        return JSON.stringify({ x: at.x, y: at.y, width: found.width, height: found.height,
+            visible: found.visible, focus: found.activeFocus });
+    }
 '''
 
 
@@ -263,6 +288,7 @@ class Session:
             '\n        function frames(on: bool): int { const seen = shell.testFrames; shell.testFrames = 0;'
             ' shell.testCounting = on; return seen; }'
             '\n        function draft(): string { return Assistant.draft; }'
+            '\n        function item(name: string): string { return shell.testItem(name); }'
             '\n        function setting(key: string, value: string): void { Settings.set(key, JSON.parse(value)); }'
             '\n        function close(): void { Assistant.closeBox(); }'
             '\n        function click(): void { Assistant.characterClicked(); }'
@@ -416,6 +442,27 @@ class Session:
     def log(self):
         path = self.base / "qs.log"
         return path.read_text(errors="replace") if path.exists() else ""
+
+    def item(self, name):
+        """An item of the assistant's window by objectName: where, shown, focused."""
+        try:
+            return json.loads(self.ipc("item", name) or "{}")
+        except (json.JSONDecodeError, subprocess.TimeoutExpired):
+            return {}
+
+    def click_item(self, name):
+        """A real pointer click in the middle of a shown item."""
+        seen = []
+        try:
+            found = self.wait(lambda: (lambda i: seen.append(i) or (i if i.get("visible") else None))(
+                self.item(name)), f"{name} on screen")
+        except AssertionError as error:
+            raise AssertionError(f"{name} last seen as {seen[-1:]}\n{error}") from None
+        self.pointer.move(found["x"] + found["width"] / 2, found["y"] + found["height"] / 2)
+        time.sleep(0.2)
+        self.pointer.button(True)
+        self.pointer.button(False)
+        return found
 
     def frames(self, seconds):
         """How many frames the assistant's window draws in that long."""
@@ -651,15 +698,45 @@ def main():
             assert turn["steps"] == [{"label": "Read a file", "detail": "shell.json", "tool": False}], turn["steps"]
             assert json.loads(session.preferences.read_text())["glassEnabled"] is True
             session.wait(lambda: session.shell_state().get("turn") == "completed", "the shell's reply")
-            # The reply with what changed and its steps, in the wide view too.
+            # The reply with what changed, in the dark and the light.
             session.screenshot("assistant-changes.png")
-            session.ipc('setting', 'assistantExpanded', 'true')
-            time.sleep(0.4)
-            session.screenshot("assistant-wide.png")
-            session.ipc('setting', 'assistantExpanded', 'false')
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-changes-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
             undone = session.call("turn.undo", {"id": turn["id"]})["result"]
             assert undone == {"restored": ["~/.config/cybexos/shell.json"], "skipped": []}, undone
             assert "glassEnabled" not in json.loads(session.preferences.read_text())
+
+            # Answered from the reply's own field: a click gives it the
+            # keyboard, Enter continues the same conversation, and the
+            # composer never opens.
+            session.click_item("assistantReplyField")
+            session.wait(lambda: session.item("assistantReplyField").get("focus"), "the reply field's keyboard")
+            session.press("And what about the clock")
+            session.press("-k", "Return")
+            followed = session.finished("And what about the clock")
+            assert followed["conversation"] == turn["conversation"], (followed, turn)
+            assert not session.shell_state().get("composing"), session.shell_state()
+            session.wait(lambda: session.shell_state().get("turn") == "completed", "the reply to the reply")
+            # The logo in the field opens the picker; Esc closes it first and
+            # leaves the reply open. The effort chosen there reaches Claude
+            # Code with the next answer, in the same conversation.
+            session.click_item("assistantModelButton")
+            session.wait(lambda: session.item("assistantModelPicker").get("visible"), "the model picker")
+            session.screenshot("assistant-picker.png")
+            session.click_item("assistantEffort_high")
+            session.click_item("assistantReplyField")
+            session.wait(lambda: session.item("assistantReplyField").get("focus"), "the reply field's keyboard again")
+            session.press("-k", "Escape")
+            session.wait(lambda: not session.item("assistantModelPicker").get("visible"), "the picker to close")
+            assert session.shell_state().get("turn") == "completed", session.shell_state()
+            session.press("Think it over")
+            session.press("-k", "Return")
+            harder = session.finished("Think it over")
+            assert harder["conversation"] == turn["conversation"], (harder, turn)
+            argv = [json.loads(line) for line in (session.base / "claude-argv.jsonl").read_text().splitlines()][-1]
+            assert "--effort" in argv and argv[argv.index("--effort") + 1] == "high", argv
+            session.wait(lambda: session.shell_state().get("turn") == "completed", "the answer with more effort")
 
             # Ordinary commands proceed with the fresh-install default.
             session.ipc("ask", "Clean up these downloads")
@@ -809,6 +886,13 @@ def main():
             session.wait(lambda: (lambda s: s.get("composing") and s.get("continuing") == ""
                                   and not s.get("historyOpen"))(session.shell_state()), "a new conversation")
             session.screenshot("assistant-new-conversation.png")
+            # The composer's field has the same logo and picker.
+            session.click_item("assistantModelButton")
+            session.wait(lambda: session.item("assistantModelPicker").get("visible"), "the composer's picker")
+            session.screenshot("assistant-composer-picker.png")
+            session.press("-k", "Escape")
+            session.wait(lambda: not session.item("assistantModelPicker").get("visible"), "the composer's picker to close")
+            assert session.shell_state().get("composing"), "Esc closed the picker, not the box"
             session.ipc("history")
             session.wait(lambda: session.shell_state().get("historyOpen"), "History")
             session.screenshot("assistant-history.png")
@@ -901,7 +985,7 @@ def main():
             output = session.log()
             errors = [line for line in output.splitlines() if QML_ERRORS.search(line)]
             assert not errors, "\n".join(errors)
-            print("Assistant onboarding/draft preservation, Ask Wiz from the launcher (signed out and in), the status line on rest, repeated pointer dragging, snapping and tucking, the shell's desktop tools, default automatic approvals, Ask first, what changed with Undo and the steps, the wide view, widget hand-off, Wiz's poses (carried while dragged, facing left behind the right edge, each kind of work, the wisp for a question alongside or Up next, a shrug after a refusal, drowsy and awake, still at once without motion, pointing at Add to bar until the widget is on the bar), hiding, conversation history (new by default, open and continue, delete, restore, clear), the empty notification centre and Wiz asleep, drawing nothing, once the service stops passed")
+            print("Assistant onboarding/draft preservation, Ask Wiz from the launcher (signed out and in), the status line on rest, repeated pointer dragging, snapping and tucking, the shell's desktop tools, default automatic approvals, Ask first, what changed with Undo, the reply's own field and the model picker (effort reaching the agent, Esc closing the picker first, also in the composer), widget hand-off, Wiz's poses (carried while dragged, facing left behind the right edge, each kind of work, the wisp for a question alongside or Up next, a shrug after a refusal, drowsy and awake, still at once without motion, pointing at Add to bar until the widget is on the bar), hiding, conversation history (new by default, open and continue, delete, restore, clear), the empty notification centre and Wiz asleep, drawing nothing, once the service stops passed")
         finally:
             session.stop()
 
