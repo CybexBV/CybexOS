@@ -793,7 +793,7 @@ test("carried, he reacts only while live and always comes back to rest", () => {
     for (const hand of ["leftAct", "rightAct"])
         assert.equal(code.match(new RegExp(`Sine[XY] \\{ target: ${hand}; running: root\\.act === "carried";`, "g")).length, 2, hand);
     assert.match(code, /readonly property point leftReach: Qt\.point\(\(lx - layout\.shoulders\[0\]\[0\]\) \* arms \+ reaction\.handX,/);
-    assert.match(code, /SineR \{ target: kick; running: root\.live && root\.carried; reach: 16; period: 480; phase: leg\.phase \}/);
+    assert.match(code, /SineR \{\s*target: kick\s*running: root\.live && root\.carried\s*reach: 16\s*period: 480\s*phase: leg\.phase\s*onRunningChanged: \{\s*if \(!running\)\s*kick\.rotation = 0;\s*\}\s*\}/);
     // Every one-shot ends where it began.
     for (const id of ["startling", "landing"]) {
         const start = code.indexOf(`id: ${id}`);
@@ -810,6 +810,93 @@ test("carried, he reacts only while live and always comes back to rest", () => {
     const off = code.slice(code.indexOf("onLiveChanged: {"));
     for (const step of ["startling.complete()", "landing.complete()", "hopping.stop()", "crooking.complete()", "dizzy = false"])
         assert.ok(off.includes(step), step);
+
+    // ---- every item, not a list kept by hand ----------------------------------
+    // Measured in Quickshell (Qt 6.12): an Animator that stops leaves its
+    // item where it was, alone or as the last step of a sequence, and only
+    // an earlier step of a sequence falls back to where the item stood. His
+    // boots stayed turned after every drag that way. So each [item,
+    // property] an Animator anywhere in the file moves is read from the
+    // file, and each one that stays for good must be put back.
+    const components = movers(code);
+    assert.deepEqual(Object.keys(components).sort(), ["Nod", "Nudge", "SineR", "SineX", "SineY", "Wave"]);
+    const ids = text => [...text.matchAll(/\bid: (\w+)/g)].map(match => match[1]);
+    const drawing = code.slice(code.indexOf("id: rig"), code.indexOf("readonly property int filled"));
+    let always = drawing;
+    for (const part of blocks(drawing, /Loader/))
+        always = always.replace(part, "");
+    // What every pose shows stays; what a Loader or a component makes goes
+    // with its part, and takes what its own animations did with it.
+    const stays = new Set(ids(always));
+    const goes = new Set([...blocks(code, /Loader/), ...blocks(code, /component \w+: \w+/)].flatMap(ids));
+    const pairs = moved(code, components);
+    assert.ok(pairs.length >= 110, `${pairs.length} moves read from the file`);
+    for (const [item] of pairs)
+        assert.ok(stays.has(item) || goes.has(item), `${item} is animated, and is part of neither every pose nor one made for a pose`);
+    for (const on of spans(code, /Animat(?:ion|or) on \w+/))
+        assert.ok(spans(code, /Loader/).concat(spans(code, /component \w+: \w+/)).some(part => part.start < on.start && on.end <= part.end),
+            "an animation on its own item is part of something made for a pose");
+    const key = pair => pair.join(".");
+
+    // settle() brings most to rest: eased by `settling` while he may move,
+    // at once otherwise. Whatever one does, the other does too.
+    const settling = blocks(code, /ParallelAnimation/).find(text => /^ParallelAnimation \{\s*id: settling/.test(text));
+    const eased = new Set(moved(settling, {}).map(key));
+    assert.equal(settling.match(/Animator \{ target: \w+; to: 0; duration: 300; easing\.type: Easing\.OutCubic \}/g).length, eased.size);
+    const listed = name => code.match(new RegExp(`readonly property list<Item> ${name}: \\[([^\\]]+)\\]`))[1].split(", ");
+    const still = body(code, "settle").match(/\} else \{([\s\S]*)\}/)[1];
+    const atOnce = new Set([...listed("shifted").flatMap(item => [`${item}.x`, `${item}.y`]),
+        ...listed("turned").map(item => `${item}.rotation`),
+        ...[...still.matchAll(/\b(\w+)\.(\w+) = 0;/g)].filter(match => match[1] !== "item").map(match => `${match[1]}.${match[2]}`)]);
+    for (const pair of eased)
+        assert.ok(atOnce.has(pair), `${pair} is eased back, and put back at once when he may not move`);
+
+    // The rest look after themselves, each where it stops.
+    const KIND = { x: "X", y: "Y", rotation: "Rotation", scale: "Scale", opacity: "Opacity" };
+    const lastStep = (text, target, property) => [...text.matchAll(
+        new RegExp(`${KIND[property]}Animator \\{[^{}]*?target: ${target}[;\\n][^{}]*`, "g"))].pop();
+    const own = [];
+    for (const animation of animations(code)) {
+        const loose = moved(animation.text, components).filter(pair => stays.has(pair[0]) && !eased.has(key(pair)));
+        const endless = /^[\w ]+\{[^{}]*loops: Animation\.Infinite/.test(animation.text) || /^Sine[XYR] /.test(animation.text);
+        for (const [item, property] of loose) {
+            own.push(key([item, property]));
+            const back = `\\b${item}\\.${property} = 0\\b`;
+            if (endless) {
+                // A loop: put back as it stops.
+                assert.match(animation.text, new RegExp(`on(?:RunningChanged|Stopped): [^]*?${back}`),
+                    `the loop that moves ${item}.${property} puts it back as it stops`);
+                continue;
+            }
+            // It plays once: it ends where the item rests, or puts it back
+            // as it finishes; whoever stops it puts the item back in the
+            // same breath; and nobody completes it, which would do nothing.
+            assert.ok(animation.id, `what moves ${item}.${property} has a name to stop it by`);
+            const direct = lastStep(animation.text, item, property);
+            const handed = Object.entries(components).flatMap(([name, moves]) => moves
+                .filter(([parameter, moves]) => moves === property && new RegExp(`\\b${name} \\{[^{}]*\\b${parameter}: ${item}\\b`).test(animation.text))
+                .map(([parameter]) => {
+                    const component = blocks(code, new RegExp(`component ${name}: \\w+`))[0];
+                    return lastStep(component, `${component.match(/\{\s*id: (\w+)/)[1]}\\.${parameter}`, property);
+                }));
+            const last = direct || handed[0];
+            assert.ok(last, `${animation.id} moves ${item}.${property} with an Animator this test can read`);
+            assert.ok(/\bto: 0[;\n]/.test(last[0]) || new RegExp(`onFinished: [^]*?${back}`).test(animation.text),
+                `${animation.id} leaves ${item}.${property} at rest when it ends`);
+            for (const [, after] of code.matchAll(new RegExp(`\\b${animation.id}\\.stop\\(\\);((?:\\s*\\w+\\.\\w+ = 0;)*)`, "g")))
+                assert.match(after, new RegExp(back), `${animation.id}.stop() puts ${item}.${property} back`);
+            assert.doesNotMatch(code, new RegExp(`\\b${animation.id}\\.complete\\(\\)`));
+        }
+    }
+    // These are the ones: the tremble, the kick, and what plays once.
+    assert.deepEqual([...new Set(own)].sort(), ["bodyNod.y", "breath.x", "dart.x", "eyesNod.y", "hatNod.y", "kick.rotation",
+        "star.rotation", "twirl.rotation"]);
+    // Everything that stays and is moved is covered by one way or the other.
+    for (const pair of pairs.filter(([item]) => stays.has(item)))
+        assert.ok(eased.has(key(pair)) || own.includes(key(pair)), key(pair));
+    // A grab stops the nod and a landing the startled glance.
+    assert.match(code, /\n    function startle\(\) \{\s*stopNod\(\);/);
+    assert.match(code, /\n    function land\(sweat\) \{\s*startling\.stop\(\);\s*stopGlance\(\);/);
 });
 
 test("he can face the other way, point at the box, and have a helper", () => {

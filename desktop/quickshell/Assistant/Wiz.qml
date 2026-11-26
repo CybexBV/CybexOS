@@ -945,7 +945,9 @@ Item {
 
                     // Boot tips under the hem. Carried, his legs come out:
                     // they kick while he dangles and trail behind when he
-                    // is pulled along.
+                    // is pulled along. The kick ends with the drag, and
+                    // an Animator leaves its item where it stopped, so each
+                    // leg is put back: his boot hangs from it.
                     Repeater {
                         model: root.layout.feet
                         delegate: Item {
@@ -970,7 +972,17 @@ Item {
                                         name: "leg"
                                         opacity: root.feet
 
-                                        SineR { target: kick; running: root.live && root.carried; reach: 16; period: 480; phase: leg.phase }
+                                        SineR {
+                                            target: kick
+                                            running: root.live && root.carried
+                                            reach: 16
+                                            period: 480
+                                            phase: leg.phase
+                                            onRunningChanged: {
+                                                if (!running)
+                                                    kick.rotation = 0;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -2161,7 +2173,7 @@ Item {
     // "Yikes": he jumps up stretched, his hat pops off, his eyes dart, "?!"
     // flashes and sweat flies.
     function startle() {
-        nodding.stop();
+        stopNod();
         landing.stop();
         crooking.stop();
         crook = 0;
@@ -2179,7 +2191,7 @@ Item {
     // crooked, dust, then a bead of sweat and a shake of the hat.
     function land(sweat) {
         startling.stop();
-        doubleTake.stop();
+        stopGlance();
         landing.restart();
         hop = 10 * impact;
         hopping.restart();
