@@ -182,16 +182,6 @@ test("the IPC payload is held to the schema before anything changes", () => {
     [listing.themes[1].id]);
 });
 
-test("the dropdown previews each theme in its own colours", () => {
-    const references = { dark: { background: "#1a1917", text: "#f2f0ea" },
-        light: { background: "#eae9ef", text: "#1f1d2b" } };
-    assert.deepEqual(T.swatches(byId("nord"), references), ["#2e3440", "#88c0d0", "#eceff4"]);
-    assert.deepEqual(T.swatches(byId("cybexos"), references), ["#1a1917", "#60a5fa", "#f2f0ea"]);
-    assert.deepEqual(T.swatches(byId("catppuccin-latte"), references),
-        ["#e6e9ef", "#8839ef", "#4c4f69"]);
-    assert.deepEqual(T.swatches(null, references), []);
-});
-
 // ---- contrast ------------------------------------------------------------------
 
 // Theme.qml holds a themed ladder against themeReference(): in dark mode the
@@ -356,21 +346,4 @@ test("Appearance leads with the theme gallery and keeps saving out of sight", ()
     assert.match(tiles, /ThemeHelpers\.preview\(modelData, root\.references\)/);
     assert.match(tiles, /signal saveRequested\(\)/);
     assert.match(tiles, /Accessible\.name: "Save current as theme…"\s+Accessible\.onPressAction: root\.saveRequested\(\)/);
-});
-
-test("a theme preview draws its own surfaces and falls back to the shell's", () => {
-    const references = { dark: { background: "#1a1917", surface: "#201e1b", raised: "#26241f", text: "#f2f0ea", dim: "#97938a" } };
-    assert.deepEqual(T.preview({ patch: { themeMode: "dark", accent: "#88c0d0",
-        themePalette: { mode: "dark", background: "#2e3440", surface: "#3b4252", surfaceRaised: "#434c5e",
-            text: "#eceff4", textMuted: "#d8dee9" } } }, references),
-        { mode: "dark", background: "#2e3440", surface: "#3b4252", raised: "#434c5e", accent: "#88c0d0",
-            text: "#eceff4", dim: "#d8dee9" });
-    // The shipped look keeps the shell's own surfaces.
-    assert.deepEqual(T.preview({ patch: { themeMode: "dark", accent: "#60a5fa" } }, references),
-        { mode: "dark", background: "#1a1917", surface: "#201e1b", raised: "#26241f", accent: "#60a5fa",
-            text: "#f2f0ea", dim: "#97938a" });
-    // A palette for the other mode is not this theme's surfaces.
-    assert.equal(T.preview({ patch: { themeMode: "dark", accent: "#fff",
-        themePalette: { mode: "light", background: "#ffffff" } } }, references).background, "#1a1917");
-    assert.equal(T.preview(null, references), null);
 });

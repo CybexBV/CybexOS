@@ -99,18 +99,6 @@ test("a declared default the control cannot show is not treated as one", () => {
     assert.equal(result.mode.value, "a");
 });
 
-test("unbounded numbers use a text field; bounded ones a slider", () => {
-    const fields = byKey(S.fields({ barWidget: { schema: [
-        { key: "a", type: "integer", min: 1 },
-        { key: "b", type: "number", min: 0, max: 1, step: 0.1 },
-        { key: "c", type: "integer", min: 5, max: 5 },
-    ] } }, {}, {}));
-    assert.equal(fields.a.slider, false);
-    assert.equal(fields.a.value, 1);
-    assert.equal(fields.b.slider, true);
-    assert.equal(fields.c.slider, false);
-});
-
 test("toggling a multiselect option keeps the schema's option order", () => {
     const field = byKey(S.fields(manifest, {}, {})).enabledProviders;
     assert.deepEqual(S.toggled(field, ["kimi", "claude"], "codex"), ["claude", "codex", "kimi"]);

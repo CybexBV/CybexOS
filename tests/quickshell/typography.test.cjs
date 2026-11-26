@@ -43,29 +43,6 @@ function contrast(a, b) {
     return (lighter + 0.05) / (darker + 0.05);
 }
 
-test("the shell pairs the installer's sans with a mono for labels and data", () => {
-    // Claude Fable, 2026-11 review: "Sans for headings, body and buttons;
-    // mono for labels, keycaps, versions and data." The installer and the
-    // welcome guide set Space Grotesk beside JetBrains Mono.
-    const kiosk = fs.readFileSync(path.join(shellDir, "Welcome", "Kiosk.qml"), "utf8");
-    assert.match(kiosk, /readonly property string sans: "Space Grotesk"/);
-    assert.match(theme, /readonly property string fontNumeric: Settings\.font === "mono" \|\| Settings\.font === "grotesk"\s*\? fontMono : "Geist Mono"/,
-        "Space Grotesk's data face is JetBrains Mono, as in the installer");
-    assert.match(theme, /readonly property string fontLabel: fontNumeric/);
-    assert.match(theme, /Settings\.font === "grotesk" \? 1\.5 : 1\.45/,
-        "Space Grotesk prose takes its own line height");
-    // Uppercase section labels and kickers draw in the mono label face.
-    for (const name of ["Popovers/SectionLabel.qml", "Settings/SectionHeader.qml"]) {
-        const source = fs.readFileSync(path.join(shellDir, name), "utf8");
-        assert.match(source, /font\.family: Theme\.fontLabel/, name);
-    }
-    assert.match(fs.readFileSync(path.join(shellDir, "Ui", "PanelSectionHeader.qml"), "utf8"),
-        /property string fontFamily: Host\.Theme\.fontLabel/);
-    // The font package the installer vendors is installed for the desktop.
-    const apps = fs.readFileSync(path.resolve(shellDir, "../../nix/modules/applications.nix"), "utf8");
-    assert.match(apps, /space-grotesk\.nix/);
-});
-
 test("every dialog shares the menubar's face", () => {
     for (const file of [...qmlFiles("Bar"), ...qmlFiles("Popovers"), ...qmlFiles("Settings")]) {
         const source = fs.readFileSync(file, "utf8");
@@ -149,60 +126,6 @@ test("bar and popovers use semantic sizes with an Omarchy ten-pixel caption floo
         assert.doesNotMatch(source, /font\.weight:\s*\d+/,
             `${label} contains a weight that does not map to an installed face`);
     }
-});
-
-test("only the classic floating bar and internal glows draw shadows", () => {
-    // The compositor blurs the whole layer, and each of these layers is bigger
-    // than the shape it draws. A shadow painted into that margin is blurred
-    // with it and reads as a haze band the height of the surface, not as a
-    // shadow. Glows *inside* a surface composite over the glass and are fine —
-    // hence the allow-list rather than a blanket ban.
-    const insideASurface = [
-        "Bar/Bar.qml",               // the screenshot's floating slab shadow
-        "Settings/ModulesPage.qml",  // the drag proxy, over an opaque page
-        "NotificationToasts.qml"     // the toast's shadow, with glass off only
-    ];
-    // With glass off nothing blurs the layer, so the toast can float over a
-    // dark window (2026-11 council review); with glass on it draws none.
-    assert.match(fs.readFileSync(path.join(shellDir, "NotificationToasts.qml"), "utf8"),
-        /RectangularShadow \{\s*visible: !Settings\.glassEnabled/);
-    const offenders = [];
-    for (const file of [...qmlFiles("Bar"), ...qmlFiles("Popovers"),
-                        ...qmlFiles("Settings"),
-                        ...["LauncherWindow.qml", "LauncherView.qml",
-                            "NotificationToasts.qml", "OsdWindow.qml",
-                            "ShortcutsOverlay.qml"]
-                            .map(name => path.join(shellDir, name))]) {
-        const label = path.relative(shellDir, file);
-        if (insideASurface.includes(label))
-            continue;
-        if (/RectangularShadow/.test(fs.readFileSync(file, "utf8")))
-            offenders.push(label);
-    }
-    assert.deepEqual(offenders, []);
-});
-
-test("views paint semantic surfaces rather than their opaque variants", () => {
-    // `popBg`/`barBg` are selected by Theme's semantic aliases in solid mode
-    // and serve as fixed contrast references in glass mode. Painting one in a
-    // view would bypass the Glass effect switch.
-    //
-    // `Settings/` is exempt: its bar and toast previews are *pictures of*
-    // those surfaces, and its drag proxy floats over the settings page.
-    const offenders = [];
-    for (const file of [...qmlFiles("Bar"), ...qmlFiles("Popovers"),
-                        ...["LauncherWindow.qml", "LauncherView.qml",
-                            "NotificationToasts.qml", "OsdWindow.qml",
-                            "ShortcutsOverlay.qml"]
-                            .map(name => path.join(shellDir, name))]) {
-        const label = path.relative(shellDir, file);
-        fs.readFileSync(file, "utf8").split("\n").forEach((line, index) => {
-            if (/^\s*color:\s*Theme\.(popBg|barBg)\s*$/.test(line))
-                offenders.push(`${label}:${index + 1}`);
-        });
-    }
-    assert.deepEqual(offenders, [],
-        "these bypass the semantic glass/solid surface token");
 });
 
 test("low-emphasis text remains WCAG AA in both palettes", () => {

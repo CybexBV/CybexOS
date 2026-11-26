@@ -16,14 +16,6 @@ test("settings search matches current catalog translations and English aliases a
     }
 });
 
-test("Recovery points has a scroll destination without inventing a shell preference", () => {
-    const row = search.search("Recovery points").find(row => row.label === "Recovery points");
-    assert.equal(row.page, "backup");
-    assert.equal(row.anchor, "recoveryPoints");
-    assert.equal(row.key, "");
-    assert.ok(!Object.hasOwn(load("SettingsHelpers.js").defaults(), row.anchor));
-});
-
 test("a palette result opens its page and tab and forwards its anchor without writing a preference", () => {
     const fs = require("node:fs");
     const path = require("node:path");

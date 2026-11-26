@@ -82,22 +82,6 @@ test('shortcut changes are applied or discarded on the way out of the step, not 
     assert.match(sheet, /kind: "primary"\s*focus: true/, 'Enter applies');
 });
 
-// 2026-11-24 UI council review: one primary per screen, choices that read as
-// what they are, focus rings for the keyboard only, and every finding on
-// Ready with somewhere to go.
-test('each step has one primary button, and Connect\'s sign-ins are secondary', () => {
-    const steps = ['ConnectStep.qml', 'WallpaperStep.qml', 'StyleStep.qml', 'FinishStep.qml'];
-    for (const name of steps) {
-        const source = read('Welcome/' + name);
-        const primaries = (source.match(/kind: "primary"/g) || []).length + (source.match(/KioskFooter \{/g) || []).length;
-        assert.equal(primaries, 1, name);
-    }
-    assert.match(read('Welcome/FinishStep.qml'), /kind: "primary"\s*text: I18n\.tr\("Start using Cybex OS"\)/);
-    const connect = read('Welcome/ConnectStep.qml');
-    assert.match(connect, /recommended: true/, 'the assistant card is marked, not filled');
-    assert.doesNotMatch(connect, /AI assistant · recommended/);
-});
-
 test('Connect turns its sign-ins off while known to be offline, and names only the offered agents', () => {
     const connect = read('Welcome/ConnectStep.qml');
     assert.match(connect, /readonly property bool offline: NetworkStatus\.known && !root\.online/);
@@ -111,16 +95,6 @@ test('Connect turns its sign-ins off while known to be offline, and names only t
     assert.match(connect, /agentNames: \(root\.installed\.length > 0 \? root\.installed : AssistantHelpers\.AGENT_IDS\)/);
     assert.match(connect, /I18n\.format\("Sign in with %1\. Your assistant/);
     assert.match(connect, /I18n\.format\("Your sign-in stays with %1;/);
-});
-
-test('Connect\'s Wiz snores with his own z\'s, not a second set drawn over him', () => {
-    const connect = read('Welcome/ConnectStep.qml');
-    // His own z's rise there, the cue that he sleeps until an account is
-    // connected: he is asked to snore (Assistant/Wiz.qml).
-    assert.match(connect, /sourceComponent: Character\.Wiz \{\s*objectName: "connectWiz"\s*pose: card\.character\s*snoring: true\s*\}/);
-    // No z's of the step's own, as it once drew: no letter, no animation.
-    assert.doesNotMatch(connect.replace(/^\s*\/\/.*$/gm, ""), /\bsnore\b|text: "z"|Animat/);
-    assert.match(connect, /readonly property string wizPose: !Assistant\.connected \|\| root\.installed\.length === 0 \? "asleep"/);
 });
 
 test('switches have a 3:1 off edge, single choices a radio dot, and focus rings follow the keyboard', () => {

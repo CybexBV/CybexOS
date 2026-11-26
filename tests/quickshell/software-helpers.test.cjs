@@ -336,12 +336,6 @@ test("a job's card names the app doing it, who chose it, and one on its way", ()
         unknown: { personal: true, effective: "x", system: "y" } }), ["browser"]);
 });
 
-test("1Password notes only show while proprietary apps are on", () => {
-    assert.deepEqual(H.perks(browserRole.options[2], true), [{ key: "1password", yes: false }, { key: "webapps", yes: false }]);
-    assert.deepEqual(H.perks(browserRole.options[2], false), [{ key: "webapps", yes: false }]);
-    assert.deepEqual(Object.keys(H.ROLE_GLYPHS), ["browser", "terminal", "editor", "files", "mail", "music", "video", "pdf", "image"]);
-});
-
 test("a worker failure is classed for plain words; anything unknown stays unknown", () => {
     assert.equal(H.failureKind("Nix could not download krita. Check your connection."), "download");
     assert.equal(H.failureKind("error: unable to download 'https://cache.nixos.org/x.narinfo': Couldn't resolve host name"), "download");

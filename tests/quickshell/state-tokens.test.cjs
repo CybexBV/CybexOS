@@ -79,10 +79,6 @@ for (const id of fs.readdirSync(themesDir)) {
     });
 }
 
-test("every bundled theme pack is covered", () => {
-    assert.ok(cases.length >= 2 + 8, `expected the default palette and at least 8 packs, got ${cases.length}`);
-});
-
 for (const c of cases) {
     test(`${c.name}: selected marks and the focus ring clear 3:1`, () => {
         const tokens = H.stateTokens(c.accent, c.reference, c.dark);

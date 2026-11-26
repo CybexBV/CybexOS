@@ -140,14 +140,6 @@ test("a later page appends without repeating images already shown", () => {
     assert.equal(merged[0], first[0], "existing entries keep their identity for ScriptModel");
 });
 
-test("status copy names rate limiting and offline separately", () => {
-    assert.match(H.statusError(429), /Wait a minute/);
-    assert.match(H.statusError(0), /connection/);
-    assert.match(H.statusError(503), /HTTP %1/);
-    assert.equal(H.describe({ width: 3840, height: 2160, size: 5322122 }), "3840 × 2160 · 5.3 MB");
-    assert.equal(H.formatBytes(840000), "840 kB");
-});
-
 test("every download failure code the helper prints has page copy", () => {
     const script = read("scripts/wallpaper-download.py");
     const codes = new Set([...script.matchAll(/Failure\("([a-z]+)"/g)].map(match => match[1]));

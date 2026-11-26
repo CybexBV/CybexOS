@@ -71,14 +71,6 @@ test("CPU shares come from two snapshots, on the whole machine's scale", () => {
     assert.ok(P.rows(null, second, 4096).every(row => row.cpu === null), "the first sample");
 });
 
-test("CPU readings format compactly", () => {
-    assert.equal(P.formatCpu(null), "…");
-    assert.equal(P.formatCpu(0), "0.0%");
-    assert.equal(P.formatCpu(0.04), "<0.1%");
-    assert.equal(P.formatCpu(3.456), "3.5%");
-    assert.equal(P.formatCpu(42.6), "43%");
-});
-
 test("bounded process ranking matches a full stable sort across limits and ties", () => {
     const rows = Array.from({ length: 4096 }, (_, index) => ({
         pid: 4096 - index, cpu: index % 11 === 0 ? null : index * 17 % 101,

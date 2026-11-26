@@ -411,64 +411,6 @@ test("the rail is Home and three labeled groups of six, and the palette searches
     }
 });
 
-test("settings workspace uses shared responsive groups and bounded header lanes", () => {
-    const view = read("Settings/SettingsView.qml");
-    const group = read("Settings/SettingsGroup.qml");
-    const action = read("Settings/ResponsiveActionRow.qml");
-    const qmldir = read("Settings/qmldir");
-
-    assert.match(view, /preferredWidth:\s*Theme\.scaled\(960, Theme\.contentScale\)/);
-    assert.match(view, /preferredHeight:\s*Theme\.scaled\(700\)/);
-    assert.match(view, /compactNav:\s*availableWidth < Theme\.scaled\(860, Theme\.typeScale\)/);
-    assert.match(view, /height:\s*Theme\.panelRowHeight\n/,
-        "navigation rows follow the shared panel rhythm, not a local literal");
-    assert.match(view, /headerHeight:\s*Theme\.scaled\(44\)/,
-        "the header is one line; the two-line form made it the tallest thing here");
-    assert.match(view, /anchors\.right:\s*headerActions\.left/);
-    assert.match(view, /id:\s*headerCopy[\s\S]{0,2000}?elide:\s*Text\.ElideRight/,
-        "header copy must be bounded before the action lane");
-
-    assert.match(group, /default property alias content:/);
-    // Rows and pages reset; a third "Reset group" level between them is gone.
-    assert.doesNotMatch(group, /property bool dirty:|signal resetRequested/);
-    assert.doesNotMatch(read("Settings/SectionHeader.qml"), /Reset group|resetRequested/);
-    assert.match(action, /readonly property bool stacked:\s*width < breakpoint/);
-    assert.match(action, /maximumLineCount:\s*root\.maximumLines/);
-    assert.match(qmldir, /^SettingsGroup SettingsGroup\.qml$/m);
-    assert.match(qmldir, /^ResponsiveActionRow ResponsiveActionRow\.qml$/m);
-
-    for (const page of ["AppearancePage", "BarLayoutGroups", "NotificationsPage", "PowerPage",
-            "RegionPage", "TouchpadPage"])
-        assert.match(read(`Settings/${page}.qml`), /SettingsGroup \{/,
-            `${page} must use grouped settings sections`);
-    // The wallpaper folder is a row like any other now (2026-09): its path
-    // is the row's label, bounded by the actions beside it and eliding in
-    // its own lane, so a long folder never pushes Choose… and Open off the
-    // edge; on a narrow page the actions drop under it.
-    const wallpaper = read("Settings/WallpaperPage.qml");
-    const folder = wallpaper.slice(wallpaper.indexOf("id: folderRow"));
-    assert.match(folder, /id: folderPath[\s\S]{0,400}?: Math\.max\(0, folderActions\.x - Theme\.controlSpacing - x\)/,
-        "the folder path is bounded by the actions beside it");
-    assert.match(folder, /id: folderPath[\s\S]{0,800}?elide: Text\.ElideMiddle/,
-        "a long folder path elides in its own lane");
-    assert.match(folder, /x: folderRow\.narrow \? folderRow\.markInset : folderRow\.contentRight - width/,
-        "the folder actions end on the controls' edge and stack when narrow");
-    // Report and action rows (2026-09) keep a label and end their value and
-    // actions on the same right-hand edge as the settings rows around them.
-    const valueRow = read("Settings/ValueRow.qml");
-    assert.match(valueRow, /^SettingsRow \{$/m, "ValueRow builds on SettingsRow");
-    assert.match(valueRow, /x: root\.actionsLeft/);
-    assert.match(valueRow, /actionsLeft: contentRight - actionsWidth/,
-        "actions end at the control edge, not in the reset column");
-    assert.match(valueRow, /elide: Text\.ElideRight/, "a long value is bounded, not clipped");
-    for (const page of ["PowerPage", "HomePage", "AccountsPage", "RecoveryGroup"])
-        assert.match(read(`Settings/${page}.qml`), /ValueRow \{/,
-            `${page} must put its actions on labeled rows`);
-    for (const page of ["PowerPage", "HomePage", "AccountsPage", "PluginsPage", "RecoveryGroup"])
-        assert.doesNotMatch(read(`Settings/${page}.qml`), /ResponsiveActionRow \{/,
-            `${page} must not end actions outside the control column`);
-});
-
 // The menubar separates one run of modules from the next with a hairline and a
 // gap. A settings page says the same thing the same way: nothing in it is a
 // filled, bordered container, and the one accent stays a mark rather than

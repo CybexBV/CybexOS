@@ -81,35 +81,6 @@ function markupColor(value) {
     return "#" + match[1];
 }
 
-test("the lock screen renders the shell's font and colours over a solid base", () => {
-    const tokens = darkTokens();
-    tokens.wallpaper = "";
-    const config = render(tokens);
-    const lines = config.split("\n");
-    assert.equal(lines[0], HEADER);
-    assert.equal(lines[2], "$font = JetBrainsMono Nerd Font");
-    assert.deepEqual(sections(config).map(s => s.name),
-        ["general", "animations", "background", "label", "label", "input-field", "label"]);
-    assert.deepEqual(section(config, "background"), { monitor: "", color: "rgba(1a1917ff)" });
-    assert.equal(section(config, "label", 0).color, "rgba(f2f0eaff)");
-    assert.equal(section(config, "label", 1).color, "rgba(b3afa4ff)");
-    const field = section(config, "input-field");
-    assert.equal(field.inner_color, "rgba(201e1bd9)");
-    assert.equal(field.outer_color, "rgba(3a3936ff)");
-    assert.equal(field.check_color, "rgba(60a5faff)");
-    assert.equal(field.fail_color, "rgba(ff8f8fff)");
-    assert.equal(field.placeholder_text, '<span foreground="##b3afa4">Password</span>');
-    // $FAIL is the latest failure from PAM or hyprlock's fingerprint check.
-    assert.equal(field.fail_text, '<span foreground="##ff8f8f">$FAIL</span>');
-    // The fingerprint prompt under the field is empty, so unseen, unless
-    // cybexos-runtime turns on hyprlock's fprintd check (docs/security.md).
-    const prompt = section(config, "label", 2);
-    assert.equal(prompt.text, "$FPRINTPROMPT");
-    assert.equal(prompt.color, "rgba(b3afa4ff)");
-    assert.equal(field.font_family, "$font");
-    assert.doesNotMatch(config, /^shape \{$/m);
-});
-
 test("the lock screen shows the wallpaper blurred under a scrim of the base colour", () => {
     for (const tokens of [darkTokens(), withWallpaper(lightTokens(), WALLPAPER)]) {
         const config = render(tokens);

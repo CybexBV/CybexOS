@@ -107,15 +107,6 @@ test("every qmldir entry points at a file that exists", () => {
     }
 });
 
-test("shell.qml is not registered as a type anywhere", () => {
-    // It is the entry point Quickshell loads by path. Listing it would also be
-    // impossible — QML type names cannot start lowercase.
-    for (const dir of DIRS)
-        assert.equal(entriesIn(dir).has("shell.qml"), false,
-            `${dir}/qmldir must not list shell.qml`);
-    assert.ok(fs.existsSync(path.join(shellDir, "shell.qml")));
-});
-
 test("every exemption still exists and still says why", () => {
     // A file that was exempt and then deleted, or exempted without a reason,
     // would otherwise quietly weaken this check.

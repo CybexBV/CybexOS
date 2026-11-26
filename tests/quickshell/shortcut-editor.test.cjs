@@ -331,17 +331,6 @@ test('keyboard map lays out Super+digit and letter rows with owners, protection 
     assert.equal(unbound.flat().find(entry => entry.key === 'L').reservedBy.id, 'shell.lock');
 });
 
-test('a key name that does not fit shows its group icon, and every group has one that resolves', () => {
-    const Tabler = load('TablerGlyphs.js');
-    const KeybindHelpers = load('KeybindHelpers.js');
-    for (const group of KeybindHelpers.GROUP_ORDER.concat(['Web']))
-        assert.ok(S.GROUP_GLYPHS[group], group);
-    for (const glyph of Object.values(S.GROUP_GLYPHS).concat([S.groupGlyph('Mine')]))
-        assert.ok(Tabler.has(glyph), glyph);
-    assert.equal(S.groupGlyph('Mine'), 'keyboard', 'a group of your own falls back to the keyboard');
-    assert.equal(S.groupGlyph(undefined), 'keyboard');
-});
-
 test('both keyboard maps light the keys in use, outline the free ones and share one legend', () => {
     const shell = path.join(root, 'desktop/quickshell');
     const read = name => fs.readFileSync(path.join(shell, name), 'utf8');

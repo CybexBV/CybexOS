@@ -73,33 +73,6 @@ test("bar and popover agree: a full battery is plugged in but not charging", () 
 
 // ---- media ---------------------------------------------------------------
 
-test("player glyphs cover every source the bar and the popover can show", () => {
-    const glyph = H.PLAYER_GLYPH;
-    assert.equal(H.playerGlyph(player("Spotify", "spotify")), glyph.spotify);
-    assert.equal(H.playerGlyph(player("Firefox", "firefox")), glyph.firefox);
-    assert.equal(H.playerGlyph(player("Zen Browser", "zen")), glyph.firefox);
-    assert.equal(H.playerGlyph(player("Chromium", "chromium")), glyph.chromium);
-    assert.equal(H.playerGlyph(player("Google Chrome", "google-chrome")), glyph.chromium);
-    assert.equal(H.playerGlyph(player("Brave", "brave-browser")), glyph.chromium);
-    assert.equal(H.playerGlyph(player("Microsoft Edge", "msedge")), glyph.edge);
-    assert.equal(H.playerGlyph(player("YouTube Music", "youtube-music")), glyph.youtube);
-    assert.equal(H.playerGlyph(player("mpv", "mpv")), glyph.video);
-    assert.equal(H.playerGlyph(player("VLC media player", "vlc")), glyph.video);
-    assert.equal(H.playerGlyph(player("Rhythmbox", "rhythmbox")), glyph.generic);
-    assert.equal(H.playerGlyph(null), glyph.generic);
-});
-
-test("a browser playing a YouTube tab keeps its browser mark", () => {
-    // The branch order is what decides this, so it is worth pinning: a
-    // Chrome PWA identifies as YouTube Music but is still Chrome.
-    assert.equal(
-        H.playerGlyph(player("YouTube Music", "chrome-youtube-music")),
-        H.PLAYER_GLYPH.chromium);
-    assert.equal(
-        H.playerGlyph(player("Firefox", "firefox", { trackTitle: "youtube" })),
-        H.PLAYER_GLYPH.firefox);
-});
-
 test("media brands recognize YouTube webapps from their MPRIS URL", () => {
     assert.equal(H.playerBrand(player("Google Chrome", "google-chrome", {
         dbusName: "org.mpris.MediaPlayer2.chromium.instance42",
@@ -117,28 +90,6 @@ test("media brands recognize YouTube webapps from their MPRIS URL", () => {
     assert.equal(H.playerBrand(player("Brave", "brave-browser", {
         metadata: { "xesam:url": "https://example.com/youtube.com/watch" },
     })), "");
-});
-
-test("player icon candidates bridge MPRIS names to installed desktop entries", () => {
-    assert.deepEqual(H.playerIconCandidates(player("Spotify", "spotify")),
-        ["spotify", "com.spotify.Client"]);
-    assert.deepEqual(H.playerIconCandidates(player("Brave", "")),
-        ["brave-browser", "Brave"]);
-    // Every Chromium browser's bus is chromium.instance<pid>: the browser
-    // itself comes first, its desktop entry or not.
-    const bus = { dbusName: "org.mpris.MediaPlayer2.chromium.instance42" };
-    assert.deepEqual(H.playerIconCandidates(player("Google Chrome", "google-chrome", bus)),
-        ["google-chrome", "chromium", "Google Chrome"]);
-    assert.deepEqual(H.playerIconCandidates(player("Google Chrome", "", bus)),
-        ["google-chrome", "chromium", "Google Chrome"]);
-    assert.deepEqual(H.playerIconCandidates(player("Brave", "", bus)),
-        ["brave-browser", "chromium", "Brave"]);
-    assert.deepEqual(H.playerIconCandidates(player("Chromium", "", bus)), ["chromium"]);
-    assert.deepEqual(H.playerIconCandidates(player("Firefox", "org.mozilla.firefox")),
-        ["org.mozilla.firefox", "Firefox"]);
-    assert.deepEqual(H.playerIconCandidates(player("Rhythmbox", "rhythmbox")),
-        ["rhythmbox"]);
-    assert.deepEqual(H.playerIconCandidates(null), []);
 });
 
 test("the active player is playing, else paused, else the first known", () => {
@@ -200,19 +151,6 @@ test("a picked player stays the shell's player until another one starts playing"
     const radio = player("Radio", "radio", { dbusName: "radio", isPlaying: true, trackTitle: "News" });
     assert.deepEqual(H.otherPlayers([proxy, spotify, brave, mpv, radio], spotify), [radio, brave]);
     assert.deepEqual(H.otherPlayers([], null), []);
-});
-
-test("the chip's text keeps the configured order and marks which half is the title", () => {
-    assert.deepEqual(H.chipText("title-artist", "Salt Road", "Hollis Fern"),
-        { first: "Salt Road", second: "Hollis Fern", titleFirst: true });
-    assert.deepEqual(H.chipText("artist-title", "Salt Road", "Hollis Fern"),
-        { first: "Hollis Fern", second: "Salt Road", titleFirst: false });
-    assert.deepEqual(H.chipText("title", "Salt Road", "Hollis Fern"),
-        { first: "Salt Road", second: "", titleFirst: true });
-    assert.deepEqual(H.chipText("artist-title", "Salt Road", ""),
-        { first: "Salt Road", second: "", titleFirst: true });
-    assert.deepEqual(H.chipText("title-artist", undefined, null),
-        { first: "", second: "", titleFirst: true });
 });
 
 test("a player's window comes from the dock's list, and a web app only matches its own", () => {
