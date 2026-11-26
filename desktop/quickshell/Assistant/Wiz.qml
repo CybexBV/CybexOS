@@ -1715,22 +1715,35 @@ Item {
     }
 
     // Working: it twinkles, the dim star showing through, and turns slowly.
-    // A quarter turn looks like none, so it always ends one where it began.
+    // A quarter turn looks like none, so it turns one at a time and each
+    // runs to its end: another follows while he works, and after the last
+    // the star hangs as it did. (A loop that runs to its end could not be
+    // cut short when he may no longer move.)
     SequentialAnimation {
         running: root.busy && root.act !== ""
         loops: Animation.Infinite
         OpacityAnimator { target: dimmer; from: 0; to: 0.55; duration: 483; easing.type: Easing.InOutSine }
         OpacityAnimator { target: dimmer; from: 0.55; to: 0; duration: 483; easing.type: Easing.InOutSine }
     }
+    readonly property bool turning: live && busy
+    onTurningChanged: {
+        if (turning)
+            twirling.start();
+    }
     RotationAnimator {
         id: twirling
-        running: root.live && root.busy
-        loops: Animation.Infinite
-        alwaysRunToEnd: true
         target: twirl
         from: 0
         to: 90
         duration: 2250
+        // Stopping an Animator finishes it too, and `turning` may not have
+        // followed `live` by then: ask them.
+        onFinished: {
+            if (root.live && root.busy)
+                restart();
+            else
+                twirl.rotation = 0;
+        }
     }
 
     // ---- what his hands do -----------------------------------------------------------
@@ -1990,6 +2003,8 @@ Item {
     onLoopingChanged: settle()
     Component.onCompleted: {
         festive = pose === "finished" || pose === "proud";
+        if (turning)
+            twirling.start();
         resume();
     }
 
@@ -2262,15 +2277,39 @@ Item {
         }
     }
 
+    // An Animator stopped on its way can leave its item where it was, so
+    // whoever stops one puts back what it moved.
+    function stopNod() {
+        nodding.stop();
+        bodyNod.y = 0;
+        eyesNod.y = 0;
+        hatNod.y = 0;
+    }
+    function stopGlance() {
+        doubleTake.stop();
+        dart.x = 0;
+    }
+
+    // He may no longer move: everything that plays once ends here, so that
+    // nothing ticks on. An Animator cannot be completed (complete() leaves it
+    // running), so each is stopped and put back; "?!", sweat and dust go
+    // with their parts.
     onLiveChanged: {
         if (!live) {
-            nodding.complete();
-            swinging.complete();
-            twirling.complete();
+            stopNod();
+            stopGlance();
+            hopping.stop();
+            hatNod.y = 0;
+            swinging.stop();
+            star.rotation = 0;
+            twirling.stop();
+            twirl.rotation = 0;
+            blinking.complete();
             startling.complete();
             landing.complete();
-            hopping.complete();
             crooking.complete();
+            tidy.stop();
+            fuss = false;
             dizzy = false;
             ux = 0;
             uy = 0;

@@ -722,7 +722,24 @@ def main():
             session.pointer.move(20, 880)
             # Never while a question runs, however short the delay.
             session.ipc("ask", "Show me your poses again")
-            session.wait(lambda: session.shell_state().get("pose") == "reading", "Wiz at work")
+            state = session.wait(lambda: (lambda s: s if s.get("pose") == "reading" else None)(session.shell_state()),
+                                 "Wiz at work")
+            # Motion goes off while he works, as reduced motion, the power
+            # saver or an unattended session take it away: he holds still at
+            # once, the star's turn and its swing included. A click tucks
+            # the box away first, since its elapsed time keeps counting.
+            session.pointer.move(state["x"] + state["size"] / 2, state["y"] + state["size"] / 2)
+            session.pointer.button(True)
+            session.pointer.button(False)
+            session.pointer.move(20, 880)
+            session.ipc("setting", "reducedMotion", "true")
+            # A fade already on its way (the box, his eyes leaving the
+            # pointer) still runs out, within half a second.
+            time.sleep(0.6)
+            drawn = session.frames(1)
+            session.ipc("setting", "reducedMotion", "false")
+            assert drawn == 0, f"without motion, Wiz at work drew {drawn} frames in 1 s"
+            assert session.frames(1) > 30, "with motion back, he works on"
             time.sleep(3.5)
             assert session.shell_state()["pose"] == "reading", session.shell_state()
             for number in range(1, len(kinds) + 1):

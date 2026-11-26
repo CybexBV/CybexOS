@@ -21,8 +21,9 @@ const uncommented = source => source.replace(/^\s*\/\/.*$/gm, "");
 const code = uncommented(wiz), artCode = uncommented(art);
 const leaves = ops => ops.filter(op => op.k === "path" || op.k === "radial");
 
-// The whole of each QML block that `opening` begins, braces matched.
-function blocks(source, opening) {
+// The whole of each QML block that `opening` begins, braces matched, and
+// where it is.
+function spans(source, opening) {
     const found = [];
     for (const match of source.matchAll(new RegExp(opening.source + " \\{", "g"))) {
         let depth = 0, end = match.index + match[0].length - 1;
@@ -31,9 +32,68 @@ function blocks(source, opening) {
             else if (source[end] === "}") depth--;
             end++;
         } while (depth > 0);
-        found.push(source.slice(match.index, end));
+        found.push({ start: match.index, end, text: source.slice(match.index, end) });
     }
     return found;
+}
+function blocks(source, opening) {
+    return spans(source, opening).map(span => span.text);
+}
+
+// ---- what Wiz.qml's animations move, read from the file itself --------------
+const MOVES = { X: "x", Y: "y", Rotation: "rotation", Scale: "scale", Opacity: "opacity" };
+const ANIMATION = /\b(?:SequentialAnimation|ParallelAnimation|(?:X|Y|Rotation|Scale|Opacity)Animator|NumberAnimation|Sine[XYR]|Wave|Nudge|Nod)(?: on \w+)?/;
+
+// Wiz.qml's own animation components, each with what it moves of the item
+// its user hands it: [parameter, property]. A wave is an Animator and moves
+// its `target`; a nudge, a nod and an arm's wave move what their Animators
+// name through the component's id.
+function movers(source) {
+    const found = {};
+    for (const body of blocks(source, /component \w+: \w+/)) {
+        const [, name, base, id] = body.match(/^component (\w+): (\w+) \{\s*(?:id: (\w+))?/);
+        const own = base.match(/^(X|Y|Rotation|Scale|Opacity)Animator$/);
+        const handed = own ? [["target", MOVES[own[1]]]]
+            : [...body.matchAll(/(X|Y|Rotation|Scale|Opacity)Animator \{ target: (\w+)\.(\w+);/g)]
+                .filter(match => match[2] === id).map(match => [match[3], MOVES[match[1]]]);
+        if (handed.length)
+            found[name] = handed.filter((pair, at) => handed.findIndex(other => String(other) === String(pair)) === at);
+    }
+    return found;
+}
+
+// Every [item, property] the animations in `source` move.
+function moved(source, components) {
+    const pairs = [];
+    for (const [, kind, item] of source.matchAll(/\b(X|Y|Rotation|Scale|Opacity)Animator \{\s*(?:id: \w+;?\s*)?target: (\w+)[;\n]/g))
+        pairs.push([item, MOVES[kind]]);
+    for (const [name, handed] of Object.entries(components))
+        for (const use of blocks(source, new RegExp(`\\b${name}`)))
+            for (const [parameter, property] of handed) {
+                const item = use.match(new RegExp(`\\b${parameter}: (\\w+)[;\\n ]`));
+                if (item)
+                    pairs.push([item[1], property]);
+            }
+    return pairs;
+}
+
+// The animations that stand on their own: not a step of another one, and
+// not inside a component, whose animations go with each thing made of it.
+function animations(source) {
+    const within = (inner, outers) => outers.some(outer => outer.start < inner.start && inner.end <= outer.end);
+    const all = spans(source, ANIMATION), parts = spans(source, /component \w+: \w+/);
+    return all.filter(span => !within(span, all) && !within(span, parts))
+        .map(span => ({ ...span, id: (span.text.match(/^[\w ]+\{\s*id: (\w+)/) || [])[1] || "" }));
+}
+
+// A function's body, and a piece of script with the functions it calls
+// written out (one level: stopNod() and the like).
+function body(source, name) {
+    const found = blocks(source, new RegExp(`function ${name}\\([^)]*\\)`))[0];
+    return found ? found.slice(found.indexOf("{") + 1, found.lastIndexOf("}")) : "";
+}
+function unfolded(source, script) {
+    return script.replace(/\b(\w+)\(\);/g, (call, name) => call + body(source, name));
 }
 
 // The matrix m followed by one of the rig's transform steps.
@@ -571,7 +631,7 @@ test("what only some poses or moments show is made for them and let go", () => {
     // The sparkles of a finished turn. `festive` is set as the pose changes,
     // before sparkle() wants them, and when he is made in that pose.
     assert.match(code, /onPoseChanged: \{[^}]*festive = pose === "finished" \|\| pose === "proud";\s*settle\(\);[^}]*if \(festive\)\s*sparkle\(\);\s*\}/);
-    assert.match(code, /Component\.onCompleted: \{\s*festive = pose === "finished" \|\| pose === "proud";\s*resume\(\);\s*\}/);
+    assert.match(code, /Component\.onCompleted: \{\s*festive = pose === "finished" \|\| pose === "proud";[^}]*\bresume\(\);\s*\}/);
     assert.deepEqual(code.match(/\bfestive = [^;]+;/g), Array(2).fill('festive = pose === "finished" || pose === "proud";'));
     assert.match(code, /function sparkle\(\) \{\s*\(sparkles\.item as Sparkles\)\?\.flare\(\);\s*\}/);
     const sparkles = blocks(code, /component Sparkles: Item/)[0];
@@ -584,7 +644,8 @@ test("what only some poses or moments show is made for them and let go", () => {
     assert.match(code, /function land\(sweat\) \{[^}]*fuss = true;\s*tidy\.restart\(\);\s*\(dust\.item as Dust\)\?\.burst\(\);\s*if \(sweat !== false\)\s*\(panic\.item as Panic\)\?\.slide\(\);\s*\}/);
     assert.match(code, /onTriggered: \{\s*root\.fuss = true;\s*\(panic\.item as Panic\)\?\.drip\(root\.drips\);\s*root\.drips\+\+;\s*\}/);
     assert.match(code, /calm\.stop\(\);\s*tidy\.restart\(\);/, "a drag that ends without a landing is tidied too");
-    assert.deepEqual(code.match(/\bfuss = [^;\n]+/g).sort(), ["fuss = false", "fuss = true", "fuss = true", "fuss = true"]);
+    // Gone again two seconds after he is down, or at once when he may no longer move.
+    assert.deepEqual(code.match(/\bfuss = [^;\n]+/g).sort(), ["fuss = false", "fuss = false", "fuss = true", "fuss = true", "fuss = true"]);
     const tidy = Number(code.match(/id: tidy\s*interval: (\d+)\s*onTriggered: root\.fuss = false/)[1]);
     const thrown = [blocks(code, /component Drop: Item/)[0], blocks(code, /component Puff: Item/)[0], blocks(code, /component Panic: Item/)[0]];
     const effects = thrown.flatMap(body => blocks(body, /(?:Sequential|Parallel)Animation/).filter(animation => /^\w+ \{\s*id: /.test(animation)));
@@ -606,9 +667,50 @@ test("the star swings once on a change of pose; it twinkles and turns only at wo
     assert.match(code, /onPoseChanged: \{[^}]*if \(!live\)\s*return;\s*swinging\.restart\(\);/);
     // The twinkle is the dim star showing through the lit one.
     assert.match(code, /running: root\.busy && root\.act !== ""\s*loops: Animation\.Infinite\s*OpacityAnimator \{ target: dimmer;/);
-    // A quarter turn of a four-pointed star looks like none, so it can stop there.
-    assert.match(code, /id: twirling\s*running: root\.live && root\.busy\s*loops: Animation\.Infinite\s*alwaysRunToEnd: true\s*target: twirl\s*from: 0\s*to: 90/);
-    assert.match(code, /twirling\.complete\(\);/);
+    // A quarter turn of a four-pointed star looks like none, so it turns one
+    // at a time: another follows only while he works, and after the last the
+    // star hangs as it did. Not a loop that runs to its end: that one could
+    // not be cut short when he may no longer move.
+    assert.match(code, /readonly property bool turning: live && busy\s*onTurningChanged: \{\s*if \(turning\)\s*twirling\.start\(\);\s*\}/);
+    const twirling = blocks(code, /RotationAnimator/).find(body => /id: twirling/.test(body));
+    assert.match(twirling, /id: twirling\s*target: twirl\s*from: 0\s*to: 90\s*duration: 2250\s*onFinished: \{\s*if \(root\.live && root\.busy\)\s*restart\(\);\s*else\s*twirl\.rotation = 0;\s*\}/);
+    assert.doesNotMatch(twirling, /loops|alwaysRunToEnd|running:/);
+    assert.doesNotMatch(code, /alwaysRunToEnd/);
+    // A Wiz made in the middle of a turn turns his star too.
+    assert.match(code, /Component\.onCompleted: \{[^}]*if \(turning\)\s*twirling\.start\(\);/);
+});
+
+// Reduced motion, the power saver or an unattended session take `animated`
+// away at any moment. Measured in Quickshell (Qt 6.12): complete() does not
+// end an Animator, alone or in a group, it runs on to its end; stop() ends it
+// at once. So whatever plays once is stopped there, and nothing built of
+// Animators is ever completed.
+test("when he may no longer move, nothing ticks on", () => {
+    const off = code.match(/onLiveChanged: \{\s*if \(!live\) \{([\s\S]*?)\n        \}\s*settle\(\);\s*\}/)[1];
+    const ended = unfolded(code, off), settled = body(code, "settle");
+    const named = animations(code).filter(animation => animation.id !== "");
+    assert.ok(named.length >= 20, `${named.length} animations with a name`);
+    for (const { id, text } of named) {
+        if (/Animator \{|\b(?:Sine[XYR]|Wave|Nudge|Nod) \{/.test(text)) {
+            assert.doesNotMatch(code, new RegExp(`\\b${id}\\.complete\\(\\)`), `${id} is built of Animators: complete() leaves it running`);
+            if (id === "settling")
+                continue;
+            assert.ok(settled.includes(`${id}.stop();`) || ended.includes(`${id}.stop();`), `${id} is stopped when he may no longer move`);
+        } else {
+            assert.ok(ended.includes(`${id}.complete();`), `${id} is completed when he may no longer move`);
+        }
+    }
+    // settle() runs last: it stops the loops and the gestures, and puts his
+    // hands and hat back at once instead of easing them.
+    assert.match(settled, /if \(animated\) \{\s*settling\.restart\(\);\s*\} else \{\s*settling\.stop\(\);/);
+    // What a drag threw about goes with its part, and he is not dizzy.
+    for (const step of ["tidy.stop();", "fuss = false;", "dizzy = false;", "ux = 0;", "uy = 0;"])
+        assert.ok(off.includes(step), step);
+    const thrown = spans(code, /Loader/).filter(loader => /active: root\.fuss/.test(loader.text));
+    assert.equal(thrown.length, 2);
+    // Every other loop is gated on `live` (the loops' own test), and a still
+    // sparkle replaces the bursting ones.
+    assert.match(code, /model: root\.live \? root\.layout\.sparks : \[\]/);
 });
 
 test("a drag's velocity follows the pointer, restarting after a pause", () => {
@@ -706,7 +808,7 @@ test("carried, he reacts only while live and always comes back to rest", () => {
     assert.match(code, /onStopped: breath\.x = 0/);
     // Reduced motion or an idle session ends a drag's motion at once.
     const off = code.slice(code.indexOf("onLiveChanged: {"));
-    for (const step of ["startling.complete()", "landing.complete()", "hopping.complete()", "crooking.complete()", "dizzy = false"])
+    for (const step of ["startling.complete()", "landing.complete()", "hopping.stop()", "crooking.complete()", "dizzy = false"])
         assert.ok(off.includes(step), step);
 });
 
