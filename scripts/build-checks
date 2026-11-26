@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Builds flake checks for the full check (.github/workflows/nixos.yml), with
+# the arguments `nix build` takes. A failing check runs once more before it
+# counts, as with fast-test: the checks that passed are in the store by then,
+# so only the failed ones run again, minutes instead of a whole new run. Each
+# retried check is named in a warning on the run, whether or not it passes
+# the second time, so a flaky test stays visible.
+set -uo pipefail
+
+nix build -L --no-link --keep-going "$@" && exit 0
+
+retried=$(nix build --dry-run --no-link "$@" 2>&1 \
+    | grep -oE '/nix/store/[a-z0-9]{32}-[^ ]+\.drv' \
+    | sed -E 's|^/nix/store/[a-z0-9]{32}-||; s|\.drv$||' | sort -u | tr '\n' ' ')
+echo "::warning title=Checks retried::These failed and run once more: ${retried:-(could not list them)}"
+nix build -L --no-link --keep-going "$@"

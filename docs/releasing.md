@@ -272,9 +272,13 @@ packages: first the systems, the matched XPS and NVIDIA stacks, the source
 checks and the smaller VM tests; then the desktop VM tests of up to 8 GiB,
 three at a time (their names are in the workflow; put a new one of that size
 there). Each build uses `--keep-going` and runs after a failed one before it,
-so one run reports every failing check. The job also checks what machines would
+so one run reports every failing check. A failing check runs once more before
+it counts, as with `fast-test` (`scripts/build-checks`): the checks that passed
+are in the store by then, so only the failed ones run again, and a warning on
+the run names them so a flaky test stays visible. The job also checks what machines would
 compile. The image job builds the ISO, checks it against the source and
-installs it twice, plain and encrypted, in two VMs at once. The upgrade job
+installs it twice, plain and encrypted, in two VMs at once; a failed
+installation runs once more in fresh VMs before it counts. The upgrade job
 takes the path people take ([below](#the-upgrade-job)).
 
 ### The upgrade job

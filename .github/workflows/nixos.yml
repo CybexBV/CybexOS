@@ -54,6 +54,7 @@ jobs:
       # 8 GiB each) go second, three at a time; everything else goes first, so
       # a new check is never left out. One nix build shares the packages its
       # checks need, and --keep-going reports every failing check at once.
+      # scripts/build-checks runs a failed check once more before it counts.
       - name: Choose the checks
         id: choose
         run: |
@@ -79,14 +80,14 @@ jobs:
       - name: Build the checks that need a quiet runner
         run: |
           read -ra checks <<< "$CHECKS_ALONE"
-          nix build -L --no-link --keep-going "${checks[@]}"
+          scripts/build-checks "${checks[@]}"
       # The systems, the matched XPS and NVIDIA stacks and the other VM tests
       # (at most 12 + 4 + 4 + 2 GiB of the runner's 32 at once).
       - name: Build the systems, the matched XPS and NVIDIA stacks and the VM tests
         if: ${{ !cancelled() && steps.choose.outcome == 'success' }}
         run: |
           read -ra checks <<< "$CHECKS_FIRST"
-          nix build -L --no-link --keep-going "${checks[@]}"
+          scripts/build-checks "${checks[@]}"
       # A fresh machine's update builds only what the updater expects: a new
       # local build Cybex OS doesn't declare would hold every update. This and
       # the desktop VM tests run after a failed build too, so one run reports
@@ -110,7 +111,7 @@ jobs:
         if: ${{ !cancelled() && steps.choose.outcome == 'success' }}
         run: |
           read -ra checks <<< "$CHECKS_DESKTOP"
-          nix build -L --no-link --keep-going --max-jobs 3 "${checks[@]}"
+          scripts/build-checks --max-jobs 3 "${checks[@]}"
   image:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -141,12 +142,20 @@ jobs:
           nix develop -c scripts/check-image-parity "$image" . --output "$staging/image-parity.json"
           # The plain and the encrypted installation are separate VMs with
           # their own disks and sockets (4 vCPUs each): run them side by side.
-          # Each line of output names its installation.
+          # Each line of output names its installation. A failed installation
+          # runs once more, in fresh VMs, before it counts (as with
+          # scripts/build-checks); a warning on the run names it.
           pids=()
           for case in plain encrypted; do
             (set -o pipefail
-             nix develop -c scripts/qualify-installations "$image" --case "$case" \
-               --output "$staging/installations-$case.json" 2>&1 | sed -u "s/^/[$case] /") &
+             for attempt in 1 2; do
+               nix develop -c scripts/qualify-installations "$image" --case "$case" \
+                 --output "$staging/installations-$case.json" 2>&1 | sed -u "s/^/[$case] /" && exit 0
+               if [ "$attempt" = 1 ]; then
+                 echo "::warning title=Installation retried::The $case installation failed and runs once more"
+               fi
+             done
+             exit 1) &
             pids+=($!)
           done
           failed=0
