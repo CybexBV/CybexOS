@@ -329,7 +329,15 @@ filesystem), at least 24 GiB available memory (28 GiB for the image job's two
 installation VMs of 12 GiB), and KVM.
 Nix runs up to four builds at once and lets each use every core of the
 runner (16 on The Beast's).
-Discard the runner, workspace and attached disks after each job. It must have
+Discard the runner, workspace and attached disks after each job, except the
+runner slot's cache volume at `/cache`. Since 2026-11-26 (owner's decision) the
+full check keeps a Nix binary cache there (`scripts/ci-nix-cache`): each job
+saves what it built, also after a failure, and the next job on that slot
+substitutes it instead of building it again. That covers Cybex OS's own
+packages, kernel modules, the previous release's ISO and checks that passed:
+a check whose inputs did not change since a passing run is not run again.
+The installations and the upgrade always run. When the volume is 70% full
+the cache starts again empty. The runner must have
 no workstation data, persistent credentials, production network access or
 production PXE mount. Runner provisioning and isolation are owner-managed, not
 an instruction to enroll the running workstation as a runner.
