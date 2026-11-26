@@ -463,7 +463,7 @@ test("Wiz shows each status page in the pose language every surface shares", () 
     assert.equal(pose("current", "check", false, true), "finished", "a kept release celebrates");
     assert.equal(pose("whats-new"), "finished");
     assert.deepEqual(H.statusPose("available", "check", false, false), { pose: "idle", unread: true },
-        "something new is idle with the unread pip");
+        "something new is idle with the star lit, as for a reply not yet seen");
     for (const page of ["preparing", "installing", "recovering"])
         assert.equal(pose(page), "working", page);
     assert.equal(pose("restart"), "needs-input", "restart and shut down are the person's move");

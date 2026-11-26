@@ -383,7 +383,7 @@ def main():
                     and title['dark'] == (mode == 'dark') and title['color'] == title['expected'],
                     mode + ' readable title')
                 shot('software-update-available-' + mode + '.png')
-            # Something new: Wiz idles with the unread pip; the accent button.
+            # Something new: Wiz idles with his star lit; the accent button.
             assert session.pose()==('idle',True) and not session.state()['primary']['amber'], session.state()
 
             # Checking: Wiz thinks while the sources are checked.

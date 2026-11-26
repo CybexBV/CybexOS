@@ -150,8 +150,11 @@ test("attachments: local paths, images, sizes", () => {
         /bind\(mainMod \.\. " \+ SHIFT \+ I", hl\.dsp\.global\("quickshell:assistantSelection"\)/);
 });
 
-test("a routine's finding shows the amber pip, and the agent model choice holds for one conversation", () => {
+test("a routine's finding lights the star amber, and the agent model choice holds for one conversation", () => {
     assert.equal(A.characterPose({ connected: true, attention: true }), "needs-input");
+    const W = load("WizRig.js");
+    assert.equal(W.light("needs-input", false), "ask");
+    assert.deepEqual(W.LIGHT.ask.c, [245, 184, 61], "amber");
     assert.equal(A.characterPose({ connected: true, attention: true, busy: true, step: "Thinking" }), "thinking");
     assert.deepEqual(A.modelChoices("codex").map(choice => choice.value),
         ["default", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]);
