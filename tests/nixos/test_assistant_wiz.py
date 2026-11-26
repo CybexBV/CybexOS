@@ -98,7 +98,31 @@ DESKTOP_KINDS = {
 }
 SYSTEM_COMMANDS = ("cybex update stage local", "cybex software stage obsidian",
                    "cybex update apply " + "b" * 32 + " " + "c" * 64, "cybex software flathub install org.gimp.GIMP",
-                   "/bin/bash -lc 'cybex update stage local'", "cd ~ && cybex software stage obsidian")
+                   "/bin/bash -lc 'cybex update stage local'", "cd ~ && cybex software stage obsidian",
+                   # The friendly CLI (lifecycle/cybexos/cli.py): the guided update, apps, Flathub.
+                   "cybex update", "cybex update --yes", "cybex update -y --scope local", "cybex update --scope=both",
+                   "cybex update --no-apply", "cybex --json update stage local", "cybex update stage --no-wait both",
+                   "cybex update apply", "cybex update apply --yes", "cybex update rollback",
+                   "cybex update retry-failed " + "b" * 32,
+                   "cybex apps install obsidian", "cybex apps install --source flathub -y org.gimp.GIMP",
+                   "cybex apps remove --source nix obsidian", "cybex apps update", "cybex apps update org.gimp.GIMP",
+                   "cybex software flathub remove org.gimp.GIMP", "cybex software flathub update",
+                   "flatpak install flathub org.gimp.GIMP", "flatpak --user install -y org.gimp.GIMP",
+                   "flatpak uninstall org.gimp.GIMP", "flatpak remove org.gimp.GIMP", "flatpak update",
+                   "flatpak update -y --user", "/run/current-system/sw/bin/cybex apps install obsidian",
+                   # Past variable assignments and env with its options.
+                   "LANG=C cybex update stage local", "env cybex update stage local", "env -i cybex update stage local",
+                   "env -u LANG -C /tmp cybex apps install obsidian", "env --unset=LANG FOO=1 cybex update --yes",
+                   "env -S 'cybex update stage local'", "sh -c 'env -i cybex apps remove obsidian'")
+# Commands that only read, or change something other than what is installed.
+PLAIN_COMMANDS = ("cybex update status", "cybex update status --json", "cybex update check", "cybex update --json",
+                  "cybex --json update", "cybex update --help", "cybex update history", "cybex update log",
+                  "cybex update channel beta", "cybex update automatic prepare off", "cybex update confirm",
+                  "cybex update discard", "cybex apps list", "cybex apps search gimp", "cybex apps info gimp",
+                  "cybex apps updates", "cybex apps install --help", "cybex software flathub updates",
+                  "cybex software search gimp", "cybex status", "cybex cleanup run", "flatpak list",
+                  "flatpak info org.gimp.GIMP", "flatpak search gimp", "echo cybex update stage local",
+                  "env -i cybex update status", "env", "LANG=C", "cybex", "flatpak")
 
 
 class StepKindTest(unittest.TestCase):
@@ -128,6 +152,14 @@ class StepKindTest(unittest.TestCase):
         agent.turn = self.turn
         agent._notification("item/started", {"item": dict(item, id="i1")})
         return self.snapshot()[1]
+
+    def test_installing_commands_brew_and_others_run(self):
+        for command in SYSTEM_COMMANDS:
+            with self.subTest(command=command):
+                self.assertEqual(steps.command_kind(command), "install")
+        for command in PLAIN_COMMANDS:
+            with self.subTest(command=command):
+                self.assertEqual(steps.command_kind(command), "run")
 
     def test_a_new_turn_thinks_and_a_finished_one_has_no_kind(self):
         self.assertEqual(self.snapshot(), ("Thinking", "think"))

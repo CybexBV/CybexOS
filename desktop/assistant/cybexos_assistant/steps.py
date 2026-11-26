@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 from urllib.parse import urlparse
 
 
@@ -61,14 +62,79 @@ def desktop_kind(name):
     return TOOL
 
 
+# env's options that take the next word as their value.
+ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-a", "--argv0"})
+# cybex's options that take the next word as their value (lifecycle/cybexos/cli.py).
+CYBEX_VALUE_OPTIONS = frozenset({"--scope", "--source", "--names"})
+# What builds, stages or activates a system, or adds, removes or updates apps,
+# in cybex's own command set (lifecycle/cybexos/cli.py): the guided `cybex
+# update` (with no subcommand) is handled apart, as it only reads with --json.
+CYBEX_INSTALLS = (
+    ("update", "stage"), ("update", "apply"), ("update", "rollback"), ("update", "retry-failed"),
+    ("apps", "install"), ("apps", "remove"), ("apps", "update"),
+    ("software", "stage"),
+    ("software", "flathub", "install"), ("software", "flathub", "remove"), ("software", "flathub", "update"),
+)
+# Flatpak's verbs that install, remove or update apps (remove is uninstall's alias).
+FLATPAK_INSTALLS = frozenset({"install", "uninstall", "remove", "update"})
+
+
+def unwrapped(words):
+    """The command a word list runs, past variable assignments and `env` with its options."""
+    words = list(words)
+    while words:
+        first = words[0]
+        if "=" in first and not first.startswith(("=", "-")):
+            words.pop(0)
+            continue
+        if os.path.basename(first) != "env":
+            break
+        words.pop(0)
+        while words and words[0].startswith("-"):
+            option = words.pop(0)
+            if option == "--":
+                break
+            if option in ("-S", "--split-string") and words:
+                try:
+                    words = shlex.split(words.pop(0)) + words
+                except ValueError:
+                    return []
+            elif option.startswith("--split-string="):
+                try:
+                    words = shlex.split(option.split("=", 1)[1]) + words
+                except ValueError:
+                    return []
+            elif option in ENV_VALUE_OPTIONS and words:
+                words.pop(0)
+    return words
+
+
+def cybex_installs(args):
+    """Whether `cybex ARGS` installs (see CYBEX_INSTALLS), as cybex itself parses them."""
+    positional, options = [], set()
+    args = list(args)
+    while args:
+        word = args.pop(0)
+        if word.startswith("-"):
+            options.add(word.split("=", 1)[0])
+            if word in CYBEX_VALUE_OPTIONS and args:
+                args.pop(0)
+        else:
+            positional.append(word)
+    if options & {"-h", "--help"}:
+        return False
+    if positional == ["update"]:
+        # The guided update checks, prepares and applies; with --json it only prints the status.
+        return "--json" not in options
+    return any(tuple(positional[:len(verbs)]) == verbs for verbs in CYBEX_INSTALLS)
+
+
 def command_kind(command, depth=0):
-    """`install` for a command that stages or applies a system change or adds
-    or removes an app; `run` for any other."""
+    """`install` for a command that builds, stages or activates a system, or
+    adds, removes or updates an app; `run` for any other."""
     from . import policy
     for argv in policy.segments(str(command or "")) or []:
-        words = list(argv)
-        while words and (("=" in words[0] and not words[0].startswith("=")) or os.path.basename(words[0]) == "env"):
-            words.pop(0)
+        words = unwrapped(argv)
         if not words:
             continue
         name = os.path.basename(words[0])
@@ -76,12 +142,10 @@ def command_kind(command, depth=0):
             if command_kind(words[2], depth + 1) == INSTALL:
                 return INSTALL
             continue
-        verbs = [word for word in words[1:] if not word.startswith("-")]
-        if name == "cybex" and (verbs[:2] in (["update", "stage"], ["software", "stage"], ["update", "apply"])
-                                or verbs[:3] in (["software", "flathub", "install"],
-                                                 ["software", "flathub", "remove"])):
+        if name == "cybex" and cybex_installs(words[1:]):
             return INSTALL
-        if name == "flatpak" and verbs[:1] in (["install"], ["uninstall"]):
+        verbs = [word for word in words[1:] if not word.startswith("-")]
+        if name == "flatpak" and verbs[:1] and verbs[0] in FLATPAK_INSTALLS:
             return INSTALL
     return RUN
 
