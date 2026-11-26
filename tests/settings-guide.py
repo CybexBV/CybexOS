@@ -263,7 +263,7 @@ def main():
             return s
 
         def ended(reason):
-            s = wait(lambda: (s := state()).get('ended') == reason and s.get('key') == '' and s,
+            wait(lambda: (s := state()).get('ended') == reason and s.get('key') == '' and s,
                      f'the guide ended: {reason}')
             # He leaves: nothing of him is left once he has gone.
             return wait(lambda: (s := state()).get('wiz') is None and not s.get('shown') and s,
