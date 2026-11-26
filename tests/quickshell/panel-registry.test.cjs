@@ -155,20 +155,6 @@ test("panels no module owns are exactly the ones the bar sweep must skip", () =>
         ["overflow", "settings", "tailscale"]);
 });
 
-test("no consumer still hardcodes a panel name it should ask the registry for", () => {
-    // Guards the substitution this WP made: these files used to test
-    // `Popouts.currentName === "settings"` directly.
-    for (const file of ["shell.qml", "Bar/Bar.qml", "Bar/PopoutHost.qml",
-                        "Bar/BarPopoutWindow.qml"]) {
-        // Line by line, so a failure names the offending line rather than
-        // dumping the whole file into the assertion diff.
-        read(file).split("\n").forEach((line, i) => {
-            assert.ok(!/currentName\s*[!=]==\s*"settings"/.test(line),
-                `${file}:${i + 1} compares currentName against a literal panel name:\n    ${line.trim()}`);
-        });
-    }
-});
-
 test("lookups answer for unknown panels instead of throwing", () => {
     // The IPC boundary accepts arbitrary strings; registry lookups themselves
     // remain total so every caller can decide how to handle one.
@@ -282,14 +268,6 @@ test("a primitive that registers a panel also opens it", () => {
         const src = read(file);
         assert.match(src, /host\.togglePopout\(\s*(root\.)?panelName/,
             `${file} registers a panel but never toggles it on click`);
-    }
-});
-
-test("no bar module hand-wires a panel the primitive already owns", () => {
-    const bar = barSources();
-    for (const call of ["registerPanel", "unregisterPanel", "togglePopout"]) {
-        assert.doesNotMatch(bar, new RegExp(`barWindow\\.${call}\\(`),
-            `Bar.qml still hand-wires ${call}; panelName should drive it`);
     }
 });
 

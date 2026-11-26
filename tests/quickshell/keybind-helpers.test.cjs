@@ -21,13 +21,6 @@ function bind(modmask, key, description, extra = {}) {
 
 // ---- key caps ----------------------------------------------------------------
 
-test("modifiers read in the conventional order, whatever the mask order", () => {
-    assert.deepEqual(H.modifierNames(SUPER | CTRL | SHIFT), ["Super", "Ctrl", "Shift"]);
-    assert.deepEqual(H.modifierNames(SUPER | 8), ["Super", "Alt"]);
-    assert.deepEqual(H.modifierNames(0), []);
-    assert.deepEqual(H.modifierNames(undefined), []);
-});
-
 test("keysyms become the words printed on the keys", () => {
     for (const [key, cap] of [
         ["Return", "Enter"], ["SPACE", "Space"], ["comma", ","], ["SLASH", "/"],

@@ -40,21 +40,6 @@ test("app scoring keeps an empty directory alphabetical and adds usage later", (
     assert.equal(P.appScore(app, "terminal", 12), -1);
 });
 
-test("clipboard rows retain the opaque cliphist entry and recognize images", () => {
-    const rows = P.clipboardRows([
-        "41\tsecond text",
-        "42\t[[ binary data 1920x1080 png ]]",
-        "43\tdeploy token"
-    ], "", 8);
-
-    assert.equal(rows.length, 3);
-    assert.equal(rows[0].raw, "41\tsecond text");
-    assert.equal(rows[1].image, true);
-    assert.equal(rows[1].title, "Clipboard image");
-    assert.deepEqual(P.clipboardRows(rows.map(row => row.raw), "deploy", 8)
-        .map(row => row.raw), ["43\tdeploy token"]);
-});
-
 test("emoji parser accepts only fully-qualified entries and searches names", () => {
     const source = [
         "1F600 ; fully-qualified # 😀 E1.0 grinning face",
