@@ -91,8 +91,10 @@ Item {
     readonly property real labelTextWidth: labelText.width
     readonly property real labelTextHeight: labelText.implicitHeight
     readonly property var stored: settingKey === "" ? undefined : Settings[settingKey]
+    // A search jump flashes the row; Wiz's guide keeps it lit while he
+    // points at it (SettingsGuide.qml).
     readonly property bool highlighted: settingKey !== ""
-        && Settings.highlightKey === settingKey
+        && (Settings.highlightKey === settingKey || Settings.guideKey === settingKey)
 
     // Breathing room above and below the control line, inside the row, so the
     // divider between two rows has space on both sides.
@@ -112,6 +114,25 @@ Item {
             Settings.set(root.settingKey, value);
     }
 
+    // What Settings' guide must not stand on, in this row's coordinates: the
+    // label as drawn and every control the row adds, with the changed mark
+    // and the reset chip while the row is changed. The rest of the row is
+    // free: the gutter, the air between label and control, the hint line.
+    function guideParts() {
+        const base = [wash, divider, mark, labelText, hintLine, undoColumn];
+        const rect = item => ({ x: item.x, y: item.y, width: item.width, height: item.height });
+        const label = { x: labelText.x, y: labelText.y,
+            width: Math.min(labelText.width, labelText.contentWidth), height: labelText.height };
+        const controls = [];
+        for (const child of children) {
+            if (base.indexOf(child) === -1 && child.visible && child.width > 0 && child.height > 0)
+                controls.push(rect(child));
+        }
+        if (dirty)
+            controls.push(rect(mark), rect(undoColumn));
+        return { label: label, controls: controls };
+    }
+
     function requestReset() {
         if (root.resetKeys.length > 0)
             Settings.resetKeys(root.resetKeys, root.resetLabel);
@@ -121,6 +142,7 @@ Item {
     // Search landed here: a short accent wash over the whole row, so the eye
     // finds it before the highlight clears.
     Rectangle {
+        id: wash
         anchors.fill: parent
         anchors.leftMargin: -6
         anchors.rightMargin: -6
@@ -135,6 +157,7 @@ Item {
     }
 
     Rectangle {
+        id: divider
         visible: root.divider && root.y > 0 && !root.narrow
         x: root.markInset
         y: -Math.ceil(Theme.settingsRowSpacing / 2) - 1
@@ -144,6 +167,7 @@ Item {
     }
 
     Rectangle {
+        id: mark
         anchors.left: parent.left
         y: root.narrow ? root.narrowLabelY + 5 : (root.lineHeight - height) / 2
         width: 6
@@ -182,6 +206,7 @@ Item {
     }
 
     Item {
+        id: undoColumn
         anchors.right: parent.right
         y: (root.lineHeight - height) / 2
         width: root.undoWidth

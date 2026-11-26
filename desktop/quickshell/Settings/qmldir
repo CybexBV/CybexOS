@@ -21,6 +21,7 @@ SectionHeader SectionHeader.qml
 SettingsTextRow SettingsTextRow.qml
 SettingsAction SettingsAction.qml
 SettingsGroup SettingsGroup.qml
+SettingsGuide SettingsGuide.qml
 SettingsPage SettingsPage.qml
 SettingsRow SettingsRow.qml
 SettingsView SettingsView.qml
