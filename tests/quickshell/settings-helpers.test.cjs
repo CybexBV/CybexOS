@@ -887,6 +887,20 @@ test("assistant preferences are validated and runtime placement is bounded", () 
         assistantX: -50, assistantY: 1e9 });
     assert.equal(invalid.assistantAgent, "auto");
     assert.equal(invalid.assistantClaudeModel, "default", "each agent takes only its own models");
+    // Effort per agent ("none" is Codex's alone) and Codex's Fast tier.
+    assert.deepEqual([d.assistantClaudeEffort, d.assistantCodexEffort, d.assistantCodexFast],
+        ["default", "default", false]);
+    const tuned = H.merge({ v: 30, assistantClaudeEffort: "max", assistantCodexEffort: "none",
+        assistantCodexFast: true });
+    assert.deepEqual([tuned.assistantClaudeEffort, tuned.assistantCodexEffort, tuned.assistantCodexFast],
+        ["max", "none", true]);
+    const untuned = H.merge({ v: 30, assistantClaudeEffort: "none", assistantCodexEffort: "turbo",
+        assistantCodexFast: "yes" });
+    assert.deepEqual([untuned.assistantClaudeEffort, untuned.assistantCodexEffort, untuned.assistantCodexFast],
+        ["default", "default", false]);
+    // The wide view is gone; a stored choice from before is dropped, not kept.
+    const old = H.merge({ v: 30, assistantExpanded: true, assistantExpandedWidth: 800 });
+    assert.ok(!("assistantExpanded" in old) && !("assistantExpandedWidth" in old));
     assert.ok(!("assistantCharacter" in H.merge({ v: 30, assistantCharacter: "mark" })),
         "Wiz is the only character; a saved choice is ignored");
     assert.equal(invalid.assistantScreenContext, false, "screen context needs an explicit true");

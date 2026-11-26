@@ -43,8 +43,7 @@ SETTINGS_FILE = ".config/cybexos/shell.json"
 PLUGINS = ".local/share/cybexos/plugins"
 # Where the character stands, how his box is shown, and the file's schema
 # number: runtime state, not something a person would undo.
-RUNTIME_KEYS = frozenset({"v", "assistantShown", "assistantScreen", "assistantX", "assistantY", "assistantTuck",
-                          "assistantExpanded", "assistantExpandedWidth"})
+RUNTIME_KEYS = frozenset({"v", "assistantShown", "assistantScreen", "assistantX", "assistantY", "assistantTuck"})
 ENTRY = re.compile(r"^ch-[0-9a-f]{16}$")
 KINDS = ("setting", "file", "plugin", "app", "routine", "system")
 MISSING = object()
