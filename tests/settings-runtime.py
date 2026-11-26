@@ -1092,16 +1092,25 @@ class Audit:
         self.wait('SystemSettings.accounts.loaded && !SystemSettings.accounts.busy')
         snapshot=self.evaluate('SystemSettings.accounts.snapshot')
         assert snapshot['available'] and not snapshot['accounts'],snapshot
+        # Add account opens Settings' own picker; choosing a kind closes
+        # Settings and opens GOA's dialog for it (cybexos-goa-account). Closing
+        # that dialog adds nothing, and Settings comes back saying it was cancelled.
         self.action('Add account')
-        self.wait('!Settings.panelOpen')
+        self.wait('SystemSettings.accountPickerOpen && SystemSettings.accountProvidersLoaded && Settings.panelOpen')
+        types=self.evaluate('SystemSettings.accountProviders.map(p => p.type)')
+        assert {'google','ms_graph','owncloud'}<=set(types) and 'fedora' not in types,types
+        self.evaluate('SystemSettings.addAccount("google", "Google")')
+        self.wait('!Settings.panelOpen && !SystemSettings.accountPickerOpen')
         deadline=time.monotonic()+30
         while True:
-            account=[c for c in clients() if 'onlineaccounts' in c.get('class','').lower() or 'online-accounts' in c.get('class','').lower()]
+            account=[c for c in clients() if c.get('class','')=='cybexos-online-accounts']
             if account:break
             assert time.monotonic()<deadline,clients()
             time.sleep(.2)
         for c in account:self.user(['hyprctl','dispatch','hl.dsp.window.close({window='+json.dumps('address:'+c['address'])+'})'])
-        self.wait('!SystemSettings.externalBusy')
+        self.wait('!SystemSettings.externalBusy && Settings.panelOpen && Settings.page === "accounts"')
+        assert self.evaluate('SystemSettings.accountNotice')=='The sign-in was cancelled.'
+        assert not self.evaluate('SystemSettings.accounts.snapshot.accounts.length')
         for page, action, identity in [('sound','Open','pavucontrol'),('network','Advanced connection editor','nm-connection-editor')]:
             self.page(page)
             self.action(action)

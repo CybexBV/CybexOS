@@ -325,6 +325,10 @@ if power_saver.restore then hl.config(power_saver_config) end
 hl.window_rule({ match = { title = [[^Cybex OS Settings$]] }, float = true, center = true })
 hl.window_rule({ match = { title = [[^Software Update$]] }, float = true, center = true })
 hl.window_rule({ match = { class = [[xdg-desktop-portal-gtk]] }, float = true })
+-- GNOME Online Accounts' sign-in dialog, opened by Settings
+-- (cybexos-goa-account): small and floating in the top-right corner, so it
+-- neither fills an empty workspace nor covers the browser page it opens.
+hl.window_rule({ match = { class = [[^cybexos-online-accounts$]] }, float = true, move = "monitor_w-window_w-24 72" })
 hl.window_rule({ match = { class = [[org\.gnome\.Nautilus]], title = [[Properties]] }, float = true })
 hl.window_rule({ match = { class = [[org\.gnome\.Nautilus]], title = [[Open.*]] }, float = true })
 hl.window_rule({ match = { class = [[org\.gnome\.Nautilus]], title = [[Save.*]] }, float = true })

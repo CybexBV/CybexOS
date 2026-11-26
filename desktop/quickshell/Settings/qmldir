@@ -54,6 +54,8 @@ SettingsTabs SettingsTabs.qml
 SettingsPalette SettingsPalette.qml
 ChangesChip ChangesChip.qml
 ChangesSheet ChangesSheet.qml
+AccountPicker AccountPicker.qml
+AccountLogo AccountLogo.qml
 BackupPage BackupPage.qml
 SettingsHint SettingsHint.qml
 TimeRow TimeRow.qml

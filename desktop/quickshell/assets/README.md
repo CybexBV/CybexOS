@@ -24,6 +24,14 @@ run `scripts/export-wiz` (docs/assistant.md). The pictures are in Cybex blue;
 `Common/WizArt.qml` draws the ones that carry magic again in the theme's
 accent. Wiz is original project artwork under the repository MIT license.
 
+Online-account providers are the one exception to the allow-list:
+`Settings/AccountLogo.qml` draws the official marks GNOME Online Accounts
+itself installs into the icon theme (`goa-account-google`, `-ms365`,
+`-owncloud` for Nextcloud, `-exchange`), looked up by GOA's provider type from
+a fixed map. Cybex OS does not bundle or redistribute them, so they stay the
+marks goa-daemon reports for the same accounts. Never turn a provider's D-Bus
+`ProviderIcon` into a path.
+
 Do not add an identity SVG directly to a view. Add its canonical asset here,
 record its provenance below, register it in `BrandIcons`, and render it through
 `BrandIcon`. Small interactive marks also get a `-white.svg` sibling made by

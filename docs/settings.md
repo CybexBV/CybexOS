@@ -287,6 +287,40 @@ without Apply, and the next login starts with it.
   - `remove THEME`;
   - `refresh`.
 
+## Online accounts
+
+GNOME Online Accounts (GOA) keeps the accounts and signs them in; Settings is
+the place you see and choose them (2026-11, after a council review):
+
+- **Add account** opens a sheet in Settings (`AccountPicker.qml`) listing the
+  account kinds this computer's GOA offers. Google, Microsoft 365 and Nextcloud
+  lead; Email (IMAP and SMTP), Calendar and contacts (WebDAV), Microsoft
+  Exchange and Enterprise login (Kerberos) follow under Other accounts. Apart
+  from those kinds' own names, the wording promises calendars only: nothing
+  else in Cybex OS reads mail, contacts or files from these accounts yet.
+- **Signing in** stays GOA's own code. Choosing a kind, or Reconnect on an
+  account that needs attention, runs `cybexos-goa-account`
+  (`desktop/goa-account`, packaged by `nix/packages/goa-account.nix`). It
+  opens GOA's dialog for that one provider or account, without GNOME's account
+  list, so the browser handoff, Copy Link, Nextcloud's login flow, certificate
+  questions and the keyring write are exactly GNOME's. It prints one JSON
+  result line; no credentials pass through it to Settings.
+- **Settings steps aside** while that dialog is open: it floats above tiled
+  windows and would hide the browser page the sign-in opens. GOA's dialog
+  floats in the top-right corner (`desktop/hypr/looknfeel.lua`), clear of the
+  sign-in page. Settings comes back with the result: added, connected again,
+  cancelled, or the reason it failed; reopened meanwhile, it offers Cancel.
+  An added account counts once goa-daemon can hand out its credentials;
+  otherwise Settings says so. Errors that quote the browser's answer are
+  never shown.
+- **Cancel** closes GOA's dialog window rather than cancelling GOA's task:
+  with no parent window, GOA 3.58 deadlocks when its task is cancelled.
+- **Logos** are the marks GOA installs in the icon theme (`AccountLogo.qml`,
+  see `desktop/quickshell/assets/README.md`); generic kinds get a glyph.
+- GOA's per-account switches for mail, contacts and files are not offered:
+  GNOME's accounts window, which had them, is no longer installed. Each
+  account keeps its **Use calendars** switch.
+
 ## Page ids
 
 IPC (`cybexos-runtime ipc settings open ID`), the launcher and other views open
