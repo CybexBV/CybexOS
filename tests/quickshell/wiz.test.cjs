@@ -66,6 +66,47 @@ test("each layer holds its drawing, strokes and glow included", () => {
     }
 });
 
+// Nothing painted over the cloak may thin or cross its outline: the face
+// stays inside it and comes before it, and the collar, which covers the
+// outline where the arms once met the body, draws that stretch again.
+test("the cloak's outline stays whole around the face and under the collar", () => {
+    const body = W.layerOps("body"), collar = W.layerOps("collar");
+    const outline = body[body.length - 1];
+    assert.ok(outline.stroke && !outline.fill, "the body layer ends with the cloak's outline");
+    const face = body.find(op => op.fill === "#0B0D10");
+    assert.ok(body.indexOf(face) < body.indexOf(outline), "the face comes before the outline");
+    // The cloak's left side between y 60 and 80, as x at y (its curves only grow in y).
+    const side = [[60, 60], [47, 60], [42, 70], [41, 80]];
+    const at = t => side.reduce((acc, p, i) => {
+        const k = [1, 3, 3, 1][i] * (1 - t) ** (3 - i) * t ** i;
+        return [acc[0] + k * p[0], acc[1] + k * p[1]];
+    }, [0, 0]);
+    const edgeX = y => {
+        let lo = 0, hi = 1;
+        for (let i = 0; i < 50; i++) { const t = (lo + hi) / 2; if (at(t)[1] < y) lo = t; else hi = t; }
+        return at(lo)[0];
+    };
+    for (const segment of face.d)
+        for (let i = 1; i + 1 < segment.length; i += 2) {
+            const [x, y] = [segment[i], segment[i + 1]];
+            if (segment[0] === "C" && i < 5) continue;   // control points may lie outside
+            const inner = edgeX(Math.min(80, Math.max(60, y)));
+            assert.ok(x >= inner - 1e-6 && 120 - x >= inner - 1e-6, `the face leaves the cloak at (${x}, ${y})`);
+        }
+    const fill = collar.findIndex(op => op.fill), redraw = collar.findIndex(op => op.stroke === outline.stroke);
+    assert.ok(fill >= 0 && redraw > fill, "the collar draws the cloak's outline over its own fill");
+    assert.equal(collar[redraw].lw, outline.lw);
+});
+
+// The hat band sits on the cone and sways with it, under the cone's outline.
+test("the hat band moves with the cone and stays inside its outline", () => {
+    assert.ok(!("band" in W.LAYERS), "the band is part of the cone layer");
+    const cone = W.layerOps("cone"), last = cone[cone.length - 1];
+    assert.ok(last.stroke && !last.fill, "the cone layer ends with its outline");
+    assert.deepEqual(last.d, cone[0].d, "the outline is the cone's own shape");
+    assert.ok(cone.some(op => op.fill === "#DC1E37"), "the band is in the cone layer");
+});
+
 test("the rig loads before QML has its globals", () => {
     // Qt 6.11 can run an imported script's top level before Math exists (a
     // component's first instance in a Repeater); the rig must not need it then.
