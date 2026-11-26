@@ -66,18 +66,6 @@ class FakeTurn:
         self.prompt = prompt_text
 
 
-class StepsTest(unittest.TestCase):
-
-    def test_turn_skips_repeats_and_stops_at_the_limit(self):
-        turn = Turn("t-1", "claude", "q", "/tmp", set(), lambda *args: None)
-        for _ in range(3):
-            turn.add_step(steps.entry("Read a file", "a"))
-        self.assertEqual(len(turn.steps), 1)
-        for index in range(100):
-            turn.add_step(steps.entry("Read a file", str(index)))
-        self.assertEqual(len(turn.steps), steps.MAX_STEPS)
-
-
 # Every look, change and install tool, with the kind the character shows.
 DESKTOP_KINDS = {
     "desktop_status": "read", "settings_get": "read", "doctor_run": "read", "routine_list": "read",

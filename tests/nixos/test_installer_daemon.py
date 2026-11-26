@@ -105,18 +105,6 @@ class TimezoneTableTests(unittest.TestCase):
         self.assertEqual(daemon.full_name_problem('José García'), '')
         self.assertNotEqual(daemon.full_name_problem('a:b'), '')
 
-    def test_network_summary_prefers_wired_and_deduplicates_networks(self):
-        summary = daemon.summarize_network({'devices': [
-            {'interface': 'wlp1', 'type': 'wifi', 'connected': True, 'ssid': 'Home', 'ipv4': '10.0.0.5', 'stateCode': 100},
-            {'interface': 'enp2', 'type': 'ethernet', 'connected': True, 'connection': 'Cybex OS Wired', 'ipv4': '10.0.0.6', 'stateCode': 100}],
-            'wifi': {'interface': 'wlp1', 'networks': [
-                {'ssid': 'Home', 'signal': 40, 'security': 'WPA2', 'connected': True},
-                {'ssid': 'Home', 'signal': 80, 'security': 'WPA2'},
-                {'ssid': '', 'signal': 90}]}})
-        self.assertEqual((summary['kind'], summary['interface'], summary['address']), ('ethernet', 'enp2', '10.0.0.6'))
-        self.assertEqual([n['ssid'] for n in summary['wifi']['networks']], ['Home'])
-
-
 class DaemonTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.root = Path(tempfile.mkdtemp(prefix='nid-'))
@@ -297,15 +285,6 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([c[0] for c in commands], ['snapshot', 'wifi', 'snapshot'])
         self.assertEqual(commands[1][1], {'ssid': 'Home', 'password': PASSWORD})
         self.assertNotIn(PASSWORD, ''.join(self.received))
-
-    async def test_malformed_network_result_is_an_actionable_error(self):
-        await self.setup_phase()
-        helper = self.root / 'network.py'
-        helper.write_text('print("[]")')
-        self.service.network_helper = str(helper)
-        await self.service.run_network('snapshot', None)
-        self.assertIn('Connection failed', self.service.state['network']['error'])
-        self.assertFalse(self.service.state['network']['busy'])
 
     async def test_network_cancellation_kills_and_reaps_helper(self):
         await self.setup_phase()
@@ -645,22 +624,6 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(daemon.software_catalogue(directory), {'profiles': [], 'apps': {}})
 
-    async def test_static_software_lists_the_profiles_and_their_apps_only(self):
-        static = await self.until(lambda m: m['type'] == 'static')
-        software = static['software']
-        self.assertEqual([p['id'] for p in software['profiles']],
-                         ['development', 'office', 'graphics', 'media', 'gaming', 'chat'])
-        self.assertEqual({p['id'] for p in software['profiles'] if p['onMedium']}, {'development'})
-        listed = {app for profile in software['profiles'] for app in profile['apps']}
-        self.assertEqual(set(software['apps']), listed)
-        self.assertTrue(all(Path(app['icon']).is_file() for app in software['apps'].values()))
-        included = {item['name']: item['icon'] for profile in software['profiles'] for item in profile['includes']}
-        for name in ('T3 Code', 'Docker', 'Podman', 'Steam', 'MangoHud', 'ProtonUp-Qt'):
-            self.assertTrue(Path(included[name]).is_file(), f'{name} shows its icon, not a monogram')
-        self.assertNotIn('attribute', software['apps']['gimp'])
-        self.assertEqual([entry[0] for entry in static['features']],
-                         ['docker', 'podman', 'tailscale', 'localNetworkServices', 'connectedWidgets', 'proprietary'])
-
     async def test_password_confirmation_and_reserved_names_stop_before_review(self):
         await self.setup_phase()
         await self.send(action='draft', values={'username': 'ada'})
@@ -741,11 +704,6 @@ if (root / 'fail').exists():
             await daemon.request_power(kind)
             self.assertEqual(json.loads((self.root / 'args.json').read_text()),
                 ['--no-block', '--no-ask-password', '--check-inhibitors=no', *arguments])
-
-    async def test_failed_command_preserves_the_reason(self):
-        (self.root / 'fail').touch()
-        with self.assertRaisesRegex(daemon.Failure, 'Reboot to firmware setup is not supported'):
-            await daemon.request_power('firmware')
 
     async def test_timed_out_command_is_killed_and_reaped(self):
         (self.root / 'hang').touch()

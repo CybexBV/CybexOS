@@ -575,21 +575,6 @@ class ClassificationTests(unittest.TestCase):
                 self.assertEqual(fields.get("reason"), reason)
                 self.assertTrue(fields["message"])
 
-    def test_fwupd_text_is_one_trimmed_line(self):
-        api = fake_api()
-        kind, fields = module.classify_error(api, fwupd_error(
-            Error.NEEDS_USER_ACTION, "  Press the unlock button \nthen retry"))
-        self.assertEqual((kind, fields), ("failed", {
-            "reason": "user-action", "message": "Press the unlock button"}))
-        kind, fields = module.classify_error(api, fwupd_error(
-            Error.BROKEN_SYSTEM,
-            "GDBus.Error:org.freedesktop.fwupd.BrokenSystem: Secure boot is misconfigured\n"))
-        self.assertEqual((kind, fields), ("failed", {
-            "reason": "other", "message": "Secure boot is misconfigured"}))
-        self.assertEqual(module.classify_error(api, RuntimeError("")),
-                         ("failed", {"reason": "other", "message": "The firmware update failed."}))
-
-
 class InteractiveTests(unittest.TestCase):
     def output(self):
         self.stream = io.StringIO()

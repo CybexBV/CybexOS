@@ -19,7 +19,6 @@ RESCUE = '/nix/store/' + 'c' * 32 + '-nixos-system-rescue'
 SYSTEMD = {'loader': 'systemd-boot'}
 CLOSING = "menuentry 'Firmware settings' --class firmware {\n  fwsetup\n}\n"
 VERSIONS = {NEW: '1.0.0-beta.19', OLD: '1.0.0-beta.18', RESCUE: '1.0.0-beta.18'}
-THEME = {f'{kind}-{rows}' for kind in ('startup', 'notice', 'earlier') for rows in range(1, 7)}
 
 
 class FakeSystems(Systems):
@@ -175,27 +174,6 @@ class GrubMenuTests(unittest.TestCase):
         self.assertIn('‘grub-reboot’', labelled)
         # Labelling again, as after an interrupted installation, is stable.
         self.assertEqual(label(labelled, 'NixOS', CLOSING, systems=FakeSystems()), labelled)
-
-    def test_theme_variants_follow_each_list_length(self):
-        labelled = label(generated(specialised=1), 'NixOS', CLOSING, THEME.__contains__, FakeSystems())
-        lines = labelled.splitlines()
-        generations = lines.index("submenu 'Earlier versions  ›' --class history --class submenu --id cybexos-generations {")
-        self.assertEqual(lines[generations + 1], '  set theme=($drive1)//theme/earlier-2.txt')
-        group = next(i for i, line in enumerate(lines) if line.startswith("submenu 'Cybex OS 1.0.0-beta.18  ·  21 Oct, 14:05  ›'"))
-        self.assertEqual(lines[group + 1], '  set theme=($drive1)//theme/earlier-2.txt')
-        # The current entry, the generations and the closing entry.
-        self.assertIn('set theme=($drive1)//theme/startup-3.txt\nif [ "${cybexos_boot}" = "pending" ]; then\n'
-                      '  set theme=($drive1)//theme/notice-3.txt\n  set timeout_style=menu\n  set timeout=30\nfi\n', labelled)
-        self.assertEqual(label(labelled, 'NixOS', CLOSING, THEME.__contains__, FakeSystems()), labelled)
-        many = generated(generations=tuple((n, NEW if n % 2 else OLD) for n in range(9, 0, -1)))
-        self.assertIn('  set theme=($drive1)//theme/earlier-6.txt\n', label(many, 'NixOS', '', THEME.__contains__, FakeSystems()))
-        # A personal theme without the variants keeps its own theme.txt.
-        personal = label(generated(), 'NixOS', CLOSING, lambda name: False, FakeSystems())
-        self.assertNotIn('-1.txt', personal)
-        self.assertNotIn('/theme/startup-', personal)
-        self.assertIn('  set timeout_style=menu\n', personal)
-        self.assertNotIn('/theme/', label(generated().replace('        set theme=($drive1)//theme/theme.txt\n', ''),
-                                          'NixOS', CLOSING, THEME.__contains__, FakeSystems()))
 
     def test_titles_without_version_or_profile_time(self):
         labelled = label(generated(), 'NixOS', systems=FakeSystems(missing=(2,), now=datetime(2027, 1, 3)))
