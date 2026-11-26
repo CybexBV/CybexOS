@@ -899,7 +899,8 @@ def main():
             assert [row["title"] for row in rows] == [
                 "Create a CPU temperature widget", "Clean up my old downloads", "Show me your poses again",
                 "Reboot the computer for me", "Show me your poses", "Look alongside for a moment",
-                "Clean up these downloads", "Make the menubar transparent", "connect my printer"], rows
+                "Clean up these downloads", "Check for missing drivers", "Make the menubar transparent",
+                "connect my printer"], rows
 
             # History. Shown again, the character is clicked (Super+I's tap
             # does the same): a new conversation, with the recent ones under
