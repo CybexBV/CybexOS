@@ -29,6 +29,12 @@
 # opened, while a window the person opened stays. The guide stays up until
 # they are gone.
 #
+# Signed in without a password, this VM's session has no keyring, so Chrome
+# asks for one to be made as it starts (a real sign-in unlocks the keyring).
+# That prompt is a window the sign-in opened. It takes seconds to show here,
+# and once the guide is back any new window steps it aside again, so the
+# check finishes the sign-in only after the prompt is up, as a person would.
+#
 # Test-only settings: SDDM signs the user in directly; once the shipped
 # policy is checked, the browsers get it without 1Password's forced install
 # (the VM has no network for the store extension), and the probe carries the
@@ -412,15 +418,19 @@ in pkgs.testers.runNixOSTest {
     retry(lambda _: "chrome" in classes(), timeout_seconds=120)
     assert "kitty" not in classes(), clients()
     assert welcome()["aside"] and welcome()["connect"]["assistant"] == "signing-in", welcome()
+    # Chrome's keyring prompt, this VM's, is part of the sign-in.
+    def sign_in_windows():
+        windows = clients()
+        return {kind(windows[address]) for address in welcome()["connectWindows"] if address in windows}
+    retry(lambda _: "gcr-prompter" in sign_in_windows(), timeout_seconds=60)
     machine.screenshot("sign-in")
     user("touch /home/tester/claude-sign-in/approved")
     retry(lambda _: not welcome()["aside"] and welcome()["connect"]["assistant"] == "ready", timeout_seconds=60)
     opened = welcome()["connectWindows"]
     windows = clients()
     machine.log("windows: " + json.dumps(windows) + ", the guide's: " + json.dumps(opened))
-    # The real 1Password may show a window too. The keyring prompt Chrome
-    # raises is this VM's: its sign-in leaves the keyring locked.
-    assert {"chrome"} <= set(kinds(opened, windows)) <= {APP_ID, "chrome", "gcr-prompter"}, (opened, windows)
+    # The real 1Password may show a window too.
+    assert {"chrome", "gcr-prompter"} <= set(kinds(opened, windows)) <= {APP_ID, "chrome", "gcr-prompter"}, (opened, windows)
 
     # Leaving closes them before the desktop shows; the person's own stays.
     user("cybexos-runtime ipc welcome close")
