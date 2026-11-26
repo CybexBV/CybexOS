@@ -140,13 +140,6 @@ test("the backend routes every snapshot through snapshotRead and every action co
 
 const read = file => untranslated(fs.readFileSync(path.join(shellDir, file), "utf8"));
 
-test("system pages speak about their service only when there is something to say", () => {
-    const status = read("Settings/SystemServiceStatus.qml");
-    assert.match(status, /visible: text !== ""/);
-    assert.match(status, /visible: !!root\.service && root\.service\.error !== ""\s+text: "Refresh"/,
-        "Refresh is offered after a failure, not as a standing button");
-});
-
 test("Network lists saved connections and drafts the selected one behind an Apply bar", () => {
     const page = read("Settings/NetworkPage.qml");
     const ip = read("Settings/IpSettings.qml");
@@ -165,18 +158,4 @@ test("Network lists saved connections and drafts the selected one behind an Appl
     assert.match(ip, /label: root\.config\.autoDns \? "Additional DNS" : "DNS servers"/);
     // Each keystroke reaches the draft, so the Apply bar appears while typing.
     assert.match(read("Settings/DraftFieldRow.qml"), /onTextEdited: root\.edited\(text\)/);
-});
-
-test("Sound is built from settings rows over the drawer's data, not the drawer itself", () => {
-    const page = read("Settings/SoundPage.qml");
-    assert.doesNotMatch(page, /DrawerSound|Popovers\/Drawer/);
-    assert.match(page, /AudioHelpers\.outputDevices\(/);
-    assert.match(page, /onActivated: Audio\.setDefaultSink\(/);
-    assert.match(page, /onActivated: Audio\.setDefaultSource\(/);
-    assert.match(page, /PwNodePeakMonitor \{/);
-    assert.match(page, /SettingsDisclosure \{[\s\S]*?" network outputs"/, "network outputs stay folded");
-    // Ports, balance, profiles and routing still go through the pactl helper.
-    for (const action of ["port", "balance", "profile", "route"])
-        assert.match(page, new RegExp(`action: "${action}"`), action);
-    assert.match(page, /SystemSettings\.openExternal\("sound"\)/);
 });

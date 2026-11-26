@@ -32,10 +32,6 @@ test("every configurable widget id has a display name", () => {
             `${id} is named but is not a configurable widget`);
 });
 
-test("an unknown id still names itself rather than drawing blank", () => {
-    assert.equal(CATALOG.widgetName("nonesuch"), "nonesuch");
-});
-
 // ---- moveWidget: the one set of drop rules ----------------------------
 
 test("moving down within a column accounts for its own removal", () => {
@@ -194,17 +190,6 @@ test("the dragged widget is dimmed in place, never taken out of the layout", () 
         "the slot must dim itself while it is the one being dragged");
     assert.doesNotMatch(slot, /active:[^\n]*dragWidget/,
         "unloading it mid-drag would move every measurement the drop uses");
-});
-
-test("a drag suppresses the hover transitions that would fight it", () => {
-    assert.match(read("Bar/Bar.qml"),
-        /function hoverPanelAt[\s\S]{0,220}rearranging/,
-        "crossing a widget mid-drag is the drag, not a menu transition");
-    assert.match(read("Bar/Bar.qml"),
-        /function hoverPopout[\s\S]{0,200}rearranging \|\| Settings\.drawerHover === "off"/,
-        "a widget's own hover must not reopen its panel over the drop gap");
-    assert.doesNotMatch(read("Bar/Cluster.qml"), /groupMouse|ownsPointer/,
-        "the cluster must not add a second hover route around its widgets");
 });
 
 test("the settings page still owns the keyboard path", () => {

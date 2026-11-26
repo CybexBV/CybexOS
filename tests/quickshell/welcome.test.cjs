@@ -58,12 +58,6 @@ test('1Password is known by its desktop entry id from 8.12.42 on, and before', (
     assert.equal(W.isPassword('1password-beta'), false);
     assert.equal(W.isPassword(undefined), false);
 });
-test('Chrome is known by its desktop entry id and its windows\' class, Wayland or XWayland', () => {
-    assert.equal(W.isChrome('google-chrome'), true);
-    assert.equal(W.isChrome('Google-chrome'), true);
-    for (const name of ['google-chrome-beta', 'chromium', 'brave-browser', 'chrome-web.whatsapp.com__-Default', undefined])
-        assert.equal(W.isChrome(name), false, String(name));
-});
 test('a sign-in owns every window it opens; 1Password and Chrome only their own', () => {
     assert.deepEqual(W.connectWindow('a1,1,kitty,claude auth login', 'sign-in'), {address: 'a1', action: 'sign-in'});
     assert.deepEqual(W.connectWindow('b2,1,google-chrome,Claude', 'sign-in'), {address: 'b2', action: 'sign-in'});

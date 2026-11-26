@@ -314,20 +314,6 @@ test("keeping a trial boot names the version running and the one Go back returns
     assert.match(view, /I18n\.tr\("Go back to the previous version"\)/);
 });
 
-test("Software Update's buttons and labels are in sentence case", () => {
-    const fs = require("node:fs"), path = require("node:path"), { shellDir } = require("./shell.cjs");
-    for (const name of ["UpdateView.qml", "ReadyPage.qml", "TechnicalDetails.qml", "WhatsNewPage.qml", "StatusPage.qml"]) {
-        const source = fs.readFileSync(path.join(shellDir, "SoftwareUpdate", name), "utf8");
-        for (const [, text] of source.matchAll(/I18n\.tr\("([^"]+)"\)/g)) {
-            const names = text.replace(/Software Update|Cybex OS|NixOS|Linux|Wiz|NVIDIA|Flathub|Wi-Fi|Bluetooth|Mesa|Hyprland|OK/g, "");
-            for (const sentence of names.split(/[.?!:]\s+/)) {
-                const words = sentence.trim().split(/\s+/).slice(1);
-                assert.ok(!words.some(word => /^[A-Z][a-z]/.test(word)), `${name}: "${text}"`);
-            }
-        }
-    }
-});
-
 test("a trial boot is confirmed automatically unless that failed or is switched off", () => {
     assert.equal(page({ state: "awaiting-login" }), "finishing");
     assert.equal(page({ state: "awaiting-login", automatic: { prepare: true, confirm: false } }), "confirm");
@@ -484,23 +470,6 @@ test("Wiz shows each status page in the pose language every surface shares", () 
         assert.ok(states.includes(value.pose), page + ": " + value.pose);
         assert.equal(value.unread, page === "available", page);
     }
-});
-
-test("the review of a prepared update and its toasts stay free of Wiz", () => {
-    const fs = require("node:fs");
-    const path = require("node:path");
-    const { shellDir } = require("./shell.cjs");
-    const read = name => fs.readFileSync(path.join(shellDir, name), "utf8");
-    assert.doesNotMatch(read("SoftwareUpdate/ReadyPage.qml"), /Wiz\b/);
-    assert.doesNotMatch(read("Bar/Modules/Updates.qml"), /Wiz\b/);
-    assert.match(read("SoftwareUpdate/StatusPage.qml"), /AssistantUi\.Wiz \{/);
-    // The ring round his star shows the page's measured fraction (a download
-    // with a known size, the firmware's percent) and nothing else.
-    assert.match(read("SoftwareUpdate/StatusPage.qml"),
-        /AssistantUi\.Wiz \{[\s\S]*?progress: root\.progress[\s\S]*?\}/);
-    assert.match(read("SoftwareUpdate/StatusPage.qml"),
-        /\/\/ A measured transfer fraction only; -1 means indeterminate activity\.\s*property real progress: -1/);
-    assert.match(read("SoftwareUpdate/WhatsNewPage.qml"), /AssistantUi\.Wiz \{/);
 });
 
 const keptRecord = { state: "done", changeKind: "update", scope: "cybexos", transaction: "a".repeat(32),

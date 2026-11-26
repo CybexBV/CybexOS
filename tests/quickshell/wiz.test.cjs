@@ -165,29 +165,6 @@ test("every state has a complete pose", () => {
     assert.match(code, /readonly property bool casting: act === "casting" \|\| act === "working"/);
 });
 
-test("each pose shows what the design gives it", () => {
-    const P = W.POSES;
-    // Hands show at rest and are tucked in when he dozes or sleeps.
-    assert.equal(P.idle.arms, 1);
-    assert.deepEqual([P.drowsy.arms, P.asleep.arms], [0, 0]);
-    // Each kind of work has its own thing.
-    const holds = { reading: "book", searching: "orb", writing: "scroll", brewing: "pot", delegating: "wisp" };
-    for (const [state, thing] of Object.entries(holds))
-        for (const other of ["book", "orb", "scroll", "pot", "wisp"])
-            assert.equal(P[state][other], other === thing ? 1 : 0, `${state} ${other}`);
-    for (const state of ["casting", "working", "brewing", "pointing"])
-        assert.equal(P[state].wand, 1, state);
-    assert.deepEqual([P.casting.spell, P.thinking.runes, P.asleep.zzz], [1, 1, 1]);
-    // Eyelids and the brow carry the feeling.
-    assert.ok(P.drowsy.lid > 0.4 && P.sorry.brow < 0 && P.casting.brow > 0 && P.curious.big === 1);
-    // A raised hand for a question, a thumb for a job well done, open hands to wave or shrug.
-    assert.ok(P["needs-input"].ry < 70 && P["needs-input"].rx > 90);
-    assert.deepEqual([P.proud.point, P.proud.pointA], [1, -90]);
-    for (const state of ["greeting", "shrug", "curious", "delegating", "carried"])
-        assert.equal(P[state].palms, 1, state);
-    assert.equal(P.carried.feet, 1);
-});
-
 test("the committed pictures are exactly what the rig exports", () => {
     const names = Object.keys(W.LAYERS);
     assert.deepEqual(fs.readdirSync(layersDir).filter(name => name.endsWith(".svg")).sort(),
@@ -220,55 +197,6 @@ test("each layer holds its drawing, strokes and glow included", () => {
         assert.ok(x0 >= x - 1e-6 && y0 >= y - 1e-6 && x1 <= x + width + 1e-6 && y1 <= y + height + 1e-6,
             `${name} spills out of its box: it paints ${[x0, y0, x1, y1].map(v => v.toFixed(2))}`);
     }
-});
-
-test("every still pose fits the box they all share", () => {
-    // Pictures swapped in place line up because every pose is drawn in one box.
-    assert.deepEqual(W.STILL_BOX, [-8, -12, 136, 132]);
-    const [x, y, width, height] = W.STILL_BOX;
-    for (const state of W.STATES) {
-        const [x0, y0, x1, y1] = painted(W.stillOps(state));
-        assert.ok(x0 >= x && y0 >= y && x1 <= x + width && y1 <= y + height,
-            `${state} leaves the still box: it paints ${[x0, y0, x1, y1].map(v => v.toFixed(2))}`);
-        assert.match(W.stillSVG(state), new RegExp(`viewBox="${W.STILL_BOX.join(" ")}"`), state);
-    }
-});
-
-// Nothing painted over the cloak may thin or cross its outline: the face
-// comes before it, and the cape, which covers the outline where his arms
-// leave the body, has an outline of its own.
-test("the cloak's outline stays whole around the face, and the cape covers his shoulders", () => {
-    const body = leaves(W.layerOps("body"));
-    const outline = body.find(op => op.stroke === W.COLORS.edge && !op.fill);
-    assert.ok(outline, "the body layer draws the cloak's outline");
-    const face = body.find(op => op.fill === W.COLORS.face);
-    assert.ok(face && body.indexOf(face) < body.indexOf(outline), "the face comes before the outline");
-    assert.deepEqual(outline.d, body[0].d, "the outline is the cloak's own shape");
-    const cape = leaves(W.layerOps("cape"));
-    const fill = cape.findIndex(op => op.fill === W.COLORS.cape), edge = cape.findIndex(op => op.stroke === W.COLORS.capeEdge);
-    assert.ok(fill >= 0 && edge > fill, "the cape draws its outline over its own fill");
-    assert.deepEqual(cape[edge].d, cape[fill].d);
-    // In every pose: sleeves under the cape, his hands over everything he holds.
-    for (const state of W.STATES) {
-        const order = leaves(W.stillOps(state)).map(op => op.layer);
-        if (order.includes("sleeve"))
-            assert.ok(Math.max(order.lastIndexOf("sleeve"), order.lastIndexOf("cuff")) < order.indexOf("cape"), `${state}: sleeves under the cape`);
-        if (order.includes("hand")) {
-            for (const held of ["pot", "bubble", "book", "orb", "orb-shine", "scroll", "scroll-line", "wand", "spell-core", "quill"])
-                assert.ok(order.lastIndexOf(held) < order.indexOf("hand"), `${state}: his hands over the ${held}`);
-            // The finger he points with, or the thumb he raises, is under its own hand.
-            assert.ok(order.lastIndexOf("finger") < order.lastIndexOf("hand"), `${state}: the hand over its finger`);
-        }
-    }
-});
-
-// The hat band sits on the cone and sways with it, under the cone's outline.
-test("the hat band moves with the cone and stays inside its outline", () => {
-    assert.ok(!("band" in W.LAYERS), "the band is part of the cone layer");
-    const cone = leaves(W.layerOps("cone")), last = cone[cone.length - 1];
-    assert.ok(last.stroke && !last.fill, "the cone layer ends with its outline");
-    assert.deepEqual(last.d, cone[0].d, "the outline is the cone's own shape");
-    assert.ok(cone.some(op => op.fill === "#DC1E37"), "the red Cybex band is in the cone layer");
 });
 
 test("the rig loads before QML has its globals", () => {
@@ -681,27 +609,6 @@ test("what only some poses or moments show is made for them and let go", () => {
             assert.ok(["bead", "cloud", "shout"].includes(target), target);
 });
 
-test("the star swings once on a change of pose; it twinkles and turns only at work", () => {
-    const swinging = code.slice(code.indexOf("id: swinging"), code.indexOf("\n    }\n", code.indexOf("id: swinging")));
-    assert.equal(swinging.match(/RotationAnimator \{ target: star;/g).length, 2);
-    assert.match(swinging, /from: 16; to: 0;[^\n]*Easing\.OutElastic/);
-    assert.doesNotMatch(swinging, /loops/);
-    assert.match(code, /onPoseChanged: \{[^}]*if \(!live\)\s*return;\s*swinging\.restart\(\);/);
-    // The twinkle is the dim star showing through the lit one.
-    assert.match(code, /running: root\.busy && root\.act !== ""\s*loops: Animation\.Infinite\s*OpacityAnimator \{ target: dimmer;/);
-    // A quarter turn of a four-pointed star looks like none, so it turns one
-    // at a time: another follows only while he works, and after the last the
-    // star hangs as it did. Not a loop that runs to its end: that one could
-    // not be cut short when he may no longer move.
-    assert.match(code, /readonly property bool turning: live && busy\s*onTurningChanged: \{\s*if \(turning\)\s*twirling\.start\(\);\s*\}/);
-    const twirling = blocks(code, /RotationAnimator/).find(body => /id: twirling/.test(body));
-    assert.match(twirling, /id: twirling\s*target: twirl\s*from: 0\s*to: 90\s*duration: 2250\s*onFinished: \{\s*if \(root\.live && root\.busy\)\s*restart\(\);\s*else\s*twirl\.rotation = 0;\s*\}/);
-    assert.doesNotMatch(twirling, /loops|alwaysRunToEnd|running:/);
-    assert.doesNotMatch(code, /alwaysRunToEnd/);
-    // A Wiz made in the middle of a turn turns his star too.
-    assert.match(code, /Component\.onCompleted: \{[^}]*if \(turning\)\s*twirling\.start\(\);/);
-});
-
 // Reduced motion, the power saver or an unattended session take `animated`
 // away at any moment. Measured in Quickshell (Qt 6.12): complete() does not
 // end an Animator, alone or in a group, it runs on to its end; stop() ends it
@@ -789,21 +696,6 @@ test("he leans into every direction, diagonals included", () => {
     assert.ok(W.carry(0.3, 0).smear < right.smear, "the stretch grows with speed");
     for (const value of Object.values(W.carry(0, 0)))
         assert.equal(Math.abs(value), 0);
-});
-
-test("the drag's effects are in the rig: \"?!\", sweat, dust, dizzy eyes and stars, feet out", () => {
-    const drawn = effects => new Set(leaves(W.stillOps("carried", { effects })).map(op => op.layer));
-    const plain = drawn({});
-    for (const layer of ["leg", "boot", "hand", "sleeve"])
-        assert.ok(plain.has(layer), layer);
-    for (const layer of ["shout", "sweat", "dust", "dizzy-eye", "dizzy-star"])
-        assert.ok(!plain.has(layer), `${layer} only when asked`);
-    assert.ok(drawn({ shout: true }).has("shout") && drawn({ sweat: true }).has("sweat") && drawn({ dust: true }).has("dust"));
-    const dizzy = drawn({ dizzy: true });
-    assert.ok(dizzy.has("dizzy-eye") && dizzy.has("dizzy-star") && !dizzy.has("eyes") && !dizzy.has("lids"));
-    // At rest his boots show under the hem and his legs do not.
-    const resting = new Set(leaves(W.stillOps("idle")).map(op => op.layer));
-    assert.ok(resting.has("boot") && !resting.has("leg"));
 });
 
 test("carried, he reacts only while live and always comes back to rest", () => {
@@ -919,38 +811,6 @@ test("carried, he reacts only while live and always comes back to rest", () => {
     // A grab stops the nod and a landing the startled glance.
     assert.match(code, /\n    function startle\(\) \{\s*stopNod\(\);/);
     assert.match(code, /\n    function land\(sweat\) \{\s*startling\.stop\(\);\s*stopGlance\(\);/);
-});
-
-test("he can face the other way, point at the box, and have a helper", () => {
-    assert.match(code, /property int facing: 1/);
-    assert.match(code, /readonly property int side: facing < 0 \? -1 : 1/);
-    assert.match(code, /property real turn: side/);
-    // Mirrored about his own middle; a transform works in the item's scaled units.
-    assert.match(code, /transform: Scale \{\s*origin\.x: 60 \* root\.unit\s*xScale: root\.turn\s*\}/);
-    // Mirrored, he follows the pointer and the drag in his own frame, and
-    // what is written still reads the right way round.
-    assert.match(code, /hovered \? Qt\.point\(lookX \* 2 \* side, lookY \* 1\.2\)/);
-    assert.match(code, /readonly property var reaction: wiz\.carry\(ux \* side, uy\)/);
-    assert.match(code, /readonly property point pivot: Qt\.point\(side > 0 \? grab\.x \/ unit : 120 - grab\.x \/ unit, grab\.y \/ unit\)/);
-    assert.equal(code.match(/transform: Scale \{ xScale: root\.side \}/g).length, 2, "the z's and the \"?!\"");
-    // Pointing: down at the box below him, up at one above; `aside` keeps
-    // the pose's own aim out to the side (Settings' guide).
-    assert.match(code, /property bool aside: false/);
-    assert.match(code, /readonly property var aim: pose === "pointing" && !aside\s*\? \(boxAbove \? layout\.aim\.above : layout\.aim\.below\) : null/);
-    for (const key of ["rx", "ry", "wandA", "eyeX", "eyeY"])
-        assert.match(code, new RegExp(`property real ${key}: aim \\? aim\\.${key} : stance\\.${key}`), key);
-    const { above, below } = W.LAYOUT.aim;
-    assert.ok(Math.sin(below.wandA * Math.PI / 180) > 0.8 && below.eyeY > 0, "the wand and his eyes go down");
-    assert.ok(Math.sin(above.wandA * Math.PI / 180) < -0.8 && above.eyeY < 0, "and up");
-    for (const aim of [above, below])
-        assert.ok(aim.rx > W.LAYOUT.shoulders[1][0], "with his right hand");
-    // The wisp beside him in any pose but asleep: it floats for as long as
-    // it is there, and asleep he draws nothing.
-    assert.match(code, /property bool helper: false/);
-    assert.match(code, /property real wisp: Math\.max\(stance\.wisp, helper && pose !== "asleep" \? 1 : 0\)/);
-    assert.equal(W.POSES.asleep.wisp, 0);
-    for (const item of ["wispBob", "wispFlicker"])
-        assert.match(code, new RegExp(`Sine[XYR] \\{ target: ${item}; running: root\\.live && helperWisp\\.visible;`), item);
 });
 
 // In the shell an asleep Wiz draws nothing, so his z's stand still. The

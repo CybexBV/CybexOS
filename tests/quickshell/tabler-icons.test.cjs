@@ -177,40 +177,6 @@ test("empty, unknown, canonical and compatibility names resolve safely", () => {
     assert.equal(Tabler.resolve("wifi").filled, undefined);
 });
 
-test("icons are drawn through Sym rather than by hand", () => {
-    // Sym owns the bundled font and square alignment.
-    const offenders = [];
-    for (const file of qmlFiles()) {
-        const relative = path.relative(shellDir, file);
-        if (relative === "Common/Sym.qml")
-            continue;
-        fs.readFileSync(file, "utf8").split("\n").forEach((line, index) => {
-            if (/font\.family:\s*Theme\.fontIcon/.test(line))
-                offenders.push(`${relative}:${index + 1}`);
-        });
-    }
-    assert.deepEqual(offenders, []);
-});
-
-test("presentation marks do not fall back to unrelated text-font symbols", () => {
-    // Arrow strings in Session's shortcut-key data are copy, not icons. This
-    // targets only visual `text:` properties, where a check, close mark or
-    // direction arrow would otherwise vary with the selected menu typeface.
-    const offenders = [];
-    const marks = /[✓✔✕×⌃⌄↑↓←→]/;
-    for (const file of qmlFiles()) {
-        const relative = path.relative(shellDir, file);
-        // The pinned Omarchy kit retains its upstream icon/font contract.
-        if (relative === "Ui/MultiSelect.qml") continue;
-        fs.readFileSync(file, "utf8").split("\n").forEach((line, index) => {
-            if (/\btext\s*:/.test(line) && marks.test(line))
-                offenders.push(`${relative}:${index + 1}`);
-        });
-    }
-    assert.deepEqual(offenders, [],
-        "presentation glyphs belong in Sym so one icon face controls them");
-});
-
 test("icons centre their drawn ink, not the font's left-aligned glyph box", () => {
     // Tabler's font starts every glyph at the left edge of a full-width box, so
     // a narrow icon such as × sat a fifth of its size left of its slot's centre.

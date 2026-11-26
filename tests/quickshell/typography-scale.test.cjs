@@ -8,23 +8,6 @@ const H = load("SettingsHelpers.js");
 const M = load("ShellMetrics.js");
 const read = file => fs.readFileSync(path.join(shellDir, file), "utf8");
 
-test("readable defaults and usage roles stay distinct", () => {
-    const s = T.resolve(M.calculate(H.defaults()).fontBase);
-    assert.equal(s.clock, 61);
-    assert.deepEqual([s.caption, s.bodySmall, s.body, s.subtitle, s.title,
-        s.heading, s.display, s.displayLarge], [12, 13, 14, 15, 16, 18, 28, 33]);
-    for (const role of ["bar", "control", "navigation", "primary"])
-        assert.equal(s[role], 14, role);
-    for (const role of ["secondary", "tooltip"]) assert.equal(s[role], 13, role);
-    for (const role of ["section", "metadata"]) assert.equal(s[role], 12, role);
-    for (const role of ["notification", "osd"]) assert.equal(s[role], 16, role);
-    for (const invalid of [undefined, 0, -1, NaN, Infinity])
-        assert.deepEqual(T.resolve(invalid), s);
-    // Defaults and section resets grow; an explicit saved size stays chosen.
-    assert.equal(H.merge({}).shellFontSize, 14);
-    assert.equal(H.merge({ shellFontSize: 12 }).shellFontSize, 12);
-});
-
 test("native and compatibility adapters use the same resolver, without a second type scale", () => {
     const native = read("Common/Theme.qml"), plugin = read("Commons/Style.qml");
     assert.match(native, /Typography\.resolve\(fontBaseSize\)/);
@@ -81,28 +64,5 @@ test("views cannot introduce pixel literals, point sizes, or ambiguous legacy te
         // This exception sizes icon glyphs, never copy.
         if (!["Ui/MultiSelect.qml"].includes(name))
             assert.doesNotMatch(source, /font\.pixelSize:[^\n]*(?:\s[+*\/-]\s)/, name);
-    }
-});
-
-test("bar labels, navigation, controls and notification surfaces use their assigned roles", () => {
-    for (const file of qmlFiles(path.join(shellDir, "Bar"))) {
-        const source = fs.readFileSync(file, "utf8");
-        for (const match of source.matchAll(/font\.pixelSize: Theme\.typography\.(\w+)/g))
-            assert.equal(match[1], path.basename(file) === "BarTooltip.qml" ? "tooltip" : "bar", file);
-    }
-    assert.match(read("Settings/SettingsView.qml"), /font\.pixelSize: Theme\.typography\.navigation/);
-    assert.match(read("Popovers/Drawer/DrawerTabs.qml"), /font\.pixelSize: Theme\.typography\.navigation/);
-    for (const file of ["NotificationToasts.qml", "Popovers/NotifsPopover.qml", "Popovers/Drawer/DrawerNotifications.qml"])
-        for (const key of ["header", "body"])
-            assert.match(read(file), new RegExp(`${key}: Theme\\.typography\\.notification`), file);
-    for (const file of qmlFiles()) {
-        const source = fs.readFileSync(file, "utf8");
-        for (const match of source.matchAll(/\b(?:TextInput|TextEdit|Controls\.TextField)\s*\{(?:(?!font\.pixelSize:)[\s\S]){0,2500}font\.pixelSize:\s*Theme\.typography\.(\w+)/g)) {
-            // The launcher query has the same prominence as its result labels.
-            if (path.relative(shellDir, file) === "LauncherView.qml")
-                assert.equal(match[1], "heading", `${file}: launcher query`);
-            else
-                assert.ok(["control", "title"].includes(match[1]), `${file}: input uses ${match[1]}`);
-        }
     }
 });

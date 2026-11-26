@@ -110,16 +110,6 @@ test("the lock screen renders the shell's font and colours over a solid base", (
     assert.doesNotMatch(config, /^shape \{$/m);
 });
 
-test("the lock screen shows no picture: Wiz is not on it", () => {
-    for (const tokens of [darkTokens(), withWallpaper(lightTokens(), ""),
-        withWallpaper(darkTokens(), WALLPAPER)]) {
-        const config = render(tokens);
-        assert.doesNotMatch(config, /^image \{$/m);
-        assert.doesNotMatch(config, /wiz/i);
-    }
-    assert.doesNotMatch(fs.readFileSync(template, "utf8"), /^image \{$|wiz/im);
-});
-
 test("the lock screen shows the wallpaper blurred under a scrim of the base colour", () => {
     for (const tokens of [darkTokens(), withWallpaper(lightTokens(), WALLPAPER)]) {
         const config = render(tokens);

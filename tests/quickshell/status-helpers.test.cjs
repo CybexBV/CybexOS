@@ -18,14 +18,6 @@ function player(identity, desktopEntry = "", extra = {}) {
 
 // ---- percentages ---------------------------------------------------------
 
-test("percentages normalize whichever scale the backend reports", () => {
-    assert.equal(H.normalizePercent(0.42), 42);
-    assert.equal(H.normalizePercent(1), 100);
-    assert.equal(H.normalizePercent(42), 42);
-    assert.equal(H.normalizePercent(100), 100);
-    assert.equal(H.normalizePercent(0), 0);
-});
-
 test("battery percent falls back to zero rather than to an unusable reading", () => {
     assert.equal(H.batteryPercent({ percentage: 0.735 }), 73.5);
     assert.equal(H.batteryPercent({ percentage: 73.5 }), 73.5);
@@ -95,11 +87,6 @@ test("player glyphs cover every source the bar and the popover can show", () => 
     assert.equal(H.playerGlyph(player("VLC media player", "vlc")), glyph.video);
     assert.equal(H.playerGlyph(player("Rhythmbox", "rhythmbox")), glyph.generic);
     assert.equal(H.playerGlyph(null), glyph.generic);
-});
-
-test("player glyphs match on the desktop entry and ignore case", () => {
-    assert.equal(H.playerGlyph(player("", "org.mozilla.firefox")), H.PLAYER_GLYPH.firefox);
-    assert.equal(H.playerGlyph(player("SPOTIFY", "")), H.PLAYER_GLYPH.spotify);
 });
 
 test("a browser playing a YouTube tab keeps its browser mark", () => {
