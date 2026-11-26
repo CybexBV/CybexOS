@@ -27,7 +27,7 @@ const ART: &[(&str, &str)] = art![
     "working-body", "working-eyes", "working-eyes-half", "working-eyes-shut", "working-hat",
     "working-glow", "working-core", "working-mote", "working-ring0", "working-ring1", "working-ring2",
     "needs-input-body", "needs-input-eyes", "needs-input-eyes-half", "needs-input-eyes-shut", "needs-input-hat",
-    "needs-input-pip", "needs-input-ring",
+    "needs-input-star",
     "happy-body", "happy-eyes", "happy-hat",
     "happy-sparkle0", "happy-sparkle1", "happy-sparkle2", "happy-sparkle3", "happy-sparkle4",
     "sorry-body", "sorry-eyes", "sorry-eyes-half", "sorry-eyes-shut", "sorry-hat",
@@ -124,14 +124,14 @@ mod tests {
         assert_eq!(sharp.image.size().width, 2 * w as u32);
         assert_eq!((sharp.x, sharp.y), (2.0 * body.x, 2.0 * body.y));
         // A scaled part keeps its centre.
-        let pulse = art("needs-input-ring", 1.5, 1.6);
-        let still = art("needs-input-ring", 1.5, 1.0);
+        let pulse = art("working-glow", 1.5, 1.1);
+        let still = art("working-glow", 1.5, 1.0);
         assert!(pulse.image.size().width > still.image.size().width);
         assert_eq!((pulse.x, pulse.y), (still.x, still.y));
-        // Something is drawn: the cloak's colour beside its seam.
+        // Something is drawn: the cape's colour beside its clasp.
         let pixels = body.image.to_rgba8().unwrap();
-        let cloak = pixels.as_slice()[(h as usize / 2) * w as usize + w as usize / 2 - 8];
-        assert_eq!((cloak.r, cloak.g, cloak.b, cloak.a), (0x23, 0x26, 0x2c, 255));
+        let cape = pixels.as_slice()[(h as usize / 2) * w as usize + w as usize / 2 - 8];
+        assert_eq!((cape.r, cape.g, cape.b, cape.a), (0x30, 0x35, 0x3f, 255));
         assert_eq!(art("nothing", 1.0, 1.0).image.size().width, 0);
     }
 }
