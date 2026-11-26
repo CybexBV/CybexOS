@@ -2,27 +2,31 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Window
 import "../Common"
-import "../Common/WizRig.js" as Rig
 
 // Wiz, the assistant's character (docs/assistant.md).
 //
 // Still layers, each drawn once at the size it is shown (assets/wiz/,
 // exported from Common/WizRig.js by scripts/export-wiz), moved by declarative
 // animation: no Canvas, no offscreen layer, and no script per frame except
-// while he is being dragged. A change of
-// pose glides once. Idle holds still between blinks, glances and a rare wobble
-// of the hat, so a resting Wiz draws a few frames a second at most. Loops run
-// only while the assistant works (the runes, the spell, the sway) and pulse
-// only briefly while a question waits; they are Animators, which the threaded
+// while he is being dragged. A change of pose glides once. Idle holds still
+// between blinks, glances and a rare wobble of the hat, so a resting Wiz
+// draws a few frames a second at most. Loops run only while the assistant
+// works (the runes, the spell, his hands, the star's twinkle) and a waiting
+// question pulses only briefly; they are Animators, which the threaded
 // render loop runs on the scene graph's thread. Without `animated` every pose
 // holds still and nothing ticks.
 //
-// Picked up, he panics: a startled jump with "?!", sweat and his feet out,
-// then he swings from where he was grabbed while his hat and feet trail the
-// pointer's motion (WizRig.carry), stretched along it so a diagonal drag
-// reads as one. A few quick shakes make him dizzy. Dropped, he lands with a
-// thud, his hat a beat later and crooked. Only a drag and its landing animate;
-// the springs that follow the pointer run on the frames the drag draws anyway.
+// The star on his hat is his one status light (WizRig.LIGHT). Magic takes
+// the theme's accent: Common/WizArt.qml draws those layers again when the
+// accent changes, never per frame.
+//
+// Picked up, he panics: a startled jump with "?!", sweat, his hands up and
+// his feet out, then he swings from where he was grabbed while his hat, hands
+// and feet trail the pointer's motion (WizRig.carry), stretched along it so a
+// diagonal drag reads as one. A few quick shakes make him dizzy. Dropped, he
+// lands with a thud, his hat a beat later and crooked. Only a drag and its
+// landing animate; the springs that follow the pointer run on the frames the
+// drag draws anyway.
 Item {
     id: root
 
@@ -32,8 +36,10 @@ Item {
     property real level: 0
     property bool recording: false
     property bool hovered: false
+    // A reply nobody has seen yet: the star stays lit.
     property bool unread: false
-    // The box opens above the character, so an attentive look goes up.
+    // The box opens above the character, so an attentive look goes up, and
+    // so does his wand when he points at it.
     property bool boxAbove: false
     // The pointer over the character, -1..1, for the eyes to follow.
     property real lookX: 0
@@ -42,21 +48,36 @@ Item {
     // pointer move, and the point it was grabbed by, in item pixels.
     property point dragPoint: Qt.point(0, 0)
     property point grab: Qt.point(width / 2, height / 2)
+    // How far a job has got, 0..1: a ring round the star fills. Below 0, no ring.
+    property real progress: -1
+    // A second question is being answered alongside: the wisp works beside him.
+    property bool helper: false
+    // 1 as drawn, -1 mirrored: he points the other way, and his star shows
+    // when he is tucked behind the right screen edge.
+    property int facing: 1
     // Off for reduced motion (which power saver turns on) and an unattended
     // session: poses snap into place and nothing loops. Every surface that
     // shows him inherits this.
     property bool animated: !Theme.reducedMotion && !Activity.idle
 
-    readonly property var wiz: Rig.WizRig
+    // The rig, through WizArt: one copy for every Wiz and every part of him.
+    // Imported here, each layer and each loop below would get its own.
+    readonly property var wiz: WizArt.wiz
     readonly property var layout: wiz.LAYOUT
     readonly property var stance: wiz.POSES[pose] || wiz.POSES.idle
     readonly property bool live: animated && visible
+    // What the star says (WizRig.LIGHT), and which picture of it shows.
+    readonly property string light: wiz.light(pose, unread)
+    readonly property string shine: light === "busy" || light === "ready" ? "lit" : light
     // Running a turn or recording: the loops' states. Everything else only
     // blinks, glances or plays once.
-    readonly property bool looping: live && (pose === "thinking" || pose === "working"
-        || (pose === "listening" && recording))
+    readonly property bool busy: light === "busy"
+    readonly property bool looping: live && (busy || (pose === "listening" && recording))
     readonly property bool attentive: pose === "listening" && !recording
     readonly property bool carried: pose === "carried"
+    // Pointing at the box: down at it, or up when it opens above him.
+    readonly property var aim: pose === "pointing" ? (boxAbove ? layout.aim.above : layout.aim.below) : null
+    readonly property int side: facing < 0 ? -1 : 1
     // Rig units to item pixels, and to device pixels for drawing the layers.
     readonly property real unit: Math.min(width, height) / 120
     readonly property real pixels: unit * Math.max(1, Math.ceil(Screen.devicePixelRatio))
@@ -74,17 +95,39 @@ Item {
     property real hatRot: stance.hatRot
     property real hatLift: stance.hatLift
     property real eyeOpen: stance.eyeOpen * (hovered && stance.happy === 0 ? 1.1 : 1)
-    property real eyeX: stance.eyeX
-    property real eyeY: stance.eyeY
+    property real eyeX: aim ? aim.eyeX : stance.eyeX
+    property real eyeY: aim ? aim.eyeY : stance.eyeY
     property real happy: stance.happy
-    property real spell: stance.spell
-    property real runes: stance.runes
-    property real amber: stance.amber
+    property real lid: stance.lid
+    property real lidR: Math.max(stance.lid, stance.lidR)
+    property real brow: stance.brow
+    property real big: stance.big
     property real tip: stance.tip
     property real glow: stance.glow
     property real voiceLift: recording ? level * 2.4 * stance.voice : 0
     // Out from under the cloak while carried; his shadow fades as he leaves the ground.
     property real feet: stance.feet
+    // His hands: out of the cloak, where they are, and how he holds them.
+    property real arms: stance.arms
+    property real lx: stance.lx
+    property real ly: stance.ly
+    property real rx: aim ? aim.rx : stance.rx
+    property real ry: aim ? aim.ry : stance.ry
+    property real point: stance.point
+    property real pointA: stance.pointA
+    property real palms: stance.palms
+    // What he works with.
+    property real wand: stance.wand
+    property real wandA: aim ? aim.wandA : stance.wandA
+    property real spell: stance.spell
+    property real runes: stance.runes
+    property real book: stance.book
+    property real orb: stance.orb
+    property real scroll: stance.scroll
+    property real pot: stance.pot
+    property real wisp: Math.max(stance.wisp, helper ? 1 : 0)
+    property real zzz: stance.zzz
+    property real turn: side
 
     component Blend: NumberAnimation {
         duration: 450
@@ -101,11 +144,30 @@ Item {
     Behavior on eyeX { enabled: root.animated; Blend {} }
     Behavior on eyeY { enabled: root.animated; Blend {} }
     Behavior on happy { enabled: root.animated; Blend {} }
-    Behavior on spell { enabled: root.animated; Blend {} }
-    Behavior on runes { enabled: root.animated; Blend {} }
-    Behavior on amber { enabled: root.animated; Blend {} }
+    Behavior on lid { enabled: root.animated; Blend {} }
+    Behavior on lidR { enabled: root.animated; Blend {} }
+    Behavior on brow { enabled: root.animated; Blend {} }
+    Behavior on big { enabled: root.animated; Blend {} }
     Behavior on tip { enabled: root.animated; Blend {} }
     Behavior on glow { enabled: root.animated; Blend {} }
+    Behavior on arms { enabled: root.animated; Blend {} }
+    Behavior on lx { enabled: root.animated; Blend {} }
+    Behavior on ly { enabled: root.animated; Blend {} }
+    Behavior on rx { enabled: root.animated; Blend {} }
+    Behavior on ry { enabled: root.animated; Blend {} }
+    Behavior on point { enabled: root.animated; Blend {} }
+    Behavior on pointA { enabled: root.animated; Blend {} }
+    Behavior on palms { enabled: root.animated; Blend {} }
+    Behavior on wand { enabled: root.animated; Blend {} }
+    Behavior on wandA { enabled: root.animated; Blend {} }
+    Behavior on spell { enabled: root.animated; Blend {} }
+    Behavior on runes { enabled: root.animated; Blend {} }
+    Behavior on book { enabled: root.animated; Blend {} }
+    Behavior on orb { enabled: root.animated; Blend {} }
+    Behavior on scroll { enabled: root.animated; Blend {} }
+    Behavior on pot { enabled: root.animated; Blend {} }
+    Behavior on wisp { enabled: root.animated; Blend {} }
+    Behavior on zzz { enabled: root.animated; Blend {} }
     Behavior on feet {
         enabled: root.animated
         NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -114,18 +176,32 @@ Item {
         enabled: root.animated
         NumberAnimation { duration: 90 }
     }
+    // He turns round through his own middle.
+    Behavior on turn {
+        enabled: root.animated
+        NumberAnimation { duration: 240; easing.type: Easing.InOutSine }
+    }
+
+    // Each hand, from its shoulder. Carried, they are left a little behind.
+    readonly property point leftReach: Qt.point((lx - layout.shoulders[0][0]) * arms + reaction.handX,
+        (ly - layout.shoulders[0][1]) * arms + reaction.handY)
+    readonly property point rightReach: Qt.point((rx - layout.shoulders[1][0]) * arms + reaction.handX,
+        (ry - layout.shoulders[1][1]) * arms + reaction.handY)
+
+    // The open eye gives way to the happy arc over the upper half of `happy`.
+    readonly property real smile: happy < 0.4 ? 0 : Math.min(1, (happy - 0.4) / 0.4)
 
     // ---- glances and blinks ----------------------------------------------------
     property real glanceX: 0
     property real glanceY: 0
     property real blink: 1
     readonly property point gaze: carried ? Qt.point(reaction.eyeX, reaction.eyeY)
-        : hovered ? Qt.point(lookX * 2, lookY * 1.2)
+        : hovered ? Qt.point(lookX * 2 * side, lookY * 1.2)
         : attentive ? Qt.point(0, boxAbove ? -1 : 1.4)
         : Qt.point(glanceX, glanceY)
 
     // Idle looks around the most, thinking and a waiting question sideways.
-    readonly property var glances: ({ "idle": [1.7, 0.7], "thinking": [1, 0], "needs-input": [1.3, 0] })
+    readonly property var glances: ({ "idle": [2, 0.8], "thinking": [0.9, 0], "needs-input": [1.1, 0] })
 
     Timer {
         running: root.live && root.glances[root.pose] !== undefined && !root.hovered
@@ -144,30 +220,38 @@ Item {
         glanceX = 0;
         glanceY = 0;
         pulses = 0;
-        if (pose === "finished" && live)
-            celebrate();
+        settle();
+        if (!live)
+            return;
+        // The star swings on its thread whenever he moves.
+        swinging.restart();
+        if (pose === "finished")
+            nodding.restart();
+        if (pose === "finished" || pose === "proud")
+            sparkle();
     }
 
+    // A drowsy blink is slow and rare.
     Timer {
-        running: root.live && ["happy", "greeting", "finished", "asleep"].indexOf(root.pose) === -1 && !root.dizzy
+        running: root.live && ["happy", "greeting", "finished", "proud", "asleep"].indexOf(root.pose) === -1 && !root.dizzy
         repeat: true
         interval: 3400
         onTriggered: {
             blinking.restart();
-            interval = 3400 + Math.random() * 1600;
+            interval = (root.pose === "drowsy" ? 5500 : 3400) + Math.random() * 1600;
         }
     }
 
     SequentialAnimation {
         id: blinking
-        NumberAnimation { target: root; property: "blink"; to: 0.08; duration: 80; easing.type: Easing.InQuad }
-        NumberAnimation { target: root; property: "blink"; to: 1; duration: 80; easing.type: Easing.OutQuad }
+        NumberAnimation { target: root; property: "blink"; to: 0.08; duration: root.pose === "drowsy" ? 250 : 80; easing.type: Easing.InQuad }
+        NumberAnimation { target: root; property: "blink"; to: 1; duration: root.pose === "drowsy" ? 250 : 80; easing.type: Easing.OutQuad }
     }
 
-    // ---- the orbits ------------------------------------------------------------
-    // The rig's runes, motes and sway follow sines. A quarter period is one
-    // eased step, so a looping wave is four Animators, and a wave starting a
-    // quarter later is the same four in a rotated order.
+    // ---- waves -----------------------------------------------------------------
+    // The rig's runes, motes, hands and sway follow sines. A quarter period is
+    // one eased step, so a looping wave is four Animators, and a wave starting
+    // a quarter later is the same four in a rotated order.
     readonly property var cosine: [1, 0, -1, 0]
     function wave(step, phase, middle, amplitude) {
         return middle + amplitude * cosine[(phase + step) % 4];
@@ -176,20 +260,71 @@ Item {
         return (phase + step) % 2 === 0 ? Easing.InSine : Easing.OutSine;
     }
 
+    // An item going to and fro, or turning to and fro, about where it rests.
+    component SineX: SequentialAnimation {
+        id: sineX
+        loops: Animation.Infinite
+        required property Item item
+        property real reach: 1
+        property int period: 1000
+        property int phase: 0
+        XAnimator { target: sineX.item; from: root.wave(0, sineX.phase, 0, sineX.reach); to: root.wave(1, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(0, sineX.phase) }
+        XAnimator { target: sineX.item; from: root.wave(1, sineX.phase, 0, sineX.reach); to: root.wave(2, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(1, sineX.phase) }
+        XAnimator { target: sineX.item; from: root.wave(2, sineX.phase, 0, sineX.reach); to: root.wave(3, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(2, sineX.phase) }
+        XAnimator { target: sineX.item; from: root.wave(3, sineX.phase, 0, sineX.reach); to: root.wave(4, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(3, sineX.phase) }
+    }
+    component SineY: SequentialAnimation {
+        id: sineY
+        loops: Animation.Infinite
+        required property Item item
+        property real reach: 1
+        property int period: 1000
+        property int phase: 0
+        YAnimator { target: sineY.item; from: root.wave(0, sineY.phase, 0, sineY.reach); to: root.wave(1, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(0, sineY.phase) }
+        YAnimator { target: sineY.item; from: root.wave(1, sineY.phase, 0, sineY.reach); to: root.wave(2, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(1, sineY.phase) }
+        YAnimator { target: sineY.item; from: root.wave(2, sineY.phase, 0, sineY.reach); to: root.wave(3, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(2, sineY.phase) }
+        YAnimator { target: sineY.item; from: root.wave(3, sineY.phase, 0, sineY.reach); to: root.wave(4, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(3, sineY.phase) }
+    }
+    component SineR: SequentialAnimation {
+        id: sineR
+        loops: Animation.Infinite
+        required property Item item
+        property real reach: 1
+        property int period: 1000
+        property int phase: 0
+        RotationAnimator { target: sineR.item; from: root.wave(0, sineR.phase, 0, sineR.reach); to: root.wave(1, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(0, sineR.phase) }
+        RotationAnimator { target: sineR.item; from: root.wave(1, sineR.phase, 0, sineR.reach); to: root.wave(2, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(1, sineR.phase) }
+        RotationAnimator { target: sineR.item; from: root.wave(2, sineR.phase, 0, sineR.reach); to: root.wave(3, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(2, sineR.phase) }
+        RotationAnimator { target: sineR.item; from: root.wave(3, sineR.phase, 0, sineR.reach); to: root.wave(4, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(3, sineR.phase) }
+    }
+
     // One exported layer, drawn once at the size it is shown and then only
-    // moved. Its box places it in the rig's frame, or around the centre of
-    // the item holding it; `origin` shifts a full-frame layer under a pivot.
+    // moved. Its box places it in the rig's frame, or about the point the
+    // item holding it stands for (WizRig.LAYERS). A layer that carries magic
+    // comes from WizArt when the accent is not the pictures' own blue.
     component Part: Image {
         required property string name
-        property point origin: Qt.point(0, 0)
         readonly property var box: root.wiz.LAYERS[name].box
-        x: box[0] - origin.x
-        y: box[1] - origin.y
+        x: box[0]
+        y: box[1]
         width: box[2]
         height: box[3]
-        source: Qt.resolvedUrl("../assets/wiz/" + name + ".svg")
+        source: WizArt.sources[name] || Qt.resolvedUrl("../assets/wiz/" + name + ".svg")
         sourceSize: Qt.size(Math.ceil(box[2] * root.pixels), Math.ceil(box[3] * root.pixels))
+        retainWhileLoading: true
         smooth: true
+    }
+
+    // The star in one of its lights; only the one that shows is drawn.
+    component Shine: Part {
+        required property string light
+        opacity: root.shine === light ? 1 : 0
+        visible: opacity > 0.01
+
+        Behavior on opacity {
+            enabled: root.animated
+            NumberAnimation { duration: 300 }
+        }
     }
 
     // Something circling the hat: a rune while he thinks, a star while he is
@@ -334,22 +469,22 @@ Item {
         }
     }
 
-    // A mote rising off the spell, a quarter of a rise behind the one before.
-    // The rise is linear, so its loop is split where this mote starts.
+    // A mote flying off the spell, a fifth of a flight behind the one before.
+    // The flight is linear, so its loop is split where this mote starts.
     component Mote: Item {
         id: mote
 
         required property int index
-        readonly property real start: index / 4
-        readonly property int rise: 1250
-        readonly property int drift: 628
-        readonly property bool running: root.live && root.spell > 0.02
+        property bool running: false
+        readonly property real start: index / 5
+        readonly property int period: 1111
+        readonly property real reach: 13
 
-        x: root.wave(0, index, 0, 3)
+        rotation: (index * 2.4 + 1) * 180 / Math.PI
 
         Item {
-            id: climb
-            y: -3 - 15 * mote.start
+            id: flight
+            x: mote.reach * mote.start
             opacity: 1 - mote.start
             scale: 1 - 0.4 * mote.start
 
@@ -362,23 +497,58 @@ Item {
             running: mote.running
             loops: Animation.Infinite
             ParallelAnimation {
-                YAnimator { target: climb; from: -3 - 15 * mote.start; to: -18; duration: mote.rise * (1 - mote.start) }
-                OpacityAnimator { target: climb; from: 1 - mote.start; to: 0; duration: mote.rise * (1 - mote.start) }
-                ScaleAnimator { target: climb; from: 1 - 0.4 * mote.start; to: 0.6; duration: mote.rise * (1 - mote.start) }
+                XAnimator { target: flight; from: mote.reach * mote.start; to: mote.reach; duration: mote.period * (1 - mote.start) }
+                OpacityAnimator { target: flight; from: 1 - mote.start; to: 0; duration: mote.period * (1 - mote.start) }
+                ScaleAnimator { target: flight; from: 1 - 0.4 * mote.start; to: 0.6; duration: mote.period * (1 - mote.start) }
             }
             ParallelAnimation {
-                YAnimator { target: climb; from: -3; to: -3 - 15 * mote.start; duration: Math.max(1, mote.rise * mote.start) }
-                OpacityAnimator { target: climb; from: 1; to: 1 - mote.start; duration: Math.max(1, mote.rise * mote.start) }
-                ScaleAnimator { target: climb; from: 1; to: 1 - 0.4 * mote.start; duration: Math.max(1, mote.rise * mote.start) }
+                XAnimator { target: flight; from: 0; to: mote.reach * mote.start; duration: Math.max(1, mote.period * mote.start) }
+                OpacityAnimator { target: flight; from: 1; to: 1 - mote.start; duration: Math.max(1, mote.period * mote.start) }
+                ScaleAnimator { target: flight; from: 1; to: 1 - 0.4 * mote.start; duration: Math.max(1, mote.period * mote.start) }
             }
         }
-        SequentialAnimation on x {
-            running: mote.running
+    }
+
+    // A bubble rising off the cauldron and fading, a fifth of a rise behind
+    // the one before, each its own size.
+    component Bubble: Item {
+        id: bubble
+
+        required property int index
+        property bool running: false
+        readonly property real start: index / 5
+        readonly property int period: 1667
+        readonly property real lift: 17
+        readonly property real size: 1 + 1.375 * Math.abs(Math.sin(index * 1.7))
+
+        Item {
+            id: climb
+            y: -bubble.lift * bubble.start
+            opacity: 0.85 * (1 - bubble.start)
+            scale: 1 - 0.3 * bubble.start
+
+            Item {
+                scale: bubble.size
+
+                Part {
+                    name: "bubble"
+                }
+            }
+        }
+
+        SequentialAnimation {
+            running: bubble.running
             loops: Animation.Infinite
-            XAnimator { from: root.wave(0, mote.index, 0, 3); to: root.wave(1, mote.index, 0, 3); duration: mote.drift; easing.type: root.ease(0, mote.index) }
-            XAnimator { from: root.wave(1, mote.index, 0, 3); to: root.wave(2, mote.index, 0, 3); duration: mote.drift; easing.type: root.ease(1, mote.index) }
-            XAnimator { from: root.wave(2, mote.index, 0, 3); to: root.wave(3, mote.index, 0, 3); duration: mote.drift; easing.type: root.ease(2, mote.index) }
-            XAnimator { from: root.wave(3, mote.index, 0, 3); to: root.wave(4, mote.index, 0, 3); duration: mote.drift; easing.type: root.ease(3, mote.index) }
+            ParallelAnimation {
+                YAnimator { target: climb; from: -bubble.lift * bubble.start; to: -bubble.lift; duration: bubble.period * (1 - bubble.start) }
+                OpacityAnimator { target: climb; from: 0.85 * (1 - bubble.start); to: 0; duration: bubble.period * (1 - bubble.start) }
+                ScaleAnimator { target: climb; from: 1 - 0.3 * bubble.start; to: 0.7; duration: bubble.period * (1 - bubble.start) }
+            }
+            ParallelAnimation {
+                YAnimator { target: climb; from: 0; to: -bubble.lift * bubble.start; duration: Math.max(1, bubble.period * bubble.start) }
+                OpacityAnimator { target: climb; from: 0.85; to: 0.85 * (1 - bubble.start); duration: Math.max(1, bubble.period * bubble.start) }
+                ScaleAnimator { target: climb; from: 1; to: 1 - 0.3 * bubble.start; duration: Math.max(1, bubble.period * bubble.start) }
+            }
         }
     }
 
@@ -418,6 +588,57 @@ Item {
         }
     }
 
+    // A sleeve from a shoulder to a hand: one picture, turned and stretched.
+    // It thins as it stretches, like a cartoon's; the cuff at its end keeps
+    // its shape.
+    component Sleeve: Item {
+        id: sleeve
+
+        // The hand, from the shoulder.
+        required property point hand
+        readonly property real reach: Math.max(1, Math.sqrt(hand.x * hand.x + hand.y * hand.y))
+        readonly property real thin: Math.max(0.7, Math.min(1, 27 / reach))
+
+        rotation: Math.atan2(hand.y, hand.x) * 180 / Math.PI - 90
+        opacity: Math.min(1, root.arms * 1.5)
+        visible: root.arms > 0.05
+
+        Item {
+            transform: Scale {
+                xScale: sleeve.thin
+                yScale: sleeve.reach / root.layout.reach
+            }
+
+            Part {
+                name: "sleeve"
+            }
+        }
+
+        Item {
+            y: sleeve.reach - root.layout.cuff
+            transform: Scale { xScale: 0.5 + 0.5 * sleeve.thin }
+
+            Part {
+                name: "cuff"
+            }
+        }
+    }
+
+    // Something he works with, about its own middle: it rises into place and
+    // grows as its pose arrives.
+    component Prop: Item {
+        required property string around
+        required property real amount
+        property real rise: 5
+        readonly property var at: root.wiz.LAYERS[around].at
+
+        x: at[0]
+        y: at[1] + (1 - amount) * rise
+        scale: amount
+        opacity: Math.min(1, amount * 1.4)
+        visible: amount > 0.02
+    }
+
     // ---- the drawing ---------------------------------------------------------
     Item {
         id: rig
@@ -427,6 +648,12 @@ Item {
         y: (root.height - 120 * root.unit) / 2
         scale: root.unit
         transformOrigin: Item.TopLeft
+        // Mirrored about his own middle (a transform works in the item's
+        // scaled units).
+        transform: Scale {
+            origin.x: 60 * root.unit
+            xScale: root.turn
+        }
 
         Part {
             name: "shadow"
@@ -512,8 +739,9 @@ Item {
                     width: 120
                     height: 120
 
-                    // Out from under the cloak while carried: they kick while
-                    // he dangles and trail behind when he is pulled along.
+                    // Boot tips under the hem. Carried, his legs come out:
+                    // they kick while he dangles and trail behind when he
+                    // is pulled along.
                     Repeater {
                         model: root.layout.feet
                         delegate: Item {
@@ -521,19 +749,28 @@ Item {
 
                             required property var modelData
                             required property int index
+                            readonly property var boot: root.layout.boots[index]
                             // The two kick in turn.
                             readonly property int phase: index === 0 ? 3 : 1
 
                             x: modelData[0]
-                            y: modelData[1] - 6 * (1 - root.feet)
-                            opacity: root.feet
-                            visible: opacity > 0.02
+                            y: modelData[1]
                             rotation: root.reaction.feet
 
                             Item {
                                 Part {
-                                    name: "foot"
-                                    mirror: leg.index === 1
+                                    name: "leg"
+                                    opacity: root.feet
+                                    visible: opacity > 0.02
+                                }
+
+                                Item {
+                                    x: leg.boot[0] - leg.modelData[0]
+                                    y: leg.boot[1] - leg.modelData[1] + root.layout.dangle * root.feet
+
+                                    Part {
+                                        name: "boot"
+                                    }
                                 }
 
                                 SequentialAnimation on rotation {
@@ -552,19 +789,25 @@ Item {
                         name: "body"
                     }
 
+                    // His eyes light the inside of the hood.
+                    Part {
+                        name: "glow"
+                        opacity: root.glow
+                    }
+
+                    // Light from below: a book, an orb, a cauldron.
                     Part {
                         name: "underlight"
-                        opacity: root.spell
+                        opacity: Math.max(root.book * 0.7, root.orb, root.pot * 0.8)
                         visible: opacity > 0.01
                     }
 
-                    // The pose's look, then glances and the pointer, then the lids.
+                    // The pose's look, then glances and the pointer.
                     Item {
                         width: 120
                         height: 120
                         x: root.eyeX
-                        y: root.eyeY
-                        opacity: root.glow
+                        y: root.eyeY + 1.2 * root.happy
 
                         Item {
                             width: 120
@@ -586,56 +829,103 @@ Item {
                                 width: 120
                                 height: 120
 
+                                // Reading, writing and searching: his eyes
+                                // run along what he works on.
                                 Item {
-                                    id: eyesNod
+                                    id: scan
                                     width: 120
                                     height: 120
-                                    opacity: 1 - root.dizziness
-                                    visible: opacity > 0.01
-                                    transform: Scale {
-                                        origin.x: root.layout.eyes[0]
-                                        origin.y: root.layout.eyes[1]
-                                        xScale: 1 + 0.15 * root.feet
-                                        yScale: Math.max(0.06, root.eyeOpen * root.blink * root.squint)
-                                    }
 
-                                    Part {
-                                        name: "eyes"
-                                        opacity: 1 - root.happy
-                                        visible: opacity > 0.01
-                                    }
+                                    Item {
+                                        id: eyesNod
+                                        width: 120
+                                        height: 120
 
-                                    Part {
-                                        name: "eyes-happy"
-                                        opacity: root.happy
-                                        visible: opacity > 0.01
-                                    }
-                                }
+                                        Repeater {
+                                            model: [-1, 1]
+                                            delegate: Item {
+                                                id: eye
 
-                                // Dizzy: spirals for eyes, turning opposite ways.
-                                Repeater {
-                                    model: [-1, 1]
-                                    delegate: Item {
-                                        id: spiral
+                                                required property real modelData
+                                                // big widens his right eye.
+                                                readonly property real size: modelData < 0 ? 1 - root.big * 0.06 : 1 + root.big * 0.2
 
-                                        required property real modelData
+                                                x: root.layout.eyes[0] + modelData * root.layout.eyeGap + (modelData > 0 ? root.big * 0.5 : 0)
+                                                y: root.layout.eyes[1]
 
-                                        x: root.layout.eyes[0] + modelData * root.layout.eyeGap
-                                        y: root.layout.eyes[1]
-                                        opacity: root.dizziness
-                                        visible: opacity > 0.01
+                                                Item {
+                                                    opacity: root.glow * (1 - root.dizziness)
+                                                    visible: opacity > 0.01
+                                                    transform: Scale {
+                                                        xScale: eye.size * (1 + 0.15 * root.feet)
+                                                        yScale: eye.size * Math.max(0.06, root.eyeOpen * root.blink * root.squint)
+                                                    }
 
-                                        Item {
-                                            Part {
-                                                name: "dizzy-eye"
-                                            }
+                                                    // A smile lifts the eye's lower edge, as the
+                                                    // rig bends it, until it is the happy arc.
+                                                    Item {
+                                                        opacity: 1 - root.smile
+                                                        visible: opacity > 0.01
+                                                        transform: [
+                                                            Scale { yScale: 1 - 0.8 * Math.min(0.6, root.happy) },
+                                                            Translate { y: -3.76 * Math.min(0.6, root.happy) }
+                                                        ]
 
-                                            RotationAnimator on rotation {
-                                                running: root.live && root.dizziness > 0.01
-                                                loops: Animation.Infinite
-                                                from: 0
-                                                to: 360 * spiral.modelData
-                                                duration: 900
+                                                        Part {
+                                                            name: "eye"
+                                                        }
+                                                    }
+
+                                                    Part {
+                                                        name: "eye-happy"
+                                                        opacity: root.smile
+                                                        visible: opacity > 0.01
+                                                    }
+                                                }
+
+                                                // An eyelid: the dark of the hood coming down over
+                                                // the eye, slanted by the brow. Its top is round so
+                                                // it stays inside the hood when the hat comes off.
+                                                Rectangle {
+                                                    readonly property real lower: eye.modelData < 0 ? root.lid : root.lidR
+                                                    readonly property real tall: root.layout.eye[1] * root.eyeOpen * eye.size
+                                                    readonly property real half: root.layout.eye[0] * eye.size + 3
+                                                    readonly property real slant: root.brow * 2.6
+                                                    // Where its lower edge crosses the eye's middle.
+                                                    readonly property real edge: -tall - 0.9 + lower * 2 * tall + Math.abs(slant) * 0.55
+
+                                                    x: -half
+                                                    y: edge - height
+                                                    width: 2 * half
+                                                    height: Math.max(1, edge + 10.3)
+                                                    topLeftRadius: Math.min(half, height)
+                                                    topRightRadius: Math.min(half, height)
+                                                    transformOrigin: Item.Bottom
+                                                    rotation: -eye.modelData * Math.atan(slant / (half - 0.8)) * 180 / Math.PI
+                                                    color: root.wiz.COLORS.face
+                                                    antialiasing: true
+                                                    visible: (lower > 0.01 || Math.abs(root.brow) > 0.02) && root.dizziness < 0.5
+                                                }
+
+                                                // Dizzy: spirals for eyes, turning opposite ways.
+                                                Item {
+                                                    opacity: root.dizziness
+                                                    visible: opacity > 0.01
+
+                                                    Item {
+                                                        Part {
+                                                            name: "dizzy-eye"
+                                                        }
+
+                                                        RotationAnimator on rotation {
+                                                            running: root.live && root.dizziness > 0.01
+                                                            loops: Animation.Infinite
+                                                            from: 0
+                                                            to: 360 * eye.modelData
+                                                            duration: 900
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -644,72 +934,43 @@ Item {
                         }
                     }
 
-                    Part {
-                        name: "collar"
+                    // His sleeves come out from under the cape. Each moves
+                    // and swings with its hand, further down.
+                    Item {
+                        id: leftSleeveAct
+
+                        Item {
+                            x: root.layout.shoulders[0][0]
+                            y: root.layout.shoulders[0][1]
+
+                            Item {
+                                id: leftSleeveSwing
+
+                                Sleeve {
+                                    hand: root.leftReach
+                                }
+                            }
+                        }
+                    }
+                    Item {
+                        id: rightSleeveAct
+
+                        Item {
+                            x: root.layout.shoulders[1][0]
+                            y: root.layout.shoulders[1][1]
+
+                            Item {
+                                id: rightSleeveSwing
+
+                                Sleeve {
+                                    hand: root.rightReach
+                                }
+                            }
+                        }
                     }
 
-                    // Working: the spell in front of the cloak, rising as it appears.
-                    Item {
-                        id: spell
-                        x: root.layout.spell[0]
-                        y: root.layout.spell[1] - 1.5 * root.spell
-                        scale: root.spell
-                        opacity: Math.min(1, root.spell * 1.4)
-                        visible: root.spell > 0.02
-
-                        readonly property bool running: root.live && visible
-
-                        Item {
-                            Part {
-                                name: "spell-glow"
-                            }
-
-                            SequentialAnimation on scale {
-                                running: spell.running
-                                loops: Animation.Infinite
-                                ScaleAnimator { from: 1; to: 1.07; duration: 90 }
-                                ScaleAnimator { from: 1.07; to: 0.97; duration: 120 }
-                                ScaleAnimator { from: 0.97; to: 1.1; duration: 80 }
-                                ScaleAnimator { from: 1.1; to: 0.95; duration: 130 }
-                                ScaleAnimator { from: 0.95; to: 1.04; duration: 100 }
-                                ScaleAnimator { from: 1.04; to: 1; duration: 110 }
-                            }
-                        }
-
-                        Item {
-                            Part {
-                                name: "spell-ring"
-                            }
-
-                            RotationAnimator on rotation {
-                                running: spell.running
-                                loops: Animation.Infinite
-                                from: 0
-                                to: 360
-                                duration: 2571
-                            }
-                        }
-
-                        Item {
-                            Part {
-                                name: "spell-core"
-                            }
-
-                            SequentialAnimation on scale {
-                                running: spell.running
-                                loops: Animation.Infinite
-                                ScaleAnimator { from: 1; to: 0.95; duration: 110 }
-                                ScaleAnimator { from: 0.95; to: 1.08; duration: 90 }
-                                ScaleAnimator { from: 1.08; to: 0.98; duration: 120 }
-                                ScaleAnimator { from: 0.98; to: 1.06; duration: 100 }
-                                ScaleAnimator { from: 1.06; to: 1; duration: 130 }
-                            }
-                        }
-
-                        Repeater {
-                            model: 4
-                            delegate: Mote {}
-                        }
+                    Part {
+                        name: "cape"
                     }
 
                     // Tilts about the brim's centre, lifts about its left edge
@@ -773,7 +1034,7 @@ Item {
                                 Repeater {
                                     model: 4
                                     delegate: Orbiter {
-                                        art: "star"
+                                        art: "dizzy-star"
                                         orbit: root.layout.dizzy
                                         size: 0.55
                                         running: root.live && root.dizziness > 0.01
@@ -797,7 +1058,67 @@ Item {
 
                                     Part {
                                         name: "cone"
-                                        origin: Qt.point(root.layout.cone[0], root.layout.cone[1])
+                                    }
+
+                                    // The star hangs from the cone's tip on a
+                                    // thread. Carried, it streams out behind.
+                                    Item {
+                                        x: root.layout.tip[0] - root.layout.cone[0]
+                                        y: root.layout.tip[1] - root.layout.cone[1]
+                                        rotation: root.reaction.star
+
+                                        Item {
+                                            id: star
+
+                                            Part {
+                                                name: "thread"
+                                            }
+
+                                            Item {
+                                                y: root.layout.drop
+
+                                                // How far a job has got: a ring, and the
+                                                // arc that fills it, drawn again only when
+                                                // the progress moves a step.
+                                                Part {
+                                                    name: "ring"
+                                                    visible: root.progress >= 0
+                                                }
+                                                Image {
+                                                    readonly property var box: root.wiz.LAYERS.ring.box
+                                                    x: box[0]
+                                                    y: box[1]
+                                                    width: box[2]
+                                                    height: box[3]
+                                                    visible: root.progress >= 0
+                                                    source: visible ? WizArt.arc(root.filled, root.light) : ""
+                                                    sourceSize: Qt.size(Math.ceil(box[2] * root.pixels), Math.ceil(box[3] * root.pixels))
+                                                    retainWhileLoading: true
+                                                    smooth: true
+                                                }
+
+                                                Item {
+                                                    id: twirl
+
+                                                    Shine { name: "star-rest"; light: "rest" }
+                                                    Shine { name: "star-lit"; light: "lit" }
+                                                    Shine { name: "star-ask"; light: "ask" }
+                                                    Shine { name: "star-bad"; light: "bad" }
+                                                    Shine { name: "star-off"; light: "off" }
+
+                                                    // The dim star over the lit one: a twinkle
+                                                    // while he works, a pulse while he waits.
+                                                    Item {
+                                                        id: dimmer
+                                                        opacity: 0
+
+                                                        Part {
+                                                            name: "star-rest"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -829,7 +1150,7 @@ Item {
                                     model: 4
                                     delegate: Orbiter {
                                         front: true
-                                        art: "star"
+                                        art: "dizzy-star"
                                         orbit: root.layout.dizzy
                                         size: 0.55
                                         running: root.live && root.dizziness > 0.01
@@ -839,9 +1160,356 @@ Item {
                         }
                     }
 
+                    // ---- what he works with ----
+                    // Brewing: a cauldron, its bubbles rising.
+                    Prop {
+                        id: cauldron
+                        around: "pot"
+                        amount: root.pot
+                        rise: 6
+
+                        Part {
+                            name: "pot"
+                        }
+
+                        Repeater {
+                            model: 5
+                            delegate: Bubble {
+                                id: rising
+                                x: (-6 + rising.index * 3) * 1.14
+                                y: -5.7
+                                running: root.live && cauldron.visible
+                            }
+                        }
+                    }
+
+                    // Reading: an open book.
+                    Prop {
+                        around: "book"
+                        amount: root.book
+
+                        Part {
+                            name: "book"
+                        }
+                    }
+
+                    // Searching: an orb that bobs between his hands, its
+                    // inside turning under the glass's shine.
+                    Prop {
+                        id: crystal
+                        around: "orb"
+                        amount: root.orb
+                        rise: 0
+
+                        Item {
+                            id: orbBob
+
+                            Part {
+                                name: "orb"
+                            }
+
+                            Item {
+                                Part {
+                                    name: "orb-swirl"
+                                }
+
+                                RotationAnimator on rotation {
+                                    running: root.live && crystal.visible
+                                    loops: Animation.Infinite
+                                    from: 0
+                                    to: 360
+                                    duration: 3927
+                                }
+                            }
+
+                            Part {
+                                name: "orb-shine"
+                            }
+                        }
+                    }
+
+                    // Writing: a scroll, and the lines he writes on it, one
+                    // after the other. Without motion all three are written.
+                    Prop {
+                        id: parchment
+                        around: "scroll"
+                        amount: root.scroll
+
+                        Part {
+                            name: "scroll"
+                        }
+
+                        Item {
+                            rotation: root.layout.scroll.turn
+                            scale: root.layout.scroll.size
+
+                            Repeater {
+                                model: 3
+                                delegate: Item {
+                                    id: line
+
+                                    required property int index
+                                    // One line's time: the rig writes 0.55 a second.
+                                    readonly property int span: 1818
+
+                                    x: root.layout.scroll.left
+                                    y: root.layout.scroll.top + index * root.layout.scroll.step
+
+                                    // Grows from its left end.
+                                    Item {
+                                        id: stroke
+
+                                        Item {
+                                            x: -root.layout.scroll.left
+                                            y: -root.layout.scroll.top
+
+                                            Part {
+                                                name: "scroll-line"
+                                            }
+                                        }
+                                    }
+
+                                    SequentialAnimation {
+                                        running: root.act === "writing"
+                                        loops: Animation.Infinite
+                                        onRunningChanged: {
+                                            if (!running)
+                                                stroke.scale = 1;
+                                        }
+                                        ScaleAnimator { target: stroke; from: 0; to: 0; duration: Math.max(1, line.index * line.span) }
+                                        ScaleAnimator { target: stroke; from: 0; to: 1; duration: line.span }
+                                        ScaleAnimator { target: stroke; from: 1; to: 1; duration: Math.max(1, (2 - line.index) * line.span) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // His hands, over everything he holds. Each rides two
+                    // items the loops move: one shifts it, one swings it
+                    // from the shoulder; its sleeve has the same two.
+                    Item {
+                        id: leftAct
+
+                        Item {
+                            x: root.layout.shoulders[0][0]
+                            y: root.layout.shoulders[0][1]
+
+                            Item {
+                                id: leftSwing
+
+                                Item {
+                                    x: root.leftReach.x
+                                    y: root.leftReach.y
+                                    rotation: Math.atan2(root.leftReach.y, root.leftReach.x) * 180 / Math.PI - 90
+                                    opacity: Math.min(1, root.arms * 1.5)
+                                    visible: root.arms > 0.05
+
+                                    Part {
+                                        name: "hand"
+                                        visible: root.palms <= 0.5
+                                    }
+                                    Part {
+                                        name: "hand-open"
+                                        visible: root.palms > 0.5
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // The right hand holds things: the wand and its spell,
+                    // the quill, a finger to point or a thumb to raise.
+                    Item {
+                        id: rightAct
+
+                        Item {
+                            x: root.layout.shoulders[1][0]
+                            y: root.layout.shoulders[1][1]
+
+                            Item {
+                                id: rightSwing
+
+                                Item {
+                                    x: root.rightReach.x
+                                    y: root.rightReach.y
+                                    opacity: Math.min(1, root.arms * 1.5)
+                                    visible: root.arms > 0.05
+
+                                    Item {
+                                        rotation: root.wandA
+                                        opacity: root.wand
+                                        visible: root.wand > 0.05
+
+                                        Item {
+                                            id: wandSwing
+
+                                            Part {
+                                                name: "wand"
+                                            }
+
+                                            Item {
+                                                x: root.layout.wand
+
+                                                Part {
+                                                    name: "wand-tip"
+                                                    visible: root.spell <= 0.02
+                                                }
+
+                                                // Casting: the spell at the wand's tip, upright
+                                                // whichever way the wand points.
+                                                Item {
+                                                    id: spell
+                                                    rotation: -root.wandA
+                                                    scale: root.spell
+                                                    opacity: Math.min(1, root.spell * 1.4)
+                                                    visible: root.spell > 0.02
+
+                                                    readonly property bool running: root.live && visible
+
+                                                    Item {
+                                                        Part {
+                                                            name: "spell-glow"
+                                                        }
+
+                                                        SequentialAnimation on scale {
+                                                            running: spell.running
+                                                            loops: Animation.Infinite
+                                                            ScaleAnimator { from: 1; to: 1.07; duration: 90 }
+                                                            ScaleAnimator { from: 1.07; to: 0.97; duration: 120 }
+                                                            ScaleAnimator { from: 0.97; to: 1.1; duration: 80 }
+                                                            ScaleAnimator { from: 1.1; to: 0.95; duration: 130 }
+                                                            ScaleAnimator { from: 0.95; to: 1.04; duration: 100 }
+                                                            ScaleAnimator { from: 1.04; to: 1; duration: 110 }
+                                                        }
+                                                    }
+
+                                                    Item {
+                                                        Part {
+                                                            name: "spell-ring"
+                                                        }
+
+                                                        RotationAnimator on rotation {
+                                                            running: spell.running
+                                                            loops: Animation.Infinite
+                                                            from: 0
+                                                            to: 360
+                                                            duration: 2571
+                                                        }
+                                                    }
+
+                                                    Item {
+                                                        Part {
+                                                            name: "spell-core"
+                                                        }
+
+                                                        SequentialAnimation on scale {
+                                                            running: spell.running
+                                                            loops: Animation.Infinite
+                                                            ScaleAnimator { from: 1; to: 0.95; duration: 110 }
+                                                            ScaleAnimator { from: 0.95; to: 1.08; duration: 90 }
+                                                            ScaleAnimator { from: 1.08; to: 0.98; duration: 120 }
+                                                            ScaleAnimator { from: 0.98; to: 1.06; duration: 100 }
+                                                            ScaleAnimator { from: 1.06; to: 1; duration: 130 }
+                                                        }
+                                                    }
+
+                                                    Repeater {
+                                                        model: 5
+                                                        delegate: Mote {
+                                                            running: spell.running
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Item {
+                                        x: -1.5
+                                        y: 1
+                                        rotation: 28
+                                        opacity: root.scroll
+                                        visible: root.scroll > 0.3
+
+                                        Part {
+                                            name: "quill"
+                                        }
+                                    }
+
+                                    Item {
+                                        rotation: root.pointA
+                                        scale: root.point
+                                        visible: root.point > 0.02
+
+                                        Part {
+                                            name: "finger"
+                                        }
+                                    }
+
+                                    Item {
+                                        rotation: Math.atan2(root.rightReach.y, root.rightReach.x) * 180 / Math.PI - 90
+
+                                        Part {
+                                            name: "hand"
+                                            mirror: true
+                                            visible: root.palms <= 0.5
+                                        }
+                                        Part {
+                                            name: "hand-open"
+                                            mirror: true
+                                            visible: root.palms > 0.5
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // The wisp: a helper at work beside him, bobbing.
+                    Item {
+                        id: helperWisp
+                        x: root.layout.wisp[0]
+                        y: root.layout.wisp[1]
+                        scale: root.wisp
+                        opacity: Math.min(1, root.wisp * 1.4)
+                        visible: root.wisp > 0.02
+
+                        Item {
+                            id: wispBob
+
+                            Item {
+                                id: wispFlicker
+
+                                Part {
+                                    name: "wisp"
+                                }
+                            }
+                        }
+                    }
+
+                    // Out: three z's. They read the right way round
+                    // whichever way he faces.
+                    Repeater {
+                        model: root.layout.zzz
+                        delegate: Item {
+                            required property var modelData
+                            x: modelData[0]
+                            y: modelData[1]
+                            scale: modelData[2]
+                            opacity: root.zzz * modelData[3]
+                            visible: root.zzz > 0.02
+                            transform: Scale { xScale: root.side }
+
+                            Part {
+                                name: "zzz"
+                            }
+                        }
+                    }
+
                     // A finished turn: a burst once, or held still.
                     Item {
-                        visible: root.pose === "finished"
+                        visible: root.pose === "finished" || root.pose === "proud"
 
                         Repeater {
                             id: bursts
@@ -857,38 +1525,7 @@ Item {
                         }
                     }
 
-                    // A question waiting (amber, pulsing) or an unread reply (blue).
-                    Item {
-                        x: root.layout.pip[0]
-                        y: root.layout.pip[1]
-
-                        Part {
-                            name: "pip-ring"
-                            visible: !root.live && root.amber > 0.02
-                            // The rig's reduced-motion ring: 40% out, fading.
-                            opacity: 0.48 * root.amber
-                        }
-
-                        Part {
-                            id: pulseRing
-                            name: "pip-ring"
-                            visible: root.live && root.amber > 0.02
-                            opacity: 0
-                        }
-
-                        Part {
-                            name: "pip"
-                            scale: root.amber
-                            visible: root.amber > 0.02
-                        }
-
-                        Part {
-                            name: "unread"
-                            visible: root.unread && root.amber <= 0.02
-                        }
-                    }
-
-                    // Grabbed: "?!" pops over his hat.
+                    // Grabbed: "?!" pops beside his hat.
                     Item {
                         id: shout
                         x: root.layout.shout[0]
@@ -896,8 +1533,12 @@ Item {
                         opacity: 0
                         scale: 0
 
-                        Part {
-                            name: "shout"
+                        Item {
+                            transform: Scale { xScale: root.side }
+
+                            Part {
+                                name: "shout"
+                            }
                         }
                     }
 
@@ -923,9 +1564,215 @@ Item {
         }
     }
 
+    // ---- the star ------------------------------------------------------------------
+    // The ring's arc is drawn in sixtieths of a turn (there is no ring below 0).
+    readonly property int filled: Math.round(Math.min(1, progress) * 60)
+
+    // It swings on its thread when he moves and comes to rest: one eased
+    // turn, not a simulation.
+    SequentialAnimation {
+        id: swinging
+        RotationAnimator { target: star; from: 0; to: 16; duration: 160; easing.type: Easing.OutQuad }
+        RotationAnimator { target: star; from: 16; to: 0; duration: 1500; easing.type: Easing.OutElastic; easing.amplitude: 1.6; easing.period: 0.42 }
+    }
+
+    // Working: it twinkles, the dim star showing through, and turns slowly.
+    // A quarter turn looks like none, so it always ends one where it began.
+    SequentialAnimation {
+        running: root.busy && root.act !== ""
+        loops: Animation.Infinite
+        OpacityAnimator { target: dimmer; from: 0; to: 0.55; duration: 483; easing.type: Easing.InOutSine }
+        OpacityAnimator { target: dimmer; from: 0.55; to: 0; duration: 483; easing.type: Easing.InOutSine }
+    }
+    RotationAnimator {
+        id: twirling
+        running: root.live && root.busy
+        loops: Animation.Infinite
+        alwaysRunToEnd: true
+        target: twirl
+        from: 0
+        to: 90
+        duration: 2250
+    }
+
+    // ---- what his hands do -----------------------------------------------------------
+    // `act` is the pose whose motion is running: empty while he may not move,
+    // and for a moment after each change of pose, while his hands, his eyes
+    // and his hat come to rest from the last one (settle).
+    property string act: ""
+
+    // Thinking: a finger taps his chin.
+    SequentialAnimation {
+        running: root.act === "thinking"
+        loops: Animation.Infinite
+        YAnimator { target: rightAct; from: 0; to: -0.9; duration: 462; easing.type: Easing.OutSine }
+        YAnimator { target: rightAct; from: -0.9; to: 0; duration: 462; easing.type: Easing.InSine }
+        PauseAnimation { duration: 924 }
+    }
+
+    // Reading: his eyes run along the line and jump back.
+    SequentialAnimation {
+        running: root.act === "reading"
+        loops: Animation.Infinite
+        XAnimator { target: scan; from: -2.2; to: 2.2; duration: 2100 }
+        XAnimator { target: scan; from: 2.2; to: -2.2; duration: 122 }
+    }
+
+    // Searching: his hands circle the orb, which bobs, and his eyes follow.
+    SineY { item: leftAct; running: root.act === "searching"; reach: 1.3; period: 2732; phase: 3 }
+    SineY { item: rightAct; running: root.act === "searching"; reach: 1.3; period: 2732; phase: 1 }
+    SineY {
+        item: orbBob
+        running: root.act === "searching"
+        reach: 0.8
+        period: 3491
+        phase: 3
+        onRunningChanged: {
+            if (!running)
+                orbBob.y = 0;
+        }
+    }
+    SineX { item: scan; running: root.act === "searching"; reach: 1.2; period: 5712; phase: 3 }
+
+    // Writing: his hand and its sleeve run along the line and jump back, a
+    // line lower each time, and his eyes go with them.
+    SequentialAnimation {
+        running: root.act === "writing"
+        loops: Animation.Infinite
+        XAnimator { target: rightAct; from: -6; to: 4; duration: 1700 }
+        XAnimator { target: rightAct; from: 4; to: -6; duration: 118 }
+    }
+    SequentialAnimation {
+        running: root.act === "writing"
+        loops: Animation.Infinite
+        XAnimator { target: rightSleeveAct; from: -6; to: 4; duration: 1700 }
+        XAnimator { target: rightSleeveAct; from: 4; to: -6; duration: 118 }
+    }
+    SequentialAnimation {
+        running: root.act === "writing"
+        loops: Animation.Infinite
+        YAnimator { target: rightAct; from: -1.7; to: -1.7; duration: 1818 }
+        YAnimator { target: rightAct; from: 0; to: 0; duration: 1818 }
+        YAnimator { target: rightAct; from: 1.7; to: 1.7; duration: 1818 }
+    }
+    SequentialAnimation {
+        running: root.act === "writing"
+        loops: Animation.Infinite
+        XAnimator { target: scan; from: -1; to: 1; duration: 1700 }
+        XAnimator { target: scan; from: 1; to: -1; duration: 118 }
+    }
+
+    // Casting, and work of no particular kind: the wand hand circles, the
+    // wand waves and the other hand bobs.
+    readonly property bool casting: act === "casting" || act === "working"
+    SineX { item: rightAct; running: root.casting; reach: 1.5; period: 1208; phase: 0 }
+    SineY { item: rightAct; running: root.casting; reach: 1.5; period: 1208; phase: 3 }
+    SineR { item: wandSwing; running: root.casting; reach: 10; period: 1208; phase: 3 }
+    SineY { item: leftAct; running: root.casting; reach: 0.8; period: 2416; phase: 3 }
+
+    // Brewing: he stirs.
+    SineX { item: rightAct; running: root.act === "brewing"; reach: 3.4; period: 1963; phase: 0 }
+    SineY { item: rightAct; running: root.act === "brewing"; reach: 1.1; period: 1963; phase: 3 }
+    SineR { item: wandSwing; running: root.act === "brewing"; reach: 9; period: 1963; phase: 2 }
+
+    // Delegating: an open hand towards the wisp, turning a little.
+    SineX { item: leftAct; running: root.act === "delegating"; reach: 1; period: 2992; phase: 3 }
+    SineY { item: leftAct; running: root.act === "delegating"; reach: 1.2; period: 2992; phase: 0 }
+
+    // Recording: the hand at his ear.
+    SineX { item: rightAct; running: root.act === "listening" && root.recording; reach: 0.5; period: 2856; phase: 3 }
+
+    // Carried: his hands flail.
+    SineX { item: leftAct; running: root.act === "carried"; reach: 2.4; period: 370; phase: 3 }
+    SineY { item: leftAct; running: root.act === "carried"; reach: 2.4; period: 419; phase: 0 }
+    SineX { item: rightAct; running: root.act === "carried"; reach: 2.4; period: 393; phase: 1 }
+    SineY { item: rightAct; running: root.act === "carried"; reach: 2.4; period: 349; phase: 2 }
+
+    // The wisp floats whenever it is there: a helper is at work.
+    SineX { item: wispBob; running: root.live && helperWisp.visible; reach: 2.4; period: 4833; phase: 3 }
+    SineY { item: wispBob; running: root.live && helperWisp.visible; reach: 2.2; period: 2856; phase: 3 }
+    SineR { item: wispFlicker; running: root.live && helperWisp.visible; reach: 5; period: 1047; phase: 3 }
+
+    // An arm swinging out and back from its shoulder, hand and sleeve
+    // together: a wave.
+    component Wave: ParallelAnimation {
+        id: wave
+        required property Item hand
+        required property Item sleeve
+        property real reach: 4
+        property int beat: 275
+        SequentialAnimation {
+            RotationAnimator { target: wave.hand; from: 0; to: wave.reach; duration: wave.beat; easing.type: Easing.OutSine }
+            RotationAnimator { target: wave.hand; from: wave.reach; to: -wave.reach; duration: 2 * wave.beat; easing.type: Easing.InOutSine }
+            RotationAnimator { target: wave.hand; from: -wave.reach; to: 0; duration: wave.beat; easing.type: Easing.InSine }
+        }
+        SequentialAnimation {
+            RotationAnimator { target: wave.sleeve; from: 0; to: wave.reach; duration: wave.beat; easing.type: Easing.OutSine }
+            RotationAnimator { target: wave.sleeve; from: wave.reach; to: -wave.reach; duration: 2 * wave.beat; easing.type: Easing.InOutSine }
+            RotationAnimator { target: wave.sleeve; from: -wave.reach; to: 0; duration: wave.beat; easing.type: Easing.InSine }
+        }
+    }
+
+    // A hand going out along (dx, dy) and back.
+    component Nudge: ParallelAnimation {
+        id: nudge
+        required property Item item
+        property real dx: 0
+        property real dy: 0
+        property int beat: 300
+        SequentialAnimation {
+            XAnimator { target: nudge.item; from: 0; to: nudge.dx; duration: nudge.beat; easing.type: Easing.OutSine }
+            XAnimator { target: nudge.item; from: nudge.dx; to: 0; duration: nudge.beat; easing.type: Easing.InSine }
+        }
+        SequentialAnimation {
+            YAnimator { target: nudge.item; from: 0; to: nudge.dy; duration: nudge.beat; easing.type: Easing.OutSine }
+            YAnimator { target: nudge.item; from: nudge.dy; to: 0; duration: nudge.beat; easing.type: Easing.InSine }
+        }
+    }
+
+    // What a pose does once as it arrives: a few waves, a cheer, a shrug.
+    // They are short; nothing here loops for good.
+    Wave { id: greeting; hand: leftSwing; sleeve: leftSleeveSwing; reach: 9; beat: 185; loops: 3 }
+    Nudge { id: cheering; item: rightAct; dy: -2.2; beat: 187; loops: 3 }
+    ParallelAnimation {
+        id: shrugging
+        Nudge { item: leftAct; dy: -1.6; beat: 330; loops: 2 }
+        Nudge { item: rightAct; dy: -1.6; beat: 330; loops: 2 }
+    }
+    ParallelAnimation {
+        id: wringing
+        Nudge { item: leftAct; dx: 0.7; beat: 260; loops: 3 }
+        Nudge { item: rightAct; dx: -0.7; beat: 260; loops: 3 }
+    }
+    ParallelAnimation {
+        id: peering
+        Nudge { item: leftAct; dy: -0.9; beat: 300; loops: 2 }
+        Nudge { item: rightAct; dy: -0.9; beat: 300; loops: 2 }
+    }
+    // Pointing: two small jabs along the wand.
+    Nudge {
+        id: jabbing
+        item: rightAct
+        dx: 1.8 * Math.cos(root.wandA * Math.PI / 180)
+        dy: 1.8 * Math.sin(root.wandA * Math.PI / 180)
+        beat: 200
+        loops: 2
+    }
+
+    function gesture() {
+        switch (pose) {
+        case "greeting": greeting.restart(); break;
+        case "proud": cheering.restart(); break;
+        case "shrug": shrugging.restart(); break;
+        case "sorry": wringing.restart(); break;
+        case "curious": peering.restart(); break;
+        case "pointing": jabbing.restart(); break;
+        }
+    }
+
     // ---- breathing and the sway --------------------------------------------------
     // The loops start from rest and ease back to it, so changing pose never
-    // makes the hat jump.
+    // makes the hat or a hand jump.
     property real breathDepth: 0
     property real swayReach: 0
 
@@ -946,10 +1793,28 @@ Item {
         RotationAnimator { target: sway; from: root.wave(3, 3, 0, root.swayReach); to: root.wave(4, 3, 0, root.swayReach); duration: 1122; easing.type: root.ease(3, 3) }
     }
 
+    // Everything a loop or a gesture moves, eased back to where it rests.
+    readonly property list<Item> shifted: [leftAct, rightAct, leftSleeveAct, rightSleeveAct, scan]
+    readonly property list<Item> turned: [sway, leftSwing, rightSwing, leftSleeveSwing, rightSleeveSwing, wandSwing]
     ParallelAnimation {
         id: settling
-        RotationAnimator { target: sway; to: 0; duration: 300; easing.type: Easing.OutCubic }
         YAnimator { target: breath; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        XAnimator { target: leftAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        YAnimator { target: leftAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        XAnimator { target: rightAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        YAnimator { target: rightAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        XAnimator { target: leftSleeveAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        YAnimator { target: leftSleeveAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        XAnimator { target: rightSleeveAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        YAnimator { target: rightSleeveAct; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        XAnimator { target: scan; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        RotationAnimator { target: sway; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        RotationAnimator { target: leftSwing; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        RotationAnimator { target: rightSwing; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        RotationAnimator { target: leftSleeveSwing; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        RotationAnimator { target: rightSleeveSwing; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        RotationAnimator { target: wandSwing; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        OpacityAnimator { target: dimmer; to: 0; duration: 300; easing.type: Easing.OutCubic }
         onFinished: root.resume()
     }
 
@@ -967,26 +1832,46 @@ Item {
         repeat: true
         interval: 20000
         onTriggered: {
-            if (!settling.running && !swaying.running)
+            if (!settling.running && !swaying.running) {
                 wobble.restart();
+                swinging.restart();
+            }
             interval = 20000 + Math.random() * 15000;
         }
     }
 
-    // Back to rest, then the loops this pose wants, at its own reach.
+    // Back to rest, then what this pose does, at its own reach.
     function settle() {
+        act = "";
         breathing.stop();
         swaying.stop();
         wobble.stop();
+        asking.stop();
+        greeting.stop();
+        cheering.stop();
+        shrugging.stop();
+        wringing.stop();
+        peering.stop();
+        jabbing.stop();
         if (animated) {
             settling.restart();
         } else {
             settling.stop();
-            sway.rotation = 0;
             breath.y = 0;
+            dimmer.opacity = 0;
+            for (const item of shifted) {
+                item.x = 0;
+                item.y = 0;
+            }
+            for (const item of turned)
+                item.rotation = 0;
         }
     }
     function resume() {
+        if (!live)
+            return;
+        act = pose;
+        gesture();
         if (!looping)
             return;
         breathDepth = 0.9 * stance.bob;
@@ -995,10 +1880,6 @@ Item {
         swaying.start();
     }
     onLoopingChanged: settle()
-    onStanceChanged: {
-        if (looping)
-            settle();
-    }
     Component.onCompleted: resume()
 
     // ---- once: the finished turn, and the waiting pulse --------------------------
@@ -1021,29 +1902,33 @@ Item {
         YAnimator { target: nod.item; from: nod.depth; to: 0; duration: 200; easing.type: Easing.InSine }
     }
 
-    function celebrate() {
-        nodding.restart();
+    function sparkle() {
         for (let i = 0; i < bursts.count; i++)
             (bursts.itemAt(i) as Sparkle)?.flare();
     }
 
     property int pulses: 0
 
+    // A waiting question: the star dims and comes back, and the raised hand
+    // waves.
     ParallelAnimation {
-        id: pulse
-        ScaleAnimator { target: pulseRing; from: 3 / 5.4; to: 9 / 5.4; duration: 1111 }
-        OpacityAnimator { target: pulseRing; from: 0.8; to: 0; duration: 1111 }
+        id: asking
+        SequentialAnimation {
+            OpacityAnimator { target: dimmer; from: 0; to: 0.8; duration: 550; easing.type: Easing.InOutSine }
+            OpacityAnimator { target: dimmer; from: 0.8; to: 0; duration: 550; easing.type: Easing.InOutSine }
+        }
+        Wave { hand: rightSwing; sleeve: rightSleeveSwing; reach: 4 }
     }
 
     // Three pulses as the question arrives, then a reminder now and then: a
     // question can wait for minutes, and the box already shows it.
     Timer {
-        running: root.live && root.pose === "needs-input"
+        running: root.act === "needs-input"
         repeat: true
         triggeredOnStart: true
         interval: root.pulses < 3 ? 1111 : 8000
         onTriggered: {
-            pulse.restart();
+            asking.restart();
             root.pulses++;
         }
     }
@@ -1051,12 +1936,12 @@ Item {
     // ---- carried ----------------------------------------------------------------
     // The drag's velocity (WizRig.follow), normalised and sprung, so he swings
     // past and settles when the pointer stops. Everything he does while
-    // carried reads `reaction`.
+    // carried reads `reaction`. Mirrored, he reacts in his own frame.
     property var tracker: null
     property real ux: 0
     property real uy: 0
-    readonly property var reaction: wiz.carry(ux, uy)
-    readonly property point pivot: Qt.point(grab.x / unit, grab.y / unit)
+    readonly property var reaction: wiz.carry(ux * side, uy)
+    readonly property point pivot: Qt.point(side > 0 ? grab.x / unit : 120 - grab.x / unit, grab.y / unit)
     // Nearly still: he trembles instead.
     readonly property bool dangling: carried && Math.abs(ux) + Math.abs(uy) < 0.08
 
@@ -1160,6 +2045,7 @@ Item {
         hop = 10 * impact;
         hopping.restart();
         crooking.restart();
+        swinging.restart();
         for (let i = 0; i < puffs.count; i++)
             (puffs.itemAt(i) as Puff)?.burst();
         if (sweat !== false)
@@ -1265,7 +2151,8 @@ Item {
     onLiveChanged: {
         if (!live) {
             nodding.complete();
-            pulse.complete();
+            swinging.complete();
+            twirling.complete();
             startling.complete();
             landing.complete();
             hopping.complete();
@@ -1274,5 +2161,6 @@ Item {
             ux = 0;
             uy = 0;
         }
+        settle();
     }
 }
