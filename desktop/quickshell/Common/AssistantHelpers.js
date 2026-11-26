@@ -756,13 +756,6 @@ function leadHtml(text, style) {
     return html;
 }
 
-// The step list starts folded after a short answer and open after a long one.
-var FOLD_STEPS_BELOW = 400;
-
-function stepsFolded(text, steps) {
-    return (steps || []).length > 0 && String(text || "").length < FOLD_STEPS_BELOW;
-}
-
 // ---- what changed ------------------------------------------------------------------
 // "barOpacity" reads "Bar opacity" when the settings index has no label for it.
 function humanizeKey(key) {
@@ -974,28 +967,6 @@ function tuckedX(side, size, width) {
     return side === "left" ? shown - size : width - shown;
 }
 
-// ---- the wide view ------------------------------------------------------------------------
-// The expanded box stands beside the character, on the side with more room,
-// from the top of the free area down; `width` is the person's chosen width.
-function expandedPlacement(bubble, size, output, width, topReserve) {
-    var w = output.width || 0;
-    var h = output.height || 0;
-    var reserve = Math.max(0, topReserve || 0);
-    var leftRoom = bubble.x - GAP - EDGE;
-    var rightRoom = w - (bubble.x + size + GAP) - EDGE;
-    var onLeft = leftRoom >= rightRoom;
-    var room = Math.max(0, onLeft ? leftRoom : rightRoom);
-    var boxWidth = Math.round(clamp(width || 560, Math.min(320, room), Math.max(Math.min(320, room), room)));
-    var top = Math.max(reserve + EDGE, Math.min(bubble.y, h - EDGE - 320));
-    return {
-        x: Math.round(onLeft ? bubble.x - GAP - boxWidth : bubble.x + size + GAP),
-        y: Math.round(top),
-        width: boxWidth,
-        height: Math.round(Math.max(240, Math.min(720, h - top - EDGE))),
-        onLeft: onLeft
-    };
-}
-
 // ---- agent and model ------------------------------------------------------------------
 var CLAUDE_MODELS = [{ value: "default", label: "Default" }, { value: "fable", label: "Fable" },
     { value: "sonnet", label: "Sonnet" }, { value: "opus", label: "Opus" }];
@@ -1116,8 +1087,6 @@ var exported = {
     leadParts: leadParts,
     leadHtml: leadHtml,
     LEAD_SENTENCE_MAX: LEAD_SENTENCE_MAX,
-    FOLD_STEPS_BELOW: FOLD_STEPS_BELOW,
-    stepsFolded: stepsFolded,
     humanizeKey: humanizeKey,
     formatValue: formatValue,
     settingLabel: settingLabel,
@@ -1134,7 +1103,6 @@ var exported = {
     TUCK_VISIBLE: TUCK_VISIBLE,
     tuckSide: tuckSide,
     tuckedX: tuckedX,
-    expandedPlacement: expandedPlacement,
     modelChoices: modelChoices,
     modelLabel: modelLabel,
     NOTIFY_AFTER_MS: NOTIFY_AFTER_MS,

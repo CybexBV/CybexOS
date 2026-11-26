@@ -1,7 +1,8 @@
-// Wiz's newer shell rules (docs/assistant.md): replies with code blocks, what
-// changed and how it reads, the suggestion that fits the moment, snapping and
-// tucking, the wide view, notifications, attachments, and the wiring that
-// connects them to the service, the settings and the compositor.
+// Wiz's newer shell rules (docs/assistant.md): how a reply reads (its blocks,
+// headline and inline formatting), what changed and how it reads, the
+// suggestion that fits the moment, snapping and tucking, notifications,
+// attachments, and the wiring that connects them to the service, the settings
+// and the compositor.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -129,12 +130,6 @@ test("the first paragraph leads with its first sentence", () => {
     assert.match(markdown, /font\.pixelSize: headline !== "" \? Theme\.typography\.title/);
 });
 
-test("the steps fold after a short answer and stay open after a long one", () => {
-    assert.equal(A.stepsFolded("Done.", [{ label: "Read a file" }]), true);
-    assert.equal(A.stepsFolded("x".repeat(A.FOLD_STEPS_BELOW), [{ label: "Read a file" }]), false);
-    assert.equal(A.stepsFolded("Done.", []), false);
-});
-
 test("a change reads as what it is, with its old and new value", () => {
     const rows = [{ key: "barOpacity", label: "Menubar opacity" }];
     const setting = A.changeRow({ id: "ch-1", kind: "setting", key: "barOpacity", before: 1, after: 0.8,
@@ -211,18 +206,6 @@ test("a drop near a corner or a side lands there; past a side edge he tucks away
     assert.match(window, /zone \? zone\.x : AssistantHelpers\.clamp\(root\.dragX/);
 });
 
-test("the wide view stands beside Wiz on the side with more room", () => {
-    const right = A.expandedPlacement({ x: 1800, y: 60 }, 88, { width: 1920, height: 1080 }, 560, 40);
-    assert.equal(right.onLeft, true);
-    assert.equal(right.x + right.width, 1800 - A.GAP);
-    const left = A.expandedPlacement({ x: 40, y: 60 }, 88, { width: 1920, height: 1080 }, 560, 40);
-    assert.equal(left.onLeft, false);
-    assert.equal(left.x, 40 + 88 + A.GAP);
-    assert.ok(left.height <= 720 && left.y >= 40);
-    const narrow = A.expandedPlacement({ x: 600, y: 60 }, 88, { width: 1280, height: 720 }, 900, 0);
-    assert.ok(narrow.width <= 600 - A.GAP - A.EDGE, "never wider than the room beside him");
-});
-
 test("a finished question notifies only when it took a while and the box was not in view", () => {
     assert.equal(A.notifies("closed", "finished", false, 25000), true);
     assert.equal(A.notifies("closed", "finished", true, 25000), false);
@@ -295,14 +278,16 @@ test("Ask Wiz appears where things go wrong and only prepares the question", () 
 
 test("Settings offers the new behaviour, the change log and routines", () => {
     const page = read("Settings/AssistantPage.qml");
-    for (const key of ["assistantHover", "assistantNotify", "assistantFade", "assistantWindowContext", "assistantExpanded"])
+    for (const key of ["assistantHover", "assistantNotify", "assistantFade", "assistantWindowContext"])
         assert.match(page, new RegExp(`settingKey: "${key}"`));
+    assert.doesNotMatch(page, /assistantExpanded/, "the wide view is gone");
     assert.match(page, /searchAnchor: "assistant-changes"/);
     assert.match(page, /searchAnchor: "assistant-routines"/);
     const H = load("SettingsHelpers.js");
     const d = H.defaults();
-    assert.deepEqual([d.assistantHover, d.assistantFade, d.assistantWindowContext, d.assistantExpanded,
-        d.assistantExpandedWidth, d.assistantTuck], ["status", true, true, false, 560, ""]);
-    assert.equal(H.merge({ assistantExpandedWidth: 5000 }).assistantExpandedWidth, 1200, "kept within its range");
+    assert.deepEqual([d.assistantHover, d.assistantFade, d.assistantWindowContext, d.assistantTuck],
+        ["status", true, true, ""]);
+    assert.deepEqual([d.assistantClaudeEffort, d.assistantCodexEffort, d.assistantCodexFast], ["default", "default", false]);
+    assert.equal("assistantExpanded" in d || "assistantExpandedWidth" in d, false, "the wide view is gone");
     assert.equal(H.merge({ assistantTuck: "top" }).assistantTuck, "");
 });
