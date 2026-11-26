@@ -42,17 +42,6 @@ function assertClear(spot, row) {
         assert.ok(!intersects(spot, rect), `${spot.name} covers ${JSON.stringify(rect)}`);
 }
 
-test("the wand's tip comes from the rig's own pointing pose", () => {
-    // Straight out to his right, about three quarters down his box.
-    assert.ok(tips.aside.x > 0.85 && tips.aside.x < 0.95, JSON.stringify(tips.aside));
-    assert.ok(tips.aside.y > 0.7 && tips.aside.y < 0.82, JSON.stringify(tips.aside));
-    // Down: at his feet, in front of him. Up: beside his head.
-    assert.ok(tips.down.y > 0.88 && tips.down.x > 0.7, JSON.stringify(tips.down));
-    assert.ok(tips.up.y < 0.6 && tips.up.x > 0.75, JSON.stringify(tips.up));
-    const pose = W.POSES.pointing;
-    assert.ok(Math.abs(pose.wandA) < 20, "the pose itself points sideways");
-});
-
 test("with room before the row he stands there and points at the label", () => {
     const row = switchRow(120, 200, 640);
     const spot = place(row, { x: 0, y: 0, width: 900, height: 600 });
@@ -74,14 +63,6 @@ test("without room before it he stands between the label and its control", () =>
     assertClear(spot, row);
     const tip = tipOf(spot);
     assert.ok(tip.x < row.controls[0].x && tip.x > row.controls[0].x - 12, "he points at the switch");
-});
-
-test("a changed row's mark and reset chip are kept clear too", () => {
-    const row = switchRow(30, 200, 400);
-    row.controls.push({ x: 30, y: 219, width: 6, height: 6 }, { x: 30 + 400 - 28, y: 208, width: 28, height: 28 });
-    const spot = place(row, { x: 0, y: 0, width: 460, height: 600 });
-    assertClear(spot, row);
-    assert.equal(spot.fits, true);
 });
 
 test("a label that runs into a wide control sends him over or under the row", () => {

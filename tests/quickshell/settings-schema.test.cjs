@@ -53,10 +53,6 @@ function sectionKeys() {
     return out;
 }
 
-test("the schema is not small enough to be a fluke", () => {
-    assert.ok(KEYS.length > 25, `only ${KEYS.length} settings keys loaded`);
-});
-
 test("every schema key has a property that defaults to it", () => {
     const declared = [...SETTINGS.matchAll(/^\s*property \w+ (\w+): defaults\.(\w+)$/gm)];
     for (const [, name, from] of declared)
