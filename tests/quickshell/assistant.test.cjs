@@ -194,6 +194,17 @@ test("Wiz points at a reply that offers something to act on", () => {
     assert.equal(A.replyOffers(widget, {}, ["personal.cputemp"]), false, "added already");
     assert.equal(A.replyOffers({ ...widget, plugins: widget.plugins.concat([{ id: "personal.b" }]) }, {},
         ["personal.cputemp"]), true, "one of two still to add");
+    // On the bar already, whoever put it there (Settings, `cybex plugin
+    // enable`, this reply before the shell restarted): nothing to point at.
+    assert.equal(A.replyOffers(widget, {}, [], ["personal.cputemp"]), false, "on the bar already");
+    assert.equal(A.replyOffers(widget, {}, [], ["personal.other"]), true, "another widget is on the bar");
+    assert.equal(A.replyOffers(widget, {}, undefined, undefined), true, "nothing known yet: the button is there");
+    const two = { ...widget, plugins: widget.plugins.concat([{ id: "personal.b" }]) };
+    assert.equal(A.replyOffers(two, {}, ["personal.b"], ["personal.cputemp"]), false, "one clicked, one on the bar");
+    assert.equal(A.replyOffers(two, {}, [], ["personal.cputemp"]), true, "one of two on the bar");
+    // The review is offered whatever is on the bar.
+    assert.equal(A.replyOffers({ ...widget, staged: "tx-1" }, { transaction: "tx-1", state: "ready" }, [],
+        ["personal.cputemp"]), true);
     const staged = { ...done, staged: "tx-1" };
     assert.equal(A.replyOffers(staged, { transaction: "tx-1", state: "ready" }, []), true, "Review change…");
     assert.equal(A.replyOffers(staged, { transaction: "tx-1", state: "preparing" }, []), false, "not built yet");
@@ -201,7 +212,11 @@ test("Wiz points at a reply that offers something to act on", () => {
     assert.equal(A.replyOffers(staged, { transaction: "tx-2", state: "ready" }, []), false, "another change");
     assert.equal(A.replyOffers({ ...widget, status: "failed" }, {}, []), false, "a failure is sorry, not a pointer");
     const shared = read("Common/Assistant.qml");
-    assert.match(shared, /readonly property bool replyOffers: replyOpen && !composing && !historyOpen && !busy\s*&& AssistantHelpers\.replyOffers\(turn, Updates\.deployment, addedWidgets\)/);
+    // What is on the bar is the shell's own word (Common/UserPlugins), read
+    // only while a reply is open.
+    assert.match(shared, /readonly property bool replyOffers: replyOpen && !composing && !historyOpen && !busy\s*&& AssistantHelpers\.replyOffers\(turn, Updates\.deployment, addedWidgets,\s*UserPlugins\.enabledWidgets\.map\(widget => widget\.id\)\)/);
+    assert.match(read("Common/UserPlugins.qml"), /readonly property var enabledWidgets: widgets\.filter\(plugin => plugin\.enabled\)/);
+    assert.equal(shared.match(/UserPlugins\./g).length, 1, "nothing else in the assistant makes the plugin scan start");
     assert.match(shared, /function addWidget\(pluginId\) \{[\s\S]*?addedWidgets = addedWidgets\.concat\(\[pluginId\]\)/);
     assert.match(shared, /offers: root\.replyOffers/);
     // The buttons it counts are the reply's own.

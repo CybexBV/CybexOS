@@ -127,6 +127,7 @@ while True:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(json.dumps({"id": "personal.cputemp", "name": "CPU temperature",
                                           "version": "1.0.0", "apiVersion": 1, "entrypoint": "Widget.qml"}))
+            (target.parent / "Widget.qml").write_text("import QtQuick\nItem {}\n")
         reply("I made a CPU temperature widget. It is off until you add it to the bar.")
     elif "poses" in text:
         # One step of each kind, each held until the test has seen it.
@@ -264,6 +265,7 @@ class Session:
             '\n        function draft(): string { return Assistant.draft; }'
             '\n        function setting(key: string, value: string): void { Settings.set(key, JSON.parse(value)); }'
             '\n        function close(): void { Assistant.closeBox(); }'
+            '\n        function click(): void { Assistant.characterClicked(); }'
             '\n        function drowsyAfter(ms: int): void { Assistant.drowsyAfter = ms; Assistant.stir(); }'
             '\n        function tool(name: string, args: string): string { let out = null;'
             ' AssistantTools.handle(name, JSON.parse(args), r => out = {ok: true, result: r},'
@@ -722,23 +724,22 @@ def main():
             session.pointer.move(20, 880)
             # Never while a question runs, however short the delay.
             session.ipc("ask", "Show me your poses again")
-            state = session.wait(lambda: (lambda s: s if s.get("pose") == "reading" else None)(session.shell_state()),
-                                 "Wiz at work")
+            session.wait(lambda: session.shell_state().get("pose") == "reading", "Wiz at work")
             # Motion goes off while he works, as reduced motion, the power
             # saver or an unattended session take it away: he holds still at
-            # once, the star's turn and its swing included. A click tucks
-            # the box away first, since its elapsed time keeps counting.
-            session.pointer.move(state["x"] + state["size"] / 2, state["y"] + state["size"] / 2)
-            session.pointer.button(True)
-            session.pointer.button(False)
-            session.pointer.move(20, 880)
+            # once, the star's turn and its swing included. A click on him
+            # tucks the box away first; it comes from here, so that no
+            # pointer leaves him.
+            session.ipc("click")
             session.ipc("setting", "reducedMotion", "true")
-            # A fade already on its way (the box, his eyes leaving the
-            # pointer) still runs out, within half a second.
+            # A fade already on its way (the box closing) still runs out,
+            # within half a second.
             time.sleep(0.6)
             drawn = session.frames(1)
             session.ipc("setting", "reducedMotion", "false")
-            assert drawn == 0, f"without motion, Wiz at work drew {drawn} frames in 1 s"
+            # The window still draws once a second while a question runs: the
+            # tucked box's elapsed time, which is not his. Moving, he draws 60.
+            assert drawn <= 2, f"without motion, Wiz at work drew {drawn} frames in 1 s"
             assert session.frames(1) > 30, "with motion back, he works on"
             time.sleep(3.5)
             assert session.shell_state()["pose"] == "reading", session.shell_state()
@@ -770,6 +771,15 @@ def main():
             # The reply offers Add to bar: after his nod he points at it.
             session.wait(lambda: session.shell_state().get("pose") == "pointing", "Wiz pointing at Add to bar")
             session.screenshot("assistant-pointing.png")
+            # Put on the bar some other way, as Settings and `cybex plugin
+            # enable` do, the widget is not on offer any more and he stops
+            # pointing; taken off again, it is, and he points.
+            plugins = [sys.executable, "-B", str(session.shell / "scripts/user-plugins.py")]
+            subprocess.run([*plugins, "enable", "personal.cputemp"], env=session.env, check=True, timeout=20)
+            session.wait(lambda: session.shell_state().get("pose") == "idle",
+                         "Wiz to stop pointing at a widget that is on the bar")
+            subprocess.run([*plugins, "disable", "personal.cputemp"], env=session.env, check=True, timeout=20)
+            session.wait(lambda: session.shell_state().get("pose") == "pointing", "Wiz pointing at Add to bar again")
 
             # Hiding takes the character away and reports it; the service keeps the conversation.
             session.ipc("hide")
@@ -891,7 +901,7 @@ def main():
             output = session.log()
             errors = [line for line in output.splitlines() if QML_ERRORS.search(line)]
             assert not errors, "\n".join(errors)
-            print("Assistant onboarding/draft preservation, Ask Wiz from the launcher (signed out and in), the status line on rest, repeated pointer dragging, snapping and tucking, the shell's desktop tools, default automatic approvals, Ask first, what changed with Undo and the steps, the wide view, widget hand-off, Wiz's poses (carried while dragged, facing left behind the right edge, each kind of work, the wisp for a question alongside or Up next, a shrug after a refusal, drowsy and awake, pointing at Add to bar), hiding, conversation history (new by default, open and continue, delete, restore, clear) and the empty notification centre passed")
+            print("Assistant onboarding/draft preservation, Ask Wiz from the launcher (signed out and in), the status line on rest, repeated pointer dragging, snapping and tucking, the shell's desktop tools, default automatic approvals, Ask first, what changed with Undo and the steps, the wide view, widget hand-off, Wiz's poses (carried while dragged, facing left behind the right edge, each kind of work, the wisp for a question alongside or Up next, a shrug after a refusal, drowsy and awake, still at once without motion, pointing at Add to bar until the widget is on the bar), hiding, conversation history (new by default, open and continue, delete, restore, clear), the empty notification centre and Wiz asleep, drawing nothing, once the service stops passed")
         finally:
             session.stop()
 

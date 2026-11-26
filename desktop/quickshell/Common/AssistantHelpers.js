@@ -171,12 +171,15 @@ function celebrationPose(refused, took) {
 }
 
 // Whether an open reply offers something to act on: a widget to add to the
-// bar that has not been added yet, or a staged change the updater has built
-// and checked, waiting for review (Assistant/AssistantReply.qml).
-function replyOffers(turn, deployment, added) {
+// bar, or a staged change the updater has built and checked, waiting for
+// review (Assistant/AssistantReply.qml). A widget is on offer until it is on
+// the bar: `onBar` is what the shell itself knows to be there, whoever put
+// it there and whenever, and `added` what this reply's button was clicked
+// for a moment ago, before the shell has seen it.
+function replyOffers(turn, deployment, added, onBar) {
     if (!turn || turn.status !== "completed")
         return false;
-    var done = added || [];
+    var done = (added || []).concat(onBar || []);
     var widget = (turn.plugins || []).some(function(plugin) {
         return done.indexOf(plugin.id) === -1;
     });

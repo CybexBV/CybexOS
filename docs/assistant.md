@@ -395,7 +395,7 @@ tip of his hat. His hands show at rest.
 | Brewing | stirs a cauldron; bubbles rise | the step is `install`: adding or removing an app, staging or applying a system change |
 | Delegating | an open hand towards the wisp beside him | the step is `delegate`: a helper agent |
 | Needs input | peeks from under the brim with a hand raised | a question waits for your answer, or a routine found something |
-| Pointing | points his wand at the box: down, or up when it opens above him | the reply in view offers **Add to bar** (not yet added) or **Review change…** (built and checked), once the celebration is over |
+| Pointing | points his wand at the box: down, or up when it opens above him | the reply in view offers **Add to bar** for a widget that is not on the bar yet, however it would have got there (the shell's own list, `UserPlugins.enabledWidgets`), or **Review change…** (built and checked), once the celebration is over |
 | Finished | happy eyes, a nod and a short sparkle | for 2.4 s after a question completed in under a minute |
 | Proud | a thumbs-up and a sparkle | for 2.4 s after a question completed that ran a minute or more (`PROUD_AFTER_MS`) |
 | Happy | happy eyes | speaking a reply |

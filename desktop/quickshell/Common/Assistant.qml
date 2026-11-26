@@ -122,11 +122,15 @@ Singleton {
 
     // A file or image is held over the character, about to be dropped on him.
     property bool fileOver: false
-    // Widgets the reply on screen offered and the person has added since.
+    // Widgets the reply on screen offered and its button has added since.
     property var addedWidgets: []
-    // The reply in view offers something to act on: he points at it.
+    // The reply in view offers something to act on: he points at it. A
+    // widget is on offer until it is on the bar, as the shell itself knows
+    // (Common/UserPlugins): added from Settings or with `cybex plugin
+    // enable`, or before the shell last started, it is not offered again.
     readonly property bool replyOffers: replyOpen && !composing && !historyOpen && !busy
-        && AssistantHelpers.replyOffers(turn, Updates.deployment, addedWidgets)
+        && AssistantHelpers.replyOffers(turn, Updates.deployment, addedWidgets,
+            UserPlugins.enabledWidgets.map(widget => widget.id))
 
     readonly property var characterState: ({
         connected: root.connected, listening: root.listening, waiting: root.waiting,
