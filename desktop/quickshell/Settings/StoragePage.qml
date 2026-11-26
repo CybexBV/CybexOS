@@ -67,7 +67,7 @@ SettingsPage {
             visible: page.section === "recovery"
             changeTag: "restart"
             SwitchRow {
-                width: parent.width; label: I18n.tr("Automatic weekly cleanup"); property string searchAnchor: "storage-automatic"
+                width: parent.width; label: I18n.tr("Automatic weekly cleanup"); searchAnchor: "storage-automatic"
                 checked: page.draft.automatic
                 description: I18n.tr("Runs after a confirmed boot and skips active updates or unresolved recovery.")
                 onToggled: value => RetentionDraft.edit({automatic:value})

@@ -151,6 +151,25 @@ test("settings_show is a shell tool the assistant service lists and the shell ca
     assert.doesNotMatch(body, /Settings\.set\(|saveNow/);
 });
 
+test("the guide opens the row's own tab, not the one the page would choose", () => {
+    const settings = read("Common/Settings.qml");
+    // showPanel takes the tab a caller knows; resolveTab only fills in for
+    // callers that do not (a page's first tab for most keys).
+    assert.match(settings, /function showPanel\(targetPage, targetScreenName, key, targetTab\) \{[\s\S]*?const tab = targetTab && tabsOf\(resolved\)\.some\(entry => entry\.id === targetTab\)\s*\? targetTab : resolveTab\(targetPage, key\);/);
+    const guide = settings.match(/function showGuide\(row\) \{[\s\S]*?\n    \}/)[0];
+    assert.match(guide, /showPanel\(row\.page, "", key, row\.tab \|\| ""\);/);
+    assert.doesNotMatch(guide, /setTab\(/, "no tab set before showPanel, which would set it again");
+    // Every row on a tabbed page names one of its tabs, so the guide never
+    // falls back to the first.
+    const { ROWS } = load("SettingsSearchData.js");
+    const tabbed = { keyboard: ["layouts", "shortcuts"], assistant: ["wiz", "dictation"],
+        backup: ["backups", "recovery", "storage"] };
+    for (const entry of ROWS.filter(entry => !entry.widget && tabbed[entry.page]))
+        assert.ok(tabbed[entry.page].includes(entry.tab), `${entry.label} names its tab`);
+    for (const id of Object.keys(tabbed))
+        assert.match(settings, new RegExp(`\\{ id: "${id}",[\\s\\S]*?tabs: \\[[\\s\\S]*?\\{ id: "${tabbed[id].join('"[\\s\\S]*?\\{ id: "')}"`));
+});
+
 test("a guide ends on a change, a page or tab left, Settings closed, another jump or its time", () => {
     const settings = read("Common/Settings.qml");
     assert.match(settings, /property int guideTimeout: 30000/);
@@ -160,9 +179,11 @@ test("a guide ends on a change, a page or tab left, Settings closed, another jum
     assert.match(settings, /onRevisionChanged: \{[\s\S]*?endGuide\("changed"\);/);
     assert.match(settings, /onHighlightKeyChanged: \{[\s\S]*?endGuide\("other"\);/);
     assert.match(settings, /onTriggered: root\.endGuide\("time"\)/);
-    // The row stays lit while he points, after the search flash has gone.
-    assert.match(read("Settings/SettingsRow.qml"),
-        /highlighted: settingKey !== ""\s*&& \(Settings\.highlightKey === settingKey \|\| Settings\.guideKey === settingKey\)/);
+    // The row stays lit while he points, after the search flash has gone,
+    // whether Settings finds it by its key or by its search anchor.
+    const row = read("Settings/SettingsRow.qml");
+    assert.match(row, /highlighted: \(settingKey !== ""\s*&& \(Settings\.highlightKey === settingKey \|\| Settings\.guideKey === settingKey\)\)/);
+    assert.match(row, /\|\| \(searchAnchor !== ""\s*&& \(Settings\.highlightKey === searchAnchor \|\| Settings\.guideKey === searchAnchor\)\)/);
     // Still once settled, and only there while a guide is.
     const guide = read("Settings/SettingsGuide.qml");
     assert.match(guide, /animated: root\.motion && \(lively\.running/);

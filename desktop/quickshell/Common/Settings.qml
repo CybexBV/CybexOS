@@ -405,12 +405,16 @@ Singleton {
     property string panelScreenName: ""
     signal presentPanel()
 
-    function showPanel(targetPage, targetScreenName, key) {
+    // `targetTab`, when it is one of the page's tabs, wins over the tab
+    // resolveTab would choose: a caller that knows the row's own tab (the
+    // assistant's guide) opens that one.
+    function showPanel(targetPage, targetScreenName, key, targetTab) {
         const resolved = resolvePage(targetPage, key);
         if (targetPage === "drawer")
             openWidgetSettings("control");
         else if (resolved !== "") {
-            const tab = resolveTab(targetPage, key);
+            const tab = targetTab && tabsOf(resolved).some(entry => entry.id === targetTab)
+                ? targetTab : resolveTab(targetPage, key);
             if (tab !== "")
                 setTab(resolved, tab);
             page = resolved;
@@ -471,9 +475,7 @@ Singleton {
             showPanel("bar", "", key);
             openWidgetSettings(row.widget);
         } else {
-            if (row.tab)
-                setTab(row.page, row.tab);
-            showPanel(row.page, "", key);
+            showPanel(row.page, "", key, row.tab || "");
         }
         guideKey = key;
         guidePage = page;

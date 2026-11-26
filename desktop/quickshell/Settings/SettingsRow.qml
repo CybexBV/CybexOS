@@ -42,6 +42,9 @@ Item {
     property string label
     property color labelColor: Theme.textMid
     property string settingKey: ""
+    // A search destination for a row without a settings key
+    // (SettingsSearchData.js `anchor`): search and Wiz's guide find it by this.
+    property string searchAnchor: ""
     property string resetLabel: label
     property bool dirty: settingKey !== ""
         && Settings[settingKey] !== Settings.defaults[settingKey]
@@ -93,8 +96,10 @@ Item {
     readonly property var stored: settingKey === "" ? undefined : Settings[settingKey]
     // A search jump flashes the row; Wiz's guide keeps it lit while he
     // points at it (SettingsGuide.qml).
-    readonly property bool highlighted: settingKey !== ""
-        && (Settings.highlightKey === settingKey || Settings.guideKey === settingKey)
+    readonly property bool highlighted: (settingKey !== ""
+        && (Settings.highlightKey === settingKey || Settings.guideKey === settingKey))
+        || (searchAnchor !== ""
+        && (Settings.highlightKey === searchAnchor || Settings.guideKey === searchAnchor))
 
     // Breathing room above and below the control line, inside the row, so the
     // divider between two rows has space on both sides.

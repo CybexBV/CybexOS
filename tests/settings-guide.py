@@ -7,7 +7,10 @@ touches a session, the user's config or the host.
 Run through nix develop with grim and wtype on PATH, e.g.
   nix develop -c nix shell nixpkgs#grim nixpkgs#wtype -c python3 -B tests/settings-guide.py
 
-It checks the tool's answer and its failures; that Wiz stands at the row and
+It checks the tool's answer and its failures (a row this computer does not
+show among them); that a row on a page's second tab opens on that tab and a
+row found by its search anchor is pointed at like a keyed one; that Wiz
+stands at the row and
 covers neither its label nor its control at a wide and a narrow window, for
 a row near the top and the bottom of a page, inside a folded Advanced group
 and in a widget's dialog; that a second call moves him; that reduced motion
@@ -148,6 +151,11 @@ def main():
         assert 'guideSettings' in source
         source = source.replace('    id: shell', '    id: shell' + TEST_IPC, 1)
         entry.write_text(source)
+        # A computer without a battery, whatever the host's UPower says.
+        battery = shell / 'Common/Battery.qml'
+        laptop = 'readonly property bool isLaptop: device !== null && device.isLaptopBattery'
+        assert laptop in battery.read_text()
+        battery.write_text(battery.read_text().replace(laptop, 'readonly property bool isLaptop: false'))
 
         stub = subprocess.run(['node', '-e', "process.stdout.write(require(process.argv[1]).stub)",
                                str(ROOT / 'tests/quickshell/keybindings-support.cjs')],
@@ -293,6 +301,29 @@ def main():
             failed = wait(answer, 'a key without a row refused')
             assert not failed['ok'] and 'Settings has no row for assistantShown' in failed['error'], failed
             assert state()['open'] is False, 'nothing opened for them'
+
+            # A row on a tabbed page opens on its own tab, not the page's first:
+            # an anchor on Keyboard's second tab and a switch on Backup's
+            # second. Then an anchor on a page without tabs.
+            for key, page, tab, where in (
+                    ('shortcuts-add', 'keyboard', 'shortcuts', 'Keyboard › Shortcuts › Add shortcut'),
+                    ('storage-automatic', 'backup', 'recovery',
+                     'Backup & storage › Recovery points › Automatic weekly cleanup'),
+                    ('applications-terminal', 'applications', '', 'Applications › Terminal')):
+                reply = show(key)
+                assert reply['ok'] and reply['result']['where'] == where and reply['result']['shown'], reply
+                s = pointing(key, f'{page} {tab}'.strip())
+                assert (s['page'], s['tab']) == (page, tab), s
+            # A row this computer does not show (Power's "Only on battery",
+            # with no battery here and the switch off): Settings looks for
+            # it, then the tool says so.
+            ipc('guide-test', 'setValue', 'idleSuspendBatteryOnly', 'false')
+            ipc('guide-test', 'point', 'idleSuspendBatteryOnly')
+            failed = wait(answer, 'a row this computer does not show')
+            assert failed == {'ok': False, 'error': 'Settings has no Only on battery row on this computer, '
+                                                    'so it could not be shown.'}, failed
+            assert state()['ended'] == 'missing', state()
+            ipc('guide-test', 'close')
 
             # A row near the top of a page, in a wide window: the answer says
             # where it is in Settings' words, and Wiz stands in the margin
