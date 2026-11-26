@@ -83,6 +83,7 @@ PopoutPanel {
 
     function openPalette(text) {
         changesSheet.hide();
+        accountPicker.hide();
         // Whoever opened the palette has found it; the tip has done its job.
         searchHintSeen = true;
         palette.show(text || "");
@@ -90,6 +91,7 @@ PopoutPanel {
 
     function openChanges() {
         palette.hide();
+        accountPicker.hide();
         changesSheet.show();
     }
 
@@ -231,6 +233,10 @@ PopoutPanel {
         }
         if (changesSheet.open) {
             changesSheet.hide();
+            return true;
+        }
+        if (accountPicker.open) {
+            accountPicker.hide();
             return true;
         }
         if (dragActive) {
@@ -955,6 +961,12 @@ PopoutPanel {
     ChangesSheet {
         id: changesSheet
         objectName: "changesSheet"
+        anchors.fill: parent
+    }
+
+    AccountPicker {
+        id: accountPicker
+        objectName: "accountPicker"
         anchors.fill: parent
     }
 

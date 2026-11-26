@@ -26,6 +26,9 @@ class AccountSettings:
                 continue
             accounts.append(dict(id=props['Id'], path=path,
                                  provider=props.get('ProviderName', ''),
+                                 # Settings picks the provider's mark by type, never by
+                                 # its translated name (Settings/AccountLogo.qml).
+                                 providerType=props.get('ProviderType', ''),
                                  identity=props.get('PresentationIdentity', ''),
                                  attention=props.get('AttentionNeeded', False),
                                  locked=props.get('IsLocked', False),
