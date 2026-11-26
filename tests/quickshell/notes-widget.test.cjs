@@ -206,6 +206,10 @@ test("overview rows show titles, fresh relative times, and stable contextual act
     assert.match(panel, /Accessible\.name:\s*"No notes yet"[\s\S]*?Jot down a thought, a list or a link\./);
     assert.match(panel, /readonly property bool empty: Notes\.ready && Notes\.count === 0/);
     assert.match(panel, /id: emptyState\s*visible: root\.empty[\s\S]*?Wiz \{[\s\S]*?id: writeButton[\s\S]*?label: "Write a note"[\s\S]*?onTriggered: root\.beginNew\(\)/);
+    // Wiz points down at Write a note: look here. Pointing jabs once and
+    // holds still; it never loops.
+    assert.match(panel, /id: emptyColumn[\s\S]*?Wiz \{[^}]*?pose: "pointing"\s*\}/);
+    assert.equal(load("WizRig.js").light("pointing", false), "ready");
     assert.match(panel, /id: addButton\s*visible: !root\.empty/);
     assert.match(panel, /\(root\.empty \? writeButton : addButton\)\.forceActiveFocus\(\)/);
     assert.match(panel, /function deleteCard\([\s\S]*?focusInitial\(\)/,

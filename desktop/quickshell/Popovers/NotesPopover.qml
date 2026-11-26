@@ -468,11 +468,12 @@ Surface {
                     width: parent.width
                     spacing: Theme.scaled(8)
 
+                    // Pointing down at Write a note: look here.
                     Wiz {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: Theme.scaled(64)
                         height: Theme.scaled(64)
-                        pose: "idle"
+                        pose: "pointing"
                     }
 
                     Text {
