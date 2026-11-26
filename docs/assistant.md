@@ -58,11 +58,17 @@ or set up themselves.
     files as text, up to 256 KB, and the service refuses anything that is
     neither. Dropped and pasted images are copied to the scratch folder and
     deleted with the answer, like screenshots.
-- **Agent and model.** The chip under the field says who answers ("Claude
-  Code · Opus") and opens a small menu to choose the agent and model for this
-  conversation only; Settings keeps the default. A continued conversation
-  keeps its agent (it greys the other: "Started with …"), so only its model
-  can change. An agent that is not signed in offers **Sign in…**.
+- **Agent, model and effort.** The logo at the end of the field (in a new
+  box and in a reply's own field) shows who answers; resting on it names the
+  agent, model and effort. A click opens a small picker: the agent (Claude
+  Code or Codex), its model (Default leaves it to the agent's own setting),
+  its effort (Auto, then Low to Max; Codex also has None) and, for Codex
+  signed in with ChatGPT, **Fast**, which answers sooner and uses the plan's
+  limits faster. A bolt on the logo says Fast is on. The choice is for this
+  conversation only; Settings → Assistant keeps the defaults. A continued
+  conversation keeps its agent (the other is greyed: "Started with …"), so
+  only its model, effort and Fast can change. An agent that is not signed in
+  offers sign-in. Esc closes the picker before the box.
 - **A suggestion that fits the moment.** The new box's first suggestion can
   follow what just happened: an update that failed ("Why did the update
   fail?", with what Software Update knows attached), a Cybex OS update that
@@ -167,12 +173,29 @@ or set up themselves.
   Open brings Wiz out with that conversation. Settings → **Notify when Wiz
   finishes**: When the box is closed (default), Always, Never. Focus and
   game mode keep it in the notification centre, as any notification.
-- **Replies** stay under the character until closed. Copy, Reply (continue the
-  conversation), Speak, and Terminal (Continue in a terminal: opens the same
-  Claude Code or Codex session in Kitty, for longer coding work) appear under
-  a reply, each with a visible label. A button drawn with only a glyph shows
-  its name on hover or keyboard focus, and every button takes the pointer over
-  at least 32 px. Each code block has its own **Copy** button.
+- **Replies** stay beside the character until closed. The box points at him
+  with a small tail, and a faint light at the tail takes his mood: the accent
+  normally, amber while he waits for you, red after a failure (every box has
+  the tail, the light and the same raised look). The header says **Wiz**,
+  who answered and how long it took; your question sits in a bubble on the
+  right, up to three lines. The answer leads with its first sentence as a
+  headline (`AssistantMarkdown`'s `lead`), and is laid out block by block: a
+  short line ending in ":" right before a list becomes the list's small
+  name; a bullet list whose items all start with a bold title becomes a
+  tile with one titled row per item; other lists get small accent dots and a
+  compact indent; `code` sits on a faint chip; paragraphs keep their space.
+  Tables still use Qt's own Markdown, and raw HTML shows as written.
+  A long answer scrolls inside the box, with its bottom edge fading and a
+  **More** chip; what the answer left behind (a failure's fix in a soft red
+  tile, a staged change, routines, what changed, widgets) scrolls with it.
+  Under it, quiet buttons: Speak, Copy, and Terminal (Continue in a terminal:
+  opens the same Claude Code or Codex session in Kitty, for longer coding
+  work). At the bottom is the reply's own field: type and press Enter to
+  continue the conversation right there (Shift+Enter adds a line, Esc closes
+  the reply); the microphone opens the box for that conversation and
+  listens. A button drawn with only a glyph shows its name on hover or
+  keyboard focus, and every button takes the pointer over at least 32 px.
+  Each code block has its own **Copy** button.
 - **What changed** is listed under the answer, one row each with its own
   Undo: a preference named as Settings names it, where it lives
   ("Appearance · Theme") and its old and new value ("Glass effect Off → On";
@@ -183,14 +206,6 @@ or set up themselves.
   **Undo all** undoes every row that still can. A row that cannot be undone
   any more says why: it was changed again by a later answer (undo that one
   first), or changed since by something else, which is left as it is.
-- **What Wiz did** lists the steps the agent took, in plain words with the
-  file or command in grey; Cybex OS's own desktop tools carry the accent. It
-  is folded after a short answer and open after a long one.
-- **The wide view.** A reply too long for the box offers **Expand**, which
-  opens it beside Wiz on the side of the screen with more room (about 560 ×
-  640 at 1×; drag its inner edge to resize it). The agent is told the reply
-  has room, so headings and tables are fine there. The choice stays until
-  Collapse, and also applies to a conversation being read and to History.
 - **Keeping out of the way.** Dragged near a corner or the middle of a side,
   he lands there (the spots show while dragging); anywhere else he stays
   exactly where he is dropped. Pushed past the left or right edge, he tucks
@@ -359,6 +374,9 @@ Settings → Assistant, stored in `~/.config/cybexos/shell.json`:
 | `assistantApprovalPolicy` | `always` (Always allow), `ask` (Ask first) | `always` |
 | `assistantClaudeModel` | `default`, `fable`, `sonnet`, `opus` | `default` |
 | `assistantCodexModel` | `default`, `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-5.6-sol` | `default` |
+| `assistantClaudeEffort` | `default`, `low`, `medium`, `high`, `xhigh`, `max` | `default` |
+| `assistantCodexEffort` | `default`, `none`, `low`, `medium`, `high`, `xhigh`, `max` | `default` |
+| `assistantCodexFast` | Codex's Fast tier (only with a ChatGPT sign-in) | `false` |
 | `assistantSpeak` | spoken replies | `false` |
 | `assistantScreenContext` | offer the screen button | `false` |
 | `assistantHistory` | keep conversations and the change log: `month` (30 days), `forever`, `session` (until you log out; nothing saved) | `month` |
@@ -366,7 +384,6 @@ Settings → Assistant, stored in `~/.config/cybexos/shell.json`:
 | `assistantHover` | resting the pointer on Wiz: `status`, `open` (the box), `nothing` | `status` |
 | `assistantFade` | fade and let clicks through while the pointer sweeps over him | `true` |
 | `assistantWindowContext` | a new question carries the focused window's app and title | `true` |
-| `assistantExpanded`, `assistantExpandedWidth` | the wide view, and its width (420–1200) | `false`, `560` |
 | `assistantTuck` | the screen edge he is tucked behind: `""`, `left`, `right` | `""` |
 | `assistantShown` | the character is on screen | `false` |
 | `assistantScreen`, `assistantX`, `assistantY` | where it was left | primary display, top right |
@@ -589,8 +606,10 @@ the shortcut and the service; nothing in `shell.json` is lost.
   - `transport.py` — client framing, lanes and attachment/screenshot checks.
   - `conversations.py` — conversation history, undoable change log, speech and routine RPC handlers.
   - `desktop_tools.py` — desktop tool execution (settings, wallpapers, windows, Flathub apps, doctor, routines).
-  - `auth.py` — bounded, output-discarding `claude auth status` and
-    `codex login status` checks. No prompt or model request checks sign-in.
+  - `auth.py` — bounded `claude auth status` and `codex login status`
+    checks. Their output is discarded, except the sign-in kind Codex names
+    ("Logged in using ChatGPT"), which decides whether Fast is offered. No
+    prompt or model request checks sign-in.
     Login runs `claude auth login` or `codex login` in the background, with
     no terminal: each opens the browser and waits for it on localhost. The
     shell discards their output, which can name the account, and offers
@@ -607,7 +626,7 @@ the shortcut and the service; nothing in `shell.json` is lost.
     so the reply can follow along.
   - `prompt.py` — the instructions appended to the agent's own system
     prompt, and the per-question notes (attachments, looking only, a
-    routine, the wide view).
+    routine).
   - `changes.py` — the change log behind Undo.
   - `routines.py` — routines and their schedules.
   - `desktop.py` — the desktop tools: schemas, kinds and step labels.
@@ -647,9 +666,9 @@ Requests:
 | Method | Params | Result |
 | --- | --- | --- |
 | `hello` | `{client, protocol: 1}` | `{protocol, agents, turn, conversations, speech}` |
-| `auth.status` | `{}` | `{agents}` — refresh installation/sign-in status |
+| `auth.status` | `{}` | `{agents}` — refresh installation/sign-in status; Codex's entry carries `fast: true` for a ChatGPT sign-in, `fast: false` for any other, nothing when unknown |
 | `auth.login` | `{agent: "claude" \| "codex"}` | `{argv, cwd}` — the agent's own login command, which the shell runs in the background |
-| `turn.start` | `{text, agent, model?, conversation?, screenshot?, attachments?, context?}` | `{turn}` (its `lane` says whether it runs in the main lane or alongside), or `{queued}` when it waits; error `-32001` once one question already waits, `-32002` for a conversation no longer in the history. Without `conversation` the question starts a new one; with it, it continues that conversation with its own agent |
+| `turn.start` | `{text, agent, model?, effort?, fast?, conversation?, screenshot?, attachments?, context?}` | `{turn}` (its `lane` says whether it runs in the main lane or alongside), or `{queued}` when it waits; error `-32001` once one question already waits, `-32002` for a conversation no longer in the history. Without `conversation` the question starts a new one; with it, it continues that conversation with its own agent. `effort` is one of the agent's levels (`""` or `default` leaves it to the agent; a level only the other agent has is dropped); Claude Code gets `--effort`, and a new model or effort restarts its process on the same session. `fast` is for Codex only: `true` sends the `priority` service tier, `false` the `default` tier (standard speed even when `config.toml` asks for Fast), absent sends none; with a sign-in other than ChatGPT the service turns it off |
 | `turn.stop` | `{lane?}` | `{stopped}`; `lane` is `main` (default) or `side` |
 | `queue.remove`, `queue.run` | `{}` | `{ok}` — drop the waiting question, or stop the main one so it starts now |
 | `change.list` | `{}` | `{changes: [entry]}`, newest first, each with `status` (`applied`, `undone`, `blocked` with `blockedBy`, `changed`, `system`) and `undoable` |
