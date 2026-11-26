@@ -93,12 +93,14 @@ Development commits may be pushed directly to `main`. To publish a release:
    `main` yet.
 2. Run [the full check](#the-full-check) on that branch and wait for it to
    pass. One check covers the release and the work merged into it: prepare
-   `VERSION` and the notes first, then check. Once it passes, move `main` to
-   exactly that commit with `git push origin COMMIT:main`. When `main` moved
-   in the meantime the push fails: merge again and check again. The push
-   doesn't start another run: the branch's run already checked that commit.
-3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
-   It checks the version against `VERSION`, `release/compatibility.json` and
+   `VERSION` and the notes first, then check.
+3. Run `release/publish VERSION` from a clean checkout of that branch, equal
+   to `origin/release-VERSION` (owner's decision, 2026-11-26; `main` equal to
+   `origin/main` still works). Then merge the branch into `main` with
+   `git merge --no-ff release-VERSION` and push `main`. Work that landed on
+   `main` during the check waits for the next release instead of forcing
+   another check.
+   `release/publish` checks the version against `VERSION`, `release/compatibility.json` and
    the notes, refuses a tag on another commit, refuses a commit without a
    passing dispatched `nixos.yml` run for that commit,
    creates and pushes the annotated `vVERSION` tag and creates the GitHub

@@ -133,12 +133,39 @@ class PublishTests(unittest.TestCase):
         self.assert_refused('main must equal origin/main', '1.0.1')
         self.git('reset', '--quiet', '--hard', 'origin/main')
         self.git('checkout', '--quiet', '-b', 'feature')
-        self.assert_refused('publish from main', '1.0.1')
+        self.assert_refused('publish from release-1.0.1 or main', '1.0.1')
+        # A release branch must be pushed as it is: the full check ran on origin's.
+        self.git('checkout', '--quiet', '-b', 'release-1.0.1')
+        self.assert_refused('cannot fetch release-1.0.1 from origin', '1.0.1')
+        self.git('push', '--quiet', 'origin', 'release-1.0.1')
+        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n\nUnpushed.\n')
+        self.git('commit', '--quiet', '-am', 'Unpushed')
+        self.assert_refused('release-1.0.1 must equal origin/release-1.0.1', '1.0.1')
         self.git('checkout', '--quiet', 'main')
         (self.work / 'release/compatibility.json').write_text(json.dumps({'schema': 2}))
         self.git('commit', '--quiet', '-am', 'Broken declaration')
         self.git('push', '--quiet', 'origin', 'main')
         self.assert_refused('compatibility.json is missing or invalid', '1.0.1')
+
+    def test_release_branch_publishes_while_main_moves_on(self):
+        # The full check ran on release-1.0.1; work that lands on main meanwhile
+        # waits for the next release instead of forcing another check.
+        self.git('checkout', '--quiet', '-b', 'release-1.0.1')
+        (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.1\n\nChecked.\n')
+        self.git('commit', '--quiet', '-am', 'Prepare Cybex OS 1.0.1 release')
+        self.git('push', '--quiet', 'origin', 'release-1.0.1')
+        checked = self.git('rev-parse', 'HEAD').strip()
+        self.git('checkout', '--quiet', 'main')
+        (self.work / 'later.txt').write_text('landed during the check')
+        self.git('add', 'later.txt')
+        self.git('commit', '--quiet', '-m', 'Later work on main')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.git('checkout', '--quiet', 'release-1.0.1')
+        result = self.publish('1.0.1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('ls-remote', 'origin', 'refs/tags/v1.0.1^{}').split()[0], checked)
+        self.assertIn(f'--commit {checked} ', self.runs.read_text())
+        self.assertIn('git merge --no-ff release-1.0.1', result.stdout)
 
     def test_a_published_version_is_never_reused(self):
         # A tag on another commit is another release, local or on origin.

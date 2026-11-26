@@ -89,10 +89,11 @@ sub-agent in a worktree):
     and the merged work. `release/publish` refuses a commit without a
     passing dispatched `nixos.yml` run for that commit.
     When it fails, fix forward and run it again.
-  - Once it passes, move `main` to exactly that commit:
-    `git push origin <commit>:main`. If `main` moved meanwhile, the push
-    fails: merge again and check again.
-  - Run `release/publish X.Y.Z` from a clean `main` equal to `origin/main`.
+  - Once it passes, run `release/publish X.Y.Z` from a clean checkout of
+    `release-X.Y.Z` equal to its origin branch, then merge the branch into
+    `main` (`git merge --no-ff release-X.Y.Z`) and push `main`. Work that
+    landed on `main` during the check goes in the next release; it never
+    forces another check.
     When it says the tag already exists at another commit, or the release is
     already published, another session published first: take the next
     version. When your own run failed after pushing the tag, run it again
