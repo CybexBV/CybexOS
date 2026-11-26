@@ -515,6 +515,8 @@ A turn snapshot:
   "prompt": "Make the menubar transparent",
   "status": "running | waiting | completed | stopped | failed",
   "step": "Editing shell.json",
+  "stepKind": "think | read | search | write | run | change | install | delegate | tool | ''",
+  "refused": false,
   "text": "…",
   "error": "",
   "errorKind": "auth | missing | crashed | ''",
@@ -555,6 +557,18 @@ A conversation summary:
   "updatedAt": 1761223400000
 }
 ```
+
+`stepKind` says what kind of work `step` is, the same for Claude Code and
+Codex: `think` (reasoning, planning), `read` (files, web pages, images and the
+look-only desktop tools that read), `search` (the web, files and the desktop
+search tools), `write` (editing files), `run` (a command), `change` (a desktop
+tool that changes or acts), `install` (adding or removing an app, or staging
+or applying a system change), `delegate` (a helper agent), `tool` (any other
+tool), or `""` when there is no step. While a card waits, it keeps the kind of
+the action waiting. `refused` turns true once the ownership rules refused a
+tool request in this question (the Refused rows above, and the recovery
+commands such as `cybex update rollback`) and stays true until it ends; the
+person's own Deny is not a refusal. Neither is kept after a restart.
 
 `ready` (apply cards only) is true when the lifecycle status shows that
 transaction built and checked. Errors: `-32001` busy, `-32002` no such
