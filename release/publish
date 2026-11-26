@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Publish a Cybex OS release: tag the current main commit and create its GitHub
+# Publish a Cybex OS release: tag the checked commit and create its GitHub
 # release. The GitHub repository is the trust root; there is no signing step.
 # Installed machines take the newest release on their channel.
+#
+# Run it from the release-VERSION branch the full check passed, or from main.
+# A release branch is merged into main afterwards (git merge --no-ff), so work
+# that landed on main during the check waits for the next release instead of
+# forcing another check.
 #
 #   release/publish VERSION [--stable] [--dry-run] [ASSET...]
 #
@@ -54,9 +59,11 @@ for asset in "${assets[@]}"; do
     [[ -f $asset ]] || fail "asset $asset does not exist"
 done
 [[ -z $(git status --porcelain) ]] || fail 'commit or stash local changes first'
-[[ $(git rev-parse --abbrev-ref HEAD) == main ]] || fail 'publish from main'
-git fetch --quiet origin main
-[[ $(git rev-parse HEAD) == "$(git rev-parse origin/main)" ]] || fail 'main must equal origin/main; push or pull first'
+branch=$(git rev-parse --abbrev-ref HEAD)
+[[ $branch == main || $branch == "release-$version" ]] || fail "publish from release-$version or main"
+git fetch --quiet origin "$branch" || fail "cannot fetch $branch from origin; push it first"
+[[ $(git rev-parse HEAD) == "$(git rev-parse FETCH_HEAD)" ]] \
+    || fail "$branch must equal origin/$branch; push or pull first"
 
 tag=v$version
 revision=$(git rev-parse HEAD)
@@ -156,6 +163,9 @@ else
         --notes-file release/notes.md "${kind[@]}" "${assets[@]}"
 fi
 echo "Published $tag at $revision to $REPO for $channel."
+if [[ $branch != main ]]; then
+    echo "Now merge it into main: git switch main && git pull && git merge --no-ff $branch && git push origin main"
+fi
 if ! ((stable)) && [[ $version != *-* ]]; then
     echo "Move it to stable once it has proven itself: release/promote $version"
 fi

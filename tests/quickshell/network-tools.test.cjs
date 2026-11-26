@@ -469,7 +469,9 @@ test("a signal arriving while the main thread holds the worker lock cannot deadl
     assert.equal(result.stdout.trim(), "canceled");
 });
 
-async function waitUntil(predicate, timeoutMs = 3000) {
+// A ceiling, not a delay: it returns as soon as the state is there. Under a
+// loaded test run starting two Python processes alone can take seconds.
+async function waitUntil(predicate, timeoutMs = 30000) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         if (predicate())

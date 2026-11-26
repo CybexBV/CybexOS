@@ -22,9 +22,14 @@ concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # Three jobs side by side, one per runner slot on The Beast. Each job
-  # starts on an empty disposable runner and builds Cybex OS's own packages
-  # itself, so this job builds them once for every check below.
+  # Three jobs, each on its own runner slot on The Beast. The Beast's memory
+  # budget usually fits two of these runners at once, so the checks job, the
+  # longest, starts at once beside the image job, and the upgrade job follows
+  # the image job instead of racing the checks job for the second slot.
+  # Each job starts on a fresh disposable runner; only the slot's Nix cache at /cache
+  # outlives it (scripts/ci-nix-cache, owner's decision 2026-11-26), so what
+  # an earlier run built, including checks that passed with the same inputs,
+  # is substituted rather than built again.
   checks:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -35,21 +40,26 @@ jobs:
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
       - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      # What earlier runs on this runner built (scripts/ci-nix-cache).
+      - run: python3 -B scripts/ci-nix-cache prepare
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
             max-jobs = 4
             cores = 0
+            extra-substituters = file:///cache/nix?trusted=true&priority=10
+            fallback = true
       - run: python3 -B scripts/check-ci-capacity --vm
       # The quick checks first, so a broken source fails within minutes.
       - run: nix flake check --no-build
-      # Source tests and the linters (Ruff, ShellCheck, actionlint).
-      - run: nix develop -c tests/run
+      # Source tests and the linters (Ruff, ShellCheck, actionlint). These test
+      # steps run once more when they fail (scripts/once-more), as fast-test does.
+      - run: scripts/once-more nix develop -c tests/run
       - run: python3 -B scripts/check_leftovers.py --repo . --allowlist scripts/rename-leftovers-allowlist.txt
       # QML lint and the shell's runtime tests in private headless Sways.
-      - run: nix develop -c tests/shell-checks
-      - run: nix develop -c python3 -B tests/assistant-overlay.py
-      - run: nix develop -c python3 -B tests/nixos-native
+      - run: scripts/once-more nix develop -c tests/shell-checks
+      - run: scripts/once-more nix develop -c python3 -B tests/assistant-overlay.py
+      - run: scripts/once-more nix develop -c python3 -B tests/nixos-native
       # Every flake check is built, in two builds. The desktop VM tests (up to
       # 8 GiB each) go second, three at a time; everything else goes first, so
       # a new check is never left out. One nix build shares the packages its
@@ -112,6 +122,13 @@ jobs:
         run: |
           read -ra checks <<< "$CHECKS_DESKTOP"
           scripts/build-checks --max-jobs 3 "${checks[@]}"
+      # Kept for the next run on this runner, also after a failure: passed
+      # checks and built packages are substituted when their inputs are the same.
+      - name: Keep what this runner built
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 20
+        run: python3 -B scripts/ci-nix-cache save
   image:
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
@@ -122,11 +139,15 @@ jobs:
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
       - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      # What earlier runs on this runner built (scripts/ci-nix-cache).
+      - run: python3 -B scripts/ci-nix-cache prepare
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
             max-jobs = 4
             cores = 0
+            extra-substituters = file:///cache/nix?trusted=true&priority=10
+            fallback = true
       # Two installation VMs of 12 GiB run side by side below.
       - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 28
       - name: Build and qualify the exact source image in isolated VMs
@@ -161,12 +182,22 @@ jobs:
           failed=0
           for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
           exit "$failed"
+      # Kept for the next run on this runner, also after a failure: passed
+      # checks and built packages are substituted when their inputs are the same.
+      - name: Keep what this runner built
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 20
+        run: python3 -B scripts/ci-nix-cache save
   # The path people take: a machine on the previous published release, whose
   # own updater discovers, prepares, applies, trial-boots and confirms this
   # commit as the next release (scripts/qualify-upgrade). That updater asks
   # api.github.com for the newest release; a stand-in on the runner answers
   # with this commit and passes everything else on to GitHub.
   upgrade:
+    # After the image job, whatever its result: see the jobs' comment above.
+    needs: image
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -176,11 +207,15 @@ jobs:
       # branch points to by the time the job gets the runner: release/publish
       # trusts this run for exactly that commit.
       - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      # What earlier runs on this runner built (scripts/ci-nix-cache).
+      - run: python3 -B scripts/ci-nix-cache prepare
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
         with:
           extra_nix_config: |
             max-jobs = 4
             cores = 0
+            extra-substituters = file:///cache/nix?trusted=true&priority=10
+            fallback = true
       # One installation VM of 16 GiB, built once the ISO is.
       - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 24
       - name: Upgrade the previous release to this commit with its own updater
@@ -206,3 +241,10 @@ jobs:
           # gate to their servers; the updater path is the same.
           nix develop -c scripts/qualify-upgrade run "$staging"/from/iso/*.iso --from "$from" \
             --applications minimal --work-dir "$staging" --output "$staging/upgrade.json"
+      # Kept for the next run on this runner, also after a failure: passed
+      # checks and built packages are substituted when their inputs are the same.
+      - name: Keep what this runner built
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 20
+        run: python3 -B scripts/ci-nix-cache save

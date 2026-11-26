@@ -32,7 +32,8 @@
 - `tests/run` includes the linters (`tests/lint`: Ruff, ShellCheck and actionlint, with the settings in
   `pyproject.toml`, `.shellcheckrc` and `.github/actionlint.yaml`). `tests/shell-checks` runs the QML lint and every
   headless shell test (Settings, Software, Software Update, Welcome, shortcuts, wallpapers and more).
-- **The full check** is the `nixos.yml` workflow on The Beast's runners: three jobs side by side, about 55 minutes.
+- **The full check** is the `nixos.yml` workflow on The Beast's runners: three jobs, about 55 minutes cold and
+  less once the runners' Nix cache holds earlier builds. A failing check runs once more before it counts.
   The checks job runs the source tests, the linters and the shell tests and builds every flake check
   (`checks.x86_64-linux.*`, VM tests included). The image job installs this commit's ISO, plain and encrypted. The
   upgrade job moves a VM on the previous release to this commit with that release's own updater
@@ -90,10 +91,11 @@ sub-agent in a worktree):
     and the merged work. `release/publish` refuses a commit without a
     passing dispatched `nixos.yml` run for that commit.
     When it fails, fix forward and run it again.
-  - Once it passes, move `main` to exactly that commit:
-    `git push origin <commit>:main`. If `main` moved meanwhile, the push
-    fails: merge again and check again.
-  - Run `release/publish X.Y.Z` from a clean `main` equal to `origin/main`.
+  - Once it passes, run `release/publish X.Y.Z` from a clean checkout of
+    `release-X.Y.Z` equal to its origin branch, then merge the branch into
+    `main` (`git merge --no-ff release-X.Y.Z`) and push `main`. Work that
+    landed on `main` during the check goes in the next release; it never
+    forces another check.
     When it says the tag already exists at another commit, or the release is
     already published, another session published first: take the next
     version. When your own run failed after pushing the tag, run it again

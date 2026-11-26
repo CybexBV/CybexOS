@@ -93,12 +93,14 @@ Development commits may be pushed directly to `main`. To publish a release:
    `main` yet.
 2. Run [the full check](#the-full-check) on that branch and wait for it to
    pass. One check covers the release and the work merged into it: prepare
-   `VERSION` and the notes first, then check. Once it passes, move `main` to
-   exactly that commit with `git push origin COMMIT:main`. When `main` moved
-   in the meantime the push fails: merge again and check again. The push
-   doesn't start another run: the branch's run already checked that commit.
-3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
-   It checks the version against `VERSION`, `release/compatibility.json` and
+   `VERSION` and the notes first, then check.
+3. Run `release/publish VERSION` from a clean checkout of that branch, equal
+   to `origin/release-VERSION` (owner's decision, 2026-11-26; `main` equal to
+   `origin/main` still works). Then merge the branch into `main` with
+   `git merge --no-ff release-VERSION` and push `main`. Work that landed on
+   `main` during the check waits for the next release instead of forcing
+   another check.
+   `release/publish` checks the version against `VERSION`, `release/compatibility.json` and
    the notes, refuses a tag on another commit, refuses a commit without a
    passing dispatched `nixos.yml` run for that commit,
    creates and pushes the annotated `vVERSION` tag and creates the GitHub
@@ -260,7 +262,10 @@ requests and releases don't start it, and there is no nightly run. Start it with
 `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; a newer
 run on the same branch replaces one still going.
 
-It has three jobs that run side by side. The checks job runs the source tests
+It has three jobs. The checks job, the longest, runs beside the image job;
+the upgrade job follows the image job, whatever its result, because The
+Beast's memory usually fits two of these runners at once and the checks job
+must not wait for a slot. The checks job runs the source tests
 (`tests/run`, which includes the linters in `tests/lint`: Ruff, ShellCheck
 and actionlint), the shell tests (`tests/shell-checks`: QML lint and every
 headless Quickshell test) and then builds **every** flake check
@@ -327,7 +332,15 @@ filesystem), at least 24 GiB available memory (28 GiB for the image job's two
 installation VMs of 12 GiB), and KVM.
 Nix runs up to four builds at once and lets each use every core of the
 runner (16 on The Beast's).
-Discard the runner, workspace and attached disks after each job. It must have
+Discard the runner, workspace and attached disks after each job, except the
+runner slot's cache volume at `/cache`. Since 2026-11-26 (owner's decision) the
+full check keeps a Nix binary cache there (`scripts/ci-nix-cache`): each job
+saves what it built, also after a failure, and the next job on that slot
+substitutes it instead of building it again. That covers Cybex OS's own
+packages, kernel modules, the previous release's ISO and checks that passed:
+a check whose inputs did not change since a passing run is not run again.
+The installations and the upgrade always run. When the volume is 70% full
+the cache starts again empty. The runner must have
 no workstation data, persistent credentials, production network access or
 production PXE mount. Runner provisioning and isolation are owner-managed, not
 an instruction to enroll the running workstation as a runner.
