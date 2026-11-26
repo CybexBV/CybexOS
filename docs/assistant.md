@@ -120,6 +120,13 @@ or set up themselves.
   Update's problem page an **Ask Wiz about this** button. Either opens the
   box with what that place knows attached as a chip and the question typed;
   nothing is sent until Enter. They show only while Wiz can answer.
+- **Ask where a setting is.** "Where do I change the wallpaper?" or "where
+  do I turn on the glass effect?" opens Settings on that page, scrolled to
+  the row (a folded **Advanced** group unfolds), and a small Wiz stands
+  beside the row and points at it while the row stays lit. The answer says
+  where it is in Settings' own words ("Appearance › Glass effect"). He
+  leaves when you change that setting, go to another page, close Settings,
+  or after 30 seconds. Asking him to change it changes it, as before.
 - **Talk** by holding `Super+I` (or the microphone button) and releasing it to
   send. The words are transcribed locally by Voxtype, with dictation's
   speech model and languages ([dictation.md](dictation.md)); no audio leaves
@@ -248,6 +255,7 @@ apply live, check values, and record every change for Undo:
 | `settings_set`, `wallpaper_set` | Change a preference (checked exactly as the Settings window checks it; the assistant's own settings are refused) or the wallpaper (a Wallhaven image is downloaded into the wallpaper folder) | Yes; listed under Changed |
 | `routine_create`, `routine_delete` | Create or remove a routine | Yes; listed under Changed |
 | `app_open`, `window_focus`, `window_move`, `workspace_switch` | Open an app, focus or move a window, show a workspace | Yes |
+| `settings_show` | Open Settings at one setting's row, where a small Wiz points at it (see below) | Yes, but not alongside or in routines: opening a window is not looking. Nothing to undo |
 | `window_close` | Close a window | **Always asks**, even under Always allow: the app may have unsaved work |
 | `flatpak_install`, `flatpak_remove` | Install or remove a Flathub app for this account (`cybex software flathub`), waiting until it is done | Asks under Ask first; listed under Changed, and Undo removes or reinstalls it |
 
@@ -257,6 +265,38 @@ that only the desktop can carry out (preferences, the wallpaper, windows,
 apps) go to the shell as `desktop.request` and are answered by
 `Common/AssistantTools.qml`. The shell and terminal stay available for
 everything else, under the policy table above.
+
+`settings_show` ("Show me where") takes a key from `settings_search` (or a
+row's anchor in `Common/SettingsSearchData.js`). The agent is told to use it
+when the person asks where a setting is or how to find it, and to change a
+setting with `settings_set` when asked to change it. Settings opens at the
+row (its tab, a widget's dialog, an unfolded **Advanced** group), and the
+tool answers once Wiz stands there, with where it is in the words the window
+shows: `{"key", "label", "page", "tab", "group", "widget", "where":
+"Appearance › Glass effect", "shown": true}`. An unknown key, a setting no
+row shows, and a row this computer does not show (Settings looks for four
+seconds) fail with a sentence for the agent. Its step reads "Showing a
+setting" and its `stepKind` is `change`: like `app_open` it acts on the
+desktop, so the corner Wiz casts while the window opens.
+
+In Settings (`Settings/SettingsGuide.qml`), a 48 px Wiz in the `pointing`
+pose stands beside the row, facing it, and points with his wand; the row
+keeps its search wash and gets a 2 px accent ring for as long as he points.
+Where he stands is plain geometry (`Common/SettingsGuide.js`): the first of
+these spots whose box covers neither the row's label as drawn nor any of
+its controls (nor its changed mark and reset chip), and lies in the page's
+visible area and margin, wins: before the label in the page's margin,
+pointing right; between the label and its control, pointing at the
+control; after the row, pointing left; over the row pointing down; under it
+pointing up. He arrives with a short drop and a landing, glides when a
+second call moves him, and holds still once settled (about three seconds):
+no animation and no frame drawn for him while he points. With reduced
+motion he is simply there. He waits unseen while the row is scrolled out of
+view. The guide ends, and he leaves, when the person changes that setting,
+leaves the page or tab, closes Settings, another jump lands (search, a Home
+link), the row goes away (a dialog closed, a group folded) or after 30
+seconds. One guide at a time. Nothing of him exists between guides; the
+corner Wiz is not involved.
 
 ## Changes and Undo
 
@@ -477,13 +517,15 @@ only once, in the welcome guide's hello; everywhere else he only shows.
 | Launcher | **Ask Wiz** when nothing matches: curious, hands out for your words |
 | Notifications | the empty notification centre; asleep under Focus |
 | Notes | the empty notes popover, pointing at **Write a note** |
+| Settings | only when asked where a setting is: beside its row, pointing at it ([Desktop tools](#desktop-tools)) |
 | The assistant's own notifications | a still picture of the news: finished, needs input or sorry |
 | Kitty's fastfetch ([branding](branding.md)) | a still picture: idle, the star dim |
 
 He stays out of permission prompts, the installer's disk choice and erase
-review, Settings pages, the update review, the menubar, other notification
-toasts, the boot menu, the boot splash and its disk unlock, the lock screen
-and the recovery desktop. While the welcome guide fills the
+review, Settings pages (he appears there only when asked to show a
+setting), the update review, the menubar, other notification toasts, the
+boot menu, the boot splash and its disk unlock, the lock screen and the
+recovery desktop. While the welcome guide fills the
 screen, its Wiz is the only one: the corner Wiz waits and takes over when the
 guide closes.
 
