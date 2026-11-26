@@ -10,13 +10,17 @@ import uuid
 
 from . import automatic
 from . import channel as channels
+from . import cli_flows, cli_format
 from .common import Failure, atomic, digest, locked, read
 from .engine import Engine, config_digest
 from .trust import version
 
 LIVE_MARKER = Path('/etc/cybexos/installer')
 PKEXEC = '/run/wrappers/bin/pkexec'
+REQUEST_BIN = '/run/current-system/sw/bin/cybexos-request'
 LIVE_UPDATE_REASON = 'System updates are available after installation. Run cybex install to install Cybex OS.'
+
+_ERROR_FORMAT = 'json'
 
 
 def require_installed():
@@ -25,7 +29,6 @@ def require_installed():
 
 
 def request_status(identifier, state='/var/lib/cybexos'):
-    import re
     if not re.fullmatch('[a-f0-9]{32}', identifier):
         raise Failure('Invalid request identifier')
     value = read(Path(state) / 'request-status' / (identifier + '.json'))
@@ -155,6 +158,20 @@ def update_status(state=Path('/var/lib/cybexos'), working=Path('/etc/nixos'), po
     return status
 
 
+def run_check():
+    """Read-only update discovery using the caller's own cache directory."""
+    engine = object.__new__(Engine)
+    engine.state = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'cybexos'
+    engine.state.mkdir(parents=True, exist_ok=True)
+    engine.working = Path('/etc/nixos')
+    engine.release = Path('/etc/cybexos/release.json')
+    engine.policy = channels.DECLARED
+    engine.channel_state = Path('/var/lib/cybexos')
+    from .common import Runner
+    engine.run = Runner()
+    return engine.check()
+
+
 def stage_update(engine, scope, identifier):
     """Stage `scope`; a combined update that fails brings its release alone.
 
@@ -221,80 +238,453 @@ def run_update(engine, identifier):
         engine.request_context = {}
 
 
-def main():
-    parser = argparse.ArgumentParser(prog='cybex', description='Cybex OS')
-    commands = parser.add_subparsers(dest='command', required=True)
+PASSTHROUGH = ('agent', 'assistant', 'backup', 'report', 'doctor', 'plugin', 'shell', 'theme')
+PLUMBING = ('software', 'maintenance', 'config')
+
+
+def _release_version():
+    data = read('/etc/cybexos/release.json', {})
+    return data.get('version', '') if isinstance(data, dict) else ''
+
+
+def _build_parser():
+    json_parent = argparse.ArgumentParser(add_help=False)
+    json_parent.add_argument('--json', action='store_true', default=argparse.SUPPRESS,
+                             help='Output machine-readable JSON')
+
+    parser = argparse.ArgumentParser(prog='cybex', add_help=False, parents=[json_parent])
+    parser.add_argument('-h', '--help', action='store_true', dest='show_help')
+    parser.add_argument('-V', '--version', action='store_true', dest='show_version')
+    commands = parser.add_subparsers(dest='command')
+
+    commands.add_parser('help', add_help=False)
+    commands.add_parser('status', parents=[json_parent],
+                        help='Quick overview of this computer',
+                        description='Show a read-only overview of Cybex OS, updates, storage, backup, desktop and region.')
+    commands.add_parser('version', parents=[json_parent],
+                        help='Print the installed Cybex OS version')
+    commands.add_parser('hardware', parents=[json_parent],
+                        help='Detected hardware and support status',
+                        description='Read-only hardware inventory, support status and qualification checklist.')
+
     installer = commands.add_parser('install')
     installer.add_argument('--terminal', action='store_true', help='Open the live installer in a terminal')
-    commands.add_parser('version')
-    commands.add_parser('hardware', help='Read-only hardware inventory, support status and unfilled qualification checklist (JSON)')
-    software = commands.add_parser('software')
+
+    # ---- cybex update -------------------------------------------------------
+    update = commands.add_parser('update', parents=[json_parent],
+                                 help='Check, prepare and apply updates',
+                                 description='Check, prepare, review and apply Cybex OS and NixOS updates. '
+                                             'Run with no subcommand for a guided update.')
+    update.add_argument('--scope', choices=('both', 'cybexos', 'upstream', 'local', 'firmware'),
+                        help='Choose which update source to prepare')
+    update.add_argument('-y', '--yes', action='store_true', help='Apply after showing changes without asking')
+    update.add_argument('--no-apply', action='store_true', help='Prepare and review without applying')
+    sub = update.add_subparsers(
+        dest='action',
+        metavar='{check,status,history,log,stage,apply,rollback,confirm,discard,automatic,channel}',
+    )
+    sub.add_parser('check', parents=[json_parent], help='Check for available updates')
+    sub.add_parser('status', parents=[json_parent], help='Show the current update state and review')
+    sub.add_parser('history', parents=[json_parent], help='List retained deployments and recovery points')
+    update_request = sub.add_parser('request', parents=[json_parent])
+    update_request.add_argument('identifier')
+    log = sub.add_parser('log', parents=[json_parent], help='Show the build log for a deployment')
+    log.add_argument('transaction', nargs='?', help='Deployment ID (or prefix); defaults to the current one')
+    stage = sub.add_parser('stage', parents=[json_parent], help='Prepare an update without applying')
+    stage.add_argument('scope', choices=('upstream', 'cybexos', 'both', 'local', 'firmware'))
+    stage.add_argument('--no-wait', action='store_true', help='Start staging in the background and exit')
+    apply = sub.add_parser('apply', parents=[json_parent], help='Apply a prepared update')
+    apply.add_argument('transaction', nargs='?')
+    apply.add_argument('review_token', nargs='?')
+    apply.add_argument('-y', '--yes', action='store_true', help='Apply without asking')
+    rollback = sub.add_parser('rollback', parents=[json_parent], help='Restore a previous deployment')
+    rollback.add_argument('transaction', nargs='?')
+    sub.add_parser('confirm', parents=[json_parent], help='Confirm a trial boot and keep the update')
+    retry = sub.add_parser('retry-failed', parents=[json_parent])
+    retry.add_argument('transaction')
+    discard = sub.add_parser('discard', parents=[json_parent], help='Discard a prepared update or dismiss a failure')
+    discard.add_argument('transaction', nargs='?')
+    choice = sub.add_parser('automatic', parents=[json_parent],
+                            help='Show or configure automatic preparation and restart confirmation')
+    choice.add_argument('name', nargs='?', choices=('prepare', 'confirm'))
+    choice.add_argument('enabled', nargs='?', choices=('on', 'off'))
+    release_choice = sub.add_parser('channel', parents=[json_parent],
+                                    help='Show or choose the release channel (stable or beta)')
+    release_choice.add_argument('name', nargs='?', choices=channels.CHANNELS)
+
+    # ---- cybex apps ---------------------------------------------------------
+    apps = commands.add_parser('apps', parents=[json_parent],
+                               help='Search, install and remove apps',
+                               description='Search, install, update and remove NixOS and Flathub apps.')
+    apps_sub = apps.add_subparsers(dest='apps_action', required=True)
+    apps_list = apps_sub.add_parser('list', parents=[json_parent], help='List installed apps')
+    apps_list.add_argument('--all', action='store_true', help='Include built-in Cybex OS and personal packages')
+    apps_list.add_argument('--source', choices=('all', 'nix', 'flathub'), default='all')
+    apps_search = apps_sub.add_parser('search', parents=[json_parent], help='Search NixOS and Flathub apps')
+    apps_search.add_argument('query', nargs='*', default=[])
+    apps_search.add_argument('--source', choices=('all', 'nix', 'flathub'), default='all')
+    apps_info = apps_sub.add_parser('info', parents=[json_parent], help='Show details about an app')
+    apps_info.add_argument('name')
+    apps_info.add_argument('--source', choices=('auto', 'nix', 'flathub'), default='auto')
+    apps_install = apps_sub.add_parser('install', parents=[json_parent], help='Install one or more apps')
+    apps_install.add_argument('names', nargs='+', metavar='APP')
+    apps_install.add_argument('--source', choices=('auto', 'nix', 'flathub'), default='auto')
+    apps_install.add_argument('-y', '--yes', action='store_true', help='Install without asking')
+    apps_remove = apps_sub.add_parser('remove', parents=[json_parent], help='Remove installed apps')
+    apps_remove.add_argument('names', nargs='+', metavar='APP')
+    apps_remove.add_argument('--source', choices=('auto', 'nix', 'flathub'), default='auto')
+    apps_remove.add_argument('-y', '--yes', action='store_true', help='Remove without asking')
+    apps_sub.add_parser('updates', parents=[json_parent], help='Check for Flathub app updates')
+    apps_update = apps_sub.add_parser('update', parents=[json_parent], help='Update installed Flathub apps')
+    apps_update.add_argument('ids', nargs='*', metavar='APP_ID')
+
+    # ---- cybex cleanup ------------------------------------------------------
+    cleanup = commands.add_parser('cleanup', parents=[json_parent],
+                                  help='Free space from old generations',
+                                  description='Preview and free disk space from old system generations. '
+                                              'Run with no subcommand for a guided cleanup.')
+    cleanup.add_argument('-y', '--yes', action='store_true', help='Clean up after preview without asking')
+    cleanup_sub = cleanup.add_subparsers(dest='cleanup_action')
+    cleanup_sub.add_parser('status', parents=[json_parent], help='Show disk space and cleanup policy')
+    cleanup_sub.add_parser('preview', parents=[json_parent], help='Check how much space can be freed')
+    cleanup_run = cleanup_sub.add_parser('run', parents=[json_parent], help='Preview and clean old generations')
+    cleanup_run.add_argument('-y', '--yes', action='store_true', help='Clean up without asking')
+    cleanup_pin = cleanup_sub.add_parser('pin', parents=[json_parent], help='Pin or unpin a recovery deployment')
+    cleanup_pin.add_argument('deployment')
+    cleanup_pin.add_argument('state', nargs='?', default='on', choices=('on', 'off', 'true', 'false'))
+    cleanup_policy = cleanup_sub.add_parser('policy', parents=[json_parent], help='Show or change retention policy')
+    cleanup_policy.add_argument('--automatic', choices=('on', 'off'))
+    cleanup_policy.add_argument('--keep-confirmed', type=int)
+    cleanup_policy.add_argument('--keep-days', type=int)
+    cleanup_policy.add_argument('-y', '--yes', action='store_true', help='Apply without asking')
+    cleanup_sub.add_parser('resume', parents=[json_parent], help='Resume an interrupted cleanup')
+
+    # ---- cybex region -------------------------------------------------------
+    region = commands.add_parser('region', parents=[json_parent],
+                                 help='Timezone and language settings',
+                                 description='View or change the system timezone and locale.')
+    region_sub = region.add_subparsers(dest='region_action')
+    region_sub.add_parser('status', parents=[json_parent], help='Show current timezone and locale')
+    region_set = region_sub.add_parser('set', parents=[json_parent], help='Change timezone and/or locale')
+    region_set.add_argument('--timezone', '--tz', dest='timezone', help='IANA timezone (e.g. Europe/Amsterdam)')
+    region_set.add_argument('--locale', help='System locale (e.g. en_US.UTF-8)')
+    region_set.add_argument('-y', '--yes', action='store_true', help='Apply without asking')
+    region_tz = region_sub.add_parser('timezones', parents=[json_parent], help='List available timezones')
+    region_tz.add_argument('filter', nargs='?')
+    region_loc = region_sub.add_parser('locales', parents=[json_parent], help='List installed locales')
+    region_loc.add_argument('filter', nargs='?')
+
+    # ---- cybex ask ----------------------------------------------------------
+    ask = commands.add_parser('ask', help='Ask Wiz from the terminal',
+                              description='Send a question to Wiz, the Cybex OS Assistant.')
+    ask.add_argument('--agent', choices=('auto', 'claude', 'codex'), default='auto',
+                     help='Choose which coding agent answers')
+    ask.add_argument('text', nargs='+', help='Your question for Wiz')
+
+    # ---- Hidden UI/backend plumbing (kept for Quickshell, Wiz & tests) ------
+    software = commands.add_parser('software', parents=[json_parent])
     software_sub = software.add_subparsers(dest='software_action', required=True)
-    software_sub.add_parser('list')
-    software_sub.add_parser('catalogue', help='The app catalogue with what is installed here, and by whom')
-    search = software_sub.add_parser('search'); search.add_argument('query', nargs='?', default='')
-    software_check = software_sub.add_parser('check', help='Whether installing packages would compile anything')
+    software_sub.add_parser('list', parents=[json_parent])
+    software_sub.add_parser('catalogue', parents=[json_parent])
+    search = software_sub.add_parser('search', parents=[json_parent]); search.add_argument('query', nargs='?', default='')
+    software_check = software_sub.add_parser('check', parents=[json_parent])
     software_check.add_argument('attributes', nargs='+', metavar='ATTRIBUTE')
-    software_request = software_sub.add_parser('request'); software_request.add_argument('identifier')
-    software_stage = software_sub.add_parser('stage'); software_stage.add_argument('request')
-    # Flathub apps for this account (docs/software-and-defaults.md#flathub).
-    flathub = software_sub.add_parser('flathub', help='Sandboxed apps from Flathub for this account')
+    software_request = software_sub.add_parser('request', parents=[json_parent]); software_request.add_argument('identifier')
+    software_stage = software_sub.add_parser('stage', parents=[json_parent]); software_stage.add_argument('request')
+    flathub = software_sub.add_parser('flathub', parents=[json_parent])
     flathub_sub = flathub.add_subparsers(dest='flathub_action', required=True)
-    flathub_sub.add_parser('status', help='Installed Flathub apps and the latest change, without contacting Flathub')
-    flathub_search = flathub_sub.add_parser('search'); flathub_search.add_argument('query', nargs='?', default='')
-    flathub_app = flathub_sub.add_parser('app'); flathub_app.add_argument('id')
-    flathub_sub.add_parser('updates', help='Flathub apps with a newer version')
+    flathub_sub.add_parser('status', parents=[json_parent])
+    flathub_search = flathub_sub.add_parser('search', parents=[json_parent]); flathub_search.add_argument('query', nargs='?', default='')
+    flathub_app = flathub_sub.add_parser('app', parents=[json_parent]); flathub_app.add_argument('id')
+    flathub_sub.add_parser('updates', parents=[json_parent])
     for name in ('install', 'remove', 'update'):
-        change = flathub_sub.add_parser(name)
+        change = flathub_sub.add_parser(name, parents=[json_parent])
         change.add_argument('ids', nargs='*' if name == 'update' else '+', metavar='APP_ID')
         change.add_argument('--names', default='{}', help=argparse.SUPPRESS)
-    flathub_run = flathub_sub.add_parser('run', help=argparse.SUPPRESS); flathub_run.add_argument('task')
-    maintenance = commands.add_parser('maintenance')
+    flathub_run = flathub_sub.add_parser('run', parents=[json_parent]); flathub_run.add_argument('task')
+
+    maintenance = commands.add_parser('maintenance', parents=[json_parent])
     maintenance_sub = maintenance.add_subparsers(dest='maintenance_action', required=True)
     for name in ('status', 'preview', 'resume'):
-        maintenance_sub.add_parser(name)
-    clean = maintenance_sub.add_parser('clean'); clean.add_argument('review'); clean.add_argument('token')
-    pin = maintenance_sub.add_parser('pin'); pin.add_argument('deployment'); pin.add_argument('enabled', choices=('true', 'false'))
-    maintenance_request = maintenance_sub.add_parser('request'); maintenance_request.add_argument('identifier')
-    maintenance_policy = maintenance_sub.add_parser('policy'); maintenance_policy.add_argument('request')
-    config = commands.add_parser('config')
+        maintenance_sub.add_parser(name, parents=[json_parent])
+    clean = maintenance_sub.add_parser('clean', parents=[json_parent]); clean.add_argument('review'); clean.add_argument('token')
+    pin = maintenance_sub.add_parser('pin', parents=[json_parent]); pin.add_argument('deployment'); pin.add_argument('enabled', choices=('true', 'false'))
+    maintenance_request = maintenance_sub.add_parser('request', parents=[json_parent]); maintenance_request.add_argument('identifier')
+    maintenance_policy = maintenance_sub.add_parser('policy', parents=[json_parent]); maintenance_policy.add_argument('request')
+
+    config = commands.add_parser('config', parents=[json_parent])
     config.add_argument('domain', choices=('region',))
-    # One or two FIELD VALUE PREVIOUS triples: a timezone and a language
-    # change staged together become one deployment and one restart.
-    config.add_argument('changes', nargs='+', metavar='FIELD VALUE PREVIOUS',
-                        help='timezone or locale, the new value, and the JSON value from the current region snapshot')
-    # Helpers own their options (cybex doctor --json, --help); REMAINDER alone
-    # cannot start with an option, so those arrive as parse_known_args extras.
-    for name in ('agent', 'assistant', 'backup', 'report', 'doctor'):
-        command = commands.add_parser(name, add_help=False); command.add_argument('arguments', nargs=argparse.REMAINDER)
-    plugin = commands.add_parser('plugin'); plugin.add_argument('arguments', nargs=argparse.REMAINDER)
-    shell = commands.add_parser('shell'); shell.add_argument('arguments', nargs=argparse.REMAINDER)
-    theme = commands.add_parser('theme'); theme.add_argument('arguments', nargs=argparse.REMAINDER)
-    update = commands.add_parser('update')
-    sub = update.add_subparsers(dest='action', required=True)
-    sub.add_parser('check')
-    sub.add_parser('status')
-    sub.add_parser('history')
-    update_request = sub.add_parser('request'); update_request.add_argument('identifier')
-    log = sub.add_parser('log'); log.add_argument('transaction')
-    stage = sub.add_parser('stage'); stage.add_argument('scope', choices=('upstream', 'cybexos', 'both', 'local', 'firmware'))
-    apply = sub.add_parser('apply'); apply.add_argument('transaction'); apply.add_argument('review_token')
-    rollback = sub.add_parser('rollback'); rollback.add_argument('transaction', nargs='?')
-    sub.add_parser('confirm')
-    retry = sub.add_parser('retry-failed'); retry.add_argument('transaction')
-    discard = sub.add_parser('discard'); discard.add_argument('transaction')
-    choice = sub.add_parser('automatic', help='Prepare updates or confirm restarts automatically')
-    choice.add_argument('name', choices=('prepare', 'confirm')); choice.add_argument('enabled', choices=('on', 'off'))
-    release_choice = sub.add_parser('channel', help='Show or choose the Cybex OS release channel (stable or beta)')
-    release_choice.add_argument('name', nargs='?', choices=channels.CHANNELS)
+    config.add_argument('changes', nargs='+', metavar='FIELD VALUE PREVIOUS')
+
+    # Helpers own their options (--json, --help); REMAINDER alone cannot start
+    # with an option, so those arrive as parse_known_args extras.
+    for name in PASSTHROUGH:
+        command = commands.add_parser(name, add_help=False)
+        command.add_argument('arguments', nargs=argparse.REMAINDER)
+
+    return parser
+
+
+def _handle_shell(passthrough_args, *, json_mode):
+    args = list(passthrough_args)
+    if '--json' in args:
+        json_mode = True
+        args = [arg for arg in args if arg != '--json']
+    if not args or args[0] in ('-h', '--help', 'help'):
+        print('\n'.join([
+            'usage: cybex shell {status,safe,recover} [--json]',
+            '',
+            'Desktop shell health and crash-loop safe mode.',
+            '',
+            'commands:',
+            '  status    Show whether the desktop shell is normal or in safe mode',
+            '  safe      Restart the desktop shell in safe mode (pauses widgets)',
+            '  recover   Leave safe mode and restart the full desktop shell',
+        ]))
+        return
+    if args == ['status'] and not json_mode:
+        res = subprocess.run(['cybexos-runtime', 'shell', 'status'], text=True, capture_output=True)
+        if res.returncode != 0:
+            raise Failure((res.stderr or res.stdout).strip() or 'Could not read desktop shell status.')
+        try:
+            data = json.loads(res.stdout)
+        except ValueError:
+            sys.stdout.write(res.stdout)
+            return
+        print(cli_format.format_shell_status(data))
+        return
+    os.execvp('cybexos-runtime', ['cybexos-runtime', 'shell', *args])
+
+
+def _handle_plugin(passthrough_args, *, json_mode):
+    args = list(passthrough_args)
+    if '--json' in args:
+        json_mode = True
+    env = dict(os.environ)
+    env['CYBEX_CLI_PROG'] = 'cybex plugin'
+    if not json_mode:
+        env['CYBEX_CLI_HUMAN'] = '1'
+    else:
+        env.pop('CYBEX_CLI_HUMAN', None)
+    if not args:
+        args = ['--help']
+    os.execvpe('cybexos-runtime', ['cybexos-runtime', 'plugin', *args], env)
+
+
+def _handle_assistant(passthrough_args, *, json_mode):
+    args = list(passthrough_args)
+    if '--json' in args:
+        json_mode = True
+        args = [arg for arg in args if arg != '--json']
+    env = dict(os.environ)
+    env['CYBEX_CLI_PROG'] = 'cybex assistant'
+    if args[:1] == ['status'] and not json_mode and '-h' not in args and '--help' not in args:
+        res = subprocess.run(['cybexos-assistant', *args], text=True, capture_output=True, env=env)
+        if res.returncode != 0:
+            raise Failure((res.stderr or res.stdout).strip() or 'The assistant service is not running.')
+        try:
+            data = json.loads(res.stdout)
+        except ValueError:
+            sys.stdout.write(res.stdout)
+            return
+        print(cli_format.format_assistant_status(data))
+        return
+    if not args:
+        args = ['--help']
+    os.execvpe('cybexos-assistant', ['cybexos-assistant', *args], env)
+
+
+def _handle_update(args, *, json_mode):
+    global _ERROR_FORMAT
+    action = args.action
+    if action in ('request', 'retry-failed'):
+        _ERROR_FORMAT = 'json'
+
+    if LIVE_MARKER.exists():
+        if action == 'check':
+            payload = {'available': False, 'reason': LIVE_UPDATE_REASON,
+                       'upstream': {'state': 'unavailable'}, 'cybexos': {'state': 'unavailable'}}
+            print(json.dumps(payload) if json_mode else cli_format.format_update_check(payload))
+            return
+        if action == 'status':
+            payload = {'available': False, 'state': 'unavailable', 'phase': LIVE_UPDATE_REASON}
+            print(json.dumps(payload) if json_mode else cli_format.format_update_status(payload))
+            return
+        raise Failure(LIVE_UPDATE_REASON)
+
+    if action is None:
+        if json_mode:
+            print(json.dumps(update_status()))
+            return
+        cli_flows.interactive_update(scope=args.scope, assume_yes=args.yes, stage_only=args.no_apply)
+        return
+
+    if action == 'status':
+        data = update_status()
+        print(json.dumps(data) if json_mode else cli_format.format_update_status(data))
+        return
+    if action == 'channel' and not args.name:
+        data = release_channel()
+        print(json.dumps(data) if json_mode else cli_format.format_channel(data))
+        return
+    if action == 'automatic' and not args.name:
+        data = automatic.policy(Path('/var/lib/cybexos'))
+        print(json.dumps(data) if json_mode else cli_format.format_automatic(data))
+        return
+    if action == 'automatic' and (not args.name or not args.enabled):
+        raise Failure('Specify both prepare|confirm and on|off (for example: cybex update automatic prepare on).')
+    if action == 'request':
+        print(json.dumps(request_status(args.identifier)))
+        return
+    if action == 'check':
+        data = run_check()
+        print(json.dumps(data) if json_mode else cli_format.format_update_check(data))
+        return
+    if action == 'history':
+        if json_mode:
+            os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, 'history'])
+        records = cli_flows.run_privileged('history')
+        print(cli_format.format_update_history(records if isinstance(records, list) else []))
+        return
+    if action == 'log':
+        tx = cli_flows.resolve_transaction(args.transaction)
+        os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, 'log', tx])
+
+    # JSON / machine-caller async boundary (Updates.qml, tests, scripts)
+    if json_mode or action == 'retry-failed':
+        if action == 'apply' and (not args.transaction or not args.review_token):
+            raise Failure('Applying with --json requires TRANSACTION and REVIEW_TOKEN.')
+        if action == 'discard' and not args.transaction:
+            raise Failure('Discarding with --json requires TRANSACTION.')
+        extra = ([args.scope] if action == 'stage' else
+                 [args.name, args.enabled] if action == 'automatic' else
+                 [args.name] if action == 'channel' else
+                 [args.transaction, args.review_token] if action == 'apply' else
+                 [args.transaction] if action in ('rollback', 'retry-failed', 'discard') and args.transaction else [])
+        os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, action, *extra])
+
+    # Human-friendly privileged actions
+    style = cli_format.Style()
+    if action == 'channel':
+        data = cli_flows.run_privileged('channel', args.name)
+        print(cli_format.format_channel(data.get('channel') or data, style=style))
+        return
+    if action == 'automatic':
+        data = cli_flows.run_privileged('automatic', args.name, args.enabled)
+        print(cli_format.format_automatic(data.get('automatic') or data, style=style))
+        return
+    if action == 'stage':
+        if args.no_wait:
+            cli_flows.run_privileged('stage', args.scope)
+            print(style.ok('✓ Update preparation started.') + " Check progress with 'cybex update status'.")
+            return
+        cli_flows.interactive_update(scope=args.scope, stage_only=True, style=style)
+        return
+    if action == 'apply':
+        if not args.transaction and not args.review_token:
+            current = update_status()
+            if current.get('state') != 'ready':
+                raise Failure('No prepared update is ready to apply. Run "cybex update" first.')
+            cli_flows._apply_ready_status(current, assume_yes=args.yes, prompt_text='Apply this update now?', style=style)
+            return
+        if not args.transaction or not args.review_token:
+            raise Failure('Pass both TRANSACTION and REVIEW_TOKEN, or omit both to apply the current prepared update.')
+        accepted = cli_flows.run_privileged('apply', args.transaction, args.review_token)
+        result = cli_flows.wait_for_update(accepted.get('requestId'),
+                                           target_states=('awaiting-boot', 'awaiting-login', 'done', 'failed', 'rolled-back', 'recovery-failed'))
+        if result.get('state') in ('failed', 'rolled-back', 'recovery-failed'):
+            raise Failure(result.get('error') or result.get('phase') or 'Applying the update failed.')
+        print(style.ok('✓ Update applied.') + (' Restart when convenient to finish.' if result.get('state') == 'awaiting-boot' else ''))
+        return
+    if action == 'discard':
+        tx = cli_flows.resolve_transaction(args.transaction)
+        accepted = cli_flows.run_privileged('discard', tx)
+        cli_flows.wait_for_update(accepted.get('requestId'), target_states=('idle', 'failed'))
+        print(style.ok('✓ Prepared update discarded.'))
+        return
+    if action == 'confirm':
+        accepted = cli_flows.run_privileged('confirm')
+        result = cli_flows.wait_for_update(accepted.get('requestId'), target_states=('done', 'failed', 'rolled-back'))
+        if result.get('state') != 'done':
+            raise Failure(result.get('error') or result.get('phase') or 'Could not confirm this boot.')
+        print(style.ok('✓ Deployment confirmed and kept.'))
+        return
+    if action == 'rollback':
+        tx = cli_flows.resolve_transaction(args.transaction) if args.transaction else None
+        accepted = cli_flows.run_privileged('rollback', *([tx] if tx else []))
+        result = cli_flows.wait_for_update(accepted.get('requestId'), target_states=('rolled-back', 'done', 'failed', 'recovery-failed'))
+        if result.get('state') in ('failed', 'recovery-failed'):
+            raise Failure(result.get('error') or result.get('phase') or 'Rollback failed.')
+        print(style.ok('✓ Restored previous deployment.') + ' Restart if the previous kernel or boot changed.')
+
+
+def main():
+    global _ERROR_FORMAT
+    parser = _build_parser()
     args, extra = parser.parse_known_args()
-    if extra and args.command not in ('agent', 'assistant', 'backup', 'report', 'doctor'):
+    json_mode = bool(getattr(args, 'json', False))
+    _ERROR_FORMAT = 'json' if (json_mode or args.command in PLUMBING) else 'human'
+
+    if args.show_version:
+        ver = _release_version() or 'unknown'
+        print(json.dumps({'version': ver}) if json_mode else f'Cybex OS {ver}')
+        return
+    if args.show_help or args.command in (None, 'help'):
+        if extra:
+            parser.error('unrecognized arguments: ' + ' '.join(extra))
+        print(cli_format.format_help(installed=not LIVE_MARKER.exists(), release_version=_release_version()))
+        return
+    if extra and args.command not in PASSTHROUGH:
         parser.error('unrecognized arguments: ' + ' '.join(extra))
+
     if args.command == 'version':
-        print(read('/etc/cybexos/release.json')['version']); return
+        ver = read('/etc/cybexos/release.json')['version']
+        print(json.dumps({'version': ver}) if json_mode else ver)
+        return
+    if args.command == 'status':
+        data = cli_flows.collect_status()
+        print(json.dumps(data, indent=2) if json_mode else cli_format.format_status_overview(data))
+        return
     if args.command == 'hardware':
         from .hardware import report
-        print(json.dumps(report(), indent=2)); return
+        data = report()
+        print(json.dumps(data, indent=2) if json_mode else cli_format.format_hardware(data))
+        return
+    if args.command == 'apps':
+        cli_flows.handle_apps(args, json_mode=json_mode)
+        return
+    if args.command == 'cleanup':
+        cli_flows.handle_cleanup(args, json_mode=json_mode)
+        return
+    if args.command == 'region':
+        cli_flows.handle_region(args, json_mode=json_mode)
+        return
+    if args.command == 'ask':
+        os.execvp('cybexos-assistant', ['cybexos-assistant', 'ask', '--agent', args.agent, *args.text])
+    if args.command == 'install':
+        os.execvp('cybexos-install', ['cybexos-install', *(['--terminal'] if args.terminal else [])])
+
+    if args.command == 'shell':
+        _handle_shell([*extra, *args.arguments], json_mode=json_mode)
+        return
+    if args.command == 'plugin':
+        _handle_plugin([*extra, *args.arguments], json_mode=json_mode)
+        return
+    if args.command == 'assistant':
+        _handle_assistant([*extra, *args.arguments], json_mode=json_mode)
+        return
+    if args.command == 'theme':
+        forward = [*extra, *args.arguments]
+        if json_mode and '--json' not in forward:
+            forward.append('--json')
+        os.execvp('cybexos-theme', ['cybexos-theme', *forward])
+    if args.command in ('agent', 'backup', 'report', 'doctor'):
+        forward = [*extra, *args.arguments]
+        if json_mode and '--json' not in forward:
+            forward.append('--json')
+        os.execvp('cybexos-' + args.command, ['cybexos-' + args.command, *forward])
+
+    # ---- Hidden plumbing endpoints (preserve exact JSON contract) -----------
     if args.command == 'software':
         require_installed()
         from . import software as native
@@ -326,7 +716,8 @@ def main():
             except ValueError:
                 raise Failure('Invalid app names') from None
             print(json.dumps(flathub.start(action, args.ids, names=names))); return
-        os.execv(PKEXEC, [PKEXEC, '/run/current-system/sw/bin/cybexos-request', 'software', args.request])
+        os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, 'software', args.request])
+
     if args.command == 'maintenance':
         require_installed()
         if args.maintenance_action == 'request':
@@ -334,11 +725,12 @@ def main():
         if args.maintenance_action == 'status':
             from .maintenance import public_status
             print(json.dumps(public_status())); return
-        extra = ([args.review, args.token] if args.maintenance_action == 'clean' else
-                 [args.deployment, args.enabled] if args.maintenance_action == 'pin' else
-                 [args.request] if args.maintenance_action == 'policy' else [])
+        extra_args = ([args.review, args.token] if args.maintenance_action == 'clean' else
+                      [args.deployment, args.enabled] if args.maintenance_action == 'pin' else
+                      [args.request] if args.maintenance_action == 'policy' else [])
         action = 'maintenance-policy' if args.maintenance_action == 'policy' else 'maintenance-' + args.maintenance_action
-        os.execv(PKEXEC, [PKEXEC, '/run/current-system/sw/bin/cybexos-request', action, *extra])
+        os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, action, *extra_args])
+
     if args.command == 'config':
         from .common import parse
         if len(args.changes) not in (3, 6):
@@ -348,51 +740,10 @@ def main():
                                for field, value, previous in triples]}
         from .configuration import changes
         changes(payload)
-        os.execv(PKEXEC, [PKEXEC, '/run/current-system/sw/bin/cybexos-request', 'region', json.dumps(payload)])
-    if args.command in ('agent', 'assistant', 'backup', 'report', 'doctor'):
-        os.execvp('cybexos-' + args.command, ['cybexos-' + args.command, *extra, *args.arguments])
-    if args.command == 'install':
-        os.execvp('cybexos-install', ['cybexos-install', *(['--terminal'] if args.terminal else [])])
-    if args.command in ('plugin', 'shell'):
-        os.execvp('cybexos-runtime', ['cybexos-runtime', args.command, *args.arguments])
-    if args.command == 'theme':
-        os.execvp('cybexos-theme', ['cybexos-theme', *args.arguments])
-    if LIVE_MARKER.exists():
-        if args.action == 'check':
-            print(json.dumps({'available': False, 'reason': LIVE_UPDATE_REASON,
-                              'upstream': {'state': 'unavailable'}, 'cybexos': {'state': 'unavailable'}}))
-            return
-        if args.action == 'status':
-            print(json.dumps({'available': False, 'state': 'unavailable', 'phase': LIVE_UPDATE_REASON}))
-            return
-        raise Failure(LIVE_UPDATE_REASON)
-    if args.action == 'status':
-        print(json.dumps(update_status()))
-    elif args.action == 'channel' and not args.name:
-        print(json.dumps(release_channel()))
-    elif args.action == 'request':
-        print(json.dumps(request_status(args.identifier)))
-    elif args.action == 'check':
-        # Root-owned configuration is readable; cache/network work uses the caller's cache.
-        engine = object.__new__(Engine)
-        engine.state = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'cybexos'
-        engine.state.mkdir(parents=True, exist_ok=True)
-        engine.working = Path('/etc/nixos')
-        engine.release = Path('/etc/cybexos/release.json')
-        engine.policy = channels.DECLARED
-        engine.channel_state = Path('/var/lib/cybexos')
-        from .common import Runner
-        engine.run = Runner()
-        print(json.dumps(engine.check()))
-    elif args.action == 'history':
-        os.execv(PKEXEC, [PKEXEC, '/run/current-system/sw/bin/cybexos-request', 'history'])
-    else:
-        extra = ([args.scope] if args.action == 'stage' else
-                 [args.name, args.enabled] if args.action == 'automatic' else
-                 [args.name] if args.action == 'channel' else
-                 [args.transaction, args.review_token] if args.action == 'apply' else
-                 [args.transaction] if args.action in ('rollback', 'retry-failed', 'log', 'discard') and args.transaction else [])
-        os.execv(PKEXEC, [PKEXEC, '/run/current-system/sw/bin/cybexos-request', args.action, *extra])
+        os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, 'region', json.dumps(payload)])
+
+    if args.command == 'update':
+        _handle_update(args, json_mode=json_mode)
 
 
 def choose_channel(state, name, policy=channels.DECLARED, engine=None):
@@ -426,7 +777,6 @@ def request():
             raise Failure('Invalid personal declaration request')
         print(json.dumps(enqueue(state, action, payload))); return
     if action.startswith('maintenance-'):
-        import re
         valid = ((action in ('maintenance-preview', 'maintenance-resume') and not values)
                  or (action == 'maintenance-clean' and len(values) == 2
                      and re.fullmatch('[0-9a-f]{32}', values[0]) and re.fullmatch('[0-9a-f]{64}', values[1]))
@@ -451,7 +801,6 @@ def request():
     if action == 'channel' and len(values) == 1:
         print(json.dumps({'channel': choose_channel(state, values[0])})); return
     if action == 'log' and len(values) == 1:
-        import re
         if not re.fullmatch('[0-9a-f]{32}', values[0]):
             raise Failure('Invalid deployment identifier')
         path = state / 'transactions' / values[0] / 'build.log'
@@ -465,7 +814,6 @@ def request():
                 sys.stdout.write(log_line(line))
         return
     if action == 'retry-failed' and len(values) == 1:
-        import re
         if not re.fullmatch('[0-9a-f]{32}', values[0]):
             raise Failure('Invalid deployment identifier')
         tx = state / 'transactions' / values[0]
@@ -476,7 +824,7 @@ def request():
             authorized = []
             for failed in (state / 'transactions').glob('*/failed.json'):
                 if read(failed.parent / 'deployment.json', {}).get('system') == system:
-                    atomic(failed.parent / 'retry-authorized.json', {'authorizedAt': __import__('time').time()})
+                    atomic(failed.parent / 'retry-authorized.json', {'authorizedAt': time.time()})
                     authorized.append(failed.parent.name)
         print(json.dumps({'retryAuthorized': values[0], 'sameSystemDeployments': authorized})); return
     if action == 'history' and not values:
@@ -504,13 +852,12 @@ def admin():
                   else automatic.confirm(engine, enqueue_update, status))
         print(json.dumps(result))
     elif action in ('software', 'maintenance-policy', 'maintenance') and len(values) == 1:
-        import re
         if not re.fullmatch('[a-f0-9]{32}', values[0]):
             raise Failure('Invalid request identifier')
         path = engine.state / 'requests' / (values[0] + '.json')
         payload = read(path)
-        request_status = engine.state / 'request-status' / (values[0] + '.json')
-        atomic(request_status, read(request_status, {}) | {'state':'running', 'unit':f'cybexos-{action}@{values[0]}.service'}, 0o644)
+        req_status = engine.state / 'request-status' / (values[0] + '.json')
+        atomic(req_status, read(req_status, {}) | {'state':'running', 'unit':f'cybexos-{action}@{values[0]}.service'}, 0o644)
         try:
             if action == 'software':
                 engine.stage('local', software=payload, request_id=values[0])
@@ -531,9 +878,9 @@ def admin():
                 except BaseException as error:
                     service.publish(state='failed', error=str(error) if isinstance(error, Failure) else 'Storage cleanup failed. Inspect the private maintenance log.', reviewToken=None)
                     raise
-            atomic(request_status, read(request_status) | {'state':'done', 'finishedAt':time.time()}, 0o644)
+            atomic(req_status, read(req_status) | {'state':'done', 'finishedAt':time.time()}, 0o644)
         except BaseException as error:
-            atomic(request_status, read(request_status) | {'state':'failed', 'finishedAt':time.time(), 'error':str(error) if isinstance(error, Failure) else 'The request failed. Inspect its private system service log.'}, 0o644)
+            atomic(req_status, read(req_status) | {'state':'failed', 'finishedAt':time.time(), 'error':str(error) if isinstance(error, Failure) else 'The request failed. Inspect its private system service log.'}, 0o644)
             raise
         finally:
             path.unlink(missing_ok=True)
@@ -549,8 +896,13 @@ def admin():
 
 
 def entry(function):
+    global _ERROR_FORMAT
+    _ERROR_FORMAT = 'json'
     try:
         function()
     except (Failure, ValueError, KeyError, OSError, subprocess.SubprocessError) as error:
-        print(json.dumps({'error': str(error)}), file=sys.stderr)
+        if function is main and _ERROR_FORMAT == 'human':
+            print(f'cybex: {error}', file=sys.stderr)
+        else:
+            print(json.dumps({'error': str(error)}), file=sys.stderr)
         sys.exit(1)

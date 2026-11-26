@@ -43,13 +43,17 @@ moves a machine to that release and its Nixpkgs together
 ([updates](docs/updates.md#nixpkgs-comes-with-the-release)):
 
 ```console
-cybex update check
-cybex update stage both      # or cybexos (the release alone), upstream, local
-cybex update status          # review the built changes and returned ID/token
-cybex update apply ID TOKEN
-# Reboot when you choose, sign in, then:
-cybex update confirm
+cybex status                 # quick overview of this computer
+cybex update                 # check, prepare, review and apply interactively
+cybex apps search firefox    # search and install NixOS or Flathub apps
+cybex cleanup                # preview and free space from old generations
+cybex doctor                 # read-only system check
 ```
+
+Add `--json` to any command for machine-readable output (used by Software
+Update, Settings, and scripts). The low-level step-by-step commands
+(`cybex update check`, `stage`, `status`, `apply`, `confirm`, `rollback`) stay
+available alongside the guided flow.
 
 Software Update and the CLI use the same supervised, serialized lifecycle.
 When the combined update fails, for example on a package NixOS hasn't built

@@ -9,8 +9,9 @@ stdenvNoCC.mkDerivation {
   nativeBuildInputs = [ makeWrapper python3 ];
   dontBuild = true;
   installPhase = ''
-    mkdir -p $out/lib/cybexos $out/bin $out/share/cybexos
+    mkdir -p $out/lib/cybexos $out/bin $out/share/cybexos $out/share/fish/vendor_completions.d
     cp -r lifecycle/cybexos $out/lib/
+    cp lifecycle/completions/cybex.fish $out/share/fish/vendor_completions.d/
     cp -r templates/machine $out/share/cybexos/
     cp -r agent-skills/cybexos $out/share/cybexos/skill
     cp -r assets/brand $out/share/cybexos/
@@ -45,6 +46,8 @@ stdenvNoCC.mkDerivation {
       cat dispatch.log >&2
       exit 1
     fi
+    env -i HOME="$TMPDIR" "$out/bin/cybex" --help | grep -q 'Apps & Desktop'
+    test -r "$out/share/fish/vendor_completions.d/cybex.fish"
   '';
   meta.license = lib.licenses.mit;
 }

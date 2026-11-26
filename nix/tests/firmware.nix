@@ -61,14 +61,14 @@ in pkgs.testers.runNixOSTest {
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("display-manager.service")
     machine.wait_for_unit("cybexos-recover.service")
-    machine.succeed("cybex update automatic prepare off")
+    machine.succeed("cybex update automatic prepare off --json")
     with subtest("the shared quiet defaults reach the running kernel and both boot stages"):
         cmdline = machine.succeed("cat /proc/cmdline").split()
         assert {"quiet", "loglevel=0", "systemd.show_status=false", "rd.systemd.show_status=false"} <= set(cmdline), cmdline
         assert machine.succeed("cut -f1 /proc/sys/kernel/printk").strip() == "0"
 
     def status():
-        return json.loads(machine.succeed("runuser -u tester -- cybex update status"))
+        return json.loads(machine.succeed("runuser -u tester -- cybex update status --json"))
 
     def request(arguments):
         accepted = json.loads(machine.succeed("cybexos-request " + arguments))
@@ -78,7 +78,7 @@ in pkgs.testers.runNixOSTest {
     with subtest("prepare reviews firmware without activating an OS or flashing"):
         before = machine.succeed("readlink -f /run/current-system").strip()
         accepted = request("stage firmware")
-        machine.wait_until_succeeds("cybex update status | grep -q '\"state\": \"ready\"'")
+        machine.wait_until_succeeds("cybex update status --json | grep -q '\"state\": \"ready\"'")
         ready = status()
         assert ready["scope"] == "firmware", ready
         assert ready["firmware"]["devices"][0]["to"] == "2", ready
@@ -86,7 +86,7 @@ in pkgs.testers.runNixOSTest {
 
     with subtest("the supervised worker publishes progress and finishes independently of clients"):
         accepted = request("apply " + ready["transaction"] + " " + ready["reviewToken"])
-        machine.wait_until_succeeds("cybex update status | grep -q '\"percent\": 42'")
+        machine.wait_until_succeeds("cybex update status --json | grep -q '\"percent\": 42'")
         installing = status()
         assert installing["state"] == "firmware", installing
         assert installing["firmware"]["requests"][0]["message"] == "Keep external power connected.", installing

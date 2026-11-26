@@ -51,7 +51,7 @@ FAKE = r'''#!/usr/bin/env python3
 import json, os, sys, time
 from pathlib import Path
 root = Path(os.environ['XDG_RUNTIME_DIR'])
-args = sys.argv[1:]
+args = [arg for arg in sys.argv[1:] if arg != '--json']
 if args[:1] != ['update']:
     sys.exit(1)
 fixture = json.loads((root / 'fixture.json').read_text())

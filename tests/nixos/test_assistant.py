@@ -636,6 +636,10 @@ class PolicyTest(unittest.TestCase):
                         "git status", "bash -c 'ls -la'", "rg -n foo ~/.config 2>/dev/null",
                         "cd ~/.config && ls", "uname -a; id", "cybex plugin list", "cat $HOME/.bashrc",
                         "cybex doctor", "cybex doctor --json", "cybex doctor --json | jq .overall",
+                        "cybex status", "cybex status --json", "cybex hardware --json",
+                        "cybex update status --json", "cybex update channel",
+                        "cybex apps list", "cybex apps search vim", "cybex cleanup status",
+                        "cybex region", "cybex region timezones",
                         "hyprctl -j configerrors", "cybex shell status"):
             self.assertEqual(self.decide(command).action, "allow", command)
 
@@ -652,6 +656,7 @@ class PolicyTest(unittest.TestCase):
                                   ("echo $(pkexec id)", "administrator"), ("nixos-rebuild switch", "reviewed"),
                                   ("systemctl reboot", "restarts"), ("reboot", "restarts"),
                                   ("loginctl suspend", "restarts"), ("cybex update rollback", "Rollback"),
+                                  ("cybex update rollback --json", "Rollback"),
                                   ("env FOO=1 sudo id", "administrator")):
             decision = self.decide(command)
             self.assertEqual(decision.action, "deny", command)

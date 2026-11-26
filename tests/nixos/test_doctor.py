@@ -67,7 +67,7 @@ STUBS = {
     'timedatectl': 'stub timedatectl "$@"; cat "$FIXTURE/timedatectl"',
     'nmcli': 'stub nmcli "$@"; cat "$FIXTURE/connectivity"',
     'hyprctl': 'stub hyprctl "$@"; [[ $HYPRLAND_INSTANCE_SIGNATURE == "$SIGNATURE" ]] && cat "$FIXTURE/configerrors"',
-    'cybex': 'stub cybex "$@"; if [[ $* == "hardware" ]]; then cat "$FIXTURE/hardware.json"; elif [[ $* == "shell status" ]]; then cat "$FIXTURE/shell.json"; fi',
+    'cybex': 'stub cybex "$@"; if [[ $* == "hardware --json" || $* == "hardware" ]]; then cat "$FIXTURE/hardware.json"; elif [[ $* == "shell status --json" || $* == "shell status" ]]; then cat "$FIXTURE/shell.json"; fi',
 }
 PRELUDE = textwrap.dedent('''\
     stub() {

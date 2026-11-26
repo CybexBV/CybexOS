@@ -325,13 +325,19 @@ def systemctl_read_only(args):
 
 
 def cybex_read_only(args):
-    verbs = list(args)
-    if verbs in (["version"], ["doctor"], ["doctor", "--json"]):
+    verbs = [arg for arg in args if arg != "--json"]
+    if verbs in (["version"], ["status"], ["hardware"], ["doctor"], ["region"]):
+        return True
+    if verbs[:1] == ["update"] and verbs[1:] in (["channel"], ["automatic"]):
         return True
     head = verbs[:2]
     return (head[:1] == ["update"] and head[1:] in (["status"], ["check"], ["history"], ["log"])
-            or head[:1] == ["software"] and head[1:] in (["list"], ["search"], ["request"])
-            or head in (["plugin", "list"], ["shell", "status"])
+            or head[:1] == ["software"] and head[1:] in (["list"], ["catalogue"], ["search"], ["check"], ["request"])
+            or verbs[:2] == ["software", "flathub"] and verbs[2:3] in (["status"], ["search"], ["app"], ["updates"])
+            or head[:1] == ["apps"] and head[1:] in (["list"], ["search"], ["info"], ["updates"])
+            or head == ["cleanup", "status"]
+            or head[:1] == ["region"] and head[1:] in (["status"], ["timezones"], ["locales"])
+            or head in (["plugin", "list"], ["shell", "status"], ["theme", "list"])
             or head[:1] == ["agent"] and head[1:] in (["list"], ["get"])
             or head[:1] == ["maintenance"] and head[1:] in (["status"], ["request"])
             or head[:1] == ["assistant"] and head[1:] == ["status"])
@@ -418,7 +424,7 @@ def decide_command(command, home=None, status_path=None, depth=0):
             if inner.action != "ask":
                 return inner
         if name == "cybex":
-            verbs = argv[1:]
+            verbs = [arg for arg in argv[1:] if arg != "--json"]
             if verbs[:2] == ["update", "stage"] and len(verbs) == 3 and verbs[2] in STAGE_SCOPES:
                 return allow(step="Waiting for administrator authentication", step_kind="install")
             if verbs[:2] == ["software", "stage"] and len(verbs) == 3:

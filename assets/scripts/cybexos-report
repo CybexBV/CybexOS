@@ -295,7 +295,7 @@ def diagnostics():
                 code, output = run(['systemctl', *(['--user'] if scope == 'user' else []), 'is-active', unit])
                 active = code == 0 and output == 'active'
                 record(unit, 'ok' if active else 'warning', output if active else output + note)
-    code, output = run([tool('cybex'), 'update', 'status'])
+    code, output = run([tool('cybex'), 'update', 'status', '--json'])
     deployment = json_or_text(output)
     state = deployment.get('state') if isinstance(deployment, dict) else None
     record('deployment', 'ok' if code == 0 and state in ('idle', 'done', 'ready') else 'warning',
@@ -304,7 +304,7 @@ def diagnostics():
     errors = json_or_text(output)
     healthy = code == 0 and isinstance(errors, list) and all(isinstance(error, str) and not error.strip() for error in errors)
     record('hyprland', 'ok' if healthy else 'warning', output[-4000:])
-    code, output = run([tool('cybex'), 'shell', 'status'])
+    code, output = run([tool('cybex'), 'shell', 'status', '--json'])
     shell = json_or_text(output)
     healthy = code == 0 and isinstance(shell, dict) and shell.get('safe') is False
     record('shell', 'ok' if healthy else 'warning', output[-4000:])
@@ -332,7 +332,7 @@ def collect():
         version_lines += ['', f'## {title}', output if rc == 0 else f'unavailable ({output})']
     sections['versions.txt'] = '\n'.join(version_lines) + '\n'
     sections['hardware.txt'] = hardware_summary()
-    rc, shell = run([cybex, 'shell', 'status'])
+    rc, shell = run([cybex, 'shell', 'status', '--json'])
     sections['shell-health.json'] = shell if rc == 0 and json_or_text(shell) is not None else json.dumps(
         {'available': False, 'output': shell[-2000:]})
     failed = []
@@ -347,7 +347,7 @@ def collect():
                                         f'{read(session_log, JOURNAL_LINES)}\n')
     sections['journal/quickshell.txt'] = journal(['-u', 'quickshell.service'], user=True) + '\n'
     sections['journal/sddm.txt'] = journal(['-u', 'sddm.service']) + '\n'
-    rc, update = run([cybex, 'update', 'status'])
+    rc, update = run([cybex, 'update', 'status', '--json'])
     update_units = ('cybexos-update@*.service', 'cybexos-software@*.service',
                     'cybexos-maintenance-policy@*.service', 'cybexos-maintenance@*.service',
                     'cybexos-recover.service', 'cybexos-region.service')

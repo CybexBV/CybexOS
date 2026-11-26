@@ -565,25 +565,57 @@ def runtime_sources(result: dict, packages: Path, runtime: Path) -> None:
             pass  # Only an optimization: the next scan hashes again.
 
 
+def format_human_list(result: dict) -> str:
+    if result.get("error"):
+        return f"Plugin registry error: {result['error']}"
+    plugins = result.get("plugins") or []
+    if not plugins:
+        return "No plugins installed. Add one with 'cybex plugin add <URL>'."
+    rows = []
+    for item in plugins:
+        status = "error" if item.get("error") else ("enabled" if item.get("enabled") else "disabled")
+        rows.append([item.get("id", ""), item.get("name", ""), status,
+                     item.get("section", "") or "-", item.get("format", "")])
+    headers = ["ID", "NAME", "STATUS", "SECTION", "FORMAT"]
+    widths = [max(len(headers[i]), *(len(row[i]) for row in rows)) for i in range(len(headers))]
+    lines = [f"Installed plugins ({len(plugins)})", "",
+             "  " + "  ".join(headers[i].ljust(widths[i]) if i < len(headers) - 1 else headers[i] for i in range(len(headers)))]
+    for row in rows:
+        lines.append("  " + "  ".join(row[i].ljust(widths[i]) if i < len(row) - 1 else row[i] for i in range(len(row))))
+    for item in plugins:
+        if item.get("error"):
+            lines.append(f"  ! {item.get('id')}: {item['error']}")
+    return "\n".join(lines)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    configure = commands.add_parser("configure-widget", help="Change one widget without disabling its plugin services")
+    prog = os.environ.get("CYBEX_CLI_PROG")
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Manage Cybex OS bar widgets and desktop plugins." if prog else __doc__,
+        epilog="Also available via cybex plugin: reload (rescan plugins), restart (restart shell)." if prog else None,
+    )
+    commands = parser.add_subparsers(
+        dest="command", required=True,
+        metavar="{list,add,update,remove,clone,enable,disable,set,instance,bar}",
+    )
+    configure = commands.add_parser("configure-widget")
     configure.add_argument("key")
     configure.add_argument("value")
-    move = commands.add_parser("move-widget", help="Move a native bar plugin widget, preserving its settings")
+    move = commands.add_parser("move-widget")
     move.add_argument("key")
     move.add_argument("section", choices=("left", "center", "right"))
     move.add_argument("index", type=int)
-    layout_edit = commands.add_parser("layout-edit", help="Apply one atomic IPC layout mutation")
+    layout_edit = commands.add_parser("layout-edit")
     layout_edit.add_argument("action", choices=("enable", "put", "move", "set"))
     layout_edit.add_argument("id")
     layout_edit.add_argument("payload")
-    bar_config = commands.add_parser("bar-config", help="Persist replacement bar settings and widget layout")
+    bar_config = commands.add_parser("bar-config")
     bar_config.add_argument("value")
-    listing = commands.add_parser("list", help="Inspect installed widgets and compatibility as JSON")
-    listing.add_argument("--runtime-root", type=Path)
-    listing.add_argument("--live", action="store_true")
+    listing = commands.add_parser("list", help="List installed plugins and widgets")
+    listing.add_argument("--runtime-root", type=Path, help=argparse.SUPPRESS)
+    listing.add_argument("--live", action="store_true", help=argparse.SUPPRESS)
+    listing.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     add = commands.add_parser("add", help="Install a trusted Git package (disabled until enabled)")
     add.add_argument("source")
     update = commands.add_parser("update", help="Validate and fast-forward a clean Git checkout")
@@ -601,7 +633,7 @@ def main() -> int:
     enable.add_argument("--width", type=int)
     enable.add_argument("--order", type=int)
     enable.add_argument("--section", choices=("left", "center", "right"))
-    merge = commands.add_parser("merge", help="Atomically merge plugin settings from a JSON object")
+    merge = commands.add_parser("merge")
     merge.add_argument("id")
     merge.add_argument("value")
     merge.add_argument("--instance")
@@ -649,7 +681,10 @@ def main() -> int:
                         args.runtime_root = cache / f"{owner}-{stamp}"
                 if args.runtime_root:
                     runtime_sources(result, packages, args.runtime_root)
-            print(json.dumps(result, ensure_ascii=False))
+            if os.environ.get("CYBEX_CLI_HUMAN") == "1" and not args.json and not args.live and not args.runtime_root:
+                print(format_human_list(result))
+            else:
+                print(json.dumps(result, ensure_ascii=False))
             return 0
         if args.command == "layout-edit":
             payload = json.loads(args.payload)
