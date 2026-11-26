@@ -96,12 +96,11 @@ Development commits may be pushed directly to `main`. To publish a release:
    `VERSION` and the notes first, then check. Once it passes, move `main` to
    exactly that commit with `git push origin COMMIT:main`. When `main` moved
    in the meantime the push fails: merge again and check again. The push
-   starts the full check on `main` once more; publishing needn't wait for it,
-   since the branch's run already checked that commit.
+   doesn't start another run: the branch's run already checked that commit.
 3. Run `release/publish VERSION` from a clean `main` equal to `origin/main`.
    It checks the version against `VERSION`, `release/compatibility.json` and
    the notes, refuses a tag on another commit, refuses a commit without a
-   passing `nixos.yml` run (dispatched, or started by a push to `main`),
+   passing dispatched `nixos.yml` run for that commit,
    creates and pushes the annotated `vVERSION` tag and creates the GitHub
    release with `gh` as a prerelease:
    it reaches beta machines only. Pass asset paths (an ISO and its checksum)
@@ -246,19 +245,20 @@ updater cannot install. Installed machines refuse a release that changes
 
 The **NixOS qualification** workflow (`.github/workflows/nixos.yml`) is the
 full check. It gates every release: `release/publish` and `release/promote`
-refuse a commit without a successful run for exactly that commit, either
-dispatched or started by a push to `main`. Both kinds check out the commit
-they were started for (each job verifies it); a pull request's run would
-check a merge commit, so it never counts. Nor does a run whose upgrade job
+refuse a commit without a successful dispatched run for exactly that commit
+(runs that pushes to `main` started before 2026-11-26 count too). A run
+checks out the commit it was started for (each job verifies it); a pull
+request's run would check a merge commit, so it never counts. Nor does a run whose upgrade job
 started from another release (`-f from=`, below): its title says so, and
 the gate needs the upgrade from the release just before `VERSION`.
 
-It runs by itself on every push to `main`, and a newer push replaces a run
-still going on `main`. Start it on a branch with
-`gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; it does not
-run on pull requests or releases, and there is no nightly run. Run it on a
-branch before merging changes to the updater, the Nix modules, the installer,
-the release scripts, qualification or workflows.
+It runs only when started by hand, for a release: on the release commit
+before a beta, which covers everything merged since the last release
+(owner's decision, 2026-11-26). Ordinary fixes land on `main` after
+`fast-test` without it, whichever paths they touch; pushes to `main`, pull
+requests and releases don't start it, and there is no nightly run. Start it with
+`gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; a newer
+run on the same branch replaces one still going.
 
 It has three jobs that run side by side. The checks job runs the source tests
 (`tests/run`, which includes the linters in `tests/lint`: Ruff, ShellCheck

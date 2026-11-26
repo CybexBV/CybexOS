@@ -3,9 +3,10 @@ name: NixOS qualification
 # so in its title; release/publish and release/promote count only runs with
 # the plain title, which upgraded from the release just before VERSION.
 run-name: ${{ inputs.from && format('NixOS qualification (upgrade from {0})', inputs.from) || 'NixOS qualification' }}
-# By hand on a branch (gh workflow run nixos.yml --ref BRANCH), and on every
-# push to main. release/publish and release/promote accept a successful
-# dispatched or push run for the exact commit: both check github.sha.
+# Only by hand, for a release (gh workflow run nixos.yml --ref release-X.Y.Z):
+# pushes to main don't start it (owner's decision, 2026-11-26). release/publish
+# and release/promote accept a successful dispatched run for the exact commit
+# (and push runs from before that decision): both check github.sha.
 on:
   workflow_dispatch:
     inputs:
@@ -13,12 +14,10 @@ on:
         description: 'Upgrade job: the installed release (a tag such as v1.0.25). Default: the release before VERSION'
         required: false
         default: ''
-  push:
-    branches: [main]
 permissions:
   contents: read
-# One run per branch at a time: a newer dispatch or push replaces the older
-# one, so update branches and main can't queue up on The Beast's runners.
+# One run per branch at a time: a newer dispatch replaces the older one, so
+# runs can't queue up on The Beast's runners.
 concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
