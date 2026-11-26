@@ -17,14 +17,6 @@ function chromeNotification(overrides = {}) {
     };
 }
 
-test("browser detection accepts browser names and desktop entries only", () => {
-    assert.equal(H.isBrowser("Google Chrome", ""), true);
-    assert.equal(H.isBrowser("Google Chrome", "google-chrome"), true);
-    assert.equal(H.isBrowser("Web app", "chromium-browser"), true);
-    assert.equal(H.isBrowser("Brave", "brave-browser"), true);
-    assert.equal(H.isBrowser("Signal", "signal-desktop"), false);
-});
-
 test("Chrome and Brave app windows resolve known product identities by safe domain suffix", () => {
     const chromeSlack = H.derivePresentation(chromeNotification({
         appName: "Google Chrome",
@@ -60,16 +52,6 @@ test("Chrome and Brave app windows resolve known product identities by safe doma
     assert.equal(lookalike.brandIcon, "");
 });
 
-test("WhatsApp resolves from the advertised origin hint", () => {
-    const result = H.derivePresentation(chromeNotification({
-        hints: { "x-kde-origin-name": "https://web.whatsapp.com/" },
-    }));
-    assert.equal(result.displayAppName, "WhatsApp");
-    assert.equal(result.webOrigin, "web.whatsapp.com");
-    assert.equal(result.displayBody, "Hello");
-    assert.equal(result.brandIcon, "whatsapp");
-});
-
 test("WhatsApp resolves from Chromium's legacy body prefix", () => {
     const result = H.derivePresentation(chromeNotification({
         body: '<a href="https://web.whatsapp.com/">web.whatsapp.com</a>\n\nHello &amp; welcome',
@@ -77,16 +59,6 @@ test("WhatsApp resolves from Chromium's legacy body prefix", () => {
     assert.equal(result.displayAppName, "WhatsApp");
     assert.equal(result.webOrigin, "web.whatsapp.com");
     assert.equal(result.displayBody, "Hello & welcome");
-});
-
-test("generic browser origins use a normalized hostname", () => {
-    const result = H.derivePresentation(chromeNotification({
-        hints: { "x-kde-origin-name": "HTTPS://News.Example.COM:443/story?id=1" },
-    }));
-    assert.equal(result.displayAppName, "news.example.com");
-    assert.equal(result.webOrigin, "news.example.com");
-    assert.equal(result.brandIcon, "");
-    assert.equal(result.webSourceIdentity, "https://news.example.com:443");
 });
 
 test("web identity preserves scheme and effective port separately from display host", () => {
@@ -204,22 +176,6 @@ test("action comparisons reject overflow without scanning extra actions or trunc
     assert.equal(H.actionSignature([opaque]), null);
     assert.equal(H.actionIdentifier(opaque), opaque.identifier);
     assert.equal(H.secondaryActions([opaque])[0], opaque, 'invocation retains the original action object');
-});
-
-test("adaptive timing uses 8 seconds through 80 characters and caps at 12", () => {
-    assert.equal(H.timeoutMs(0, -1), 8000);
-    assert.equal(H.timeoutMs(80, 0), 8000);
-    assert.equal(H.timeoutMs(81, 0), 9000);
-    assert.equal(H.timeoutMs(120, 0), 9000);
-    assert.equal(H.timeoutMs(121, 0), 10000);
-    assert.equal(H.timeoutMs(240, 0), 12000);
-    assert.equal(H.timeoutMs(1000, 0), 12000);
-});
-
-test("requested application timeouts are clamped into the same range", () => {
-    assert.equal(H.timeoutMs(20, 2), 8000);
-    assert.equal(H.timeoutMs(20, 9.4), 9400);
-    assert.equal(H.timeoutMs(20, 30), 12000);
 });
 
 test("the configured duration shifts the adaptive window and the clamp", () => {

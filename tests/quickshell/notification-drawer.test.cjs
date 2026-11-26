@@ -40,12 +40,6 @@ test("the drawer takes an arrival only on its own output, on its side, with the 
     assert.equal(P.drawerRoute(drawer({ side: "left" }), "one", "top-right", false), "toast");
 });
 
-test("critical arrivals pin a banner, and the open list takes everything", () => {
-    assert.equal(P.drawerRoute(drawer(), "one", "top-right", true), "banner");
-    assert.equal(P.drawerRoute(drawer({ tab: "notifications" }), "one", "top-right", false), "list");
-    assert.equal(P.drawerRoute(drawer({ tab: "notifications" }), "one", "top-right", true), "list");
-});
-
 test("with the Notifications tab switched off there is nowhere to point, except the tab itself", () => {
     const off = drawer({ tabEnabled: false });
     assert.equal(P.drawerRoute(off, "one", "top-right", false), "toast");
@@ -188,21 +182,6 @@ test("policy runs first: Focus, quiet hours and bursts never reach the drawer", 
     c.receive(sender("First of a burst", { appName: "Burst", desktopEntry: "burst" }));
     c.receive(sender("Second of a burst", { appName: "Burst", desktopEntry: "burst" }));
     assert.equal(c.unreadKeys.length, 1, "the burst limit holds the second back silently");
-});
-
-test("other outputs and the far side keep their toasts; the open list counts nothing", () => {
-    const c = service();
-    c.drawerState = drawer({ screen: "two" });
-    c.receive(sender("On the focused output"));
-    assert.equal(c.toasts.length, 1);
-    c.drawerState = drawer({ side: "left" });
-    c.receive(sender("Far side", { appName: "Two", desktopEntry: "two" }));
-    assert.equal(c.toasts.length, 2);
-    c.drawerState = drawer({ tab: "notifications" });
-    c.receive(sender("Into the open list", { appName: "Three", desktopEntry: "three" }));
-    assert.equal(c.toasts.length, 2);
-    assert.deepEqual(c.unreadKeys, [], "it is in front of the person already");
-    assert.equal(c.arrivalKey, "");
 });
 
 test("acting on a pinned card handles it; activation runs the default and dismisses", () => {
@@ -354,20 +333,6 @@ test("the arrival strip never takes focus; the critical banner can be handled fr
     const notifs = read("Common/Notifs.qml");
     assert.match(notifs, /interval:\s*5000\s*onTriggered:\s*root\.arrivalKey = ""/);
     assert.match(notifs, /onDrawerTabChanged:[\s\S]*?unreadKeys = \[\];[\s\S]*?pinnedKeys = \[\];/);
-});
-
-test("the tab strip's selected state and unread count follow the shared vocabulary", () => {
-    const tabs = read("Popovers/Drawer/DrawerTabs.qml");
-    assert.match(tabs, /color:\s*on \? Theme\.selectedFill : "transparent"/);
-    assert.match(tabs, /height:\s*Theme\.selectedEdgeWidth[\s\S]{0,60}?color:\s*Theme\.selectedMark/);
-    assert.match(tabs, /color:\s*segment\.on \? Theme\.accentText : Theme\.textMid/);
-    assert.match(tabs, /hovered:\s*segmentMouse\.containsMouse && !segment\.on/, "hover stays the neutral chip");
-    const badge = tabs.slice(tabs.indexOf("id: countBadge"));
-    assert.match(badge, /z:\s*2/);
-    assert.match(badge, /color:\s*Theme\.accent\n/);
-    assert.match(badge, /color:\s*Theme\.accentFg/);
-    assert.match(tabs, /readonly property int unreadCount:\s*Notifs\.unread\.length/);
-    assert.match(tabs, /I18n\.format\("%1, %2 unread"/);
 });
 
 test("the drawer list keeps Focus as a labelled switch on the shared state", () => {

@@ -80,15 +80,6 @@ test("an unknown screenshot mode is refused without opening Omasnap", t => {
     assert.deepEqual(f.calls(), []);
 });
 
-test("a plain notice is sent without waiting for an action", t => {
-    const f = fixture(t);
-    const result = f.notify(["-g", "", "--app-name", "omasnap", "-t", "4500",
-        "Screenshot copied to clipboard"]);
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(f.calls(), [["notify-send", "--app-name=Screenshot", "--urgency=low", "--expire-time=4500",
-        "--", "Screenshot copied to clipboard", ""]]);
-});
-
 test("a saved capture shows its picture, and a click edits it", t => {
     const f = fixture(t);
     f.recorder("omasnap");

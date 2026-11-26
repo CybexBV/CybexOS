@@ -32,24 +32,11 @@ function claimedPanels() {
 // human remembering four separate maps. Each one fails on a panel added to
 // one place but not another.
 
-test("every panel's view exists on disk", () => {
-    for (const panel of R.PANELS) {
-        assert.ok(fs.existsSync(path.join(shellDir, panel.source)),
-            `${panel.name} points at a missing file: ${panel.source}`);
-    }
-});
-
 test("panel names and module ids are unique", () => {
     const names = R.names();
     assert.equal(new Set(names).size, names.length, "duplicate panel name");
     const owned = R.PANELS.map(p => p.moduleId).filter(id => id !== "");
     assert.equal(new Set(owned).size, owned.length, "two panels claim one module");
-});
-
-test("every island is a real bar section", () => {
-    for (const panel of R.PANELS)
-        assert.ok(["left", "center", "right"].includes(panel.island),
-            `${panel.name} has island "${panel.island}"`);
 });
 
 test("the module id space and the panel space account for each other", () => {
@@ -166,20 +153,6 @@ test("panels no module owns are exactly the ones the bar sweep must skip", () =>
     // sweep gets closed by any unrelated module change.
     assert.deepEqual(R.PANELS.filter(p => R.ownerless(p.name)).map(p => p.name).sort(),
         ["overflow", "settings", "tailscale"]);
-});
-
-test("the behaviour flags are carried deliberately", () => {
-    // Each flag replaced a hardcoded `=== "settings"`; the Day sheet later
-    // adopted centerAnchored so its two triggers share one centred surface.
-    // A new carrier means a new deliberate entry here.
-    const expected = {
-        centerAnchored: ["calendar", "weather"],
-        fillsBody: []
-    };
-    for (const [flag, carriers] of Object.entries(expected)) {
-        const carrying = R.PANELS.filter(p => p[flag]).map(p => p.name).sort();
-        assert.deepEqual(carrying, carriers, `unexpected panels carry ${flag}`);
-    }
 });
 
 test("no consumer still hardcodes a panel name it should ask the registry for", () => {

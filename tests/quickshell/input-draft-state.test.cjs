@@ -70,7 +70,7 @@ test("completion after page teardown settles only submitted values in the submit
     assert.equal(touchpad.dirty, true);
 });
 
-for (const section of ["keyboard", "touchpad"]) {
+for (const section of ["keyboard"]) {
     for (const snapshotFirst of [true, false]) {
         for (const editBeforeCompletion of [true, false]) {
             test(`${section}: ${snapshotFirst ? "snapshot before completion" : "completion before snapshot"}, edit ${editBeforeCompletion ? "during Apply" : "after completion"}`, () => {

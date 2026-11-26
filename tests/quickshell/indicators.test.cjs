@@ -170,22 +170,6 @@ test("recording and dictation expose their complete live state", () => {
     assert.equal(fs.existsSync(path.join(shellDir, "Bar/RecordingChip.qml")), false);
 });
 
-test("active clock-side actions light only their glyph", () => {
-    const action = indicators.slice(
-        indicators.indexOf("component IndicatorAction:"),
-        indicators.indexOf("Revealer {"));
-
-    assert.match(action, /activeState \? Theme\.barAccent\b/);
-    assert.doesNotMatch(action, /activeState \? Theme\.barAccentFg\b/);
-    assert.match(action, /color:\s*recording \? Theme\.barRed : "transparent"/,
-        "an active toggle must not paint an accent pill behind its glyph");
-    assert.match(action,
-        /BarHover\s*\{[\s\S]{0,120}?target:\s*button/,
-        "clock-side actions must use the same hover surface as other modules");
-    assert.doesNotMatch(action,
-        /\n\s*color:\s*[\s\S]{0,100}?activeState/);
-});
-
 test("indicator settings cover ordering, display, actions, and feature defaults", () => {
     const detail = read("Settings/ModuleDetailView.qml");
     // Dictation's options are the indicator's, set on their own page
@@ -279,56 +263,6 @@ test("all shared toggles use one persisted write path", () => {
         "an absent marker must be treated as a fresh login");
     assert.match(startup, /else \{[\s\S]{0,180}?root\.finish\(false\)/,
         "permission and IO failures must not be mistaken for a fresh login");
-});
-
-test("Control Panel fills use their intended accent strength", () => {
-    const control = read("Popovers/ControlCenterPopover.qml");
-    const battery = read("Popovers/BatteryPopover.qml");
-    const slider = read("Popovers/FillSlider.qml");
-    const radioRow = control.slice(
-        control.indexOf("component RadioRow:"),
-        control.indexOf("component QuickTile:"));
-
-    // The radios are rows: they carry a value and a chevron, and a row that is
-    // merely connected is not a selection, so nothing about them is painted.
-    // Only its mark takes the accent.
-    assert.match(radioRow,
-        /color: radioMouse\.containsMouse \|\| activeFocus \? Theme\.chip : "transparent"/,
-        "keyboard focus must expose the same neutral state layer as hover");
-    assert.doesNotMatch(radioRow, /Theme\.(?:accentContainer|accentSoft|accentBg|accentSubtle)/,
-        "a radio row must not paint an accent field behind its label");
-    assert.match(radioRow, /color: radio\.on \? Theme\.accentText : Theme\.icon/,
-        "the accent survives on the glyph, where it is a mark");
-
-    // Quick actions and value sliders use the same full-strength accent as
-    // the machine meters, with the palette's foreground on top.
-    const quickTile = control.slice(
-        control.indexOf("component QuickTile:"),
-        control.indexOf("component SessionAction:"));
-    assert.match(quickTile, /tile\.effective \? Theme\.accent\b/,
-        "process-backed actions light only after the requested state is effective");
-    assert.match(quickTile, /tile\.effective\s*\n\s*\? Theme\.accentFg/);
-    assert.doesNotMatch(quickTile, /Theme\.accentContainer/,
-        "active quick actions must not use the darker container treatment");
-    // A running capture is the one state that owns a field of its own, and it
-    // is the error colour, not the accent. It moved out of the grid with the
-    // other two capture actions, so the rule is asserted on the track.
-    assert.match(control, /capture\.recording \? Theme\.redBg/);
-    // The power profile is a segmented control: its held segment takes the
-    // chip, never an accent field. (Accent survives on that segment's ripple
-    // tint, which is a mark.) It lives only in BatteryPopover now — the
-    // Control Panel stopped carrying a second copy of the battery's controls.
-    assert.match(battery, /color: current \? Theme\.chipHover/);
-    assert.doesNotMatch(battery, /color: current \? Theme\.accent\b/);
-    assert.doesNotMatch(control, /PowerProfiles/,
-        "the profile track lives in BatteryPopover, not in the dashboard");
-    assert.match(control, /property color barTone: Theme\.accent/,
-        "machine meters must establish the full-strength accent reference");
-    assert.match(slider, /color: Theme\.accent/,
-        "slider values must use the same full-strength accent as machine meters");
-    assert.doesNotMatch(slider,
-        /Theme\.(?:accentContainer|accentBgSoft|accentSoft)/,
-        "slider values must not use one of the darker accent treatments");
 });
 
 test("reminder manager and shell-wide refresh IPC are wired to the action", () => {

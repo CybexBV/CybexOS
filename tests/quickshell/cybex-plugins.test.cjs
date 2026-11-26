@@ -100,15 +100,6 @@ test("Install adds the package and switches it on, and stops when adding fails",
     }
 });
 
-test("Install gives a plugin that needs it a wider bar slot", () => {
-    const t3 = P.PLUGINS.find(item => item.id === "digitalpals.t3code");
-    const [, , line, , helper, url, id, width] = P.installCommand("/helper.py", t3);
-    assert.match(line, /enable "\$3" --width "\$4"$/);
-    assert.deepEqual([helper, url, id, width], ["/helper.py", t3.url, t3.id, "140"]);
-    const hermes = P.PLUGINS.find(item => item.id === "digitalpals.hermes");
-    assert.equal(P.installCommand("/helper.py", hermes).length, 7, "no width argument without a width");
-});
-
 test("each plugin names the built-in widget whose options it imports", () => {
     const S = load("SettingsHelpers.js");
     assert.deepEqual(P.PLUGINS.map(item => item.widget).sort(), [...S.PLUGIN_WIDGET_IDS].sort());

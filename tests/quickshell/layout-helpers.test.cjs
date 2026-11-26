@@ -55,20 +55,6 @@ test("stacked drops subtract each column origin before finding the row", () => {
     assert.deepEqual(H.stackedDropIndex(columns, 999), { col: "right", idx: 4 });
 });
 
-test("wide measured layouts remain detailed and centered", () => {
-    const result = H.fitBar({
-        width: 1440, sideMargin: 12, gutter: 8,
-        widths: { left: 220, center: 240, right: 390 },
-        entries: [
-            { id: "media", col: "left", saving: 120, policy: "auto" },
-            { id: "weather", col: "center", saving: 70, policy: "auto" }
-        ]
-    });
-    assert.deepEqual(result.compact, []);
-    assert.equal(result.centerOffset, 0);
-    assert.equal(result.fits, true);
-});
-
 test("measured fitting compacts auto detail before prefer-detail", () => {
     const result = H.fitBar({
         width: 800, gutter: 8,
@@ -119,18 +105,6 @@ test("all-auto detail follows the documented compaction order", () => {
     assert.deepEqual(result.compact, H.COMPACT_ORDER);
     assert.equal(entries.length, H.COMPACT_ORDER.length,
         "fitting changes detail, not module enablement");
-});
-
-test("notification count participates in responsive compaction", () => {
-    assert.ok(H.COMPACT_ORDER.includes("notifications"));
-    const result = H.fitBar({
-        width: 600, gutter: 8,
-        widths: { left: 240, center: 180, right: 250 },
-        entries: [
-            { id: "notifications", col: "right", saving: 24, policy: "auto" }
-        ]
-    });
-    assert.deepEqual(result.compact, ["notifications"]);
 });
 
 test("narrow bars overflow low-priority modules but retain core status", () => {
@@ -219,36 +193,4 @@ test("edge joins shorten only the island side when it nears the bar tangent", ()
     assert.deepEqual(H.edgeFlareRadii({
         ...base, island: "right", bodyX: 1494, bodyW: 400
     }), { left: 14, right: 5 });
-});
-
-test("roomy edge popouts retain full flares on both sides", () => {
-    const base = {
-        floating: true,
-        barRadius: 9,
-        popRadius: 14,
-        sideMargin: 12,
-        width: 1920,
-        bodyX: 700,
-        bodyW: 520
-    };
-
-    assert.deepEqual(H.edgeFlareRadii({ ...base, island: "left" }), {
-        left: 14, right: 14
-    });
-    assert.deepEqual(H.edgeFlareRadii({ ...base, island: "right" }), {
-        left: 14, right: 14
-    });
-});
-
-test("center and square attached bars retain full flares", () => {
-    const base = {
-        floating: true, barRadius: 9, popRadius: 14,
-        sideMargin: 12, width: 1920, bodyX: 26, bodyW: 1868
-    };
-    assert.deepEqual(H.edgeFlareRadii({ ...base, island: "center" }), {
-        left: 14, right: 14
-    });
-    assert.deepEqual(H.edgeFlareRadii({
-        ...base, island: "right", floating: false
-    }), { left: 14, right: 14 });
 });

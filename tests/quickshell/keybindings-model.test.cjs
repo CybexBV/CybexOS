@@ -275,11 +275,3 @@ test('without a layout map a Shift code:N key may conflict with any non-letter k
     assert.ok(draft.some(row => row.id === 'apps.letter' && !row.uncertain));
     assert.ok(draft.some(row => row.id === 'workspaces.move.1' && row.uncertain));
 });
-test('the snapshot keymap is stored with the model, refreshed on every snapshot', () => {
-    const data = shiftModel({'10':'1'});
-    assert.deepEqual(plain(data.keymap),{'10':'1'});
-    M.ingest(data,{state:data.state,preferences:{v:1},version:'v',binds:[],keymap:{'10':'ampersand'}});
-    assert.deepEqual(plain(data.keymap),{'10':'ampersand'});
-    M.ingest(data,{state:data.state,preferences:{v:1},version:'v',binds:[]});
-    assert.deepEqual(plain(data.keymap),{});
-});

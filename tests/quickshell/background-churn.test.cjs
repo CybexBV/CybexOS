@@ -187,10 +187,6 @@ test("the calendar helper answers within its own deadline", () => {
     assert.doesNotMatch(result.stdout, /not reached/);
 });
 
-test("non-critical singletons stay out of the session-start burst", () => {
-
-});
-
 test("wallpaper rotation skips an idle session and catches up once on return", () => {
     const wallpaper = read("Common/Wallpaper.qml");
     assert.match(wallpaper,

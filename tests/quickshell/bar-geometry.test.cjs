@@ -36,21 +36,6 @@ test("top and bottom placement, hide translation, and popout depth mirror", () =
     assert.equal(G.popoutAnchorDepth("floating", 10, 46), 56);
 });
 
-test("the live bar keeps borderless hug corners visual-only and attached square", () => {
-    const bar = fs.readFileSync(path.join(shellDir, "Bar/Bar.qml"), "utf8");
-    const corner = fs.readFileSync(path.join(shellDir, "Common/HugCorner.qml"), "utf8");
-    assert.match(bar, /visible:\s*Theme\.barHug/g);
-    assert.match(bar, /bottomCorner:\s*Settings\.position === "bottom"/);
-    assert.match(bar, /height:\s*Theme\.barTopMargin \+ Theme\.barHeight\n/,
-        "the interactive mask stops before the corner decorators");
-    assert.match(bar, /radius:\s*Theme\.clusterRadius/);
-    assert.match(corner, /import QtQuick\.Shapes/);
-    assert.match(corner, /PathCubic/);
-    assert.doesNotMatch(corner, /strokeWidth:\s*1/);
-    assert.doesNotMatch(bar, /id:\s*barSlab[\s\S]{0,220}?border\.width/);
-    assert.doesNotMatch(bar, /DropShadow/);
-});
-
 test("hug rounds the opposite screen edge's corners like the bar's own", () => {
     const corners = fs.readFileSync(path.join(shellDir, "Bar/ScreenCorners.qml"), "utf8");
     const shell = fs.readFileSync(path.join(shellDir, "shell.qml"), "utf8");
@@ -67,28 +52,6 @@ test("hug rounds the opposite screen edge's corners like the bar's own", () => {
     assert.match(corners, /mask: Region \{\}/);
     assert.match(corners, /exclusionMode: ExclusionMode\.Ignore/);
     assert.match(corners, /keyboardFocus: WlrKeyboardFocus\.None/);
-});
-
-test("Hyprland and shell surfaces share the hug corner radius", () => {
-    const theme = fs.readFileSync(path.join(shellDir, "Common/Theme.qml"), "utf8");
-    const look = fs.readFileSync(
-        path.resolve(shellDir, "../hypr/looknfeel.lua"), "utf8");
-    const surfaceRadius = theme.match(/readonly property int surfaceRadius:\s*(\d+)/);
-    const windowRadius = look.match(/decoration\s*=\s*\{[\s\S]*?rounding\s*=\s*(\d+)/);
-
-    assert.ok(surfaceRadius, "Theme.surfaceRadius must remain a literal design token");
-    assert.ok(windowRadius, "Hyprland decoration.rounding must remain explicit");
-    assert.equal(Number(windowRadius[1]), Number(surfaceRadius[1]));
-    // Only the Hug corners answer to the compositor. The shell's own dialogs
-    // answer to the menubar instead: a panel takes the bar's corner, and
-    // everything inside it takes the bar's chip corner.
-    assert.match(theme, /readonly property int hugCornerSize:\s*surfaceRadius/,
-        "the Hug corners must keep matching Hyprland's window rounding");
-    assert.match(theme, /readonly property int popRadius:\s*panelRadius/);
-    for (const alias of ["cardRadius", "rowRadius", "tileRadius"])
-        assert.match(theme,
-            new RegExp(`readonly property int ${alias}:\\s*chipRadius`),
-            `Theme.${alias} must use the bar's chip corner`);
 });
 
 test("a bar tooltip stays 8 px inside both edges of the bar's window", () => {

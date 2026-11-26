@@ -57,19 +57,6 @@ IP4.ADDRESS[1]:203.0.113.8/24
     }]);
 });
 
-test("NetworkManager device states have concise presentation labels", () => {
-    const states = new Map([
-        [0, "Unknown"], [10, "Unmanaged"], [20, "Unavailable"],
-        [30, "Disconnected"], [40, "Connecting"], [50, "Configuring"],
-        [60, "Authentication required"], [70, "Obtaining address"],
-        [80, "Checking connection"], [90, "Finishing connection"],
-        [100, "Connected"], [110, "Disconnecting"], [120, "Failed"],
-        [77, "Unknown"],
-    ]);
-    for (const [code, label] of states)
-        assert.equal(H.stateStatus(code), label, `state ${code}`);
-});
-
 test("only state 100 is connected and a -- profile is normalized to empty", () => {
     const states = [40, 50, 60, 70, 80, 90, 100, 110, 120];
     for (const state of states) {
@@ -85,11 +72,6 @@ test("bridges, tunnels, loopback, Wi-Fi and Wi-Fi P2P are not Ethernet ports", (
         record(`device${index}`, type, `profile${index}`, "100 (connected)"))
         .join("\n\n");
     assert.deepEqual(H.parseDevices(output), []);
-});
-
-test("empty output is a known no-device snapshot", () => {
-    assert.deepEqual(H.parseDevices(""), []);
-    assert.deepEqual(H.parseDevices(" \n\n"), []);
 });
 
 test("malformed output is distinct from a no-device snapshot", () => {

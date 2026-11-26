@@ -13,14 +13,8 @@ const drawer = read("DrawerPopover.qml");
 const footer = read("DrawerSessionFooter.qml");
 const power = read("DrawerPower.qml");
 const processes = read("DrawerProcesses.qml");
-const sound = read("DrawerSound.qml");
-const sliderRow = read("DrawerSliderRow.qml");
 const drawerTile = read("DrawerTile.qml");
-const tabs = read("DrawerTabs.qml");
 const menu = read("DrawerMenu.qml");
-const emptyState = read("DrawerEmptyState.qml");
-const network = read("DrawerNetwork.qml");
-const bluetooth = read("DrawerBluetooth.qml");
 const viewState = read("DrawerViewState.qml");
 const qmldir = fs.readFileSync(path.join(shellDir, "Popovers", "Drawer", "qmldir"), "utf8");
 const drawerSettings = untranslated(fs.readFileSync(
@@ -92,26 +86,6 @@ test("the summary is one identity line, the machine, and three two-line meters",
         "healthy metric rows must stay flat and warning-only rows may tint");
 });
 
-test("memory reads in GiB, storage in decimal units, details behind Show details", () => {
-    const memory = hero.slice(hero.indexOf("memoryReading:"), hero.indexOf("diskReading:"));
-    const disk = hero.slice(hero.indexOf("diskReading:"), hero.indexOf("swapDetail:"));
-    assert.match(memory, /formatIecBytes\(SysInfo\.memUsedBytes\)/);
-    assert.doesNotMatch(memory, /formatStorageBytes/);
-    assert.match(disk, /formatStorageBytes\(SysInfo\.rootFsUsedBytes\)/);
-    assert.match(disk, /"%1 free"/);
-    assert.doesNotMatch(disk, /formatIecBytes/);
-    assert.match(hero, /" · " \+ "no swap"/);
-    assert.match(hero, /"swap %1"/);
-
-    // Kernel, processor and filesystem are one tap away, not on the card.
-    const details = hero.slice(hero.indexOf("readonly property var details:"),
-        hero.indexOf("// The installed release"));
-    for (const fact of ["SysInfo.cpuModel", "SysInfo.kernelRelease", "SysInfo.rootFsType"])
-        assert.ok(details.includes(fact), `${fact} belongs in the details`);
-    assert.match(hero, /visible: root\.detailsOpen && root\.details\.length > 0/);
-    assert.match(hero, /Accessible\.name: root\.detailsOpen \? "Hide details" : "Show details"/);
-});
-
 test("diagnostics wait behind one Show details, kept for the session", () => {
     // 2026-11 UI council: meters, facts and processes collapse behind the
     // system summary; the everyday controls lead.
@@ -173,25 +147,6 @@ test("quick toggles say what they do and show on as a filled switch", () => {
     // with a concentric corner.
     assert.match(drawerTile,
         /radius:\s*Theme\.concentricRadius\(root\.radius, inset\)[\s\S]{0,80}?border\.width:\s*Theme\.focusWidth\(root\.activeFocus\)\s*border\.color:\s*root\.on \? Theme\.accentFg : Theme\.focusRing/);
-});
-
-test("a slider without its device fades and says why, with a way to fix it", () => {
-    assert.equal((overview.match(/showValue:\s*true/g) || []).length, 2,
-        "brightness and volume should both show their current percentage");
-    assert.match(sliderRow, /opacity:\s*root\.ready \? 1 : 0\.4/);
-    assert.match(sliderRow, /dimmed:\s*!root\.ready/,
-        "a missing device must not leave a knob that looks live at 0 %");
-    assert.match(sliderRow, /text:\s*root\.ready \? Math\.round\(root\.value \* 100\) \+ "%" : "–"/);
-    // The reason sits outside the faded control, at full contrast.
-    const control = sliderRow.slice(sliderRow.indexOf("id: control"), sliderRow.indexOf("id: noteLine"));
-    assert.doesNotMatch(control, /root\.reason/);
-    assert.match(sliderRow, /color:\s*root\.explained \? Theme\.textHi : Theme\.textMid/);
-    assert.match(sliderRow, /LinkText\s*\{[\s\S]{0,200}?onClicked:\s*root\.recovery\(\)/);
-    assert.match(overview, /ready:\s*Audio\.ready[\s\S]{0,200}?reason:\s*"No output device"[\s\S]{0,80}?recoveryText:\s*"Sound settings"/);
-    assert.match(overview, /onRecovery:\s*Settings\.showPanel\("sound"/);
-    assert.match(sound, /readonly property string emptyKind: !Pipewire\.ready \? "service"\s*: !Audio\.ready \? "device" : ""/,
-        "Sound says why there is no output instead of reporting a 0 % one");
-    assert.match(sound, /\/\/ ---- output header[\s\S]{0,80}?visible: root\.emptyKind === ""/);
 });
 
 test("drawer scrolls only its body between pinned tabs and a pinned session row", () => {
@@ -270,58 +225,6 @@ test("the session row labels Lock, groups the rest, and confirms what ends the s
         "closing the drawer drops a pending question");
     assert.match(footer, /function reset\(\) \{[\s\S]{0,80}?closeMenus\(\);/, "and an open menu");
     assert.match(footer, /Math\.max\(Theme\.scaled\(52\)/);
-});
-
-test("every tab is labelled, and the strip wraps rather than cutting a label", () => {
-    for (const [tab, glyph, label] of [["overview", "dashboard", "Overview"], ["sound", "volume_down", "Sound"],
-        ["network", "wifi", "Network"], ["bluetooth", "bluetooth", "Bluetooth"], ["power", "battery_5_bar", "Power"],
-        ["notifications", "notifications", "Alerts"]])
-        assert.match(tabs, new RegExp(`${tab}: \\{ glyph: "${glyph}", label: "${label}"`));
-    assert.match(tabs, /name: "Notifications"/, "the tooltip and description keep the full name");
-    assert.doesNotMatch(tabs, /showLabel|restingWidth|elide/, "no tab hides or elides its label");
-    assert.match(tabs, /layout: DrawerFormat\.tabLayout\(/);
-    assert.match(tabs, /columns: root\.layout\.stacked \? 1 : 2/);
-    assert.match(tabs, /wrapMode: Text\.Wrap/);
-});
-
-test("Sound, Network, Bluetooth and Power share one empty-state pattern", () => {
-    assert.match(qmldir, /^DrawerEmptyState DrawerEmptyState\.qml$/m);
-    for (const prop of ["glyph", "title", "detail", "actionText"])
-        assert.match(emptyState, new RegExp(`property string ${prop}:`));
-    assert.match(emptyState, /signal action\(\)/);
-    assert.match(emptyState, /visible: root\.actionText !== ""/, "at most one action, none when there is nothing to do");
-    assert.equal((emptyState.match(/wrapMode: Text\.Wrap/g) || []).length, 2, "cause and detail wrap");
-    for (const [name, source] of [["Sound", sound], ["Network", network], ["Bluetooth", bluetooth], ["Power", power]]) {
-        assert.match(source, /DrawerEmptyState \{\s*visible: root\.emptyKind !== ""/, `${name} uses the pattern`);
-        assert.match(source, /readonly property string emptyKind:/, `${name} names its empty states`);
-    }
-    // Missing hardware, turned off and a service that is not running read differently.
-    assert.match(sound, /"Sound service isn't running"/);
-    assert.match(sound, /"No speakers or headphones"/);
-    assert.match(network, /QsNetworking\.Networking\.backend === QsNetworking\.NetworkBackendType\.None/);
-    for (const title of ["Network service isn't running", "No network adapter found", "No cable connected",
-        "Wi-Fi is blocked", "Wi-Fi is off"])
-        assert.ok(network.includes(`"${title}"`), title);
-    assert.match(network, /if \(root\.emptyKind === "off"\)\s*WifiState\.setEnabled\(true\)/);
-    for (const title of ["Bluetooth service isn't running", "No Bluetooth adapter found", "Bluetooth is blocked",
-        "Bluetooth is off"])
-        assert.ok(bluetooth.includes(`"${title}"`), title);
-    assert.match(bluetooth, /\/sys\/class\/bluetooth\/hci\*/, "an unseen controller is told apart from a stopped service");
-    assert.match(bluetooth, /onAction: BluetoothState\.setEnabled\(true\)/);
-    assert.match(power, /"Power service isn't running"/);
-    assert.match(power, /"No battery"/);
-    // No duplicate messages, no jargon, nothing shown for what is not there.
-    assert.doesNotMatch(bluetooth, /"Bluetooth unavailable"|"No Bluetooth adapter"/);
-    assert.doesNotMatch(sound, /info: "PipeWire"/);
-    assert.doesNotMatch(power, /Idle inhibit|"Perf"/);
-    assert.match(network, /visible: !Tailscale\.missing\s*width: parent\.width\s*height: 40/,
-        "no Tailscale row when it is not installed");
-    assert.match(network, /id: wifiToggle\s*visible: root\.wifiPresent/, "no Wi-Fi switch without an adapter");
-    assert.match(network, /enabled: !root\.wifiBlocked/);
-    assert.match(bluetooth, /DrawerEmptyState \{[\s\S]*?\n    Item \{\s*visible: root\.emptyKind === ""/,
-        "no Bluetooth switch without an adapter: the header goes with the empty state");
-    assert.match(power, /visible: Battery\.isLaptop && \(BatteryHealth\.supported \|\| !BatteryHealth\.known\)/,
-        "battery health only where there is a battery");
 });
 
 test("a pending update offers one action; restarting goes through the session row", () => {

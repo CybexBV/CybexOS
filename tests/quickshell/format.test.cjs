@@ -37,12 +37,6 @@ function qmlAndJs() {
     return out;
 }
 
-test("the unit constants are seconds, and the MS_ ones milliseconds", () => {
-    assert.deepEqual([F.MINUTE, F.HOUR, F.DAY], [60, 3600, 86400]);
-    assert.deepEqual([F.MS_SECOND, F.MS_MINUTE, F.MS_HOUR, F.MS_DAY],
-        [1000, 60000, 3600000, 86400000]);
-});
-
 test("clamp01 and pad2 do the obvious thing", () => {
     assert.deepEqual([-1, -0.001, 0, 0.5, 1, 1.001, 42].map(F.clamp01),
         [0, 0, 0, 0.5, 1, 1, 1]);

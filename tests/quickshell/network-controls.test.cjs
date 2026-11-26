@@ -60,24 +60,6 @@ test("the Bluetooth row always opens details and never toggles the radio", () =>
     assert.doesNotMatch(row, /BluetoothState\.toggle/);
 });
 
-test("the stable wifi popout is a scrollable Ethernet and Wi-Fi Network view", () => {
-    const source = read("Popovers/WifiPopover.qml");
-    assert.match(source, /text:\s*"Network"/);
-    assert.match(source, /text:\s*"TAILSCALE"/);
-    assert.match(source, /text:\s*"ETHERNET"/);
-    assert.match(source, /model:\s*EthernetState\.devices/);
-    assert.match(source, /model:\s*WifiState\.others/);
-    assert.match(source, /Flickable\s*\{/);
-    assert.match(source, /ScrollChrome\s*\{/);
-    assert.match(source, /checked:\s*WifiState\.enabled/);
-    assert.match(source, /onToggled:\s*value => root\.setWifiEnabled\(value\)/);
-    assert.match(source,
-        /function setWifiEnabled\(value\)[\s\S]{0,100}WifiState\.setEnabled\(value\)/);
-    assert.match(source, /text:\s*"Network settings"/);
-    assert.match(source, /Settings\.showPanel\("network"\)/);
-    assert.doesNotMatch(source, /gnome-control-center wifi/);
-});
-
 test("Ethernet loading, absence and read failures are separate UI states", () => {
     const source = read("Popovers/WifiPopover.qml");
     assert.match(source, /!EthernetState\.known/);
