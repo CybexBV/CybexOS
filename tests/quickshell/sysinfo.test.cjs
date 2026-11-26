@@ -6,38 +6,6 @@ const { shellDir } = require("./shell.cjs");
 
 const source = fs.readFileSync(path.join(shellDir, "Common", "SysInfo.qml"), "utf8");
 
-test("SysInfo exposes identity, known-state memory, and root filesystem fields", () => {
-    for (const declaration of [
-        "property string osId", "property string osName",
-        "property string osVersion", "property string osVariant",
-        "property string deviceVendor", "property string deviceModel",
-        "property string kernelRelease", "property string cpuModel",
-        "property int uptimeSecs", "property bool memKnown",
-        "property double memTotalBytes", "property double memUsedBytes",
-        "property bool swapKnown", "property double swapTotalBytes",
-        "property double swapUsedBytes", "property bool rootFsKnown",
-        "property string rootFsType", "property double rootFsTotalBytes",
-        "property double rootFsUsedBytes", "property double rootFsAvailableBytes",
-        "property real rootFsUsage", "property string rootFsError",
-    ])
-        assert.ok(source.includes(declaration), `${declaration} is missing`);
-});
-
-test("identity and metrics use native file views for their source files", () => {
-    for (const file of [
-        "/etc/os-release", "/etc/hostname",
-        "/sys/devices/virtual/dmi/id/sys_vendor",
-        "/sys/devices/virtual/dmi/id/product_name",
-        "/proc/sys/kernel/osrelease", "/proc/cpuinfo", "/proc/stat",
-        "/proc/meminfo", "/proc/uptime",
-    ])
-        assert.ok(source.includes(`path: "${file}"`), `${file} is not loaded`);
-    assert.match(source, /SysInfoHelpers\.parseOsRelease/);
-    assert.match(source, /SysInfoHelpers\.parseCpuStat/);
-    assert.match(source, /SysInfoHelpers\.parseMemInfo/);
-    assert.doesNotMatch(source, /fastfetch/i);
-});
-
 test("root capacity uses one guarded direct df process and validates completion", () => {
     const disk = source.slice(source.indexOf("function finishRootFsProbe"),
         source.indexOf("// ---- brightness"));

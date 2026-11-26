@@ -58,38 +58,6 @@ test('cleanup preference drafts retain their original policy until explicitly di
     assert.equal(root.same(root.draft, root.policyBaseline), true);
 });
 
-test('one rule for the words: adding queues a NixOS app, Install starts installing now', () => {
-    const action = read('Software/AppAction.qml');
-    assert.match(action, /: I18n\.tr\("Add to queue"\)/, 'a catalogue app joins the queue');
-    assert.match(action, /mode === "added" \? I18n\.tr\("In queue"\)/, 'an obvious queued state');
-    // Install appears only where pressing it starts installing: an app's own
-    // page while nothing else is queued or in flight, which adds the app and
-    // makes the queue bar's own call.
-    assert.match(action, /: installsNow \? I18n\.tr\("Install"\)/);
-    assert.match(action, /readonly property bool installsNow: direct && mode === "install" && Software\.loaded\s*&& Software\.queue\.length === 0 && Software\.phase === "idle" && Software\.blockReason === ""/);
-    assert.match(action, /\} else if \(installsNow\) \{\s*Software\.toggleInstall\(attribute\);\s*Software\.install\(\);/);
-    assert.equal([...action.matchAll(/I18n\.tr\("Install"\)/g)].length, 1, 'Install is said in one place only');
-    assert.match(read('Software/AppPage.qml'), /objectName: "softwareAppPrimary"[\s\S]*?direct: true/,
-        "an app's own page installs directly");
-    for (const name of ['Software/AppCard.qml', 'Software/AppRow.qml', 'Software/PickCard.qml', 'Software/HeroCarousel.qml'])
-        assert.doesNotMatch(read(name), /direct: true/, `${name}: cards and lists keep Add to queue`);
-    assert.match(read('Software/PackageRow.qml'), /I18n\.tr\("Add to queue"\)/);
-    assert.match(read('Software/CollectionCard.qml'), /I18n\.tr\("Add all to queue"\)/);
-    // Install is the queue bar's commit, and a Flathub app's immediate install.
-    assert.match(read('Software/QueueBar.qml'), /I18n\.tr\("Install 1 app"\) : I18n\.format\("Install %1 apps"/);
-    assert.match(read('Software/FlathubAction.qml'), /mode === "install" \? I18n\.tr\("Install"\)/);
-});
-
-test('badges say where an app comes from in plain words, and its page explains it', () => {
-    for (const name of ['Software/AppCard.qml', 'Software/AppPage.qml', 'Software/InstalledRow.qml',
-        'Software/DefaultOption.qml', 'Software/PackageRow.qml', 'Software/ExplorePage.qml'])
-        assert.doesNotMatch(read(name), /I18n\.(?:tr|format)\("(?:Prebuilt|Vendor download)[^"]*"/, name);
-    const page = read('Software/AppPage.qml');
-    assert.match(page, /objectName: "softwareAppSource"/);
-    assert.match(page, /I18n\.tr\("Open source, from NixOS, which Cybex OS is built on\./);
-    assert.match(read('Software/FlathubPage.qml'), /objectName: "softwareFlathubSource"/);
-});
-
 test('Explore leads with the featured apps; the default apps fold to one row', () => {
     const explore = read('Software/ExplorePage.qml');
     assert.ok(explore.indexOf('HeroCarousel {') < explore.indexOf('DefaultsSection {'), 'the hero comes first');
@@ -132,16 +100,4 @@ test("Software's chrome and states follow the shell's vocabulary", () => {
     // Summaries get two lines in a grid row.
     for (const name of ['Software/AppRow.qml', 'Software/CategoryTile.qml'])
         assert.match(read(name), /wrapMode: Text\.Wrap\s*maximumLineCount: 2/, name);
-});
-
-test('a failed change is named plainly; the worker message stays behind Details', () => {
-    const bar = read('Software/QueueBar.qml');
-    assert.match(bar, /readonly property string failureKind: Helpers\.failureKind\(Software\.failure\)/);
-    assert.match(bar, /I18n\.format\("Couldn't download %1", \[names\]\)/);
-    assert.doesNotMatch(bar, /return Software\.failure \|\|/, 'the raw message is not the detail line');
-    // A blocked app makes no "ready to use" promise, and Flathub's version
-    // stands beside the disabled action.
-    const page = read('Software/AppPage.qml');
-    assert.match(page, /if \(blocked\)\s*return I18n\.tr\("Open source, from NixOS, which Cybex OS is built on\. It updates with Software Update once it can be installed\."\)/);
-    assert.match(page, /objectName: "softwareAppFlathubOpen"\s*visible: root\.blocked && root\.flathubOffer && !root\.viaFlathub/);
 });

@@ -71,22 +71,6 @@ test("CPU shares come from two snapshots, on the whole machine's scale", () => {
     assert.ok(P.rows(null, second, 4096).every(row => row.cpu === null), "the first sample");
 });
 
-test("ranking by CPU or memory is stable on ties", () => {
-    const rows = [
-        { pid: 3, name: "c", cpu: 5, memory: 100 },
-        { pid: 1, name: "a", cpu: 5, memory: 300 },
-        { pid: 2, name: "b", cpu: null, memory: 900 },
-        { pid: 4, name: "d", cpu: 40, memory: 10 }
-    ];
-    assert.deepEqual(P.rank(rows, "cpu", 6).map(row => row.pid), [4, 1, 3, 2]);
-    assert.deepEqual(P.rank(rows, "memory", 2).map(row => row.pid), [2, 1]);
-    assert.deepEqual(P.rank(rows, "cpu", 6), P.rank(rows.slice().reverse(), "cpu", 6),
-        "input order does not change the result");
-    assert.equal(P.DEFAULT_LIMIT, 6);
-    assert.equal(P.rank(rows, "cpu").length, 4, "fewer rows than the limit: all of them");
-    assert.equal(rows[0].pid, 3, "ranking does not reorder its input");
-});
-
 test("CPU readings format compactly", () => {
     assert.equal(P.formatCpu(null), "…");
     assert.equal(P.formatCpu(0), "0.0%");

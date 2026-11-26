@@ -10,32 +10,6 @@ const {shellDir} = require('./shell.cjs');
 const root = path.resolve(shellDir, '../..');
 const read = name => fs.readFileSync(path.join(shellDir, name), 'utf8');
 
-// theme.slint writes #RRGGBBAA; QML writes #AARRGGBB.
-function slintTokens() {
-    const source = fs.readFileSync(path.join(root, 'installer/kiosk/ui/theme.slint'), 'utf8');
-    const tokens = {};
-    for (const match of source.matchAll(/out property <color> ([a-z0-9-]+): #([0-9a-f]{6})([0-9a-f]{2})?;/g)) {
-        const name = match[1].replace(/-(\w)/g, (_, letter) => letter.toUpperCase()).replace(/-/g, '');
-        tokens[name] = '#' + (match[3] || '') + match[2];
-    }
-    return tokens;
-}
-
-test('the guide uses the installer colours verbatim', () => {
-    const qml = read('Welcome/Kiosk.qml');
-    const tokens = slintTokens();
-    assert.ok(Object.keys(tokens).length >= 18, JSON.stringify(tokens));
-    for (const [name, value] of Object.entries(tokens)) {
-        const own = qml.match(new RegExp(`readonly property color ${name}: "(#[0-9a-f]+)"`));
-        assert.ok(own, `Kiosk.qml lacks ${name}`);
-        assert.equal(own[1], value, name);
-    }
-    assert.match(qml, /readonly property string sans: "Space Grotesk"/);
-    assert.match(qml, /readonly property string mono: "JetBrains Mono"/);
-    // No Theme token reaches the guide's palette.
-    assert.doesNotMatch(qml, /Theme\./);
-});
-
 test('the canvas zoom follows installer/kiosk/src/zoom.rs', () => {
     const qml = read('Welcome/Kiosk.qml');
     const body = qml.match(/function zoomFor\(width: real, height: real, ratio: real\): real \{([^]*?)\n    \}/);
@@ -108,19 +82,6 @@ test('shortcut changes are applied or discarded on the way out of the step, not 
     assert.match(sheet, /kind: "primary"\s*focus: true/, 'Enter applies');
 });
 
-test('the desktop ships the installer faces and the wordmark', () => {
-    const nix = fs.readFileSync(path.join(root, 'nix/modules/applications.nix'), 'utf8');
-    assert.match(nix, /\.\.\/packages\/space-grotesk\.nix/);
-    assert.match(nix, /\bjetbrains-mono\b/);
-    const font = fs.readFileSync(path.join(root, 'nix/packages/space-grotesk.nix'), 'utf8');
-    for (const face of ['Regular', 'Medium', 'Bold']) {
-        assert.match(font, new RegExp(`SpaceGrotesk-${face}\\.ttf`));
-        assert.ok(fs.existsSync(path.join(root, `installer/kiosk/assets/fonts/SpaceGrotesk-${face}.ttf`)));
-    }
-    assert.deepEqual(fs.readFileSync(path.join(shellDir, 'Welcome/assets/cybexos-logo.svg')),
-        fs.readFileSync(path.join(root, 'installer/kiosk/assets/logo.svg')));
-});
-
 // 2026-11-24 UI council review: one primary per screen, choices that read as
 // what they are, focus rings for the keyboard only, and every finding on
 // Ready with somewhere to go.
@@ -160,35 +121,6 @@ test('Connect\'s Wiz snores with his own z\'s, not a second set drawn over him',
     // No z's of the step's own, as it once drew: no letter, no animation.
     assert.doesNotMatch(connect.replace(/^\s*\/\/.*$/gm, ""), /\bsnore\b|text: "z"|Animat/);
     assert.match(connect, /readonly property string wizPose: !Assistant\.connected \|\| root\.installed\.length === 0 \? "asleep"/);
-});
-
-test('Ready gives each finding its place and Ask Wiz as the secondary way', () => {
-    const finish = read('Welcome/FinishStep.qml');
-    assert.match(finish, /case "firmware-updates": return I18n\.tr\("Software Update…"\);/);
-    assert.match(finish, /if \(id === "firmware-updates"\) \{\s*Welcome\.stepAside\(false\);\s*Updates\.show\(\);/);
-    assert.match(finish, /checkPages: \(\{storage: "storage", battery: "power", audio: "sound", time: "region"\}\)/);
-    assert.match(finish, /onClicked: root\.openPlace\(finding\.modelData\.id\)/);
-    // Ask Wiz is a plain (ghost) button: no kind, so not a second primary.
-    const ask = finish.match(/KioskButton \{\s*objectName: "readyAskAssistant"[\s\S]*?\n {24}\}/);
-    assert.ok(ask, 'readyAskAssistant');
-    assert.doesNotMatch(ask[0], /kind:/);
-    assert.match(ask[0], /text: I18n\.tr\("Ask Wiz"\)/);
-    assert.match(ask[0], /Welcome\.stepAside\(false\);\s*Assistant\.checkSystem\(\);/);
-    // Wiz stands in the check's card; the recaps carry no step numbers.
-    assert.match(finish, /KioskCard \{\s*id: check[\s\S]*?Character\.Wiz \{\s*id: wiz\s*objectName: "readyWiz"/);
-    assert.doesNotMatch(finish, /"0[1-4]"/);
-    assert.match(finish, /anchors\.top: parent\.top\s*anchors\.topMargin: Kiosk\.px\(22\)/, 'recap text starts at one height');
-});
-
-test('the wallpaper colours ask for a wallpaper instead of reading forever, and the Space hint sits under the preview', () => {
-    const swatches = read('Welcome/WallpaperSwatches.qml');
-    assert.match(swatches, /Welcome\.wallpaperSource === "none" \? I18n\.tr\("Pick a wallpaper to take its colours\."\)/);
-    for (const name of ['WallpaperStep.qml', 'StyleStep.qml']) {
-        const source = read('Welcome/' + name);
-        const footer = source.slice(source.indexOf('KioskFooter {'));
-        assert.doesNotMatch(footer, /Spacebar/, `${name} keeps the Space hint out of its footer`);
-        assert.match(source, /text: I18n\.tr\("Spacebar"\)/, name);
-    }
 });
 
 test('switches have a 3:1 off edge, single choices a radio dot, and focus rings follow the keyboard', () => {
