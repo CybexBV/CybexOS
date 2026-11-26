@@ -44,6 +44,8 @@ class Turn:
         self.step = "Thinking"
         # What kind of work the step is (steps.KINDS), for the character.
         self.step_kind = steps.THINK
+        # A tool request was refused by the ownership rules (policy.deny).
+        self.refused = False
         self.text = ""
         self.error = ""
         self.error_kind = ""
@@ -85,7 +87,7 @@ class Turn:
         changes = list(changes or [])
         return {
             "id": self.id, "agent": self.agent, "prompt": self.prompt, "status": self.status,
-            "step": self.step, "stepKind": self.step_kind, "text": self.text, "error": self.error, "errorKind": self.error_kind,
+            "step": self.step, "stepKind": self.step_kind, "refused": self.refused, "text": self.text, "error": self.error, "errorKind": self.error_kind,
             "approvals": [entry["card"] for entry in self._approvals.values()],
             "startedAt": self.started_at, "finishedAt": self.finished_at,
             # The files and preferences Undo would restore (what `changes` can undo now).
@@ -143,6 +145,11 @@ class Turn:
     async def authorize(self, decision, cancel_key=None):
         """("allow" | "always" | "deny" | "cancelled", message for a denial)."""
         if decision.action == "deny":
+            # Only the ownership rules deny outright; the person's own Deny
+            # on a card is not a refusal.
+            if not self.refused and not self.finished:
+                self.refused = True
+                self.updated()
             return "deny", decision.message
         if self.stopping or self.finished:
             return "deny", STOPPED_MESSAGE

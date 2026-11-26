@@ -450,6 +450,47 @@ class AttachmentTest(ServiceTest):
         self.assertFalse(picture.exists())
 
 
+class RefusalTest(ServiceTest):
+    async def test_a_refusal_marks_the_rest_of_the_turn_with_both_agents(self):
+        for agent, expected in (("claude", "deny/allow"), ("codex", "decision:decline")):
+            with self.subTest(agent=agent):
+                self.client.notifications.clear()
+                started = await self.ask("refuse to reboot", agent=agent)
+                self.assertFalse(started["refused"])
+                refused = await self.client.turn(lambda turn: turn["refused"])
+                self.assertEqual(refused["status"], "running")
+                done = await self.client.finished()
+                self.assertEqual((done["status"], done["text"], done["refused"]), ("completed", expected, True))
+                self.client.notifications.clear()
+                await self.ask("echo me", agent=agent)
+                self.assertFalse((await self.client.finished())["refused"])
+
+    async def test_the_persons_own_deny_is_not_a_refusal(self):
+        self.approval_policy("ask")
+        for agent, text in (("claude", "bash"), ("codex", "command")):
+            with self.subTest(agent=agent):
+                self.client.notifications.clear()
+                await self.ask(text, agent=agent)
+                card = (await self.client.turn(lambda turn: turn["approvals"]))["approvals"][0]
+                await self.client.result("approval.respond", {"id": card["id"], "decision": "deny"})
+                done = await self.client.finished()
+                self.assertEqual(done["status"], "completed")
+                self.assertFalse(any(m["params"]["turn"]["refused"] for m in self.client.notifications
+                                     if m["method"] == "turn.updated" and m["params"]["turn"]))
+
+    async def test_each_kind_of_refusal_counts(self):
+        for decision in (policy.decide_edit(["/etc/cybexos/release.json"], self.harness.home),
+                         policy.decide_command("sudo true"), policy.decide_command("reboot"),
+                         policy.decide_command("systemctl poweroff"), policy.decide_command("nixos-rebuild switch"),
+                         policy.decide_command("cybex update rollback")):
+            with self.subTest(decision=decision):
+                turn = Turn("t-1", "claude", "q", self.harness.home, set(), lambda *args: None)
+                self.assertEqual((await turn.authorize(decision))[0], "deny")
+                self.assertTrue(turn.snapshot()["refused"])
+                await turn.authorize(policy.decide_command("ls"))
+                self.assertTrue(turn.snapshot()["refused"])
+
+
 class DesktopCallTest(ServiceTest):
     async def asyncSetUp(self):
         await super().asyncSetUp()
