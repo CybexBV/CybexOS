@@ -1,13 +1,11 @@
-# Cybex OS 1.0.34
+# Cybex OS 1.0.35
 
-Six connected-service widgets — Model Usage, Fusebox, GitHub, T3 Code, Hermes Agent and Remote Server — now ship as Cybex OS plugins that you install from Settings → Plugins instead of being built into the menubar. If you already configured any of them, your saved options stay in place and carry over when you install the plugin.
+Wiz is redrawn: he now has hands, a wand, a cape and boots, and the star on his hat is his single status light. While the assistant works he shows what kind of work it is, such as reading, searching, writing or installing, gives a thumbs-up after a long job and a shrug when something is refused, and gets drowsy when left alone. Ask him where a setting is and he opens Settings and points at the row. The installer, terminal and notification pictures use the same new Wiz.
 
-The desktop UI is cleaner and steadier across the shell, terminal prompt and installer. In Hug bar mode, the two screen corners opposite the bar now round softly to match the bar's corners, and the Cybex OS mark sits centred in the terminal prompt. Control Center toggles show clearly when on, repeated alerts fold together, and Settings, Software, Shortcuts, Welcome and the installer share one primary action per step, plainer error and recovery messages, keyboard-only focus rings, gentler motion under Reduce motion, and updated Dutch translations.
+Online accounts are easier to add. Settings → Online Accounts has its own Add account picker, with Google, Microsoft 365 and Nextcloud first, and shows each account's logo. Google sign-in no longer stops at an empty Open With dialog. Microsoft 365 and Exchange calendars now appear in the clock's calendar, next to Google ones.
 
-Omawrite updates to 0.7.8 and skips building its test suite on your computer during updates. Brave Origin updates to 1.100.59, Codex to 0.172.0 and Claude Code to 2.1.332.
+The `cybex` command is friendlier in a terminal. It has grouped help and plain-text output, and new guided commands: `cybex status`, `cybex update`, `cybex apps` (Nix and Flathub apps together), `cybex cleanup`, `cybex region` and `cybex ask`. Fish completes its commands with Tab. Scripts that read its output add `--json`.
 
-Wired connections now use the network's own DNS by default while keeping manual DNS choices intact, and LocalSend opens only when local network services are enabled. On Dell XPS laptops, the `intel-lpmd` power daemon now comes prebuilt from Nixpkgs rather than a local source build; this switch has not yet been physically re-qualified on XPS hardware, and the XPS 13 (`0E53`) stays excluded until tested.
-
-Updates and cleanup are steadier: Software Update now reads every page of the release list, keeps boot generations intact when clearing an abandoned preview, moves NixOS branches forward only, and bounds update log memory.
+Holding a key now starts repeating after a quarter of a second instead of 0.6 seconds.
 
 This is a source update with no new ISO. Installation, boot, physical hardware and staged-updater qualification are separate from source tests and package builds.
