@@ -1,5 +1,5 @@
 {
-  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). Everything here runs on The Dragon in the dev shell. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
+  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). Everything here runs on The Dragon in the dev shell, except the flake's evaluation, which runs in fast-test's Nix container on The Beast. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
   "steps": [
     {
       "name": "regression",
@@ -46,9 +46,11 @@
     },
     {
       "name": "flake-check",
-      "about": "The flake evaluates.",
+      "about": "The flake evaluates, in fast-test's Nix container on The Beast (its copy there is one commit deep, so Nix is told that's fine).",
       "when": ["*.nix", "flake.lock"],
-      "run": "nix --extra-experimental-features 'nix-command flakes' flake check --no-build"
+      "where": "beast-nix",
+      "run": "nix --extra-experimental-features 'nix-command flakes' flake check --no-build \"git+file://$PWD?shallow=1\""
     }
-  ]
+  ],
+  "beast": { "image": "docker.io/nixos/nix:2.26.3", "network": "internet" }
 }

@@ -160,8 +160,19 @@ in {
         ++ (with pkgs; [ gtk3 krb5 libsecret icu libffi libnotify ]);
     };
     programs.appimage = { enable = lib.mkDefault true; binfmt = lib.mkDefault true; };
-    xdg.mime = {
+    xdg.mime = let
+      # Register GNOME Online Accounts' OAuth2 return links explicitly (both
+      # default and added association, since xdg-desktop-portal checks
+      # recommended applications for custom schemes). Even a process that
+      # inherited an unindexed package share folder ahead of
+      # /run/current-system/sw/share still resolves the handler.
+      goaOAuth = lib.optionalAttrs config.services.gnome.gnome-online-accounts.enable (lib.genAttrs [
+        "x-scheme-handler/goa-oauth2"
+        "x-scheme-handler/com.googleusercontent.apps.44438659992-7kgjeitenc16ssihbtdjbgguch7ju55s"
+      ] (_: lib.mkDefault "org.gnome.OnlineAccounts.OAuth2.desktop"));
+    in {
       enable = true;
+      addedAssociations = goaOAuth;
       defaultApplications = {
         "x-scheme-handler/http" = lib.mkDefault browser;
         "x-scheme-handler/https" = lib.mkDefault browser;
@@ -181,7 +192,8 @@ in {
         # links until someone chooses an app or a web mail service.
         "inode/directory" = lib.mkDefault "org.gnome.Nautilus.desktop";
       } // lib.genAttrs [ "audio/mpeg" "audio/flac" "audio/ogg" "audio/x-vorbis+ogg" "audio/x-opus+ogg" "audio/mp4" "audio/x-wav" ]
-        (_: lib.mkDefault "mpv.desktop");
+        (_: lib.mkDefault "mpv.desktop")
+        // goaOAuth;
     };
     environment.etc."xdg/xdg-terminals.list".text = "kitty.desktop\n";
     services.gnome.gnome-keyring.enable = true;
