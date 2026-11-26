@@ -224,15 +224,25 @@ in pkgs.testers.runNixOSTest {
     data_dirs = shell_env.get("XDG_DATA_DIRS", "").split(":")
     assert "/home/tester/.local/share/flatpak/exports/share" in data_dirs and "/var/lib/flatpak/exports/share" in data_dirs, data_dirs
     # Online Accounts' Google sign-in returns through a link that its OAuth2
-    # handler opens. The shell, and the session environment that
-    # xdg-desktop-portal starts with, must both find that handler: a
-    # data folder without a MIME index ahead of the system's hides it.
+    # handler opens. The shell, the session environment, and xdg-desktop-portal
+    # itself must all find that handler in Recommended applications (OpenURI
+    # skips the empty Open With chooser only when recommended/all has a choice),
+    # even when a pre-1.0.35 session left GOA's unindexed share dir ahead of sw.
     handler = machine.succeed("sed -n 's/^MimeType=//p' /run/current-system/sw/share/applications/org.gnome.OnlineAccounts.OAuth2.desktop").strip()
+    mimes = [m for m in handler.split(";") if m]
+    assert mimes, handler
     session_env = dict(line.split("=", 1) for line in user("systemctl --user show-environment").splitlines() if "=" in line)
-    for name, dirs in (("shell", shell_env["XDG_DATA_DIRS"]), ("session", session_env.get("XDG_DATA_DIRS", ""))):
-        for mime in filter(None, handler.split(";")):
+    for mime in mimes:
+        scheme = mime.removeprefix("x-scheme-handler/")
+        supported = user(f"gdbus call --session --dest org.freedesktop.portal.Desktop --object-path /org/freedesktop/portal/desktop --method org.freedesktop.portal.OpenURI.SchemeSupported {shlex.quote(scheme)} '{{}}'").strip()
+        assert supported == "(true,)", (scheme, supported)
+    portal_pid = user("systemctl --user show xdg-desktop-portal.service -p MainPID --value").strip()
+    portal_env = dict(line.split("=", 1) for line in machine.succeed(f"tr '\\0' '\\n' < /proc/{portal_pid}/environ").splitlines() if "=" in line)
+    stale_dirs = "${pkgs.gnome-online-accounts}/share:" + session_env.get("XDG_DATA_DIRS", "")
+    for name, dirs in (("shell", shell_env["XDG_DATA_DIRS"]), ("session", session_env.get("XDG_DATA_DIRS", "")), ("portal", portal_env.get("XDG_DATA_DIRS", "")), ("stale", stale_dirs)):
+        for mime in mimes:
             found = machine.succeed(f"runuser -u tester -- env XDG_DATA_DIRS={shlex.quote(dirs)} ${pkgs.glib.bin}/bin/gio mime {mime}")
-            assert "\torg.gnome.OnlineAccounts.OAuth2.desktop" in found, (name, mime, found)
+            assert "Recommended applications:\n\torg.gnome.OnlineAccounts.OAuth2.desktop" in found, (name, mime, found)
     # Settings draws each provider's mark from the icon theme: the logos GOA
     # installs, on the shell's data path through the desktop's icon folders.
     # Qt reads the hicolor theme's index from any of those folders.

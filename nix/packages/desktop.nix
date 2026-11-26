@@ -143,6 +143,15 @@ in stdenv.mkDerivation {
     PATH=${lib.makeBinPath [ libxkbcommon ]} xkbcli compile-keymap --layout us > /dev/null
     # Settings → Keyboard lists layouts from the same data (no /usr/share on NixOS).
     test -r ${xkeyboard-config}/etc/X11/xkb/rules/evdev.xml
+    # Nothing on the session launcher's data path outside $out/share may carry
+    # applications: an unindexed desktop file there shadows /run/current-system/sw
+    # for the whole session and xdg-desktop-portal.
+    dirs=$(tr '\0' '\n' < $out/bin/cybexos-session | grep -aoE "/nix/store/[^':\"[:space:]]+" | sort -u)
+    test -n "$dirs"
+    for dir in $dirs; do
+      [ "$dir" = "$out/share" ] && continue
+      if [ -e "$dir/applications" ]; then echo "$dir has applications"; exit 1; fi
+    done
     env -i HOME="$TMPDIR" $out/libexec/cybexos-desktop-runtime-check
     runHook postInstallCheck
   '';
