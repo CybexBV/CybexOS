@@ -303,7 +303,10 @@ class PromptTest(unittest.TestCase):
             {"kind": "window", "label": "Firefox · PR #1"},
             {"kind": "file", "label": "build.log", "text": "error: ```oops```"},
             {"kind": "image", "label": "paste.png"}])
-        self.assertIn("The reply is shown in a wide view", text)
+        # There is no wide view any more: the box is always the narrow one.
+        self.assertNotIn("wide view", text)
+        self.assertIn("do not use tables or headings", prompt.INSTRUCTIONS)
+        self.assertIn("shown as the reply's headline", prompt.INSTRUCTIONS)
         self.assertIn("The person was looking at this window: Firefox · PR #1.", text)
         self.assertIn("Attached: build.log:\n````\nerror: ```oops```\n````", text)
         self.assertIn("1 image the person attached is included.", text)

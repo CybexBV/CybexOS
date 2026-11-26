@@ -311,11 +311,17 @@ class Server(ConversationsMixin, DesktopToolsMixin):
                 if not executable:
                     self.authentication.pop(name, None)
                     return name, {"available": False, "label": LABELS[name], "auth": "missing"}
-                stamp, previous_executable, state = self.authentication.get(name, (0.0, None, "unknown"))
+                stamp, previous_executable, state, plan = self.authentication.get(
+                    name, (0.0, None, "unknown", None))
                 if refresh or previous_executable != executable or time.monotonic() - stamp >= DISCOVERY_SECONDS:
-                    state = await auth.status(name, executable, self.home, self.agent_env())
-                    self.authentication[name] = (time.monotonic(), executable, state)
-                return name, {"available": True, "label": LABELS[name], "auth": state}
+                    state, plan = await auth.status(name, executable, self.home, self.agent_env())
+                    self.authentication[name] = (time.monotonic(), executable, state, plan)
+                found_status = {"available": True, "label": LABELS[name], "auth": state}
+                # Codex's Fast tier comes with a ChatGPT plan, not an API key;
+                # unknown when Codex did not say how it is signed in.
+                if name == "codex" and plan is not None:
+                    found_status["fast"] = plan == "chatgpt"
+                return name, found_status
 
             return dict(await asyncio.gather(*(inspect(name) for name in AGENTS)))
 
@@ -357,6 +363,26 @@ class Server(ConversationsMixin, DesktopToolsMixin):
             raise RpcFault(-32602, "Invalid model")
         return value
 
+    @staticmethod
+    def _effort(value):
+        """An effort either agent knows; which one answers is settled later."""
+        if value in (None, "", "default"):
+            return None
+        if not isinstance(value, str) or not any(value in agent.efforts for agent in AGENTS.values()):
+            raise RpcFault(-32602, "Invalid effort")
+        return value
+
+    @staticmethod
+    def _fast(value):
+        """Codex's Fast tier: True, False, or None to leave Codex's own setting."""
+        if value is not None and not isinstance(value, bool):
+            raise RpcFault(-32602, "Invalid fast")
+        return value
+
+    def _codex_fast_allowed(self):
+        """Fast is a ChatGPT plan's tier; with an API key it would bill more."""
+        return self.authentication.get("codex", (0.0, None, "unknown", None))[3] != "other"
+
     async def turn_start(self, params):
         text = params.get("text")
         if not isinstance(text, str) or not text.strip():
@@ -374,6 +400,8 @@ class Server(ConversationsMixin, DesktopToolsMixin):
         if continued and self.history.get(continued) is None:
             raise RpcFault(NOT_FOUND, "That conversation is no longer in your history.")
         model = self._model(params.get("model"))
+        effort = self._effort(params.get("effort"))
+        fast = self._fast(params.get("fast"))
         context = turn_context(params.get("context"))
         shot = self.screenshot(params.get("screenshot"))
         notes, images = self.attachments(params.get("attachments"))
@@ -387,17 +415,18 @@ class Server(ConversationsMixin, DesktopToolsMixin):
             if self.queue is not None:
                 raise RpcFault(BUSY, "The assistant is still working on the previous question.")
             self.queue = {"id": "q-" + secrets.token_hex(6), "text": text, "agent": requested, "model": model,
-                          "conversation": continued, "context": context, "notes": notes,
+                          "effort": effort, "fast": fast, "conversation": continued, "context": context, "notes": notes,
                           "images": [str(path) for path in images], "createdAt": now_ms(), "reason": "busy"}
             self.publish_queue()
             return {"queued": self.queue_summary()}
         else:
             lane = side
-        turn = await self._begin(lane, text, requested, continued, model, context, notes, images)
+        turn = await self._begin(lane, text, requested, continued, model, context, notes, images,
+                                 effort=effort, fast=fast)
         return {"turn": self.snapshot(turn)}
 
     async def _begin(self, lane, text, requested, continued, model, context, notes, images, routine=None,
-                     queued=False):
+                     queued=False, effort=None, fast=None):
         statuses = await self.agent_status()
         # Auth probing yields to other clients; a second start may have won.
         if lane.busy():
@@ -430,14 +459,15 @@ class Server(ConversationsMixin, DesktopToolsMixin):
         self.quiet_since = time.monotonic()
         self.history.begin(record, turn)
         lane.task = asyncio.create_task(self._run(lane, turn, record, text, images, model, context, notes,
-                                                  plugins, status, requested))
+                                                  plugins, status, requested, effort, fast))
         if lane.name == "main":
             self.save()
         self._turn_event("updated", turn)
         self.publish_history()
         return turn
 
-    async def _run(self, lane, turn, record, text, images, model, context, notes, plugins, status, requested):
+    async def _run(self, lane, turn, record, text, images, model, context, notes, plugins, status, requested,
+                   effort=None, fast=None):
         try:
             executable = self.agents().get(turn.agent)
             if not executable:
@@ -451,11 +481,17 @@ class Server(ConversationsMixin, DesktopToolsMixin):
             await adapter.use(record["session"])
             question = prompt.turn_text(text, context, bool(images), notes, look_only=lane.name == "side",
                                         routine=(turn.routine or {}).get("title"), queued=turn.queued)
-            outcome = await adapter.run(turn, question, pictures, model)
+            # A conversation keeps its agent, so an effort only the other
+            # one knows ("none" is Codex's) is left to the agent's default.
+            if effort not in AGENTS[turn.agent].efforts:
+                effort = None
+            if turn.agent != "codex" or (fast and not self._codex_fast_allowed()):
+                fast = None if turn.agent != "codex" else False
+            outcome = await adapter.run(turn, question, pictures, model, effort=effort, fast=fast)
             turn.finish(outcome.get("status", "failed"), outcome.get("text"), outcome.get("error", ""),
                         outcome.get("kind", ""))
             if turn.error_kind == 'auth':
-                self.authentication[turn.agent] = (time.monotonic(), executable, 'required')
+                self.authentication[turn.agent] = (time.monotonic(), executable, 'required', None)
                 self.publish('agents.updated', {'agents': await self.agent_status()})
         except FileNotFoundError:
             turn.finish("failed", error=f"{LABELS[turn.agent]} is not installed.", kind="missing")
@@ -525,7 +561,8 @@ class Server(ConversationsMixin, DesktopToolsMixin):
             continued = item["conversation"] if self.history.get(item["conversation"]) else None
             try:
                 await self._begin(main, item["text"], item["agent"], continued, item["model"], item["context"],
-                                  item["notes"], [Path(path) for path in item["images"]], queued=True)
+                                  item["notes"], [Path(path) for path in item["images"]], queued=True,
+                                  effort=item.get("effort"), fast=item.get("fast"))
             except RpcFault as fault:
                 for path in item["images"]:
                     with contextlib.suppress(OSError):

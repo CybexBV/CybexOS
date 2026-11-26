@@ -19,7 +19,7 @@ IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 def turn_context(value):
     """turn.start's context for the per-turn note; an unknown purpose is dropped."""
     value = value if isinstance(value, dict) else {}
-    context = {key: value[key] for key in ("output", "speak", "language", "wide") if key in value}
+    context = {key: value[key] for key in ("output", "speak", "language") if key in value}
     if isinstance(value.get("purpose"), str) and value["purpose"] in prompt.PURPOSE_NOTES:
         context["purpose"] = value["purpose"]
     return context

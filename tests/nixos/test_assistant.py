@@ -157,7 +157,11 @@ import json, os, sys
 from pathlib import Path
 
 signed_out = Path(os.environ['HOME']) / 'signed-out-codex'
+plan = Path(os.environ['HOME']) / 'codex-plan'
 if sys.argv[1:] == ['login', 'status']:
+    # The real one says how it is signed in on stderr, with account details.
+    if plan.exists():
+        print('Logged in using ' + plan.read_text() + ' - private-account-details', file=sys.stderr)
     sys.exit(int(signed_out.exists()))
 if sys.argv[1:] == ['login']:
     signed_out.unlink(missing_ok=True)
@@ -599,6 +603,13 @@ class AuthenticationTest(ServiceTest):
         missing = await self.client.call('auth.login', {'agent': 'codex'})
         self.assertEqual(missing['error']['code'], -32003)
 
+    def test_codex_plan_reads_only_the_sign_in_kind(self):
+        self.assertEqual(auth.codex_plan(b"Logged in using ChatGPT\n"), "chatgpt")
+        self.assertEqual(auth.codex_plan(b"Logged in using an API key - sk-proj-***ABCD\n"), "other")
+        self.assertEqual(auth.codex_plan(b"Logged in using access token\n"), "other")
+        self.assertIsNone(auth.codex_plan(b"Not logged in\n"))
+        self.assertIsNone(auth.codex_plan(None))
+
     async def test_uncheckable_auth_is_not_reported_as_ready(self):
         marker = self.harness.home / 'signed-out-claude'
         marker.write_text('error')
@@ -962,9 +973,32 @@ class ClaudeTest(ServiceTest):
         await self.ask("hello")
         done = await self.client.finished()
         self.assertEqual((done["status"], done["errorKind"]), ("failed", "missing"))
-        for params in ({"text": ""}, {"text": "x", "agent": "gpt"}, {"text": "x", "model": "a b"}):
+        for params in ({"text": ""}, {"text": "x", "agent": "gpt"}, {"text": "x", "model": "a b"},
+                       {"text": "x", "effort": "turbo"}, {"text": "x", "effort": 3}, {"text": "x", "fast": "yes"}):
             self.assertEqual((await self.client.call("turn.start", params))["error"]["code"], -32602)
         self.assertEqual((await self.client.call("nope"))["error"]["code"], -32601)
+
+    async def test_effort_reaches_claude_code_and_a_new_one_restarts_it(self):
+        first = await self.ask("Hi", effort="high")
+        await self.client.finished()
+        argv = self.harness.entries()[-1]["argv"]
+        self.assertEqual(argv[argv.index("--effort") + 1], "high")
+        # The same effort keeps the process; another one resumes the session in a new one.
+        self.client.notifications.clear()
+        await self.ask("Again", conversation=first["conversation"], effort="high")
+        await self.client.finished()
+        self.assertEqual(len(self.harness.entries()), 1)
+        self.client.notifications.clear()
+        await self.ask("Lower", conversation=first["conversation"], effort="low")
+        await self.client.finished()
+        argv = self.harness.entries()[-1]["argv"]
+        self.assertEqual((argv[argv.index("--effort") + 1], argv[argv.index("--resume") + 1]), ("low", "sess-1"))
+        # Codex's "none" and the agent's own default leave the flag out.
+        for effort in ("none", "default"):
+            self.client.notifications.clear()
+            await self.ask("Plain", effort=effort, fast=True)
+            await self.client.finished()
+            self.assertNotIn("--effort", self.harness.entries()[-1]["argv"])
 
     async def test_resume_after_restart(self):
         first = await self.ask("Hi")
@@ -1055,6 +1089,44 @@ class CodexTest(ServiceTest):
         self.assertIn("Cybex OS Assistant", thread["developerInstructions"])
         handoff = await self.client.result("conversation.handoff")
         self.assertEqual(handoff["argv"][1:], ["resume", "th-1"])
+
+    def turn_starts(self):
+        return [entry["params"] for entry in self.harness.entries() if entry.get("method") == "turn/start"]
+
+    async def test_effort_and_fast_reach_the_turn(self):
+        first = await self.ask("Hello", effort="high", fast=True)
+        await self.client.finished()
+        params = self.turn_starts()[-1]
+        self.assertEqual((params["effort"], params["serviceTier"]), ("high", "priority"))
+        # Off is standard speed, even when Codex's own config asks for Fast.
+        self.client.notifications.clear()
+        await self.ask("Again", conversation=first["conversation"], effort="none", fast=False)
+        await self.client.finished()
+        params = self.turn_starts()[-1]
+        self.assertEqual((params["effort"], params["serviceTier"]), ("none", "default"))
+        # Neither: Codex keeps its own settings.
+        self.client.notifications.clear()
+        await self.ask("Plain")
+        await self.client.finished()
+        self.assertNotIn("effort", self.turn_starts()[-1])
+        self.assertNotIn("serviceTier", self.turn_starts()[-1])
+
+    async def test_fast_needs_a_chatgpt_sign_in(self):
+        status = await self.client.result("auth.status")
+        self.assertNotIn("fast", status["agents"]["codex"], "unknown when Codex does not say")
+        plan = self.harness.home / "codex-plan"
+        plan.write_text("ChatGPT")
+        status = await self.client.result("auth.status")
+        self.assertIs(status["agents"]["codex"]["fast"], True)
+        self.assertNotIn("private-account-details", json.dumps(status))
+        plan.write_text("an API key")
+        status = await self.client.result("auth.status")
+        self.assertIs(status["agents"]["codex"]["fast"], False)
+        self.assertNotIn("fast", status["agents"]["claude"])
+        # With an API key Fast would bill more: the turn asks for standard speed.
+        await self.ask("Hello", fast=True)
+        await self.client.finished()
+        self.assertEqual(self.turn_starts()[-1]["serviceTier"], "default")
 
     async def test_command_approval_and_session_grant(self):
         self.approval_policy("ask")

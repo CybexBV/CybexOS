@@ -29,6 +29,8 @@ EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 class ClaudeAgent:
     name = "claude"
     label = "Claude Code"
+    # `claude --effort`'s levels; none is left to Claude Code's own setting.
+    efforts = ("low", "medium", "high", "xhigh", "max")
 
     def __init__(self, executable, home, instructions, status_path=None, conversation_id=None,
                  on_conversation=None, env=None, mcp=None, look_only=False):
@@ -44,6 +46,7 @@ class ClaudeAgent:
         self.env = env
         self.process = None
         self.model = None
+        self.effort = None
         self.turn = None
         self.result = None
         self.stderr = collections.deque(maxlen=20)
@@ -81,17 +84,21 @@ class ClaudeAgent:
             self.conversation_id = identifier
             self.on_conversation(self.name, identifier)
 
-    async def _start(self, model):
+    async def _start(self, model, effort=None):
+        effort = effort if effort in self.efforts else None
         if self.process is not None and self.process.returncode is None:
-            if self.model == model:
+            if (self.model, self.effort) == (model, effort):
                 return
-            # A different model needs a new process; the session resumes in it.
+            # A different model or effort needs a new process; the session
+            # resumes in it.
             await self.close()
         command = [self.executable, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
                    "--verbose", "--include-partial-messages", "--permission-prompt-tool", "stdio",
                    "--append-system-prompt", self.instructions]
         if model:
             command += ["--model", model]
+        if effort:
+            command += ["--effort", effort]
         if self.mcp:
             argv, server_env = self.mcp
             command += ["--mcp-config", json.dumps({"mcpServers": {desktop.SERVER: {
@@ -110,6 +117,7 @@ class ClaudeAgent:
             *command, cwd=self.home, env=env, stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True)
         self.model = model
+        self.effort = effort
         self.stderr.clear()
         process = self.process
         errors = self._spawn(self._read_errors(process))
@@ -127,8 +135,9 @@ class ClaudeAgent:
         if self.result is not None and not self.result.done():
             self.result.set_result({"status": status, "text": text, "error": error, "kind": kind})
 
-    async def run(self, turn, text, images=None, model=None):
-        outcome = await self._attempt(turn, text, images, model)
+    async def run(self, turn, text, images=None, model=None, effort=None, fast=None):
+        """`fast` is Codex's; Claude Code has no such tier here."""
+        outcome = await self._attempt(turn, text, images, model, effort)
         if outcome["kind"] == "crashed" and self.resume_failed and not turn.stopping:
             # A session Claude Code no longer has (deleted, or from another
             # machine's home) must not fail every later question too.
@@ -136,12 +145,12 @@ class ClaudeAgent:
             self.resume_failed = False
             self.conversation_id = None
             self.on_conversation(self.name, None)
-            outcome = await self._attempt(turn, text, images, model)
+            outcome = await self._attempt(turn, text, images, model, effort)
         return outcome
 
-    async def _attempt(self, turn, text, images, model):
+    async def _attempt(self, turn, text, images, model, effort=None):
         self._cancel_idle()
-        await self._start(model or None)
+        await self._start(model or None, effort or None)
         loop = asyncio.get_running_loop()
         self.turn, self.result = turn, loop.create_future()
         content = [{"type": "text", "text": text}]
