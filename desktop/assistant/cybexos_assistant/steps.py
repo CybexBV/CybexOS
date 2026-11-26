@@ -50,6 +50,10 @@ def desktop_kind(name):
     kind = desktop.kind(name)
     if kind == desktop.LOOK:
         return SEARCH if name in DESKTOP_SEARCH else READ
+    # Acting on the desktop is a change too, though nothing is recorded:
+    # opening an app, moving a window, opening Settings at a row for
+    # settings_show. Wiz casts while the window opens; the small Wiz in
+    # Settings does the pointing.
     if kind in (desktop.CHANGE, desktop.ACT):
         return CHANGE
     if kind == desktop.INSTALL:

@@ -7,7 +7,10 @@ step list shows. The kinds decide what may run without asking:
   and a routine, may use only these.
 - "change" changes a preference, the wallpaper or a routine. It is recorded
   in the change log (changes.py), so it can be undone.
-- "act" acts on windows and apps. It is not undoable, but nothing is lost.
+- "act" acts on windows and apps, or opens Settings to show a setting. It
+  is not undoable, but nothing is lost. A question answered alongside and a
+  routine may not use it: putting a window on the person's screen unasked
+  is not looking.
 - "install" adds or removes an app for this account. It asks first under
   Ask first, and is recorded so it can be undone.
 
@@ -68,6 +71,14 @@ TOOLS = {
                        "must be one the setting accepts: check settings_search first. Settings of the "
                        "assistant itself cannot be changed here.",
         "schema": _schema({"key": {"type": "string"}, "value": {}}, ["key", "value"]),
+    },
+    "settings_show": {
+        "kind": ACT, "where": "shell", "label": "Showed a setting",
+        "description": "Opens Settings at one setting's row, where a small Wiz points at it until the person "
+                       "changes it, leaves the page or closes Settings. Use it when the person asks where a "
+                       "setting is or how to find it; it changes nothing. key is a key from settings_search. "
+                       "The answer says where the row is in Settings' own words (page, tab, group, label).",
+        "schema": _schema({"key": {"type": "string"}}, ["key"]),
     },
     "wallpaper_search": {
         "kind": LOOK, "where": "service", "label": "Searched Wallhaven",
@@ -155,6 +166,7 @@ TOOLS = {
 PRESENT = {
     "desktop_status": "Looking at the desktop", "settings_search": "Looking up settings",
     "settings_get": "Reading your preferences", "settings_set": "Changing a preference",
+    "settings_show": "Showing a setting",
     "wallpaper_search": "Searching Wallhaven", "wallpaper_set": "Setting the wallpaper",
     "app_open": "Opening an app", "window_focus": "Focusing a window", "window_move": "Moving a window",
     "window_close": "Closing a window", "workspace_switch": "Switching workspace",
