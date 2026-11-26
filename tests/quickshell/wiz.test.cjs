@@ -98,6 +98,15 @@ test("the cloak's outline stays whole around the face and under the collar", () 
     assert.equal(collar[redraw].lw, outline.lw);
 });
 
+// The hat band sits on the cone and sways with it, under the cone's outline.
+test("the hat band moves with the cone and stays inside its outline", () => {
+    assert.ok(!("band" in W.LAYERS), "the band is part of the cone layer");
+    const cone = W.layerOps("cone"), last = cone[cone.length - 1];
+    assert.ok(last.stroke && !last.fill, "the cone layer ends with its outline");
+    assert.deepEqual(last.d, cone[0].d, "the outline is the cone's own shape");
+    assert.ok(cone.some(op => op.fill === "#DC1E37"), "the band is in the cone layer");
+});
+
 test("the rig loads before QML has its globals", () => {
     // Qt 6.11 can run an imported script's top level before Math exists (a
     // component's first instance in a Repeater); the rig must not need it then.

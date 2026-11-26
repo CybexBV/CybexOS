@@ -107,7 +107,7 @@ function kiosk() {
     for (const state of KIOSK_POSES) {
         const ops = posed(state), add = (name, svg) => { files[`${state}-${name}.svg`] = svg; };
         add("body", picture(ops, ["shadow", "body", "underlight", "collar"]));
-        add("hat", picture(ops, ["brim", "cone", "band"]));
+        add("hat", picture(ops, ["brim", "cone"]));
         // The blink's frames share the open eyes' box; the glow needs room.
         const eyes = bounds(ops, ["eyes"], 5), open = WizRig.POSES[state].eyeOpen;
         add("eyes", picture(ops, ["eyes"], eyes));

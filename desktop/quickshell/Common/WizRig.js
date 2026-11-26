@@ -407,15 +407,19 @@ var WizRig = (function () {
     O.push(P(ell(60, 56.9, 35, 7), { fill: C.brimUnder, stroke: C.edge, lw: 1.1, layer: "brim" }));
     O.push(P(ell(60, 56, 35, 7), { fill: C.brim, layer: "brim" }));
     O.push(P([["M", 25.6, 55.2], ["C", 25.6, 47.8, 94.4, 47.8, 94.4, 55.2]], { stroke: C.brimHi, lw: 1, layer: "brim" }));
-    O.push(P([["M", 41, 56], ["C", 45, 42, 50, 30, 56 + w * .2, 22], ["C", 61 + w * .4, 15, 68 + w * .7, 9 + w * .1, 75 + w, 6.5 + w * .2],
+    // The band sits on the cone and sways with it; the cone's outline is
+    // drawn again over the band's ends, so the band never paints over it.
+    var cone = [["M", 41, 56], ["C", 45, 42, 50, 30, 56 + w * .2, 22], ["C", 61 + w * .4, 15, 68 + w * .7, 9 + w * .1, 75 + w, 6.5 + w * .2],
       ["C", 78 + w * 1.2, 5.6 + w * .4, 80.5 + w * 1.3, 6.6 + w * .6, 81 + w * 1.4, 9 + w * .8],
       ["C", 77 + w * 1.1, 9 + w * .5, 71 + w * .6, 13 + w * .2, 69 + w * .4, 19],
-      ["C", 67.5 + w * .2, 27, 72, 42, 79, 56], ["Q", 60, 62, 41, 56], ["Z"]], { fill: C.hat, stroke: C.hatEdge, lw: 1.1, join: "round", layer: "cone" }));
+      ["C", 67.5 + w * .2, 27, 72, 42, 79, 56], ["Q", 60, 62, 41, 56], ["Z"]];
+    O.push(P(cone, { fill: C.hat, layer: "cone" }));
     O.push(P([["M", 69 + w * .4, 19], ["C", 67.5 + w * .2, 27, 72, 42, 79, 56], ["Q", 70, 59.8, 63, 59.2], ["C", 62.5, 46, 64, 30, 69 + w * .4, 19], ["Z"]], { fill: "#000000", a: 0.22, layer: "cone" }));
     O.push(P([["M", 57.5 + w * .25, 21.5], ["Q", 63 + w * .5, 18.5, 68.6 + w * .4, 19.6]], { stroke: C.crease, lw: 1, cap: "round", layer: "cone" }));
-    O.push(P([["M", 43.1, 49], ["Q", 60, 55.5, 75.8, 49], ["L", 78.2, 54.6], ["Q", 60, 61.4, 41.4, 54.6], ["Z"]], { fill: C.band, layer: "band" }));
-    O.push(P([["M", 43.3, 49.3], ["Q", 60, 55.8, 75.6, 49.3]], { stroke: C.bandHi, lw: 0.8, a: 0.45, layer: "band" }));
-    O.push(P([["M", 41.6, 54.3], ["Q", 60, 61.1, 78, 54.3]], { stroke: C.bandLo, lw: 1, layer: "band" }));
+    O.push(P([["M", 43.1, 49], ["Q", 60, 55.5, 75.8, 49], ["L", 78.2, 54.6], ["Q", 60, 61.4, 41.4, 54.6], ["Z"]], { fill: C.band, layer: "cone" }));
+    O.push(P([["M", 43.3, 49.3], ["Q", 60, 55.8, 75.6, 49.3]], { stroke: C.bandHi, lw: 0.8, a: 0.45, layer: "cone" }));
+    O.push(P([["M", 41.6, 54.3], ["Q", 60, 61.1, 78, 54.3]], { stroke: C.bandLo, lw: 1, layer: "cone" }));
+    O.push(P(cone, { stroke: C.hatEdge, lw: 1.1, join: "round", layer: "cone" }));
     O = O.concat(front);
     if (fx.dizzy) for (var ds = 0; ds < 4; ds++) {
       var da2 = ds * Math.PI / 2 + 0.4, Ld = LAYOUT.dizzy;
@@ -490,7 +494,6 @@ var WizRig = (function () {
     "rune3": { state: "thinking", box: [-9, -9, 18, 18] },
     "brim": { box: [23, 46, 74, 20] },
     "cone": { box: [38, 3, 46, 61] },
-    "band": { box: [40, 47, 40, 16] },
     "sparkle": { state: "finished", box: [-12, -12, 24, 24], first: 1 },
     "pip": { state: "needs-input", at: [93, 36], box: [-4, -4, 8, 8] },
     "pip-ring": { state: "needs-input", at: [93, 36], box: [-7, -7, 14, 14], opaque: true },

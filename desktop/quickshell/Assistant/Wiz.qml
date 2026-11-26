@@ -802,10 +802,6 @@ Item {
                                 }
                             }
 
-                            Part {
-                                name: "band"
-                            }
-
                             Item {
                                 width: 120
                                 height: 120
