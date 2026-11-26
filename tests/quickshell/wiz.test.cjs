@@ -722,8 +722,10 @@ test("he can face the other way, point at the box, and have a helper", () => {
     assert.match(code, /readonly property var reaction: wiz\.carry\(ux \* side, uy\)/);
     assert.match(code, /readonly property point pivot: Qt\.point\(side > 0 \? grab\.x \/ unit : 120 - grab\.x \/ unit, grab\.y \/ unit\)/);
     assert.equal(code.match(/transform: Scale \{ xScale: root\.side \}/g).length, 2, "the z's and the \"?!\"");
-    // Pointing: down at the box below him, up at one above.
-    assert.match(code, /readonly property var aim: pose === "pointing" \? \(boxAbove \? layout\.aim\.above : layout\.aim\.below\) : null/);
+    // Pointing: down at the box below him, up at one above; `aside` keeps
+    // the pose's own aim out to the side (Settings' guide).
+    assert.match(code, /property bool aside: false/);
+    assert.match(code, /readonly property var aim: pose === "pointing" && !aside\s*\? \(boxAbove \? layout\.aim\.above : layout\.aim\.below\) : null/);
     for (const key of ["rx", "ry", "wandA", "eyeX", "eyeY"])
         assert.match(code, new RegExp(`property real ${key}: aim \\? aim\\.${key} : stance\\.${key}`), key);
     const { above, below } = W.LAYOUT.aim;

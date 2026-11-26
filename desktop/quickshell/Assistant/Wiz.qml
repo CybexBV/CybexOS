@@ -84,7 +84,11 @@ Item {
     readonly property bool attentive: pose === "listening" && !recording
     readonly property bool carried: pose === "carried"
     // Pointing at the box: down at it, or up when it opens above him.
-    readonly property var aim: pose === "pointing" ? (boxAbove ? layout.aim.above : layout.aim.below) : null
+    // `aside` keeps the pose's own aim, straight out to the side: Settings'
+    // guide points at a row beside him (Settings/SettingsGuide.qml).
+    property bool aside: false
+    readonly property var aim: pose === "pointing" && !aside
+        ? (boxAbove ? layout.aim.above : layout.aim.below) : null
     readonly property int side: facing < 0 ? -1 : 1
     // Rig units to item pixels, and to device pixels for drawing the layers.
     readonly property real unit: Math.min(width, height) / 120
