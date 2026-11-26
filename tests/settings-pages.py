@@ -522,6 +522,7 @@ def main():
                 result = wait(lambda: state()['open'] and (a := accounts())['notice'] and not a['running'] and a,
                               f'the {kind} result')
                 assert notice in result['notice'] and result['tone'] == tone, result
+            screenshot('23-account-refused.png')
             # A helper that cannot start brings Settings back with a reason.
             helper = base / 'bin/cybexos-goa-account'
             helper.rename(base / 'cybexos-goa-account.away')
