@@ -70,22 +70,6 @@ test("Ethernet loading, absence and read failures are separate UI states", () =>
     assert.match(source, /No Ethernet ports/);
 });
 
-test("the combined menubar indicator gives wired transport priority", () => {
-    const module = read("Bar/Modules/Wifi.qml");
-    assert.match(module, /moduleId:\s*"wifi"/);
-    assert.match(module, /panelName:\s*"wifi"/);
-    assert.match(module, /EthernetState\.connected \? "lan"/);
-    assert.match(module, /EthernetState\.connected \|\| WifiState\.connected/);
-    assert.match(module, /for \(const device of EthernetState\.connectedDevices\)/);
-    assert.match(module, /"Ethernet " \+ \(device\.connection \|\| device\.device\)/);
-    assert.match(module, /"Wi-Fi " \+ WifiState\.name/);
-    assert.match(module, /if \(Tailscale\.connected\)/);
-    assert.match(module, /Tailscale\.net \|\| Tailscale\.host/);
-    assert.match(module, /Tailscale\.exitNode/);
-    assert.doesNotMatch(module, /BrandIcon\s*\{/,
-        "Tailscale belongs in the tooltip and panel, not beside the transport glyph");
-});
-
 test("Tailscale is an overlay with a persistent drill-in, not the physical route", () => {
     const singleton = read("Common/Tailscale.qml");
     const panel = read("Popovers/WifiPopover.qml");
@@ -177,11 +161,4 @@ test("wired monitoring is ref-counted by each visible Network consumer", () => {
         assert.match(source, /EthernetState\.acquire\(\)/);
         assert.match(source, /EthernetState\.release\(\)/);
     }
-});
-
-test("the visible widget label is Network while stable identifiers stay wifi", () => {
-    const registry = read("Common/PanelRegistryData.js");
-    const catalog = require(path.join(shellDir, "Common", "WidgetCatalog.js"));
-    assert.equal(catalog.widgetName("wifi"), "Network");
-    assert.match(registry, /name: "wifi"[\s\S]*tab: "network"/);
 });

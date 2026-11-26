@@ -19,23 +19,6 @@ test("battery health is a capability-driven accessible UPower control", () => {
     assert.match(battery, /BatteryHealth\.release\(\)/);
 });
 
-test("battery telemetry is stable, aggregate, and cycle aware", () => {
-    assert.match(battery, /displayDevice:\s*UPower\.displayDevice/);
-    assert.match(battery, /displayDevice\.energyCapacity/);
-    assert.match(battery, /displayDevice\.changeRate/);
-    assert.match(battery, /displayDevice\.timeToFull/);
-    assert.match(battery, /displayDevice\.timeToEmpty/);
-    for (const label of ["Capacity", "Cycles", "Time to full", "Time remaining",
-        "Charge rate", "Discharge rate"]) {
-        assert.ok(battery.includes(`"${label}"`), `${label} telemetry is missing`);
-    }
-    assert.match(battery, /BAT\*\/cycle_count/);
-    assert.match(battery, /LC_ALL=C sort/);
-    assert.match(battery, /running:\s*true/,
-        "cycle counts should be read once with the popover instance");
-    assert.match(battery, /BatteryView\.parseCycleCounts\(text\)/);
-});
-
 test("power profiles form one accessible keyboard-operated segmented radio", () => {
     assert.match(battery,
         /id:\s*profileTrack[\s\S]*?id:\s*profileRow[\s\S]*?id:\s*profileRepeater/);

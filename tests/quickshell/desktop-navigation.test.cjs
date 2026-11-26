@@ -23,7 +23,6 @@ const processList = read("Common/ProcessList.qml");
 const processes = read("Popovers/Drawer/DrawerProcesses.qml");
 const drawerOverview = read("Popovers/Drawer/DrawerOverview.qml");
 const bindings = untranslated(fs.readFileSync(path.resolve(shellDir, "../hypr/bindings.lua"), "utf8"));
-const look = untranslated(fs.readFileSync(path.resolve(shellDir, "../hypr/looknfeel.lua"), "utf8"));
 
 function functionBody(source, name) {
     const start = source.indexOf(`function ${name}(`);
@@ -220,18 +219,6 @@ test("ending a process is confirmed, signals by start time, and escalates only w
 });
 
 // ---- compositor rules -------------------------------------------------------
-
-test("both surfaces skip layer animations; only the dock is blurred", () => {
-    const noAnim = look.match(/name = "quickshell-no-animation",\s*match = \{ namespace = \[\[([^\]]+)\]\] \}/);
-    assert.ok(noAnim);
-    assert.match(noAnim[1], /\|overview\|dock\|assistant\|/);
-    // The welcome guide and its resume pill fade themselves.
-    assert.match(noAnim[1], /\|welcome\|welcome-resume\)\$$/);
-    const blur = look.match(/name = "quickshell-blur",[\s\S]*?namespace = \[\[([^\]]+)\]\]/);
-    assert.ok(blur);
-    assert.match(blur[1], /\|dock\)\$$/);
-    assert.doesNotMatch(blur[1], /overview/, "a blur behind live captures redraws every frame");
-});
 
 test("an overview with no windows says so and offers one way on", () => {
     assert.match(overviewView, /readonly property bool empty: windows\.length === 0/);

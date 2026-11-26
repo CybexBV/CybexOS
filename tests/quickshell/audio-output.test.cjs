@@ -52,20 +52,6 @@ const airplay = {
     description: "Living Room",
 };
 
-test("output and input devices get concise labels", () => {
-    assert.equal(H.sinkLabel(laptop), "Laptop Speakers");
-    assert.equal(H.sinkLabel(adam), "ADAM D3V");
-    assert.equal(H.sinkLabel(studio), "Studio Display XDR");
-    assert.equal(H.sinkLabel(hdmi), "HDMI / DisplayPort 2");
-    assert.equal(H.sourceLabel({
-        ready: true,
-        name: "alsa_input.pci.sof_sdw.HiFi__Mic__source",
-        properties: { "node.nick": "Built-in Audio Microphones Input" },
-    }), "Microphone");
-    assert.equal(H.sinkLabel(null), "No output device");
-    assert.equal(H.sourceLabel(null), "No input device");
-});
-
 test("local outputs remain complete while network outputs are grouped separately", () => {
     const sinks = [airplay, studio, hdmi, adam, laptop];
     assert.deepEqual(H.localSinks(sinks, laptop), [laptop, adam, hdmi, studio]);

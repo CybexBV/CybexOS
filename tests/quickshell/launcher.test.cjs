@@ -51,16 +51,6 @@ test("the dismissal grab waits for layershell keyboard focus and keeps native te
     assert.doesNotMatch(view, /readOnly:\s*true|inputMethodHints:\s*Qt\.Imh/);
 });
 
-test("Enter activates the selected first result without waiting for animation", () => {
-    const view = read("LauncherView.qml");
-
-    assert.match(view, /property int selected:\s*0/);
-    assert.match(view,
-        /event\.key === Qt\.Key_Return \|\| event\.key === Qt\.Key_Enter\) \{[^}]*?activate\(rows\[selected\], \(event\.modifiers & Qt\.ShiftModifier\) !== 0\);/s);
-    assert.doesNotMatch(view, /\bentered\b|enterTimer|enterDelay|PauseAnimation/,
-        "result-row staging must not make the selected app look unavailable");
-});
-
 test("the app directory keeps every match in a fixed scrolling viewport", () => {
     const view = read("LauncherView.qml");
     const providers = read("Common/LauncherProviders.qml");

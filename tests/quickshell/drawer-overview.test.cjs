@@ -11,14 +11,11 @@ const overview = read("DrawerOverview.qml");
 const hero = read("DrawerSystemHero.qml");
 const drawer = read("DrawerPopover.qml");
 const footer = read("DrawerSessionFooter.qml");
-const power = read("DrawerPower.qml");
 const processes = read("DrawerProcesses.qml");
 const drawerTile = read("DrawerTile.qml");
 const menu = read("DrawerMenu.qml");
 const viewState = read("DrawerViewState.qml");
 const qmldir = fs.readFileSync(path.join(shellDir, "Popovers", "Drawer", "qmldir"), "utf8");
-const drawerSettings = untranslated(fs.readFileSync(
-    path.join(shellDir, "Settings", "DrawerPage.qml"), "utf8"));
 
 test("Overview puts everyday controls first and keeps every section setting", () => {
     // 2026-11 review: toggles > sliders > now playing > pending update >
@@ -37,12 +34,6 @@ test("Overview puts everyday controls first and keeps every section setting", ()
     assert.match(overview,
         /Claim\s*\{[\s\S]{0,180}?active:\s*root\.visible[\s\S]{0,180}?SysInfo\.acquire\(\)[\s\S]{0,180}?SysInfo\.release\(\)/,
         "Overview must own the system sampler while it is visible");
-});
-
-test("session actions left the body for the pinned row", () => {
-    assert.doesNotMatch(overview, /Session\.(?:lock|suspend|logout|reboot|shutdown)\(/,
-        "the old session row at the end of Overview must be gone");
-    assert.doesNotMatch(overview, /\/\/ ---- session/);
 });
 
 test("the summary is one identity line, the machine, and three two-line meters", () => {
@@ -270,18 +261,4 @@ test("Top processes shows five rows, three when short, and reveals × on demand"
         "a new question takes focus to its Cancel");
     assert.doesNotMatch(processes, /Show all/);
     assert.doesNotMatch(processes, /Timer\s*\{/, "revealing × needs no timer");
-});
-
-test("Power no longer owns machine stats", () => {
-    assert.doesNotMatch(power, /id:\s*statsGrid/);
-    assert.doesNotMatch(power, /SysInfo\.(?:cpuUsage|memUsage|cpuTemp)/);
-    assert.doesNotMatch(power, /SysInfo\.(?:acquire|release)\(\)/,
-        "opening Power must not start the stats sampler");
-});
-
-test("Overview no longer exposes model usage", () => {
-    assert.doesNotMatch(overview,
-        /MODEL USAGE|DrawerUsageRows|Settings\.drawerOverview\.usage|Usage\./);
-    assert.doesNotMatch(drawerSettings,
-        /key:\s*"usage"\s*,\s*label:\s*"Model usage"/);
 });

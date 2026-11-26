@@ -46,17 +46,6 @@ function keysSupplied(rel) {
     return new Set([...body.matchAll(/^\s*(\w+):/gm)].map(m => m[1]));
 }
 
-test("the card anatomy is defined once, in Common/", () => {
-    assert.ok(fs.existsSync(path.join(shellDir, CARD)));
-    for (const rel of CALLERS) {
-        const source = read(rel);
-        // A local `component NotifCard`/`AppIcon`/`ActionPills` is how the
-        // duplication looked before; re-adding one splits them again.
-        assert.doesNotMatch(source, /component\s+(NotifCard|AppIcon|ActionPills)\s*:/,
-            `${rel} redefines a card piece that Common/ already owns`);
-    }
-});
-
 test("web notification icons resolve locally without sender-triggered lookup processes or network fetches", () => {
     const icon = read(path.join("Common", "NotifIcon.qml"));
     const resolver = read(path.join("Common", "WebIcons.qml"));

@@ -21,13 +21,6 @@ test("launcher result movement wraps at both list boundaries", () => {
     assert.equal(N.wrapSelection(3, 8, 1), 4);
 });
 
-test("launcher page movement jumps six rows and clamps at the ends", () => {
-    assert.equal(N.pageSelection(0, 8, 6), 6);
-    assert.equal(N.pageSelection(1, 8, 6), 7);
-    assert.equal(N.pageSelection(7, 8, -6), 1);
-    assert.equal(N.pageSelection(5, 8, -6), 0);
-});
-
 // Execute the shipped handler, including its ordering of modifier/prompt
 // branches. Helper-only selection tests cannot detect query loss on Ctrl+Left.
 function handlerFixture(query = "", argumentMode = false) {

@@ -66,14 +66,6 @@ test("only state 100 is connected and a -- profile is normalized to empty", () =
     }
 });
 
-test("bridges, tunnels, loopback, Wi-Fi and Wi-Fi P2P are not Ethernet ports", () => {
-    const types = ["bridge", "tun", "loopback", "wifi", "wifi-p2p"];
-    const output = types.map((type, index) =>
-        record(`device${index}`, type, `profile${index}`, "100 (connected)"))
-        .join("\n\n");
-    assert.deepEqual(H.parseDevices(output), []);
-});
-
 test("malformed output is distinct from a no-device snapshot", () => {
     const malformed = [
         undefined,

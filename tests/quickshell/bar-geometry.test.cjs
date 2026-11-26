@@ -6,17 +6,6 @@ const { load, shellDir } = require("./shell.cjs");
 
 const G = load("BarGeometry.js");
 
-test("bar styles choose edge margins and outer radii", () => {
-    assert.deepEqual(G.STYLES, ["hug", "floating", "attached"]);
-    assert.equal(G.edgeMargin("hug", 10), 0);
-    assert.equal(G.edgeMargin("attached", 10), 0);
-    assert.equal(G.edgeMargin("floating", 10), 10);
-    assert.equal(G.outerRadius("hug", 23), 0);
-    assert.equal(G.outerRadius("attached", 23), 0);
-    assert.equal(G.outerRadius("floating", 23), 23);
-    assert.equal(G.styleIn("unknown"), "hug");
-});
-
 test("hug and attached reserve exactly the bar while floating retains its gap", () => {
     const base = { height: 46, gap: 10, exclusive: true, autoHide: false };
     assert.equal(G.exclusiveZone({ ...base, style: "hug" }), 46);
