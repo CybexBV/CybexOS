@@ -4,4 +4,6 @@ Wiz's answer box is redesigned. It has depth, a small tail pointing at Wiz and a
 
 A small logo next to the microphone shows which assistant answers, Claude or Codex. Click it to pick the model and how hard it thinks, for this conversation only. With a ChatGPT sign-in, Codex also has a Fast switch. Settings → Assistant sets the defaults.
 
+Google sign-in in Online Accounts keeps working right after an update, without logging out first.
+
 This is a source update with no new ISO. Installation, boot, physical hardware and staged-updater qualification are separate from source tests and package builds.
