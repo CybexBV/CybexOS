@@ -34,11 +34,11 @@
   The checks job runs the source tests, the linters and the shell tests and builds every flake check
   (`checks.x86_64-linux.*`, VM tests included). The image job installs this commit's ISO, plain and encrypted. The
   upgrade job moves a VM on the previous release to this commit with that release's own updater
-  ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). It runs by itself on every push to `main`; start it on a
-  branch with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow it with `gh run watch`.
-  Never run it on The Dragon. Run it on your branch before you merge a change to `lifecycle/`, `nix/`, `installer/`,
-  `release/`, `scripts/qualify-installations`, `scripts/qualify-upgrade` or `.github/`, and on the release commit
-  before every release; the run on `main` catches what other changes break. There is no nightly run.
+  ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). It runs only for a release: on the release commit before
+  every beta (see Releases), which also covers everything merged since the last one. Ordinary fixes and changes land
+  on `main` without it, whatever paths they touch (owner's decision, 2026-11-26); pushes to `main` don't start it and
+  there is no nightly run. Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow
+  it with `gh run watch`. Never run it on The Dragon.
 
 ## Git workflow
 
@@ -62,8 +62,8 @@ When John gives you an instruction directly in the main checkout (`/home/john/Co
 sub-agent in a worktree):
 
 1. Implement in a worktree of your own. Other sessions use this checkout too. Commit as above.
-2. Verify with `fast-test`, plus a Nix build of what changed when one exists, plus the full check on your branch
-   when the change touches a path listed under Testing.
+2. Verify with `fast-test`, plus a Nix build of what changed when one exists (on The Beast). No full check: that
+   waits for the release.
 3. Merge into `main` (`git merge --no-ff <branch>`), check that `HEAD` actually moved, delete the branch and
    worktree, and `git push origin main`.
 4. Finish with what changed and that it waits for the next release. Do not publish a release unless John asks for
@@ -86,7 +86,7 @@ sub-agent in a worktree):
     what the release brings) and push it to a `release-X.Y.Z` branch, not to
     `main`. Run the full check on that branch; one run covers the release
     and the merged work. `release/publish` refuses a commit without a
-    passing `nixos.yml` run (dispatched, or started by a push to `main`).
+    passing dispatched `nixos.yml` run for that commit.
     When it fails, fix forward and run it again.
   - Once it passes, move `main` to exactly that commit:
     `git push origin <commit>:main`. If `main` moved meanwhile, the push
@@ -108,8 +108,8 @@ sub-agent in a worktree):
   would serve someone else's releases.
 - No workflow publishes releases or pushes `main` (owner's decision,
   2026-11-24, replacing the automatic vendor beta releases of 2026-11-07 and
-  2026-11-10). They push branches and open issues; merge a branch after its
-  full check, like any change:
+  2026-11-10). They push branches, start the full check on them and open
+  issues; merge a branch after its full check passes:
   - **Nixpkgs updates** (`nixpkgs-update.yml`, weekly): `flake.lock`'s
     Nixpkgs moves on the `nixpkgs-update` branch
     ([docs/releasing.md](docs/releasing.md#nixpkgs-updates)). A failing one
