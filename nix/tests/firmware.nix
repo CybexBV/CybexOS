@@ -3,33 +3,10 @@
 # physical devices and vendor capsule execution still need hardware testing.
 { pkgs, module }:
 let
-  device = {
-    id = "qualification-bios"; name = "System Firmware"; vendor = "Qualification";
-    from = "1"; to = "2"; needsReboot = true; needsShutdown = false; affectsFde = true;
-  };
-  helper = pkgs.writeScript "cybexos-firmware-fixture" ''
-    #!${pkgs.python3}/bin/python3
-    import json, pathlib, sys, time
-    device = json.loads(${builtins.toJSON (builtins.toJSON device)})
-    installed = pathlib.Path('/var/lib/cybexos/qualification-firmware-installed')
-    if sys.argv[1] == 'plan':
-        print(json.dumps({'devices': [] if installed.exists() else [device]}))
-    elif sys.argv[1] == 'install':
-        expected = json.loads(pathlib.Path(sys.argv[sys.argv.index('--plan') + 1]).read_text())
-        assert expected == {'devices': [device]}, expected
-        def emit(event_name, **fields):
-            print(json.dumps({'event': event_name, **fields}), file=sys.stderr, flush=True)
-        emit('device', id=device['id'])
-        emit('progress', id=device['id'], percent=42, status='device-write')
-        emit('request', id=device['id'], kind='immediate', message='Keep external power connected.')
-        time.sleep(4)
-        installed.touch()
-        emit('installed', id=device['id'], needsReboot=True)
-        emit('request', id=device['id'], kind='post', message='Restart to finish.')
-        emit('summary', installed=1, failed=0, needsReboot=True, needsShutdown=False)
-    else:
-        sys.exit(2)
-  '';
+  # The fake device (nix/tests/firmware-device.py) holds its write until the
+  # test has seen the status it publishes mid-write.
+  helper = pkgs.writeScript "cybexos-firmware-fixture"
+    ("#!${pkgs.python3.interpreter}\n" + builtins.readFile ./firmware-device.py);
 in pkgs.testers.runNixOSTest {
   name = "cybexos-firmware";
   nodes.machine = { config, lib, ... }: {
@@ -75,25 +52,49 @@ in pkgs.testers.runNixOSTest {
         assert accepted["accepted"] is True, accepted
         return accepted
 
+    def finish(accepted):
+        # The worker records the request's end after its last status and after
+        # it releases the operation lock: only then is the next request taken.
+        machine.wait_until_succeeds("cybex update request " + accepted["requestId"]
+                                    + " | grep -Eq '\"state\": \"(done|failed)\"'")
+        record = json.loads(machine.succeed("cybex update request " + accepted["requestId"]))
+        assert record["state"] == "done", record
+
+    def published(condition):
+        # The worker publishes a status for each device event, so a read after
+        # a wait for one field can still predate the event that follows it.
+        # Assertions use the very status the wait accepted.
+        seen = []
+        def check(_):
+            seen.append(status())
+            return condition(seen[-1])
+        retry(check, timeout_seconds=300)
+        return seen[-1]
+
     with subtest("prepare reviews firmware without activating an OS or flashing"):
         before = machine.succeed("readlink -f /run/current-system").strip()
-        accepted = request("stage firmware")
-        machine.wait_until_succeeds("cybex update status --json | grep -q '\"state\": \"ready\"'")
+        finish(request("stage firmware"))
         ready = status()
+        assert ready["state"] == "ready", ready
         assert ready["scope"] == "firmware", ready
         assert ready["firmware"]["devices"][0]["to"] == "2", ready
         machine.fail("test -e /var/lib/cybexos/qualification-firmware-installed")
 
     with subtest("the supervised worker publishes progress and finishes independently of clients"):
         accepted = request("apply " + ready["transaction"] + " " + ready["reviewToken"])
-        machine.wait_until_succeeds("cybex update status --json | grep -q '\"percent\": 42'")
-        installing = status()
+        # The device's request is its last event before it holds the write.
+        installing = published(lambda value: any(
+            item.get("kind") == "immediate" for item in (value.get("firmware") or {}).get("requests", [])))
         assert installing["state"] == "firmware", installing
+        assert installing["firmware"]["percent"] == 42, installing
         assert installing["firmware"]["requests"][0]["message"] == "Keep external power connected.", installing
-        machine.wait_until_succeeds("cybex update request " + accepted["requestId"] + " | grep -q '\"state\": \"done\"'")
+        machine.fail("test -e /var/lib/cybexos/qualification-firmware-installed")
+        machine.succeed("touch /var/lib/cybexos/qualification-firmware-continue")
+        finish(accepted)
         finished = status()
         assert finished["state"] == "done" and finished["firmware"]["needsReboot"], finished
         assert finished["firmware"]["requests"][0]["kind"] == "post", finished
+        machine.succeed("test -e /var/lib/cybexos/qualification-firmware-installed")
         machine.fail("test -e /var/lib/cybexos/pending.json")
         assert machine.succeed("readlink -f /run/current-system").strip() == before
         machine.succeed("systemctl show " + accepted["unit"] + " -p Result | grep -q Result=success")
