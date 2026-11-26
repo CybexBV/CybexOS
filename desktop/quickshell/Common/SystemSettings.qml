@@ -37,7 +37,9 @@ Singleton {
     //
     // A command that cannot start gives only the falling edge of `running`
     // (Common/ProcHelpers.js), so both processes finish on any falling edge
-    // while a request is pending, whether or not they ever ran.
+    // while a request is pending, whether or not they ever ran. Neither may
+    // hold Settings forever: a list that does not come back, or a sign-in
+    // still running a while after Cancel, is killed.
     property bool accountPickerOpen: false
     property var accountProviders: []
     property bool accountProvidersLoaded: false
@@ -61,7 +63,10 @@ Singleton {
             return;
         accountProvidersPending = true;
         accountProvidersOutput = "";
+        accountProvidersError = "";
+        accountProvidersLoaded = false;
         providerList.running = true;
+        providerWatchdog.restart();
         Qt.callLater(() => {
             if (root.accountProvidersPending && !providerList.running)
                 root.providersFinished();
@@ -71,6 +76,7 @@ Singleton {
         if (!accountProvidersPending)
             return;
         accountProvidersPending = false;
+        providerWatchdog.stop();
         const result = lastJson(accountProvidersOutput);
         const providers = result ? result.providers : null;
         accountProviders = providers && (Array.isArray(providers) || providers instanceof Array) ? providers : [];
@@ -108,13 +114,17 @@ Singleton {
         if (accountTask.running && !accountTaskCancelling) {
             accountTaskCancelling = true;
             accountTask.signal(15);
+            cancelWatchdog.restart();
         }
     }
     function accountTaskEnded() {
         if (!accountTaskPending)
             return;
         accountTaskPending = false;
-        accountFinished(lastJson(accountTaskOutput));
+        cancelWatchdog.stop();
+        // A helper killed after Cancel has no result of its own to give.
+        const result = lastJson(accountTaskOutput);
+        accountFinished(result || (accountTaskCancelling ? {result: "cancelled"} : null));
     }
     function lastJson(text) {
         const lines = String(text || "").trim().split("\n");
@@ -126,15 +136,23 @@ Singleton {
         }
     }
     function accountFailure(result) {
+        // The helper names the kind of failure, never GOA's own text, which
+        // can quote the browser's answer.
         const reasons = {
             "no-service": I18n.tr("The online accounts service is not running."),
+            "no-display": I18n.tr("The sign-in window could not open on this screen."),
+            "no-providers": I18n.tr("No account kinds are available. Check that online accounts are installed."),
             "gone": I18n.tr("This account is no longer on this computer."),
             "managed": I18n.tr("This account is managed by your administrator."),
             "unsupported": I18n.tr("This kind of account cannot be reconnected here."),
             "unknown-provider": I18n.tr("This kind of account is not available on this computer."),
+            "exists": I18n.tr("This account is already on this computer."),
+            "denied": I18n.tr("The sign-in was refused. Check the account name and password, then try again."),
+            "certificate": I18n.tr("The server's security certificate could not be trusted."),
+            "network": I18n.tr("The server could not be reached. Check the network connection and the server address."),
             "response": I18n.tr("The browser's answer could not be used. Close older sign-in tabs and try again.")
         };
-        return reasons[result.reason] || result.message
+        return reasons[result.reason]
             || (accountTaskStarted ? I18n.tr("The sign-in did not finish. Try again.")
                 : I18n.tr("The sign-in window could not open. Check that online accounts are installed."));
     }
@@ -148,8 +166,8 @@ Singleton {
             // when the keyring would not store it.
             if (result.reason === "unverified")
                 done += " " + I18n.tr("GNOME Online Accounts could not confirm its sign-in; if it asks for attention, reconnect it.");
-            accountNotice = result.message ? done + " " + result.message : done;
-            accountNoticeTone = result.reason === "unverified" || result.message ? "warning" : "active";
+            accountNotice = done;
+            accountNoticeTone = result.reason === "unverified" ? "warning" : "active";
             Calendar.refreshDefault();
         } else if (outcome === "cancelled") {
             // The account list below says what, if anything, changed.
@@ -170,6 +188,21 @@ Singleton {
                 root.accountTaskStarted = true;
             else
                 Qt.callLater(root.accountTaskEnded);
+        }
+    }
+    property Timer cancelWatchdog: Timer {
+        // Past the helper's own five seconds after Cancel.
+        interval: 8000
+        onTriggered: {
+            if (root.accountTask.running)
+                root.accountTask.signal(9);
+        }
+    }
+    property Timer providerWatchdog: Timer {
+        interval: 15000
+        onTriggered: {
+            if (root.providerList.running)
+                root.providerList.signal(9);
         }
     }
     property Process providerList: Process {

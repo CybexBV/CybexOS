@@ -131,6 +131,7 @@ PopoutPanel {
                 pageRelease.restart();
                 palette.hide();
                 changesSheet.hide();
+                accountPicker.hide();
                 // Shown once is enough: a reopened narrow window starts clean.
                 if (root.searchHintShown)
                     root.searchHintSeen = true;
@@ -968,6 +969,13 @@ PopoutPanel {
         id: accountPicker
         objectName: "accountPicker"
         anchors.fill: parent
+        onDismissed: {
+            if (!Settings.panelOpen)
+                return;
+            const item = root.navDelegate(Settings.page);
+            if (item)
+                item.forceActiveFocus();
+        }
     }
 
     SettingsPalette {
