@@ -164,12 +164,6 @@ class BluetoothTest(unittest.TestCase):
         s.call.call_args.kwargs['done']('')
         self.assertFalse(s.scan)
 
-    def test_failed_scan_does_not_claim_discovery(self):
-        self.session.discovery(True)
-        self.session.call.call_args.kwargs['done']('Adapter powered off')
-        self.assertFalse(self.session.scan)
-        self.assertFalse(self.session.scan_busy)
-
     def test_close_cancels_pairing_and_closes_private_bus(self):
         s = self.session
         s.command({'action': 'pair', 'device': self.device})

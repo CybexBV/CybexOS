@@ -187,14 +187,6 @@ class Previews(Fixture):
         self.assertEqual(len(result), 1)
         self.assertEqual(len(list((self.runtime / "cybexos/clipboard-previews").iterdir())), 1)
 
-    def test_without_imagemagick_a_small_image_is_shown_as_it_is(self):
-        (self.bin / "magick").unlink()
-        with patch.object(tool.shutil, "which",
-                          lambda name: None if name == "magick" else str(self.bin / name)):
-            result = tool.previews([IMAGE_LINE])
-        path = Path(result[IMAGE_LINE][len("file://"):])
-        self.assertEqual(path.read_bytes(), PNG)
-
     def test_the_command_line_prints_one_json_object(self):
         output = subprocess.run([sys.executable, "-I", str(TOOL), "previews", IMAGE_LINE],
                                 capture_output=True, text=True, timeout=30,

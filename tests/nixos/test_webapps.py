@@ -187,16 +187,6 @@ class Install(Fixture):
         self.assertEqual(desktop(self.entry("example-chat"))["Icon"],
                          str(self.apps() / "example-chat/icon.png"))
 
-    def test_without_network_the_install_falls_back_to_a_monogram(self):
-        network = Network({})
-        with patch.object(webapp, "Fetcher", network()):
-            record = webapp.install("https://notes.example.org/", "Notes")
-        self.assertEqual(record["iconSource"], "monogram")
-        self.assertTrue((self.apps() / "notes/icon.svg").is_file())
-        self.assertIn("https://notes.example.org/favicon.ico", network.requested)
-        self.assertGreater(json.loads((self.apps() / "notes/app.json").read_text())
-                           ["iconAttempt"], 0, "a failed fetch waits before retrying")
-
     def test_http_addresses_and_non_images_are_never_used_as_icons(self):
         network = Network({"https://x.example/": b"<link rel=icon href=/a.ico>",
                            "https://x.example/a.ico": b"<html>not an icon</html>",

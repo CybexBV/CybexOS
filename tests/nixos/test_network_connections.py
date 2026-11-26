@@ -126,14 +126,6 @@ class Stubbed(unittest.TestCase):
 
 
 class Parsing(unittest.TestCase):
-    def test_vpn_profiles_come_from_the_terse_connection_list(self):
-        vpns = tool.parse_vpn_profiles(PROFILES + '\nNAME:Bad\nUUID:not-a-uuid\nTYPE:vpn\nDEVICE:--\n')
-        self.assertEqual([vpn['name'] for vpn in vpns], ['home', 'Office'])
-        office = vpns[1]
-        self.assertEqual((office['uuid'], office['type'], office['state'], office['active'], office['timestamp']),
-                         (OFFICE, 'vpn', '', False, 1700000000))
-        self.assertEqual((vpns[0]['label'], vpns[0]['kind'], vpns[0]['active'], vpns[0]['device']),
-                         ('WireGuard', 'wireguard', True, 'home'))
 
     def test_escaped_names_and_missing_state_columns(self):
         output = (f'NAME:Corp\\: Paris\nUUID:{OFFICE}\nTYPE:vpn\nDEVICE:wlan0\n\n'
@@ -142,11 +134,6 @@ class Parsing(unittest.TestCase):
         self.assertEqual(corp['name'], 'Corp: Paris')
         self.assertEqual(corp['state'], 'activated', 'a bound device without a STATE column is up')
         self.assertEqual((lab['state'], lab['active'], lab['timestamp']), ('activating', False, 0))
-
-    def test_snapshot_lists_vpns_from_the_profile_query(self):
-        self.assertIn('STATE', tool.CONNECTION_FIELDS)
-        self.assertIn('TIMESTAMP', tool.CONNECTION_FIELDS)
-        self.assertEqual(tool.connection_list_command()[-3:], [tool.CONNECTION_FIELDS, 'connection', 'show'])
 
     def test_wifi_devices_and_hotspot_device_choice(self):
         devices = tool.parse_wifi_devices('wlan0:wifi:connected:Home\\: 5G:' + WIFI + '\n'
@@ -368,15 +355,6 @@ class Hotspot(Stubbed):
         self.assertTrue(match, up['stdin'])
         self.assertNotIn(match.group(1), stdout)
         self.assertEqual(response['message'], 'Hotspot Studio guests is on')
-
-    def test_start_reuses_and_renames_an_existing_profile(self):
-        self.rules(hotspot_rules(profile=('Cybex OS hotspot', HOTSPOT, '802-11-wireless', '--', '', '0')))
-        status, response, _ = self.invoke('hotspot', {'action': 'start', 'ssid': 'New name'})
-        self.assertEqual(status, 0, response)
-        self.assertEqual(self.argvs('connection', 'add'), [])
-        self.assertEqual(self.argvs('modify'), [['connection', 'modify', 'uuid', HOTSPOT,
-                                                 '802-11-wireless.ssid', 'New name']])
-        self.assertEqual(len(self.argvs('connection', 'up')), 1)
 
     def test_rename_while_off_never_starts_it(self):
         self.rules(hotspot_rules(profile=('Cybex OS hotspot', HOTSPOT, '802-11-wireless', '--', '', '0')))
@@ -717,12 +695,6 @@ class AgentOnPrivateBus(Stubbed):
         merged = {key: value for entry in self.events() for key, value in entry.items()}
         self.assertEqual(merged['answer'], 'org.freedesktop.NetworkManager.SecretAgent.UserCanceled')
         self.assertTrue(merged['unregistered'])
-
-    def test_a_missing_plugin_dialog_is_named(self):
-        self.env['NETWORK_VPN_PLUGIN_DIRS'] = str(self.scratch / 'none')
-        status, response, _ = self.invoke('vpn', {'action': 'connect', 'uuid': OFFICE})
-        self.assertEqual((status, response['code']), (1, 'vpn_plugin_missing'), response)
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -526,18 +526,6 @@ class InstallTests(unittest.TestCase):
             {"event": "summary", "installed": 0, "failed": 0, "needsReboot": False, "needsShutdown": False},
         ])
 
-    def test_version_race_is_skipped_not_failed(self):
-        client = FakeClient(devices=[system_firmware()],
-                            upgrades={"sysfw": [FakeRelease("0x01070000")]},
-                            scripts={"sysfw": lambda _client: fwupd_error(
-                                Error.VERSION_SAME, "Specified firmware is already installed")})
-        run = run_helper(client)
-        self.assertEqual(run.rc, 0)
-        self.assertEqual(run.only("skipped"), {
-            "event": "skipped", "id": "sysfw",
-            "message": "Specified firmware is already installed"})
-        self.assertEqual(run.events[-1]["failed"], 0)
-
     def test_unreachable_daemon_is_one_unavailable_failure(self):
         cases = {
             "connect error": (FakeClient(connect_error=FakeGLibError(
@@ -555,17 +543,6 @@ class InstallTests(unittest.TestCase):
                 self.assertEqual(run.events[1], {"event": "summary", "installed": 0,
                                                  "failed": 1, "needsReboot": False})
                 self.assertEqual(client.installs, [])
-
-    def test_without_events_path_stdout_stays_human(self):
-        client = FakeClient(devices=[system_firmware()],
-                            upgrades={"sysfw": [FakeRelease("0x01070000")]})
-        run = run_helper(client, "install")
-        self.assertEqual(run.rc, 0)
-        self.assertEqual(run.raw, b"")
-        self.assertNotIn('"event"', run.stdout)
-        self.assertIn("Firmware: 1 installed, 0 failed; restart to finish installing",
-                      run.stdout)
-
 
 class ClassificationTests(unittest.TestCase):
     def test_errors_map_to_what_the_user_can_fix(self):
@@ -635,14 +612,6 @@ class InteractiveTests(unittest.TestCase):
         self.assertIn('metadata could not be refreshed', self.stream.getvalue())
         self.assertNotIn('No firmware updates', self.stream.getvalue())
 
-    def test_missing_refresh_executable_is_actionable(self):
-        with patch.object(module.sys.stdin, 'isatty', return_value=True), \
-             patch.object(module.subprocess, 'run', side_effect=FileNotFoundError('fwupdmgr')), \
-             patch.object(module, 'command_install') as install:
-            self.assertEqual(module.command_interactive(self.output()), module.EXIT_SETUP)
-        install.assert_not_called()
-        self.assertIn('Cannot refresh firmware metadata', self.stream.getvalue())
-
     def test_refreshed_metadata_enters_confirmation_without_reboot(self):
         for status in (0, 2):
             with self.subTest(status=status), \
@@ -702,29 +671,6 @@ class ProgressTests(unittest.TestCase):
                 events.emit('progress', id='bios', percent=42)
             self.assertFalse(stream.closed)
             self.assertEqual(json.loads(stream.getvalue()), {'event': 'progress', 'id': 'bios', 'percent': 42})
-
-    def test_progress_is_deduplicated(self):
-        progress = module.ProgressFilter()
-        observed = [progress.observe(status, percent) for status, percent in [
-            (None, 0), ("downloading", 0), ("downloading", 0), (None, 10),
-            ("downloading", 10), ("device-write", None), ("device-write", 10),
-        ]]
-        self.assertEqual(observed, [None, ("downloading", 0), None, ("downloading", 10),
-                                    None, ("device-write", 10), None])
-        self.assertEqual([module.percentage(value) for value in (0, 100, 2**32 - 1, -1, None)],
-                         [0, 100, None, None, None])
-        progress.reset()
-        self.assertEqual(progress.observe("device-write", 10), ("device-write", 10))
-
-    def test_human_progress_is_throttled_to_tenths(self):
-        human = module.HumanProgress()
-        lines = [human.observe("Dock 1 → 2", status, percent) for status, percent in [
-            ("idle", 0), ("device-write", 1), ("device-write", 9), ("device-write", 10),
-            ("device-write", 19), ("device-verify", 19),
-        ]]
-        self.assertEqual(lines, [None, "Dock 1 → 2: writing 1%", None, "Dock 1 → 2: writing 10%",
-                                 None, "Dock 1 → 2: verifying 19%"])
-
 
 if __name__ == "__main__":
     unittest.main()

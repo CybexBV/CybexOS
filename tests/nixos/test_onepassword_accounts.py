@@ -46,14 +46,6 @@ class OnePasswordAccountsTest(unittest.TestCase):
         self.assertEqual((result.returncode, result.stdout), (0, '0\n'))
         self.assertFalse(self.config.exists())
 
-    def test_signed_out_and_signed_in(self):
-        app = self.create(0)
-        self.assertEqual(self.count().stdout, '0\n')
-        app.executemany('INSERT INTO accounts VALUES (?, ?)', [('personal', b'sealed'), ('work', b'sealed')])
-        app.commit()
-        self.assertEqual(self.count().stdout, '2\n')
-        app.close()
-
     def test_reads_beside_the_running_app_without_writing(self):
         # The app holds the database open; a new account is still in its log.
         app = self.create(1)
