@@ -27,7 +27,7 @@ function normalizeCalendar(value) {
         uid: stringIn(value.uid, "", 300),
         name: stringIn(value.name, "Calendar", 160),
         color: colorIn(value.color),
-        isGoogle: value.isGoogle === true
+        isOnline: value.isOnline === true
     };
 }
 
@@ -45,7 +45,7 @@ function normalizeEvent(value) {
         calendarUid: stringIn(value.calendarUid, "", 300),
         calendar: stringIn(value.calendar, "Calendar", 160),
         color: colorIn(value.color),
-        isGoogle: value.isGoogle === true,
+        isOnline: value.isOnline === true,
         summary: stringIn(value.summary, "(Untitled event)", 500)
             || "(Untitled event)",
         location: stringIn(value.location, "", 500),
@@ -96,8 +96,8 @@ function normalizePayload(value) {
         available: value.available !== false,
         error: stringIn(value.error, "", 300),
         goaError: stringIn(value.goaError, "", 300),
-        googleAccounts: countIn(value.googleAccounts),
-        googleCalendarAccounts: countIn(value.googleCalendarAccounts),
+        onlineAccounts: countIn(value.onlineAccounts),
+        onlineCalendarAccounts: countIn(value.onlineCalendarAccounts),
         calendars: calendars,
         events: events,
         sourceErrors: sourceErrors,

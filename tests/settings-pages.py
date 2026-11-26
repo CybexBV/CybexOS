@@ -84,7 +84,9 @@ sys.exit(127)
 # Every pointer helper call that would reach the desktop or Nix, recorded.
 # Settings' bridge to GNOME Online Accounts (desktop/goa-account): the real
 # one's provider list; a dialog the person closes without adding anything;
-# and, for Microsoft 365, one that stays open until Settings cancels it.
+# for Microsoft 365, one that stays open until Settings cancels it; for
+# Exchange, one that ignores Cancel until Settings kills it; and Nextcloud,
+# WebDAV and IMAP answers: added, added unverified, refused.
 FAKE_GOA_ACCOUNT = r'''#!/usr/bin/env python3
 import json, os, signal, sys, time
 from pathlib import Path
@@ -102,6 +104,16 @@ if args == ["add", "ms_graph"]:
     signal.signal(signal.SIGTERM, cancelled)
     while True:
         time.sleep(0.2)
+if args == ["add", "exchange"]:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    while True:
+        time.sleep(0.2)
+answers = {"owncloud": ({"result": "added", "id": "account_9"}, 0),
+           "webdav": ({"result": "added", "id": "account_8", "reason": "unverified"}, 0),
+           "imap_smtp": ({"result": "failed", "reason": "denied"}, 1)}
+if args[:1] == ["add"] and args[1] in answers:
+    answer, code = answers[args[1]]
+    print(json.dumps(answer)); sys.exit(code)
 cancelled()
 '''
 
@@ -177,7 +189,9 @@ TEST_IPC = '''
                 loaded: SystemSettings.accountProvidersLoaded,
                 leading: picker ? picker.leading.map(p => p.type) : [], others: picker ? picker.others.map(p => p.type) : [],
                 running: SystemSettings.accountTaskRunning, notice: SystemSettings.accountNotice,
-                tone: SystemSettings.accountNoticeTone });
+                tone: SystemSettings.accountNoticeTone,
+                focus: picker && picker.visible ? picker.stops().findIndex(item => item.activeFocus) : -1,
+                stops: picker && picker.visible ? picker.stops().length : 0 });
         }
         function openAccountPicker(): void { SystemSettings.accountPickerOpen = true; }
         // Accounts as goa-daemon would list them; the next refresh replaces them.
@@ -187,6 +201,13 @@ TEST_IPC = '''
         }
         function startAccount(type: string, label: string): string { return String(SystemSettings.addAccount(type, label)); }
         function cancelAccount(): void { SystemSettings.cancelAccountTask(); }
+        // What Tab (forward) or Shift+Tab does from the focused stop in the picker.
+        function stepAccountPicker(forward: bool): void {
+            const picker = shell.findNamed(shell.settingsRoot(), "accountPicker");
+            const stops = picker.stops();
+            picker.step(stops.find(item => item.activeFocus) || stops[0], forward);
+        }
+        function requestAccountPicker(): void { Calendar.addAccount(); }
         function chooseAccount(type: string): void {
             const picker = shell.findNamed(shell.settingsRoot(), "accountPicker");
             picker.choose(SystemSettings.accountProviders.find(p => p.type === type));
@@ -442,9 +463,24 @@ def main():
             picked = wait(lambda: (a := accounts())['shown'] and a['loaded'] and a, 'the Add an account picker')
             assert picked['leading'] == ['google', 'ms_graph', 'owncloud'], picked
             assert picked['others'] == ['imap_smtp', 'webdav', 'exchange', 'kerberos'], picked
+            # The keyboard starts on Google and goes round the sheet: from
+            # Google back to Cancel, and from Cancel on to Google again.
+            wait(lambda: accounts()['focus'] == 0, 'focus on the first account kind')
+            ipc('settings-test', 'stepAccountPicker', 'false')
+            wait(lambda: (a := accounts())['focus'] == a['stops'] - 1, 'Shift+Tab from Google reaches Cancel')
+            ipc('settings-test', 'stepAccountPicker', 'true')
+            wait(lambda: accounts()['focus'] == 0, 'Tab from Cancel stays in the sheet')
             screenshot('19-account-picker.png')
             assert ipc('settings-test', 'pressEscape') == 'true'
             wait(lambda: not accounts()['picker'] and state()['open'], 'Escape closes only the picker')
+            # The calendar's Add account opens the picker only where online
+            # accounts are installed; here they are not, so the page's own
+            # message stays in view.
+            show('plugins')
+            ipc('settings-test', 'requestAccountPicker')
+            wait(lambda: state()['page'] == 'accounts', 'the calendar request lands on Online accounts')
+            time.sleep(1)
+            assert not accounts()['picker'], accounts()
             ipc('settings-test', 'openAccountPicker')
             wait(lambda: accounts()['shown'], 'the picker again')
             ipc('settings-test', 'chooseAccount', 'google')
@@ -465,6 +501,12 @@ def main():
                  'attention': False, 'locked': True, 'calendar': False, 'calendarDisabled': True}]}))
             time.sleep(0.5)
             screenshot('21-account-rows.png')
+            # On the open page, with accounts available, the calendar's Add
+            # account opens the picker straight away.
+            ipc('settings-test', 'requestAccountPicker')
+            wait(lambda: accounts()['shown'], 'the calendar request opening the picker on an open page')
+            assert ipc('settings-test', 'pressEscape') == 'true'
+            wait(lambda: not accounts()['picker'], 'the picker closed again')
             # Settings reopened while GOA's dialog is open offers Cancel, and
             # cancelling closes the dialog and says so.
             assert ipc('settings-test', 'startAccount', 'ms_graph', 'Microsoft 365') == 'true'
@@ -475,6 +517,27 @@ def main():
             ipc('settings-test', 'cancelAccount')
             cancelled = wait(lambda: (a := accounts())['notice'] and not a['running'] and a, 'Cancel answered')
             assert cancelled['notice'] == 'The sign-in was cancelled.', cancelled
+            # The notice is for that visit: leaving the page clears it.
+            show('plugins')
+            wait(lambda: accounts()['notice'] == '', 'the notice cleared on leaving the page')
+            show('accounts')
+            # A helper that ignores Cancel is stopped by Settings itself.
+            assert ipc('settings-test', 'startAccount', 'exchange', 'Microsoft Exchange') == 'true'
+            wait(lambda: not state()['open'] and accounts()['running'], 'Settings out of the way for Exchange')
+            ipc('settings-test', 'cancelAccount')
+            stopped = wait(lambda: (a := accounts())['notice'] and not a['running'] and a,
+                           'Settings ended a helper that ignored Cancel', seconds=30)
+            assert stopped['notice'] == 'The sign-in was cancelled.', stopped
+            # Results the helper words by kind, never with GOA's own text.
+            for kind, label, notice, tone in (
+                    ('owncloud', 'Nextcloud', 'Nextcloud account added.', 'active'),
+                    ('webdav', 'Calendar and contacts (WebDAV)', 'could not confirm its sign-in', 'warning'),
+                    ('imap_smtp', 'Email (IMAP and SMTP)', 'The sign-in was refused.', 'error')):
+                assert ipc('settings-test', 'startAccount', kind, label) == 'true'
+                result = wait(lambda: state()['open'] and (a := accounts())['notice'] and not a['running'] and a,
+                              f'the {kind} result')
+                assert notice in result['notice'] and result['tone'] == tone, result
+            screenshot('23-account-refused.png')
             # A helper that cannot start brings Settings back with a reason.
             helper = base / 'bin/cybexos-goa-account'
             helper.rename(base / 'cybexos-goa-account.away')

@@ -13,15 +13,20 @@
  *
  * Every command prints one JSON line. Results: added, reconnected (exit 0),
  * failed (1), cancelled (3); bad usage exits 2. A result may carry a
- * "reason" Settings words itself: no-service, no-display, no-providers, gone, managed,
- * unsupported, unknown-provider and response (failures of the helper's own
- * or an answer it will not repeat), or unverified (an added account whose
- * sign-in GOA could not confirm). GOA's other errors arrive as GOA's own,
- * already translated "message".
+ * "reason", which Settings words itself:
+ *   - the helper's own failures: no-service, no-display, no-providers, gone,
+ *     managed, unsupported, unknown-provider;
+ *   - GOA's errors, by kind: exists, denied, certificate, network, response
+ *     (an answer from the browser that could not be used) and error;
+ *   - unverified: an added or reconnected account whose sign-in GOA could
+ *     not confirm.
+ * GOA's own error text never leaves the helper: it can quote the browser's
+ * answer, authorization code and all.
  *
  * SIGTERM or SIGINT cancels: the helper closes GOA's dialog, and GOA
  * releases its OAuth2 bus name. A cancellation is reported as such unless an
  * account of the requested kind appeared meanwhile, which counts as added.
+ * Settings kills a helper that still runs a few seconds after it asked.
  */
 #define GOA_API_IS_SUBJECT_TO_CHANGE
 #define GOA_BACKEND_API_IS_SUBJECT_TO_CHANGE
@@ -63,6 +68,9 @@ typedef struct {
   GError *error;
   char *account_id;
   const char *provider_type;
+  GCancellable *verify;
+  guint settle_tries;
+  gboolean settling;
   gboolean reconnect;
   gboolean closing;
   gboolean finished;
@@ -87,23 +95,37 @@ json_string (GString *out, const char *value)
   g_string_append_c (out, '"');
 }
 
-/* GOA's errors can quote the browser's answer, authorization code and all
- * (an unexpected or stale sign-in tab). Such text never leaves the helper. */
-static gboolean
-safe_to_show (const char *message)
+/* The kind of a GOA error, for Settings to word. Its text stays here: GOA's
+ * errors can quote the browser's answer, authorization code and all (an
+ * unexpected or stale sign-in tab), and a server's answer can carry more. */
+static const char *
+error_reason (const GError *error)
 {
-  return message != NULL && *message != '\0'
-    && strstr (message, ":/") == NULL && strstr (message, "code=") == NULL
-    && strstr (message, "token") == NULL && strstr (message, "state=") == NULL;
+  if (error == NULL)
+    return NULL;
+  if (g_error_matches (error, GOA_ERROR, GOA_ERROR_ACCOUNT_EXISTS))
+    return "exists";
+  if (g_error_matches (error, GOA_ERROR, GOA_ERROR_NOT_AUTHORIZED))
+    return "denied";
+  if (g_error_matches (error, GOA_ERROR, GOA_ERROR_SSL) || error->domain == G_TLS_ERROR)
+    return "certificate";
+  if (error->domain == G_RESOLVER_ERROR
+      || g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NETWORK_UNREACHABLE)
+      || g_error_matches (error, G_IO_ERROR, G_IO_ERROR_HOST_UNREACHABLE)
+      || g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CONNECTION_REFUSED)
+      || g_error_matches (error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT))
+    return "network";
+  g_autofree char *text = g_ascii_strdown (error->message ? error->message : "", -1);
+  if (strstr (text, "code=") != NULL || strstr (text, "state=") != NULL || strstr (text, "redirect") != NULL)
+    return "response";
+  return "error";
 }
 
 static void
-print_result (const char *result, const char *id, const char *reason, const char *message)
+print_result (const char *result, const char *id, const char *reason)
 {
   g_autoptr (GString) out = g_string_new ("{\"result\":");
   json_string (out, result);
-  if (message != NULL && *message != '\0' && !safe_to_show (message) && reason == NULL)
-    reason = "response";
   if (reason != NULL)
     {
       g_string_append (out, ",\"reason\":");
@@ -114,11 +136,6 @@ print_result (const char *result, const char *id, const char *reason, const char
       g_string_append (out, ",\"id\":");
       json_string (out, id);
     }
-  if (safe_to_show (message))
-    {
-      g_string_append (out, ",\"message\":");
-      json_string (out, message);
-    }
   g_string_append (out, "}\n");
   FILE *out_file = result_out ? result_out : stdout;
   fputs (out->str, out_file);
@@ -126,9 +143,9 @@ print_result (const char *result, const char *id, const char *reason, const char
 }
 
 static int
-fail (const char *reason, const char *message)
+fail (const char *reason)
 {
-  print_result ("failed", NULL, reason, message);
+  print_result ("failed", NULL, reason);
   return EXIT_FAILED;
 }
 
@@ -137,11 +154,16 @@ private_output (void)
 {
   int copy = fcntl (STDOUT_FILENO, F_DUPFD_CLOEXEC, 3);
   int null = open ("/dev/null", O_RDWR | O_CLOEXEC);
-  if (copy < 0 || null < 0)
-    return;
-  result_out = fdopen (copy, "w");
+  if (copy >= 0 && null >= 0)
+    result_out = fdopen (copy, "w");
   if (result_out == NULL)
-    return;
+    {
+      if (copy >= 0)
+        close (copy);
+      if (null >= 0)
+        close (null);
+      return;
+    }
   fflush (stdout);
   dup2 (null, STDOUT_FILENO);
   dup2 (null, STDERR_FILENO);
@@ -176,7 +198,7 @@ list_providers (void)
   g_main_loop_unref (task.loop);
   if (task.error != NULL)
     {
-      int status = fail ("no-providers", task.error->message);
+      int status = fail ("no-providers");
       g_error_free (task.error);
       return status;
     }
@@ -248,47 +270,81 @@ is_cancel (const GError *error)
 }
 
 static void
-finish (Task *task, const char *result, const char *id, const char *reason, const char *message, int status)
+finish (Task *task, const char *result, const char *id, const char *reason, int status)
 {
   if (task->finished)
     return;
   task->finished = TRUE;
   task->status = status;
-  print_result (result, id, reason, message);
+  print_result (result, id, reason);
   g_main_loop_quit (task->loop);
 }
 
-/* An added account counts once goa-daemon can hand out its credentials:
- * goa-daemon does not report a keyring that would not store them. */
 static void
-finish_added (Task *task, const char *id, const char *warning)
+verify_done (GObject *source, GAsyncResult *result, gpointer user_data)
 {
-  g_autoptr (GoaObject) object = id ? goa_client_lookup_by_id (task->client, id) : NULL;
-  GoaAccount *account = object ? goa_object_peek_account (object) : NULL;
-  g_autoptr (GError) error = NULL;
-  if (warning == NULL && account != NULL
-      && !goa_account_call_ensure_credentials_sync (account, NULL, NULL, &error))
-    {
-      finish (task, "added", id, "unverified", error ? error->message : NULL, EXIT_DONE);
-      return;
-    }
-  finish (task, "added", id, warning ? "unverified" : NULL, warning, EXIT_DONE);
+  Task *task = user_data;
+  gboolean verified = goa_account_call_ensure_credentials_finish (GOA_ACCOUNT (source), NULL, result, NULL);
+  finish (task, task->reconnect ? "reconnected" : "added", task->account_id,
+          verified ? NULL : "unverified", EXIT_DONE);
 }
 
-/* GOA tells its client about a new account over D-Bus; give that signal a
- * moment to arrive before deciding an unsuccessful add left nothing behind. */
+/* An account counts once goa-daemon can hand out its credentials: goa-daemon
+ * does not report a keyring that would not store them. The check runs on the
+ * main loop, so Cancel still reaches the helper; it stops the check, and the
+ * account, which exists all the same, is reported unverified. */
+static void
+verify (Task *task, GoaObject *object, const char *id, gboolean warned)
+{
+  g_autoptr (GoaObject) found = object ? g_object_ref (object)
+    : id ? goa_client_lookup_by_id (task->client, id) : NULL;
+  GoaAccount *account = found ? goa_object_peek_account (found) : NULL;
+  if (!task->reconnect)
+    {
+      g_free (task->account_id);
+      task->account_id = g_strdup (account ? goa_account_get_id (account) : id);
+    }
+  const char *result = task->reconnect ? "reconnected" : "added";
+  if (warned || account == NULL || task->closing)
+    {
+      finish (task, result, task->account_id, "unverified", EXIT_DONE);
+      return;
+    }
+  task->verify = g_cancellable_new ();
+  goa_account_call_ensure_credentials (account, task->verify, verify_done, task);
+}
+
+/* GOA tells its client about a new account over D-Bus; give that signal up
+ * to two seconds to arrive before deciding an unsuccessful add left nothing
+ * behind. */
 static gboolean
 settle_add (gpointer user_data)
 {
   Task *task = user_data;
+  if (task->finished || task->verify != NULL)
+    return G_SOURCE_REMOVE;
   g_autofree char *id = new_account_id (task);
   if (id != NULL)
-    finish_added (task, id, task->error && !is_cancel (task->error) ? task->error->message : NULL);
-  else if (task->error == NULL || is_cancel (task->error))
-    finish (task, "cancelled", NULL, NULL, NULL, EXIT_CANCELLED);
+    {
+      verify (task, NULL, id, task->error != NULL && !is_cancel (task->error));
+      return G_SOURCE_REMOVE;
+    }
+  if (++task->settle_tries < 8)
+    return G_SOURCE_CONTINUE;
+  if (task->error == NULL || is_cancel (task->error))
+    finish (task, "cancelled", NULL, NULL, EXIT_CANCELLED);
   else
-    finish (task, "failed", NULL, NULL, task->error->message, EXIT_FAILED);
+    finish (task, "failed", NULL, error_reason (task->error), EXIT_FAILED);
   return G_SOURCE_REMOVE;
+}
+
+static void
+start_settling (Task *task)
+{
+  if (task->settling)
+    return;
+  task->settling = TRUE;
+  g_timeout_add (250, settle_add, task);
 }
 
 static void
@@ -300,13 +356,11 @@ add_done (GObject *source, GAsyncResult *result, gpointer user_data)
     {
       /* GOA may hand back an account together with an error, for example
        * when storing its credentials in the keyring failed: it exists, so
-       * report it as added and pass the warning on. */
-      GoaAccount *account = goa_object_peek_account (object);
-      finish_added (task, account ? goa_account_get_id (account) : NULL,
-                    task->error ? task->error->message : NULL);
+       * report it as added, unverified. */
+      verify (task, object, NULL, task->error != NULL);
       return;
     }
-  g_timeout_add (500, settle_add, task);
+  start_settling (task);
 }
 
 static void
@@ -314,11 +368,11 @@ reconnect_done (GObject *source, GAsyncResult *result, gpointer user_data)
 {
   Task *task = user_data;
   if (goa_provider_refresh_account_finish (GOA_PROVIDER (source), result, &task->error))
-    finish (task, "reconnected", task->account_id, NULL, NULL, EXIT_DONE);
+    verify (task, NULL, task->account_id, FALSE);
   else if (task->error == NULL || is_cancel (task->error))
-    finish (task, "cancelled", task->account_id, NULL, NULL, EXIT_CANCELLED);
+    finish (task, "cancelled", task->account_id, NULL, EXIT_CANCELLED);
   else
-    finish (task, "failed", task->account_id, NULL, task->error->message, EXIT_FAILED);
+    finish (task, "failed", task->account_id, error_reason (task->error), EXIT_FAILED);
 }
 
 /* Settings' Cancel: close GOA's dialog the way its own close button does,
@@ -329,10 +383,29 @@ give_up (gpointer user_data)
 {
   Task *task = user_data;
   if (task->reconnect)
-    finish (task, "cancelled", task->account_id, NULL, NULL, EXIT_CANCELLED);
+    finish (task, "cancelled", task->account_id, NULL, EXIT_CANCELLED);
   else
-    settle_add (task);
+    start_settling (task);
   return G_SOURCE_REMOVE;
+}
+
+/* Closing a window can take others with it, so an index may already be
+ * empty. Repeated while cancelling: a dialog still on its way to the screen
+ * when Cancel came closes as soon as it is there. */
+static gboolean
+close_windows (gpointer user_data)
+{
+  Task *task = user_data;
+  if (task->finished)
+    return G_SOURCE_REMOVE;
+  GListModel *windows = gtk_window_get_toplevels ();
+  for (guint i = g_list_model_get_n_items (windows); i > 0; i--)
+    {
+      g_autoptr (GtkWindow) window = g_list_model_get_item (windows, i - 1);
+      if (window != NULL)
+        gtk_window_close (window);
+    }
+  return G_SOURCE_CONTINUE;
 }
 
 /* The handler stays installed: a second Cancel must not fall back to the
@@ -344,15 +417,14 @@ on_signal (gpointer user_data)
   if (task->closing)
     return G_SOURCE_CONTINUE;
   task->closing = TRUE;
-  /* Not g_cancellable_cancel(): with no parent window, GOA 3.58 disposes the
-   * dialog inside its own cancellation handler, and the dispose disconnects
-   * that handler, which waits for the handler to return: a deadlock. */
-  GListModel *windows = gtk_window_get_toplevels ();
-  for (guint i = g_list_model_get_n_items (windows); i > 0; i--)
-    {
-      g_autoptr (GtkWindow) window = g_list_model_get_item (windows, i - 1);
-      gtk_window_close (window);
-    }
+  if (task->verify != NULL)
+    g_cancellable_cancel (task->verify);
+  /* Not cancelling GOA's own task: with no parent window, GOA 3.58 disposes
+   * the dialog inside its own cancellation handler, and the dispose
+   * disconnects that handler, which waits for the handler to return: a
+   * deadlock. */
+  close_windows (task);
+  g_timeout_add (250, close_windows, task);
   g_timeout_add_seconds (5, give_up, task);
   return G_SOURCE_CONTINUE;
 }
@@ -379,27 +451,27 @@ run_dialog (const char *command, const char *argument)
   g_set_application_name ("Online Accounts");
   /* Without a display gtk_init() would end the program before any result. */
   if (!gtk_init_check ())
-    return fail ("no-display", NULL);
+    return fail ("no-display");
   adw_init ();
 
   task.client = goa_client_new_sync (NULL, &error);
   if (task.client == NULL)
-    return fail ("no-service", error ? error->message : NULL);
+    return fail ("no-service");
   if (goa_client_get_manager (task.client) == NULL)
-    return fail ("no-service", NULL);
+    return fail ("no-service");
 
   if (task.reconnect)
     {
       g_autoptr (GoaObject) object = goa_client_lookup_by_id (task.client, argument);
       GoaAccount *account = object ? goa_object_peek_account (object) : NULL;
       if (account == NULL)
-        return fail ("gone", NULL);
+        return fail ("gone");
       if (goa_account_get_is_locked (account))
-        return fail ("managed", NULL);
+        return fail ("managed");
       const char *type = goa_account_get_provider_type (account);
       GoaProvider *provider = reconnectable_type (type) ? goa_provider_get_for_provider_type (type) : NULL;
       if (provider == NULL)
-        return fail ("unsupported", NULL);
+        return fail ("unsupported");
       task.account_id = g_strdup (argument);
       goa_provider_refresh_account (provider, task.client, object, NULL, NULL, reconnect_done, &task);
       g_object_unref (provider);
@@ -408,7 +480,7 @@ run_dialog (const char *command, const char *argument)
     {
       GoaProvider *provider = goa_provider_get_for_provider_type (argument);
       if (provider == NULL)
-        return fail ("unknown-provider", NULL);
+        return fail ("unknown-provider");
       task.provider_type = argument;
       task.before = account_ids (task.client);
       goa_provider_add_account (provider, task.client, NULL, NULL, add_done, &task);
@@ -418,6 +490,7 @@ run_dialog (const char *command, const char *argument)
   g_main_loop_run (task.loop);
 
   g_clear_error (&task.error);
+  g_clear_object (&task.verify);
   g_clear_pointer (&task.before, g_hash_table_unref);
   g_free (task.account_id);
   g_object_unref (task.client);

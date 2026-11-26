@@ -25,10 +25,17 @@ SettingsPage {
 
     Claim {
         active: page.visible && Settings.panelOpen
-        onClaimed: page.service.acquire()
+        onClaimed: {
+            page.service.acquire();
+            Qt.callLater(page.openRequested);
+        }
         onReleased: {
             page.removing = "";
+            SystemSettings.accountPickerRequested = false;
             SystemSettings.accountPickerOpen = false;
+            // Seen once is enough: the next visit starts without it.
+            if (!SystemSettings.accountTaskRunning)
+                SystemSettings.accountNotice = "";
             page.service.release();
         }
     }
@@ -36,6 +43,24 @@ SettingsPage {
     function addAccount() {
         if (available && !SystemSettings.externalBusy)
             SystemSettings.accountPickerOpen = true;
+    }
+    function openRequested() {
+        if (!SystemSettings.accountPickerRequested || !service.loaded)
+            return;
+        SystemSettings.accountPickerRequested = false;
+        addAccount();
+    }
+    Connections {
+        target: page.service
+        function onLoadedChanged() { page.openRequested(); }
+    }
+    // Asked for while this page is already open.
+    Connections {
+        target: SystemSettings
+        function onAccountPickerRequestedChanged() {
+            if (page.visible && Settings.panelOpen)
+                page.openRequested();
+        }
     }
 
     Column {
@@ -67,7 +92,7 @@ SettingsPage {
                     : !page.service.loaded ? I18n.tr("Loading accounts…")
                     : !page.available ? page.service.snapshot.message || I18n.tr("Online account services are not installed.") : ""
             }
-            // How the last sign-in went, until the next one starts.
+            // How the last sign-in went, while the page stays open.
             SettingsHint {
                 objectName: "accountNotice"
                 width: parent.width
@@ -78,8 +103,12 @@ SettingsPage {
             ValueRow {
                 width: parent.width
                 visible: page.signingIn
-                label: I18n.tr("Signing in")
-                hint: I18n.tr("Finish in the GNOME Online Accounts window.")
+                label: SystemSettings.accountTaskLabel === "" ? I18n.tr("Signing in")
+                    : SystemSettings.accountTaskKind === "reconnect"
+                    ? I18n.format("Reconnecting %1", [SystemSettings.accountTaskLabel])
+                    : I18n.format("Signing in to %1", [SystemSettings.accountTaskLabel])
+                hint: SystemSettings.accountTaskCancelling ? I18n.tr("Cancelling…")
+                    : I18n.tr("Finish in the GNOME Online Accounts window.")
 
                 SettingsAction {
                     text: I18n.tr("Cancel")
@@ -169,7 +198,7 @@ SettingsPage {
                                 glyph: "delete"
                                 danger: true
                                 enabled: !page.service.busy && !account.reconnecting
-                                Accessible.name: "Remove " + account.info.identity + " from this computer"
+                                Accessible.name: "Remove " + (account.info.identity || account.info.provider) + " from this computer"
                                 onTriggered: page.removing = account.info.id
                             }
                         }

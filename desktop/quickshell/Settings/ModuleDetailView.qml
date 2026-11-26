@@ -867,7 +867,7 @@ SettingsPage {
 
             SettingsHint {
                 width: parent.width
-                text: I18n.tr("12/24-hour time is set on the Region & formats page. Google sign-in is handled by GNOME Online Accounts; credentials never enter Quickshell.")
+                text: I18n.tr("12/24-hour time is set on the Region & formats page. Account sign-in is handled by GNOME Online Accounts; credentials never enter Quickshell.")
             }
 
             WeatherLocationPicker {
