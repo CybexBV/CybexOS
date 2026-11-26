@@ -491,6 +491,17 @@ connected. With reduced motion, the power saver profile or an idle session he
 holds each pose still: every loop and gesture stops at once, a fade already
 on its way runs out within half a second, and nothing runs while he is hidden.
 
+Three things Qt's Animators do when they stop shape `Wiz.qml` (measured in
+Quickshell on Qt 6.12). One that is stopped leaves its item where it was; in
+a sequence only the last step does, an earlier one falls back to where the
+item stood. `complete()` does not end one: it runs on to its end. And
+stopping one emits `finished`. So every loop puts back what it moved as it
+stops, whatever plays once is stopped and put back when he may no longer
+move, the star turns a quarter at a time instead of in a loop that runs to
+its end, and the animation that settles him between poses is never started
+again while it runs. `tests/quickshell/wiz.test.cjs` reads every item an
+Animator moves from the file and fails for one that is not put back.
+
 The accent costs nothing per frame either. The layers that carry magic are
 drawn again from the rig once per accent (a few milliseconds) and shared by
 every Wiz on screen (`Common/WizArt.qml`); a change of theme redraws them
