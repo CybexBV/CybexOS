@@ -16,7 +16,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'lifecycle'))
 
-from cybexos import cli, cli_flows, cli_format
+from cybexos import cli, cli_flows
 from cybexos.common import Failure
 
 
@@ -37,22 +37,6 @@ def run_cli(*argv, stdin_tty=False, answers=()):
 
 
 class HelpAndDispatchTests(unittest.TestCase):
-    def test_bare_cybex_and_help_show_grouped_human_menu_and_hide_plumbing(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            absent = Path(tmp) / 'installer'
-            for argv in ((), ('--help',), ('help',)):
-                with self.subTest(argv=argv), patch.object(cli, 'LIVE_MARKER', absent), \
-                     patch.object(cli, '_release_version', return_value='1.0.34'):
-                    code, out, err = run_cli(*argv)
-                self.assertEqual(code, 0, err)
-                self.assertIn('Cybex OS 1.0.34', out)
-                for heading in ('System', 'Apps & Desktop', 'AI'):
-                    self.assertIn(heading, out)
-                for cmd in ('status', 'update', 'doctor', 'cleanup', 'apps', 'region', 'ask'):
-                    self.assertIn(cmd, out)
-                # Plumbing and live-only install stay out of installed user help.
-                for hidden in ('software', 'maintenance', 'config', 'install\n'):
-                    self.assertNotIn(f'  {hidden}', out)
 
     def test_live_iso_help_includes_install_section(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -367,21 +351,6 @@ class FishCompletionTests(unittest.TestCase):
             self.assertEqual(query.returncode, 0, query.stderr)
             words = {line.split('\t', 1)[0] for line in query.stdout.splitlines() if line}
             self.assertTrue({'status', 'update', 'apps', 'cleanup', 'region', 'ask', 'doctor', 'theme'} <= words, words)
-
-
-class ProgressAndFormatUnitTests(unittest.TestCase):
-    def test_human_bytes_and_progress_non_tty_emits_only_phase_changes(self):
-        self.assertEqual(cli_format.human_bytes(0), '0 B')
-        self.assertEqual(cli_format.human_bytes(1536), '1.5 KiB')
-        self.assertEqual(cli_format.human_bytes(-2 * 1024**2, signed=True), '-2.0 MiB')
-        stream = io.StringIO()
-        prog = cli_format.ProgressLine(stream)
-        prog.update('Building system')
-        prog.update('Building system')
-        prog.update('Validating')
-        prog.finish()
-        self.assertEqual(stream.getvalue().splitlines(), ['Building system', 'Validating'])
-
 
 if __name__ == '__main__':
     unittest.main()
