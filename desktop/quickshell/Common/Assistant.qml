@@ -67,9 +67,13 @@ Singleton {
     property bool authChecking: false
     property string signingIn: ""
 
-    readonly property bool busy: AssistantHelpers.active(turn)
-    readonly property bool sideBusy: AssistantHelpers.active(side)
-    readonly property bool waiting: turn !== null && turn.status === "waiting"
+    // Without the service nothing runs or waits. `turn`, `side` and `queue`
+    // keep its last word until it is back (hello), so each of these asks
+    // `connected` first: a stopped service leaves no working box, no wisp and
+    // nothing drawing behind.
+    readonly property bool busy: connected && AssistantHelpers.active(turn)
+    readonly property bool sideBusy: connected && AssistantHelpers.active(side)
+    readonly property bool waiting: connected && turn !== null && turn.status === "waiting"
     readonly property var approvals: turn && turn.approvals ? turn.approvals : []
     readonly property bool hasReply: AssistantHelpers.finished(turn)
     // The conversation a running question belongs to.
@@ -139,8 +143,9 @@ Singleton {
     // The wisp beside him: someone works alongside or waits behind him. A
     // second question answered in the side lane, a question waiting as Up
     // next, or a routine's run (which takes the main lane). It keeps him
-    // drawing, so only while that work really runs or waits.
-    readonly property bool helper: sideBusy || queue !== null || (busy && !!turn.routine)
+    // drawing, so only while that work really runs or waits, and never
+    // without the service: asleep, he draws nothing.
+    readonly property bool helper: connected && (sideBusy || queue !== null || (busy && !!turn.routine))
     // Tucked behind the right edge he faces left, so his star still shows;
     // picked up, he turns back.
     readonly property int facing: Settings.assistantTuck === "right" && !dragging ? -1 : 1

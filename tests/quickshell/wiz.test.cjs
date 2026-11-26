@@ -733,9 +733,11 @@ test("he can face the other way, point at the box, and have a helper", () => {
     assert.ok(Math.sin(above.wandA * Math.PI / 180) < -0.8 && above.eyeY < 0, "and up");
     for (const aim of [above, below])
         assert.ok(aim.rx > W.LAYOUT.shoulders[1][0], "with his right hand");
-    // The wisp beside him in any pose.
+    // The wisp beside him in any pose but asleep: it floats for as long as
+    // it is there, and asleep he draws nothing.
     assert.match(code, /property bool helper: false/);
-    assert.match(code, /property real wisp: Math\.max\(stance\.wisp, helper \? 1 : 0\)/);
+    assert.match(code, /property real wisp: Math\.max\(stance\.wisp, helper && pose !== "asleep" \? 1 : 0\)/);
+    assert.equal(W.POSES.asleep.wisp, 0);
     for (const item of ["wispBob", "wispFlicker"])
         assert.match(code, new RegExp(`Sine[XYR] \\{ target: ${item}; running: root\\.live && helperWisp\\.visible;`), item);
 });

@@ -151,6 +151,19 @@ while True:
 '''
 
 
+# Test-only, in the private copy of the shell: counts the frames the
+# assistant's window swaps, which is every time Wiz or his box is drawn.
+FRAME_COUNTER = '''
+    property int testFrames: 0
+    property bool testCounting: false
+    Connections {
+        target: assistantLoader.item ? assistantLoader.item.contentItem.Window.window : null
+        enabled: shell.testCounting
+        function onFrameSwapped() { shell.testFrames++; }
+    }
+'''
+
+
 def opengl():
     """The environment that renders with OpenGL on Mesa's llvmpipe."""
     mesa = os.environ.get("CYBEXOS_TEST_MESA") or subprocess.run(
@@ -238,8 +251,16 @@ class Session:
         self.shell = base / "shell"
         shutil.copytree(ROOT / "desktop/quickshell", self.shell)
         shell_entry = self.shell / 'shell.qml'
-        shell_entry.write_text(shell_entry.read_text().replace('target: "assistant"',
+        entry = shell_entry.read_text()
+        # The frames the assistant's own window draws, counted while asked.
+        loader = '    LazyLoader {\n        active: Assistant.shown\n'
+        assert entry.count(loader) == 1
+        entry = entry.replace(loader, FRAME_COUNTER + '    LazyLoader {\n        id: assistantLoader\n'
+                              '        active: Assistant.shown\n')
+        shell_entry.write_text(entry.replace('target: "assistant"',
             'target: "assistant"\n        function signIn(agent: string): void { Assistant.signIn(agent); }'
+            '\n        function frames(on: bool): int { const seen = shell.testFrames; shell.testFrames = 0;'
+            ' shell.testCounting = on; return seen; }'
             '\n        function draft(): string { return Assistant.draft; }'
             '\n        function setting(key: string, value: string): void { Settings.set(key, JSON.parse(value)); }'
             '\n        function close(): void { Assistant.closeBox(); }'
@@ -394,6 +415,12 @@ class Session:
         path = self.base / "qs.log"
         return path.read_text(errors="replace") if path.exists() else ""
 
+    def frames(self, seconds):
+        """How many frames the assistant's window draws in that long."""
+        self.ipc("frames", "true")
+        time.sleep(seconds)
+        return int(self.ipc("frames", "false") or 0)
+
     def drag(self, x, y, dx, dy, dwell=0, held=None):
         self.pointer.move(x, y)
         # Resting on the character first opens its box, as a person's
@@ -446,8 +473,8 @@ def main():
                 raise AssertionError(f"{error}\n{(session.base / 'sway.log').read_text(errors='replace')}") from None
             session.env["WAYLAND_DISPLAY"] = sockets[0].name
             session.pointer = VirtualPointer(session.env, 1440, 900)
-            session.start([sys.executable, "-B", "-m", "cybexos_assistant", "serve"], "service.log",
-                          session.service_env)
+            service = session.start([sys.executable, "-B", "-m", "cybexos_assistant", "serve"], "service.log",
+                                    session.service_env)
             session.start([*DBUS, "qs", "--no-color", "-p", str(session.shell)], "qs.log")
 
             state = session.wait(lambda: session.shell_state().get("connected") and session.shell_state(),
@@ -816,6 +843,33 @@ def main():
             assert json.loads(session.ipc("notifications")) == {"count": 0, "dnd": True}
             session.screenshot("notifications-empty-dnd.png")
             session.ipc("dnd", "false")
+            subprocess.run(["qs", "ipc", "-p", str(session.shell), "call", "popouts", "close"],
+                           env=session.env, capture_output=True, timeout=10, check=True)
+
+            # The service stops while one question runs, a second is answered
+            # alongside and a third waits as Up next. What it last said about
+            # them is not work any more: Wiz sleeps without the wisp or the
+            # working box, and once he has dozed off his window draws nothing.
+            session.ipc("toggle")
+            session.wait(lambda: session.shell_state().get("shown"), "the character back once more")
+            (session.base / "go-side").unlink()
+            session.ipc("ask", "Look alongside, first")
+            session.wait(lambda: session.shell_state().get("busy"), "the question at work")
+            for text in ("Look alongside for a moment", "Then tell me the time"):
+                session.call("turn.start", {"text": text, "agent": "claude"})
+            session.wait(lambda: (lambda s: s.get("side") == "running" and s.get("queued") and s.get("helper"))(
+                session.shell_state()), "the wisp for the question alongside and the one Up next")
+            assert session.frames(1) > 30, "Wiz at work with the wisp beside him draws all the time"
+            os.killpg(service.pid, signal.SIGKILL)
+            asleep = session.wait(lambda: (lambda s: s if s.get("connected") is False else None)(
+                session.shell_state()), "the shell to notice the stopped service")
+            assert (asleep["pose"], asleep["helper"], asleep["busy"]) == ("asleep", False, False), asleep
+            # Its last word is kept for when it is back.
+            assert (asleep["turn"], asleep["side"], asleep["queued"]) == ("running", "running", True), asleep
+            # He dozes off: the pose's fade, the star's swing, the box closing.
+            time.sleep(4)
+            drawn = session.frames(2)
+            assert drawn == 0, f"asleep without the service, Wiz's window drew {drawn} frames in 2 s"
 
             output = session.log()
             errors = [line for line in output.splitlines() if QML_ERRORS.search(line)]

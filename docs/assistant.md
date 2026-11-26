@@ -431,9 +431,11 @@ pose. Only Software Update's status page sets `progress`, from the same
 measured fraction as its progress bar: a download whose size is known, or
 the firmware's percent. A turn reports only steps, never how far it is, so
 the assistant's Wiz has no ring.
-`helper` puts the wisp beside him in any pose: the assistant sets it while
-a second question is answered alongside, one waits Up next, or a routine
-runs (`Assistant.helper`), and only then, as the wisp keeps him drawing.
+`helper` puts the wisp beside him in any pose but asleep: the assistant sets
+it while a second question is answered alongside, one waits Up next, or a
+routine runs (`Assistant.helper`), and only then, as the wisp keeps him
+drawing. Without the service nothing runs or waits, whatever it last said
+about its questions: no wisp, no working box, and asleep he draws nothing.
 `facing: -1` mirrors him, so he can point the other way and his star shows
 when he is tucked behind the right screen edge (`Assistant.facing`; picked
 up, he faces right again); what is written ("?!", the z's) still reads the

@@ -58,7 +58,8 @@ Item {
     property point grab: Qt.point(width / 2, height / 2)
     // How far a job has got, 0..1: a ring round the star fills. Below 0, no ring.
     property real progress: -1
-    // A second question is being answered alongside: the wisp works beside him.
+    // A second question is being answered alongside: the wisp works beside
+    // him, in any pose but asleep, which draws nothing.
     property bool helper: false
     // 1 as drawn, -1 mirrored: he points the other way, and his star shows
     // when he is tucked behind the right screen edge.
@@ -137,7 +138,7 @@ Item {
     property real orb: stance.orb
     property real scroll: stance.scroll
     property real pot: stance.pot
-    property real wisp: Math.max(stance.wisp, helper ? 1 : 0)
+    property real wisp: Math.max(stance.wisp, helper && pose !== "asleep" ? 1 : 0)
     property real zzz: stance.zzz
     property real turn: side
 

@@ -237,7 +237,12 @@ test("Wiz gets drowsy after ten quiet minutes, on one timer, and wakes when used
 
 test("the wisp works beside him only while work runs or waits behind him, and tucked right he faces left", () => {
     const shared = read("Common/Assistant.qml");
-    assert.match(shared, /readonly property bool helper: sideBusy \|\| queue !== null \|\| \(busy && !!turn\.routine\)/);
+    // Never without the service: what it last said about its questions
+    // stays in turn, side and queue, and an asleep Wiz draws nothing.
+    assert.match(shared, /readonly property bool helper: connected && \(sideBusy \|\| queue !== null \|\| \(busy && !!turn\.routine\)\)/);
+    assert.match(shared, /readonly property bool busy: connected && AssistantHelpers\.active\(turn\)/);
+    assert.match(shared, /readonly property bool sideBusy: connected && AssistantHelpers\.active\(side\)/);
+    assert.match(shared, /readonly property bool waiting: connected && turn !== null && turn\.status === "waiting"/);
     assert.match(shared, /readonly property int facing: Settings\.assistantTuck === "right" && !dragging \? -1 : 1/);
     const window = read("AssistantWindow.qml");
     assert.match(window, /Wiz \{\s*id: character[\s\S]*?helper: Assistant\.helper\s*facing: Assistant\.facing/);
