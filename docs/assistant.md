@@ -385,10 +385,17 @@ crooked, and he shakes it straight.
 Wiz is cheap to keep on screen. He is drawn from still layers
 (`desktop/quickshell/assets/wiz/`), each rendered once at its final size and
 then only moved: no canvas, and no per-frame script except while he is being
-dragged. A sleeve is one picture, turned and stretched from the shoulder. The
-overlay covers the whole display, so every frame he draws is a frame of the
-display. Idle, he holds still between blinks, glances and a rare wobble of the
-hat: a few frames a second, against sixty for a canvas redrawn every frame.
+dragged. A sleeve is one picture, turned and stretched from the shoulder.
+Only what every pose shows is always there: his body, face, hat, hands and
+star. What a pose or a moment adds (the runes, whatever he works with, the
+wisp, the z's, the sparkles, the progress ring, his legs and all that a drag
+throws about) is made as it fades in and let go once it has faded out, which
+takes the main thread about half a millisecond. A Wiz that never works, like
+the one in the empty notification centre, holds none of it.
+
+The overlay covers the whole display, so every frame he draws is a frame of
+the display. Idle, he holds still between blinks, glances and a rare wobble of
+the hat: a few frames a second, against sixty for a canvas redrawn every frame.
 Continuous motion is reserved for a running turn, recording, a helper's wisp
 and a drag; after a drop he is still again within about three seconds. A
 waiting question pulses the star and waves his raised hand three times, then
@@ -399,9 +406,10 @@ The accent costs nothing per frame either. The layers that carry magic are
 drawn again from the rig once per accent (a few milliseconds) and shared by
 every Wiz on screen (`Common/WizArt.qml`); a change of theme redraws them
 once. The ring's arc is drawn again only when `progress` moves a sixtieth.
-`WizArt` also holds the one copy of the rig: a script imported by
-`Wiz.qml` itself would be loaded again for each of the well over a hundred
-parts he is built of.
+Qt loads a picture in the accent off the main thread, so the first time a pose
+needs one it shows a frame or two into the pose's fade. `WizArt` also holds
+the one copy of the rig: a script imported by `Wiz.qml` itself would be loaded
+again for every Wiz and every part he is built of.
 
 Measured against the Wiz he replaced (2026-11-26), each pair at the same
 moment, in a private headless Sway with Quickshell drawing on Mesa's llvmpipe,
@@ -409,10 +417,18 @@ where the processor does the graphics card's work too: idle and a waiting
 question draw the same few frames a second as before (about 10 and 14,
 averaged over 80 s) for the same processor time, and every kind of work draws
 the display's 60 frames a second, as the old working pose did, for up to a
-tenth more time on the main and render threads together. He holds more
-memory: about 3 MB of script heap for the rig's larger tables and the accent's
-pictures, and 10 to 35 MB of resident memory in these runs, where the total
-itself moves by tens of megabytes from one run to the next.
+tenth more time on the main and render threads together.
+
+He holds less memory than that Wiz did. Counted as the difference between nine
+of him on screen and one (the shell's private memory, three runs each, all
+within 0.1 MB), a resting Wiz holds 0.9 MB, where the old one held 4.4 MB,
+2.7 MB of it his own copy of the rig's script. After every pose and a drag he
+holds 2.0 MB (5.7 MB before): what has run once keeps that much, and further
+turns add nothing. The first Wiz on screen also brings the rig and the
+pictures, 5.3 MB in all (11.6 MB before), and each further size he is shown
+at brings its own pictures, about 0.5 MB. The shell's total says little about
+him: its allocator hands freed memory back late, so the total moves by tens of
+megabytes between identical runs.
 
 His artwork, poses and timing live in `Common/WizRig.js`. After changing it,
 run `scripts/export-wiz` to rebuild the layers, the still poses in
