@@ -297,15 +297,17 @@ test("every calendar-capable online account counts, and its calendars are online
         { id: "a1", type: "ms_graph", calendar: true },
         { id: "a2", type: "exchange", calendar: true, disabled: true },
         { id: "a3", type: "owncloud", calendar: true },
-        { id: "a4", type: "webdav", calendar: false },
+        { id: "a4", type: "webdav", calendar: false, disabled: true },
         { id: "a5", type: "webdav", calendar: true, disabled: true },
-        { id: "a6", type: "imap_smtp" },
+        { id: "a6", type: "webdav", calendar: true },
+        { id: "a7", type: "imap_smtp" },
     ]);
     assert.equal(run.status, 0, run.stderr);
-    // A contacts-only WebDAV account and a mail account are not calendar
-    // accounts; a WebDAV one with its calendars switched off is.
+    // GOA marks a contacts-only WebDAV account like one with its calendars
+    // switched off, so WebDAV counts only while it offers a calendar; a mail
+    // account never does.
     assert.equal(payload.onlineAccounts, 4);
-    assert.equal(payload.onlineCalendarAccounts, 2);
+    assert.equal(payload.onlineCalendarAccounts, 3);
     assert.deepEqual(payload.calendars.map(calendar => [calendar.name, calendar.isOnline]),
         [["Office", true], ["Personal", false], ["Work", true]]);
 });

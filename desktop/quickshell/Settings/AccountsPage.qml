@@ -54,6 +54,14 @@ SettingsPage {
         target: page.service
         function onLoadedChanged() { page.openRequested(); }
     }
+    // Asked for while this page is already open.
+    Connections {
+        target: SystemSettings
+        function onAccountPickerRequestedChanged() {
+            if (page.visible && Settings.panelOpen)
+                page.openRequested();
+        }
+    }
 
     Column {
         anchors.left: parent.left

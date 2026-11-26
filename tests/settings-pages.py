@@ -501,6 +501,12 @@ def main():
                  'attention': False, 'locked': True, 'calendar': False, 'calendarDisabled': True}]}))
             time.sleep(0.5)
             screenshot('21-account-rows.png')
+            # On the open page, with accounts available, the calendar's Add
+            # account opens the picker straight away.
+            ipc('settings-test', 'requestAccountPicker')
+            wait(lambda: accounts()['shown'], 'the calendar request opening the picker on an open page')
+            assert ipc('settings-test', 'pressEscape') == 'true'
+            wait(lambda: not accounts()['picker'], 'the picker closed again')
             # Settings reopened while GOA's dialog is open offers Cancel, and
             # cancelling closes the dialog and says so.
             assert ipc('settings-test', 'startAccount', 'ms_graph', 'Microsoft 365') == 'true'
