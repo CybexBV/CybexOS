@@ -13,20 +13,22 @@ from .protocol import MAX_LINE, default_socket, encode, iter_lines, parse_json
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="cybexos-assistant", description="The Cybex OS Assistant service")
-    commands = parser.add_subparsers(dest="command", required=True)
-    serve = commands.add_parser("serve", help="run the service (the user unit does this)")
+    prog = os.environ.get("CYBEX_CLI_PROG", "cybexos-assistant")
+    parser = argparse.ArgumentParser(prog=prog, description="Wiz, the Cybex OS Assistant")
+    commands = parser.add_subparsers(dest="command", required=True, metavar="{ask,status,show,hide,toggle}")
+    serve = commands.add_parser("serve")
     serve.add_argument("--socket", default=None)
     serve.add_argument("--state-dir", default=None)
-    status = commands.add_parser("status", help="print the service state as JSON")
+    status = commands.add_parser("status", help="Show the assistant service state")
     status.add_argument("--socket", default=None)
-    ask = commands.add_parser("ask", help="ask a question and print the reply")
+    status.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    ask = commands.add_parser("ask", help="Ask Wiz a question and print the reply")
     ask.add_argument("--agent", choices=("auto", "claude", "codex"), default="auto")
     ask.add_argument("--socket", default=None)
     ask.add_argument("text", nargs="+")
-    commands.add_parser("mcp", help="the desktop tools as an MCP server (the agents start this)")
+    commands.add_parser("mcp")
     for verb in ("show", "hide", "toggle"):
-        commands.add_parser(verb, help=f"{verb} the character")
+        commands.add_parser(verb, help=f"{verb.capitalize()} Wiz on screen")
     return parser
 
 
