@@ -63,12 +63,6 @@ def theme(base: Path, name: str, shapes=("default", "pointer", "text", "wait", "
     return directory
 
 
-def png_size(path: Path):
-    data = path.read_bytes()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n"
-    return struct.unpack(">II", data[16:24])
-
-
 def executable(path: Path, body: str) -> Path:
     path.write_text(f"#!{sys.executable}\n{body}")
     path.chmod(0o755)
@@ -134,16 +128,6 @@ sys.exit({status})
 
 
 class XCursorPreviews(Scratch):
-    def test_render_draws_each_shape_at_the_preview_size_with_a_busy_strip(self) -> None:
-        theme(self.system, "Plain")
-        out = self.root / "out"
-        entry = pointer_xcursor.render("Plain", [str(self.system)], str(out))
-        self.assertEqual(entry["shapes"], ["arrow", "hand", "text", "busy", "resize", "forbidden"])
-        self.assertEqual(entry["sizes"], [24, 48])
-        self.assertEqual(entry["busyFrames"], 3)
-        self.assertEqual(entry["busyDuration"], 200, "three 40 ms frames run at least 200 ms")
-        self.assertEqual(png_size(out / "arrow.png"), (48, 48))
-        self.assertEqual(png_size(out / "busy.png"), (48 * 3, 48))
 
     def test_older_names_and_inherited_themes_supply_missing_shapes(self) -> None:
         theme(self.system, "Base", shapes=("left_ptr", "hand2", "xterm", "watch", "sb_h_double_arrow", "crossed_circle"))

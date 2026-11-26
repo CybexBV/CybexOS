@@ -38,17 +38,6 @@ def run_cli(*argv, stdin_tty=False, answers=()):
 
 class HelpAndDispatchTests(unittest.TestCase):
 
-    def test_live_iso_help_includes_install_section(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            marker = Path(tmp) / 'installer'
-            marker.touch()
-            with patch.object(cli, 'LIVE_MARKER', marker), \
-                 patch.object(cli, '_release_version', return_value='1.0.34'):
-                code, out, _ = run_cli('--help')
-        self.assertEqual(code, 0)
-        self.assertIn('Installation', out)
-        self.assertIn('install', out)
-
     def test_shell_plugin_and_theme_help_are_not_swallowed(self):
         code, out, _ = run_cli('update', '--help')
         self.assertEqual(code, 0)

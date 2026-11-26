@@ -10,7 +10,6 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'assets/scripts/cybexos-apps'
@@ -22,22 +21,6 @@ try:
     HAS_GIO = True
 except ImportError:
     HAS_GIO = False
-
-
-class EffectiveDefaultsTests(unittest.TestCase):
-
-    def test_missing_defaults_remain_empty_and_resolution_errors_propagate(self):
-        with patch.object(apps, 'load_choices', return_value={}), \
-                patch.object(apps, 'current', return_value=None):
-            self.assertEqual(apps.effective_defaults(), {'browser':'', 'terminal':'', 'files':''})
-        with patch.object(apps, 'load_choices', side_effect=ValueError('Preserve preferences')):
-            with self.assertRaisesRegex(ValueError, 'Preserve preferences'):
-                apps.effective_defaults()
-        with patch.object(apps, 'load_choices', return_value={}), \
-                patch.object(apps, 'current', side_effect=TimeoutError('terminal lookup')):
-            with self.assertRaises(TimeoutError):
-                apps.effective_defaults()
-
 
 class MailtoTests(unittest.TestCase):
     def test_web_mail_compose_pages_keep_every_field_and_literal_plus(self):

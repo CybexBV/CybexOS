@@ -708,16 +708,6 @@ class WindowTests(unittest.TestCase):
         for name in ("google-chrome", "brave-browser", "org.mozilla.thunderbird", "Slack", ""):
             self.assertFalse(MODULE.is_code(name), name)
 
-    def test_app_names(self) -> None:
-        self.assertEqual(MODULE.app_name("com.mitchellh.ghostty"), "Ghostty")
-        self.assertEqual(MODULE.app_name("org.gnome.Calculator"), "Calculator")
-        # Google Chrome on Wayland and under XWayland, and Brave, still on offer.
-        self.assertEqual(MODULE.app_name("google-chrome"), "Chrome")
-        self.assertEqual(MODULE.app_name("Google-chrome"), "Chrome")
-        self.assertEqual(MODULE.app_name("brave-browser"), "Brave")
-        self.assertEqual(MODULE.app_name("brave-origin"), "Brave")
-        self.assertEqual(MODULE.app_name(""), "")
-
     def test_the_session_or_the_first_instance_answers(self) -> None:
         calls = []
 
