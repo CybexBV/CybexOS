@@ -255,6 +255,42 @@ class PromptStatusTests(unittest.TestCase):
         self.assertEqual(guest.keys, [])
 
 
+class FailureDiagnosticsTests(unittest.TestCase):
+    guard = (ROOT / 'tests/lib/quickshell-live').read_text()
+    PLUGIN_WARNING = ('[   49.218] cybexos-qa cybexos-runtime[1301]:   WARN scene: '
+                      '@/home/cybexqa/.local/share/cybexos/plugins/personal.qualification/Widget.qml[1:34]: '
+                      'Unable to assign [undefined] to QString')
+
+    def test_shell_errors_are_the_ones_desktop_health_rejects(self):
+        errors = qualification.shell_error_pattern(self.guard)
+        self.assertTrue(errors.search(self.PLUGIN_WARNING))
+        self.assertTrue(errors.search('qml: Bar.qml:3: TypeError: Cannot read property'))
+        self.assertFalse(errors.search('  WARN qt.qpa.wayland.textinput: Trying to disable 0x1 but 0x0 is focused'))
+        with self.assertRaises(ValueError):
+            qualification.shell_error_pattern('#!/usr/bin/env bash\n')
+
+    def test_findings_name_the_rejecting_check_ahead_of_the_restoration(self):
+        rejected = ['quickshell live check: service invocation b1aa381ac5dc4ddab093c82d39432505 contains QML/runtime errors:',
+                    self.PLUGIN_WARNING]
+        log = '\n'.join(['copying path /nix/store/x-hello-2.12.3', *rejected,
+                         'restarting the following units: polkit.service', 'Installing for x86_64-efi platform.',
+                         *['setting up /etc...'] * 400])
+        self.assertEqual(qualification.health_findings(log, qualification.shell_error_pattern(self.guard)), rejected)
+
+    def test_findings_name_an_inactive_unit(self):
+        line = ('hypridle.service is not active in the desktop session; inspect systemctl --user status '
+                'hypridle.service and its journal before retrying')
+        self.assertEqual(qualification.health_findings('a\n' + line + '\nb', re.compile('^$never')), [line])
+
+    def test_guest_script_compiles_with_its_helpers(self):
+        source = qualification.diagnostic_script()
+        compile(source, 'qa-diagnostic.py', 'exec')
+        self.assertIn('def health_findings', source)
+        # A rolled-back activation's log is read as well.
+        self.assertIn("'rolled-back'", source)
+        self.assertNotIn('\nQA_DIAGNOSTIC\n', source)
+
+
 class PersonalWidgetFixtureTests(unittest.TestCase):
     """The lifecycle's personal widget is never live without its setting."""
 

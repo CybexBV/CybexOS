@@ -212,6 +212,108 @@ def shortcuts_script():
     return constants + helpers + SHORTCUTS_DRIVER
 
 
+def shell_error_pattern(guard):
+    """The QML/runtime error pattern desktop health applies to the shell's
+    journal, read from the text of the guard (tests/lib/quickshell-live)."""
+    found = re.search(r"^QS_LIVE_ERROR_PATTERN='([^']*)'", guard, re.M)
+    if not found:
+        raise ValueError('The guard declares no QS_LIVE_ERROR_PATTERN')
+    return re.compile(found.group(1), re.I)
+
+
+def health_findings(log, shell_errors, limit=40):
+    """The lines of a deployment log that name the check that rejected it:
+    cybexos-health's own messages, the live guard's, and the shell journal
+    lines it quoted. The restoration's output follows them in the log."""
+    findings = re.compile(r'quickshell live check|is not active|did not settle|health|Activation introduced|units failed', re.I)
+    return [line[:400] for line in log.splitlines() if findings.search(line) or shell_errors.search(line)][-limit:]
+
+
+DIAGNOSTIC_DRIVER = r'''output = {}
+def run(label, args):
+    try:
+        result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
+        output[label] = {'status': result.returncode, 'output': result.stdout[-3000:]}
+        return result.stdout
+    except Exception as error:
+        output[label] = {'error': str(error)}
+        return ''
+# The QML/runtime error pattern desktop health applies to the shell's journal,
+# from the installed guard itself.
+try:
+    guard = Path(shutil.which('cybexos-health')).resolve().parents[1] / 'share/cybexos/lib/quickshell-live'
+    shell_errors = shell_error_pattern(guard.read_text())
+except (TypeError, OSError, ValueError) as error:
+    output['shellErrorPattern'] = {'error': str(error)}
+    shell_errors = re.compile(r'Unable to assign|(Type|Reference)Error|Failed to load', re.I)
+status_body = run('updaterStatus', ['cybex', 'update', 'status', '--json'])
+try:
+    status = json.loads(status_body)
+except (ValueError, TypeError):
+    status = {}
+# A rolled-back activation, too, keeps its reason only in the deployment's
+# private log, where the health check's own message names the unit or shell
+# check that failed. The restoration's output can push it out of the tail.
+if status.get('transaction') and (status.get('error') or status.get('state') in ('failed', 'interrupted', 'recovery-failed', 'rolled-back')):
+    output['updaterLogFindings'] = health_findings(run('updaterLog', ['cybex', 'update', 'log', status['transaction']]),
+                                                   shell_errors)
+prefix = ['runuser', '-u', pwd.getpwuid(1000).pw_name, '--', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus']
+run('welcomeIpc', prefix + ['HOME=/home/cybexqa', 'cybexos-runtime', 'ipc', 'welcome', 'status'])
+run('polkitIpc', prefix + ['HOME=/home/cybexqa', 'cybexos-runtime', 'ipc', 'polkit', 'status'])
+environment = run('environment', prefix + ['systemctl', '--user', 'show-environment'])
+output.pop('environment')
+signature = next((line.split('=', 1)[1] for line in environment.splitlines() if line.startswith('HYPRLAND_INSTANCE_SIGNATURE=')), '')
+if signature:
+    run('hyprlandConfigErrors', prefix + ['HYPRLAND_INSTANCE_SIGNATURE=' + signature, 'hyprctl', '-j', 'configerrors'])
+pid = run('quickshellPid', prefix + ['systemctl', '--user', 'show', 'quickshell.service', '-p', 'MainPID', '--value']).strip()
+if pid.isdecimal() and int(pid) > 0:
+    try:
+        path = next((entry.decode(errors='replace')[5:] for entry in Path('/proc', pid, 'environ').read_bytes().split(b'\0') if entry.startswith(b'PATH=')), '')
+        output['quickshellPath'] = path[:3000]
+        output['quickshellHelpers'] = {name: shutil.which(name, path=path) for name in ['cybex', 'quickshell-reminder', 'tailscale']}
+    except OSError as error:
+        output['quickshellPath'] = {'error': str(error)}
+invocation = run('quickshellInvocation', prefix + ['systemctl', '--user', 'show', 'quickshell.service', '-p', 'InvocationID', '--value']).strip()
+if invocation:
+    # The lines desktop health rejects. Quickshell logs its warnings at the
+    # journal's info priority, so a priority filter would hide them.
+    journal = run('quickshellJournal', ['journalctl', '--no-pager', '-o', 'short-monotonic', '_SYSTEMD_INVOCATION_ID=' + invocation])
+    output.pop('quickshellJournal')
+    output['quickshellJournalErrors'] = [line[:400] for line in journal.splitlines() if shell_errors.search(line)][-20:]
+run('failedSystemUnits', ['systemctl', '--failed', '--no-pager', '--no-legend'])
+run('passwordPam', ['cat', '/etc/pam.d/passwd'])
+run('loginPam', ['cat', '/etc/pam.d/sddm'])
+run('keyringState', prefix + ['busctl', '--user', 'get-property', 'org.freedesktop.secrets',
+    '/org/freedesktop/secrets/collection/login', 'org.freedesktop.Secret.Collection', 'Locked'])
+run('keyringJournal', ['journalctl', '--no-pager', '-g', 'gkr-pam|gnome-keyring', '-n', '40'])
+# Which daemon answers for secrets, and whether the session bus or the user's
+# service manager restarted after the login: a second daemon is locked.
+# The wrapped daemon's process name is .gnome-keyring-, so match the command.
+run('keyringProcesses', ['sh', '-c', 'ps -eo pid,ppid,lstart,cgroup:70,args | grep -e "[g]nome-keyring"'])
+run('secretsOwner', prefix + ['busctl', '--user', 'status', 'org.freedesktop.secrets'])
+# GNOME Keyring 50.0 can abort in OpenSession and lose the login unlock: the
+# newest crash's signal and first stack trace (its crashing thread).
+run('keyringCrash', ['sh', '-c', 'coredumpctl --no-pager list 2>&1 | grep -i keyring; '
+    'coredumpctl --no-pager info 2>&1 | head -c 2800'])
+# Without the session bus's repeated duplicate-name notices, which otherwise
+# fill these lines after every activation.
+run('userManagerJournal', ['sh', '-c', 'journalctl -b --no-pager -o short-monotonic -n 400 _UID=1000 '
+    '| grep -vE "^ {20,}|Ignoring duplicate name" | tail -n 120'])
+# Who called the Secret Service at this login (watch_secret_callers), with times since boot.
+run('secretCallers', ['journalctl', '-b', '--no-pager', '-o', 'cat', '-n', '60',
+    '_SYSTEMD_USER_UNIT=qualification-secret-callers.service'])
+print(json.dumps(output))
+'''
+
+
+def diagnostic_script():
+    """The guest's failure diagnostics: the imports, these helpers, then DIAGNOSTIC_DRIVER."""
+    import inspect
+    return ('import json, pwd, re, shutil, subprocess\nfrom pathlib import Path\n'
+            + ''.join(inspect.getsource(item) + '\n' for item in (shell_error_pattern, health_findings))
+            + DIAGNOSTIC_DRIVER)
+
+
 class VM:
     # The target disk: QEMU device arguments and the guest's device name.
     TARGETS = {'virtio': (['virtio-blk-pci,drive=systemdisk,serial=CYBEXOS-QA-DISK'], '/dev/vda'),
@@ -353,65 +455,7 @@ journalctl -b --no-pager -u cybexos-installerd.service -u cybexos-installer-ui.s
                 return {'state': 'collected', 'medium': self.command(script, timeout=120)[-6000:]}
             except Exception as error:
                 return {'state': 'failed', 'error': str(error)[-2000:]}
-        script = r'''python3 - <<'QA_DIAGNOSTIC'
-import json, pwd, shutil, subprocess
-from pathlib import Path
-output = {}
-def run(label, args):
-    try:
-        result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
-        output[label] = {'status': result.returncode, 'output': result.stdout[-3000:]}
-        return result.stdout
-    except Exception as error:
-        output[label] = {'error': str(error)}
-        return ''
-status_body = run('updaterStatus', ['cybex', 'update', 'status', '--json'])
-try:
-    status = json.loads(status_body)
-except (ValueError, TypeError):
-    status = {}
-if status.get('state') in ('failed', 'interrupted', 'recovery-failed') and status.get('transaction'):
-    run('updaterLog', ['cybex', 'update', 'log', status['transaction']])
-prefix = ['runuser', '-u', pwd.getpwuid(1000).pw_name, '--', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus']
-run('welcomeIpc', prefix + ['HOME=/home/cybexqa', 'cybexos-runtime', 'ipc', 'welcome', 'status'])
-run('polkitIpc', prefix + ['HOME=/home/cybexqa', 'cybexos-runtime', 'ipc', 'polkit', 'status'])
-environment = run('environment', prefix + ['systemctl', '--user', 'show-environment'])
-output.pop('environment')
-signature = next((line.split('=', 1)[1] for line in environment.splitlines() if line.startswith('HYPRLAND_INSTANCE_SIGNATURE=')), '')
-if signature:
-    run('hyprlandConfigErrors', prefix + ['HYPRLAND_INSTANCE_SIGNATURE=' + signature, 'hyprctl', '-j', 'configerrors'])
-pid = run('quickshellPid', prefix + ['systemctl', '--user', 'show', 'quickshell.service', '-p', 'MainPID', '--value']).strip()
-if pid.isdecimal() and int(pid) > 0:
-    try:
-        path = next((entry.decode(errors='replace')[5:] for entry in Path('/proc', pid, 'environ').read_bytes().split(b'\0') if entry.startswith(b'PATH=')), '')
-        output['quickshellPath'] = path[:3000]
-        output['quickshellHelpers'] = {name: shutil.which(name, path=path) for name in ['cybex', 'quickshell-reminder', 'tailscale']}
-    except OSError as error:
-        output['quickshellPath'] = {'error': str(error)}
-invocation = run('quickshellInvocation', prefix + ['systemctl', '--user', 'show', 'quickshell.service', '-p', 'InvocationID', '--value']).strip()
-if invocation:
-    run('quickshellCurrentWarnings', ['journalctl', '--no-pager', '_SYSTEMD_INVOCATION_ID=' + invocation, '-p', 'warning', '-n', '20'])
-run('failedSystemUnits', ['systemctl', '--failed', '--no-pager', '--no-legend'])
-run('passwordPam', ['cat', '/etc/pam.d/passwd'])
-run('loginPam', ['cat', '/etc/pam.d/sddm'])
-run('keyringState', prefix + ['busctl', '--user', 'get-property', 'org.freedesktop.secrets',
-    '/org/freedesktop/secrets/collection/login', 'org.freedesktop.Secret.Collection', 'Locked'])
-run('keyringJournal', ['journalctl', '--no-pager', '-g', 'gkr-pam|gnome-keyring', '-n', '40'])
-# Which daemon answers for secrets, and whether the session bus or the user's
-# service manager restarted after the login: a second daemon is locked.
-# The wrapped daemon's process name is .gnome-keyring-, so match the command.
-run('keyringProcesses', ['sh', '-c', 'ps -eo pid,ppid,lstart,cgroup:70,args | grep -e "[g]nome-keyring"'])
-run('secretsOwner', prefix + ['busctl', '--user', 'status', 'org.freedesktop.secrets'])
-# GNOME Keyring 50.0 can abort in OpenSession and lose the login unlock: the
-# newest crash's signal and first stack trace (its crashing thread).
-run('keyringCrash', ['sh', '-c', 'coredumpctl --no-pager list 2>&1 | grep -i keyring; '
-    'coredumpctl --no-pager info 2>&1 | head -c 2800'])
-run('userManagerJournal', ['sh', '-c', 'journalctl -b --no-pager -o short-monotonic -n 120 _UID=1000 | grep -vE "^ {20,}"'])
-# Who called the Secret Service at this login (watch_secret_callers), with times since boot.
-run('secretCallers', ['journalctl', '-b', '--no-pager', '-o', 'cat', '-n', '60',
-    '_SYSTEMD_USER_UNIT=qualification-secret-callers.service'])
-print(json.dumps(output))
-QA_DIAGNOSTIC'''
+        script = 'python3 - <<\'QA_DIAGNOSTIC\'\n' + diagnostic_script() + 'QA_DIAGNOSTIC'
         try:
             return {'state': 'collected', 'checks': json.loads(self.command(script, timeout=120).strip())}
         except Exception as error:
