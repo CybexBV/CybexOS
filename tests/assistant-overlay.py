@@ -120,6 +120,21 @@ while True:
             data["glassEnabled"] = True
             target.write_text(json.dumps(data, indent=2) + "\n")
         reply("Glass effect is on now, so the menubar and panels are see-through.")
+    elif "drivers" in text:
+        # A long answer in the shape a system check gives: a headline, a
+        # label before grouped rows, inline code and plain paragraphs.
+        reply("Good news: your computer passed every check. No missing drivers and no problems found.\n\n"
+              "The details:\n\n"
+              "- **Drivers & graphics:** Every network, storage, sound, camera and USB device has a driver, "
+              "and your graphics run on the standard `amdgpu` driver.\n"
+              "- **Everything else is healthy:** no failed services, 904 GB free on disk and the clock "
+              "is synced.\n\n"
+              "Two notes for context, not faults:\n\n"
+              "- **Secure Boot is off:** that is expected on Cybex OS.\n"
+              "- **The hardware profile is experimental:** the camera and power behaviour have not been "
+              "fully tested on this model yet.\n\n"
+              "One small thing: a restart is pending from a recent update. Nothing urgent.\n\n"
+              "Nothing needs fixing right now. If anything misbehaves, tell me and I'll look into it.")
     elif "clean" in text:
         answer = ask("r1", "Bash", {"command": "rm -rf ~/Downloads/old-isos"})
         time.sleep(0.2)
@@ -737,6 +752,17 @@ def main():
             argv = [json.loads(line) for line in (session.base / "claude-argv.jsonl").read_text().splitlines()][-1]
             assert "--effort" in argv and argv[argv.index("--effort") + 1] == "high", argv
             session.wait(lambda: session.shell_state().get("turn") == "completed", "the answer with more effort")
+
+            # A long answer scrolls inside the box, with More to say so.
+            session.ipc("ask", "Check for missing drivers")
+            checked = session.finished("Check for missing drivers")
+            assert checked["status"] == "completed" and checked["text"].startswith("Good news"), checked
+            session.wait(lambda: session.shell_state().get("turn") == "completed", "the long answer")
+            session.wait(lambda: session.item("assistantMore").get("visible"), "More under the long answer")
+            session.screenshot("assistant-long-reply.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-long-reply-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
 
             # Ordinary commands proceed with the fresh-install default.
             session.ipc("ask", "Clean up these downloads")
