@@ -278,7 +278,7 @@ test("a ring round the star fills as a job gets on", () => {
     // Wiz.qml draws the arc again only when the progress moves a sixtieth.
     assert.match(code, /property real progress: -1/);
     assert.match(code, /readonly property int filled: Math\.round\(Math\.min\(1, progress\) \* 60\)/);
-    assert.match(code, /visible: root\.progress >= 0\s*source: visible \? WizArt\.arc\(root\.filled, root\.light\) : ""/);
+    assert.match(code, /active: root\.progress >= 0\s*sourceComponent: Part \{\s*name: "ring"\s*Image \{[^}]*source: WizArt\.arc\(root\.filled, root\.light\)/);
     assert.match(artCode, /function arc\(sixtieths, light\) \{\s*return url\(wiz\.arcSVG\(sixtieths \/ 60, \{ light: light, accent: accent, scale: scale \}\)\);/);
 });
 
@@ -382,15 +382,17 @@ test("nothing is painted or scripted per frame", () => {
     assert.equal(code.match(/WizArt\.arc\(/g).length, 1);
     // A repeating Timer may wake a still Wiz for a blink, a glance, a wobble,
     // a pulse or a bead of sweat; each must stop with the rest of him. The
-    // others fire once: the end of a drag's motion and of a dizzy spell.
+    // others fire once: the end of a drag's motion, of a dizzy spell, and of
+    // the mess a drag made.
     assert.doesNotMatch(artCode, /\bTimer\b|Animation|Animator/);
     const timers = [...code.matchAll(/Timer \{([\s\S]*?)\n    \}/g)].map(match => match[1]);
-    assert.equal(timers.length, 7);
+    assert.equal(timers.length, 8);
+    assert.equal(code.match(/\bTimer \{/g).length, 8, "every Timer is one of these");
     for (const body of timers) {
         if (/repeat: true/.test(body))
             assert.match(body, /running: (?:root\.live && |root\.act === "needs-input"\n)/, body);
         else
-            assert.match(body, /id: (?:calm|recover)\b/, body);
+            assert.match(body, /id: (?:calm|recover|tidy)\b/, body);
     }
 });
 
@@ -444,7 +446,7 @@ test("loops run only while live and busy, and Wiz holds still otherwise", () => 
     assert.match(code, /delegate: Mote \{\s*running: spell\.running/);
     assert.match(code, /running: root\.live && cauldron\.visible/);
     assert.match(wiz, /onLoopingChanged: settle\(\)/);
-    assert.match(wiz, /Component\.onCompleted: resume\(\)/, "a Wiz created mid-turn starts his loops");
+    assert.match(code, /Component\.onCompleted: \{[^}]*\bresume\(\);\s*\}/, "a Wiz created mid-turn starts his loops");
     // A change of pose brings his hands, his eyes and his hat to rest first.
     assert.match(code, /onPoseChanged: \{[^}]*settle\(\);/);
     const settling = code.slice(code.indexOf("id: settling"), code.indexOf("onFinished: root.resume()"));
@@ -510,6 +512,90 @@ test("a wave is one Animator, and the same motion as the rig's sine", () => {
     // Breathing and the sway start in the middle and go out first, as before.
     assert.match(code, /SineY \{ id: breathing; target: breath; reach: root\.breathDepth; period: 2992; phase: 3 \}/);
     assert.match(code, /SineR \{ id: swaying; target: sway; reach: root\.swayReach; period: 4488; phase: 3 \}/);
+});
+
+// How long an animation block runs once: the steps of a sequence one after
+// another, of anything else side by side.
+function lasts(body) {
+    const inner = body.slice(body.indexOf("{") + 1, body.lastIndexOf("}"));
+    const steps = [];
+    for (let at = 0, depth = 0, start = -1; at < inner.length; at++) {
+        if (inner[at] === "{" && depth++ === 0)
+            start = inner.lastIndexOf("\n", at) + 1;
+        else if (inner[at] === "}" && --depth === 0 && /^\s*\w+(?:Animation|Animator) \{/.test(inner.slice(start, at + 1)))
+            steps.push(lasts(inner.slice(start, at + 1).trim()));
+    }
+    if (!steps.length)
+        return Number((inner.match(/duration: (\d+)/) || [0, 0])[1]);
+    return /^SequentialAnimation/.test(body) ? steps.reduce((sum, step) => sum + step, 0) : Math.max(...steps);
+}
+
+test("what only some poses or moments show is made for them and let go", () => {
+    // Every Loader is one of these, on while its part shows or fades.
+    const made = blocks(code, /Loader/).map(body =>
+        body.match(/^Loader \{\s*(?:id: \w+\s*)?(?:readonly property real light: [^\n]+\s*)?active: ([^\n]+)\s*sourceComponent: /));
+    assert.ok(made.every(Boolean), "a Loader without a condition and a component of its own");
+    assert.deepEqual(made.map(match => match[1]).sort(), [
+        "root.feet > 0.02",                                     // his legs, and their kick
+        "light > 0.01",                                         // light from below
+        "root.dizziness > 0.01", "root.dizziness > 0.01", "root.dizziness > 0.01",  // spiral eyes; stars behind and in front
+        "root.runes > 0.02", "root.runes > 0.02",               // runes behind the cone and in front
+        "root.progress >= 0",                                   // the ring and its arc
+        "root.pot > 0.02", "root.book > 0.02", "root.orb > 0.02", "root.scroll > 0.02",
+        "root.wand > 0.05", "root.spell > 0.02", "root.scroll > 0.3", "root.point > 0.02",  // wand, spell, quill, finger
+        "root.wisp > 0.02", "root.zzz > 0.02",
+        "root.festive",                                         // sparkles
+        "root.fuss", "root.fuss"                                // dust; "?!" and sweat
+    ].sort());
+    assert.match(code, /readonly property real light: Math\.max\(root\.book \* 0\.7, root\.orb, root\.pot \* 0\.8\)/);
+    // What is left is what every pose shows, and nothing a pose adds.
+    const drawing = code.slice(code.indexOf("id: rig"), code.indexOf("readonly property int filled"));
+    let always = drawing;
+    for (const body of blocks(drawing, /Loader/))
+        always = always.replace(body, "");
+    const names = new Set([...always.matchAll(/name: "([a-z0-9-]+)"/g)].map(match => match[1]));
+    assert.deepEqual([...names].sort(), ["body", "boot", "brim", "cape", "cone", "eye", "eye-happy", "glow", "hand", "hand-open",
+        "shadow", "star-ask", "star-bad", "star-lit", "star-off", "star-rest", "thread"]);
+    assert.equal(always.match(/\bSleeve \{/g).length, 2);
+    assert.doesNotMatch(always, /\b(?:Orbiter|Drop|Puff|Mote|Bubble|Sparkle|Sparkles|Prop|Wand|Spell|Dust|Panic|Repeater) \{(?![^{}]*model: (?:root\.layout\.feet|\[-1, 1\]))/,
+        "only his feet and his eyes are repeated outside a Loader");
+    // The star's five lights are all kept: one must be there the moment another goes.
+    assert.match(code, /component Shine: Part \{/);
+    // A loop that moves something outside its part stops before the part
+    // goes: the kick ends with the drag, the leg only once it has faded.
+    assert.match(code, /Behavior on feet \{\s*enabled: root\.animated\s*NumberAnimation \{ duration: 220;/);
+    // What moves with a part is in it: the orb's bob, the wisp's float, the spell.
+    assert.match(blocks(code, /sourceComponent: Prop/).find(body => /around: "orb"/.test(body)), /SineY \{\s*target: orbBob\s*running: root\.act === "searching"/);
+    assert.match(blocks(code, /component Wand: Item/)[0], /name: "wand-tip"\s*visible: root\.spell <= 0\.02\s*\}\s*Loader \{\s*active: root\.spell > 0\.02\s*sourceComponent: Spell \{\}/);
+
+    // The sparkles of a finished turn. `festive` is set as the pose changes,
+    // before sparkle() wants them, and when he is made in that pose.
+    assert.match(code, /onPoseChanged: \{[^}]*festive = pose === "finished" \|\| pose === "proud";\s*settle\(\);[^}]*if \(festive\)\s*sparkle\(\);\s*\}/);
+    assert.match(code, /Component\.onCompleted: \{\s*festive = pose === "finished" \|\| pose === "proud";\s*resume\(\);\s*\}/);
+    assert.deepEqual(code.match(/\bfestive = [^;]+;/g), Array(2).fill('festive = pose === "finished" || pose === "proud";'));
+    assert.match(code, /function sparkle\(\) \{\s*\(sparkles\.item as Sparkles\)\?\.flare\(\);\s*\}/);
+    const sparkles = blocks(code, /component Sparkles: Item/)[0];
+    assert.match(sparkles, /model: root\.live \? root\.layout\.sparks : \[\]\s*delegate: Sparkle \{\s*burst: true/);
+    assert.match(sparkles, /model: root\.live \? \[\] : root\.layout\.sparks\s*delegate: Sparkle \{\}/);
+
+    // What a drag throws about: there from the grab, a landing or a bead of
+    // sweat until two seconds after he is down, longer than any of it lasts.
+    assert.match(code, /function startle\(\) \{[^}]*fuss = true;\s*tidy\.stop\(\);\s*\(panic\.item as Panic\)\?\.startle\(\);\s*\}/);
+    assert.match(code, /function land\(sweat\) \{[^}]*fuss = true;\s*tidy\.restart\(\);\s*\(dust\.item as Dust\)\?\.burst\(\);\s*if \(sweat !== false\)\s*\(panic\.item as Panic\)\?\.slide\(\);\s*\}/);
+    assert.match(code, /onTriggered: \{\s*root\.fuss = true;\s*\(panic\.item as Panic\)\?\.drip\(root\.drips\);\s*root\.drips\+\+;\s*\}/);
+    assert.match(code, /calm\.stop\(\);\s*tidy\.restart\(\);/, "a drag that ends without a landing is tidied too");
+    assert.deepEqual(code.match(/\bfuss = [^;\n]+/g).sort(), ["fuss = false", "fuss = true", "fuss = true", "fuss = true"]);
+    const tidy = Number(code.match(/id: tidy\s*interval: (\d+)\s*onTriggered: root\.fuss = false/)[1]);
+    const thrown = [blocks(code, /component Drop: Item/)[0], blocks(code, /component Puff: Item/)[0], blocks(code, /component Panic: Item/)[0]];
+    const effects = thrown.flatMap(body => blocks(body, /(?:Sequential|Parallel)Animation/).filter(animation => /^\w+ \{\s*id: /.test(animation)));
+    assert.deepEqual(effects.map(body => body.match(/id: (\w+)/)[1]), ["flying", "sliding", "puffing", "shouting"]);
+    assert.deepEqual(effects.map(lasts), [620, 1150, 520, 920]);
+    for (const body of effects)
+        assert.ok(lasts(body) < tidy, body.match(/id: (\w+)/)[1]);
+    // They move only what is theirs, so letting them go leaves nothing askew.
+    for (const body of effects)
+        for (const [, target] of body.matchAll(/target: (\w+);/g))
+            assert.ok(["bead", "cloud", "shout"].includes(target), target);
 });
 
 test("the star swings once on a change of pose; it twinkles and turns only at work", () => {
