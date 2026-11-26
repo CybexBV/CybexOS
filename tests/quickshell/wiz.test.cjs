@@ -953,6 +953,60 @@ test("he can face the other way, point at the box, and have a helper", () => {
         assert.match(code, new RegExp(`Sine[XYR] \\{ target: ${item}; running: root\\.live && helperWisp\\.visible;`), item);
 });
 
+// In the shell an asleep Wiz draws nothing, so his z's stand still. The
+// welcome guide's Connect step used to float z's of its own over him as the
+// cue that he sleeps until an account is connected; his own now rise there,
+// and only there.
+test("asleep, his z's stand still, and rise only where he is asked to snore", () => {
+    assert.match(code, /^    property bool snoring: false$/m);
+    // Still: the rig's three, each where it draws them.
+    const zed = blocks(code, /component Zed: Item/)[0];
+    assert.match(zed, /required property int index\s*property int place: index \+ 1\s*readonly property var here: root\.drift\(place\)\s*x: here\[0\]\s*y: here\[1\]\s*scale: here\[2\]\s*opacity: here\[3\]/);
+    assert.doesNotMatch(zed, /Animat|Timer/);
+    const drift = new Function("layout", "place", body(code, "drift"));
+    const row = W.LAYOUT.zzz;
+    assert.equal(row.length, 3);
+    for (let place = 1; place <= 3; place++)
+        assert.deepEqual(drift(W.LAYOUT, place), row[place - 1], `place ${place}`);
+    // One place more beyond each end of the row: as far again, faded out.
+    const below = drift(W.LAYOUT, 0), above = drift(W.LAYOUT, 4);
+    assert.deepEqual([below[3], above[3]], [0, 0]);
+    assert.ok(below[1] > row[0][1] && below[2] < row[0][2] && above[1] < row[2][1] && above[2] > row[2][2]);
+    for (const at of [0, 1, 2]) {
+        assert.ok(Math.abs(row[0][at] - below[at] - (row[1][at] - row[0][at])) < 1e-9);
+        assert.ok(Math.abs(above[at] - row[2][at] - (row[2][at] - row[1][at])) < 1e-9);
+    }
+    // Snoring: each rises to the next one's place and one more waits below
+    // the first, so after a step the row looks as it did and the step loops.
+    const snore = blocks(code, /component Snore: Zed/)[0];
+    assert.match(snore, /readonly property var next: root\.drift\(place \+ 1\)/);
+    assert.match(snore, /\n\s*place: index\n/);
+    assert.match(snore, /ParallelAnimation \{\s*running: root\.live && root\.snoring\s*loops: Animation\.Infinite/);
+    for (const [kind, at] of [["X", 0], ["Y", 1], ["Scale", 2], ["Opacity", 3]])
+        assert.match(snore, new RegExp(`${kind}Animator \\{ target: snore; from: snore\\.here\\[${at}\\]; to: snore\\.next\\[${at}\\]; duration: snore\\.span \\}`), kind);
+    assert.equal(snore.match(/Animator \{/g).length, 4);
+    assert.doesNotMatch(snore, /NumberAnimation|Timer|ScriptAction|easing/);
+    // At the rig's pace: its z rises the whole way, four places, at 0.28 a second.
+    assert.ok(Math.abs(4 * Number(snore.match(/readonly property int span: (\d+)/)[1]) - 1000 / 0.28) < 5);
+    // When he may not move they stand where the still ones do: an Animator
+    // leaves its item where it stopped.
+    assert.match(snore, /onRunningChanged: \{\s*if \(running\)\s*return;\s*snore\.x = snore\.here\[0\];\s*snore\.y = snore\.here\[1\];\s*snore\.scale = snore\.here\[2\];\s*snore\.opacity = snore\.here\[3\];\s*\}/);
+    // Made with the pose, the rising ones only for a Wiz asked to snore.
+    assert.match(code, /active: root\.zzz > 0\.02\s*sourceComponent: Item \{\s*opacity: root\.zzz\s*Repeater \{\s*model: root\.layout\.zzz\.length \+ \(root\.snoring \? 1 : 0\)\s*delegate: root\.snoring \? drifting : standing/);
+    assert.match(code, /Component \{\s*id: standing\s*Zed \{\}\s*\}\s*Component \{\s*id: drifting\s*Snore \{\}\s*\}/);
+    // Only the welcome guide's Connect step asks.
+    const askers = [];
+    (function scan(dir) {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const file = path.join(dir, entry.name);
+            if (entry.isDirectory()) scan(file);
+            else if (entry.name.endsWith(".qml") && /\bsnoring:/.test(uncommented(fs.readFileSync(file, "utf8"))))
+                askers.push(path.relative(shellDir, file));
+        }
+    })(shellDir);
+    assert.deepEqual(askers.sort(), ["Assistant/Wiz.qml", "Welcome/ConnectStep.qml"]);
+});
+
 test("Wiz is the only character and holds still with reduced motion or nobody there", () => {
     assert.match(read("Assistant/Wiz.qml"), /property bool animated: !Theme\.reducedMotion && !Activity\.idle/);
     assert.match(read("Assistant/qmldir"), /^Wiz Wiz\.qml$/m);

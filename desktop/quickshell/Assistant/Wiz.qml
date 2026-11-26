@@ -13,8 +13,9 @@ import "../Common"
 // draws a few frames a second at most. Loops run only while the assistant
 // works (the runes, the spell, his hands, the star's twinkle) and a waiting
 // question pulses only briefly; they are Animators, which the threaded
-// render loop runs on the scene graph's thread. Without `animated` every pose
-// holds still and nothing ticks.
+// render loop runs on the scene graph's thread. Asleep he draws nothing: his
+// z's stand still unless a surface asks him to snore. Without `animated`
+// every pose holds still and nothing ticks.
 //
 // The star on his hat is his one status light (WizRig.LIGHT). Magic takes
 // the theme's accent: Common/WizArt.qml draws those layers again when the
@@ -64,6 +65,11 @@ Item {
     // 1 as drawn, -1 mirrored: he points the other way, and his star shows
     // when he is tucked behind the right screen edge.
     property int facing: 1
+    // Asleep, his z's rise and fade in a loop instead of standing still.
+    // Only the welcome guide's Connect step asks for it, where they say he
+    // sleeps until an account is connected; everywhere else asleep draws
+    // nothing.
+    property bool snoring: false
     // Off for reduced motion (which power saver turns on) and an unattended
     // session: poses snap into place and nothing loops. Every surface that
     // shows him inherits this.
@@ -602,6 +608,78 @@ Item {
                 RotationAnimator { target: sparkle; from: 0; to: 70; duration: 600 }
             }
         }
+    }
+
+    // Where his z's stand (WizRig.LAYOUT.zzz, places 1 to 3) as [x, y, size,
+    // strength], and one place more beyond each end of the row: as far
+    // again, and faded out.
+    function drift(place) {
+        const row = layout.zzz, last = row.length - 1;
+        if (place >= 1 && place <= row.length)
+            return row[place - 1];
+        const end = place < 1 ? row[0] : row[last], inner = place < 1 ? row[1] : row[last - 1];
+        return [2 * end[0] - inner[0], 2 * end[1] - inner[1], 2 * end[2] - inner[2], 0];
+    }
+
+    // One of his z's, standing where the rig draws it.
+    component Zed: Item {
+        required property int index
+        property int place: index + 1
+        readonly property var here: root.drift(place)
+
+        x: here[0]
+        y: here[1]
+        scale: here[2]
+        opacity: here[3]
+
+        // It reads the right way round whichever way he faces.
+        Item {
+            transform: Scale { xScale: root.side }
+
+            Part {
+                name: "zzz"
+            }
+        }
+    }
+
+    // Snoring: each z rises to the next one's place, growing, the last fades
+    // out above the row and a new one fades in from below it. After that
+    // step the row looks as it did, so the step loops; the rig's z takes
+    // 3.57 s for the four places. When he may not move they stand as the
+    // still ones do.
+    component Snore: Zed {
+        id: snore
+
+        readonly property var next: root.drift(place + 1)
+        readonly property int span: 893
+
+        place: index
+
+        ParallelAnimation {
+            running: root.live && root.snoring
+            loops: Animation.Infinite
+            // An Animator leaves its item where it stopped.
+            onRunningChanged: {
+                if (running)
+                    return;
+                snore.x = snore.here[0];
+                snore.y = snore.here[1];
+                snore.scale = snore.here[2];
+                snore.opacity = snore.here[3];
+            }
+            XAnimator { target: snore; from: snore.here[0]; to: snore.next[0]; duration: snore.span }
+            YAnimator { target: snore; from: snore.here[1]; to: snore.next[1]; duration: snore.span }
+            ScaleAnimator { target: snore; from: snore.here[2]; to: snore.next[2]; duration: snore.span }
+            OpacityAnimator { target: snore; from: snore.here[3]; to: snore.next[3]; duration: snore.span }
+        }
+    }
+    Component {
+        id: standing
+        Zed {}
+    }
+    Component {
+        id: drifting
+        Snore {}
     }
 
     // A sleeve from a shoulder to a hand: one picture, turned and stretched.
@@ -1673,25 +1751,16 @@ Item {
                         }
                     }
 
-                    // Out: three z's. They read the right way round
-                    // whichever way he faces.
+                    // Out: three z's, standing still. Snoring, they
+                    // rise, and one more waits below the first.
                     Loader {
                         active: root.zzz > 0.02
                         sourceComponent: Item {
-                            Repeater {
-                                model: root.layout.zzz
-                                delegate: Item {
-                                    required property var modelData
-                                    x: modelData[0]
-                                    y: modelData[1]
-                                    scale: modelData[2]
-                                    opacity: root.zzz * modelData[3]
-                                    transform: Scale { xScale: root.side }
+                            opacity: root.zzz
 
-                                    Part {
-                                        name: "zzz"
-                                    }
-                                }
+                            Repeater {
+                                model: root.layout.zzz.length + (root.snoring ? 1 : 0)
+                                delegate: root.snoring ? drifting : standing
                             }
                         }
                     }

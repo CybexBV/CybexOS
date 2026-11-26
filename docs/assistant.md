@@ -403,7 +403,7 @@ tip of his hat. His hands show at rest.
 | Shrug | open hands, one eyelid down | for 2.4 s after a question completed in which the ownership rules refused something it asked for (`turn.refused`), however long it ran |
 | Sorry | hat tipped down, worried eyes, wringing his hands | the reply in view failed |
 | Curious | leans in, one eye wide, hands out | a file or image is held over him, about to be dropped |
-| Asleep | hat down, eyes closed, z's | the assistant service is not running |
+| Asleep | hat down, eyes closed, three still z's | the assistant service is not running |
 | Carried | see below | you are dragging him |
 
 `AssistantHelpers.characterPose` picks the assistant's pose, the most urgent
@@ -484,8 +484,12 @@ the hat: a few frames a second, against sixty for a canvas redrawn every frame.
 Continuous motion is reserved for a running turn, recording, a helper's wisp
 and a drag; after a drop he is still again within about three seconds. A
 waiting question pulses the star and waves his raised hand three times, then
-once every eight seconds. With reduced motion, the power saver profile or an
-idle session he holds each pose still, and nothing runs while he is hidden.
+once every eight seconds. Asleep, he draws nothing: his z's stand still. Only
+the welcome guide's Connect step sets `snoring`, which makes them rise beside
+his hat and fade in a loop, the cue there that he sleeps until an account is
+connected. With reduced motion, the power saver profile or an idle session he
+holds each pose still: every loop and gesture stops at once, a fade already
+on its way runs out within half a second, and nothing runs while he is hidden.
 
 The accent costs nothing per frame either. The layers that carry magic are
 drawn again from the rig once per accent (a few milliseconds) and shared by

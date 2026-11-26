@@ -154,8 +154,11 @@ test('Connect turns its sign-ins off while known to be offline, and names only t
 
 test('Connect\'s Wiz snores with his own z\'s, not a second set drawn over him', () => {
     const connect = read('Welcome/ConnectStep.qml');
-    assert.match(connect, /sourceComponent: Character\.Wiz \{\s*objectName: "connectWiz"\s*pose: card\.character\s*\}/);
-    assert.doesNotMatch(connect, /snore|text: "z"/);
+    // His own z's rise there, the cue that he sleeps until an account is
+    // connected: he is asked to snore (Assistant/Wiz.qml).
+    assert.match(connect, /sourceComponent: Character\.Wiz \{\s*objectName: "connectWiz"\s*pose: card\.character\s*snoring: true\s*\}/);
+    // No z's of the step's own, as it once drew: no letter, no animation.
+    assert.doesNotMatch(connect.replace(/^\s*\/\/.*$/gm, ""), /\bsnore\b|text: "z"|Animat/);
     assert.match(connect, /readonly property string wizPose: !Assistant\.connected \|\| root\.installed\.length === 0 \? "asleep"/);
 });
 

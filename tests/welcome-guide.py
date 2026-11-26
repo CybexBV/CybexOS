@@ -163,7 +163,15 @@ TEST_IPC = '''
     }
     function testWiz(name) {
         const item = shell.testItem(name);
-        return item ? {pose: item.pose, visible: item.visible, live: item.live} : null;
+        return item ? {pose: item.pose, visible: item.visible, live: item.live, snoring: item.snoring} : null;
+    }
+    // The frames the guide's own window draws, counted while asked.
+    property int testFrames: 0
+    property bool testCounting: false
+    Connections {
+        target: welcomeWindow.contentItem ? welcomeWindow.contentItem.Window.window : null
+        enabled: shell.testCounting
+        function onFrameSwapped() { shell.testFrames++; }
     }
     // The assistant's own Wiz, where AssistantWindow draws him.
     function testCorner() {
@@ -227,6 +235,12 @@ TEST_IPC = '''
             else Welcome.windowClosed(data);
         }
         function launcher(open: bool): void { Launcher.open = open; }
+        function frames(on: bool): int {
+            const seen = shell.testFrames;
+            shell.testFrames = 0;
+            shell.testCounting = on;
+            return seen;
+        }
         function closeComposer(): void { Assistant.closeComposer(); }
         function state(): string {
             const view = shell.testItem("welcomeView");
@@ -468,6 +482,12 @@ print('done ' + name, flush=True)
     def probe(self):
         return self.json_call('welcome-test', 'state')
 
+    def frames(self, seconds):
+        """How many frames the guide's window draws in that long."""
+        self.call('welcome-test', 'frames', 'true')
+        time.sleep(seconds)
+        return int(self.call('welcome-test', 'frames', 'false') or 0)
+
     def wait(self, predicate, label, timeout=30):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -595,6 +615,7 @@ def main():
             # names the assistant's key as Keybindings has it (remapped here).
             probe = session.probe()
             assert probe['wiz']['hello']['pose'] == 'greeting' and probe['wiz']['hello']['live'], probe['wiz']
+            assert probe['wiz']['hello']['snoring'] is False, probe['wiz']
             hello = (f"Hi {probe['firstName']}, I’m Wiz. I’ll walk you through the rest. Afterwards I live in the "
                      'corner of your screen: press Super + A to talk to me.')
             session.wait(lambda: session.probe().get('bubble') == hello, 'Wiz names the assistant key')
@@ -642,8 +663,17 @@ def main():
                     session.wait(lambda: session.state()['connect']
                                  == {'password': 'available', 'google': 'available', 'assistant': 'required'},
                                  'Connect offers 1Password, Google and the assistant sign-in')
-                    # Signed out, the assistant's Wiz sleeps on its card.
+                    # Signed out, the assistant's Wiz sleeps on its card, and
+                    # snores: his z's rise beside his hat, here and nowhere
+                    # else, so the step draws all the time while he sleeps.
                     session.wait(lambda: session.probe()['wiz']['connect']['pose'] == 'asleep', 'Wiz asleep')
+                    connect = session.probe()['wiz']['connect']
+                    assert connect['snoring'] is True and connect['live'], connect
+                    # Past the step's own fade, which is over within a second:
+                    # after that nothing else on Connect moves.
+                    time.sleep(2)
+                    drawn = session.frames(1)
+                    assert drawn > 30, f'Connect drew {drawn} frames in 1 s while Wiz snores'
                 if step == 'finish':
                     session.wait(lambda: session.state()['doctor']['attention']
                                  == ['graphics:suggestion', 'firmware-updates:suggestion'], 'the system check report')

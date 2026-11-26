@@ -174,8 +174,9 @@ Item {
             width: card.width - Kiosk.px(56)
             spacing: Kiosk.px(12)
         }
-        // Wiz in the card's top-left corner. Asleep, his own z's float up
-        // from his hat; with reduced motion he holds still.
+        // Wiz in the card's top-left corner. Asleep, he snores: his own z's
+        // rise beside his hat (Wiz.snoring, asked for only here; everywhere
+        // else they stand still). With reduced motion they stand still too.
         Loader {
             active: card.character !== ""
             x: Kiosk.px(8)
@@ -185,6 +186,7 @@ Item {
             sourceComponent: Character.Wiz {
                 objectName: "connectWiz"
                 pose: card.character
+                snoring: true
             }
         }
     }
