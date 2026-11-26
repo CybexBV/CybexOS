@@ -118,12 +118,12 @@ Wiz, the assistant's character, heads every status page in the pose language
 he uses everywhere ([the assistant](assistant.md)); `UpdatesHelpers.statusPose`
 maps the page to it. He thinks while checking and while finishing after the
 restart, works while preparing, installing or restoring, and waits with his
-amber pip when the next step is the person's: a restart or shutdown, a
+star amber when the next step is the person's: a restart or shutdown, a
 confirmation that failed, an interrupted or outdated preparation. He listens
 when the app asks whether everything works, is happy when the system is up to
 date, is sorry after a failure, a rollback or an unreachable source, and
-sleeps in the live session. An available update shows him idle with the
-unread pip. He never speaks, and stays out of the review of what changes, the
+sleeps in the live session. An available update shows him idle with his
+star lit. He never speaks, and stays out of the review of what changes, the
 menubar icon and notifications. The page's primary button carries its tone:
 amber after a warning or failure, when the next step is the person's.
 

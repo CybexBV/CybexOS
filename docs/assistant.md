@@ -299,49 +299,120 @@ Settings → Assistant, stored in `~/.config/cybexos/shell.json`:
 
 ### The character
 
-Wiz is a small figure in a charcoal cloak under an oversized, slightly
-crooked hat with the red Cybex band. His face stays in shadow and two glowing
-eyes carry the expression. He follows the assistant's turn:
+Wiz is a small figure in a charcoal cloak and cape under an oversized,
+slightly crooked hat with the red Cybex band. His face stays in shadow; two
+glowing ice-white eyes, with eyelids, carry the expression. He has pale
+mittens on sleeves that stretch, a wand, boots, and a star that hangs from the
+tip of his hat. His hands show at rest.
 
-| Pose | When |
+`pose` on `Assistant/Wiz.qml` is one of these:
+
+| Pose | What he does | What it is for |
+| --- | --- | --- |
+| Idle | stands, blinks and glances around | nothing is going on |
+| Drowsy | eyelids half down, hands tucked in | a long quiet while |
+| Listening | leans in with a hand at his ear; the hat rises with your voice | the box is open, or you are talking |
+| Thinking | looks up, a finger tapping his chin; runes circle the hat | a question is being worked on |
+| Working | the same as casting | a tool is at work, of no particular kind |
+| Reading | holds an open book; his eyes run along the lines | reading a file, a page or a screenshot |
+| Searching | his hands round a glowing orb | searching the web, files or settings |
+| Writing | writes line after line on a scroll with a quill | writing or editing a file |
+| Casting | waves his wand; a spell glows at its tip | a command, a setting, a window |
+| Brewing | stirs a cauldron; bubbles rise | installing, preparing an update |
+| Delegating | an open hand towards the wisp beside him | a helper is doing the work |
+| Needs input | peeks from under the brim with a hand raised | a question waits for your answer |
+| Pointing | points his wand at the box: down, or up when it opens above him | look here |
+| Finished | happy eyes, a nod and a short sparkle | an answer arrived |
+| Proud | a thumbs-up and a sparkle | a long job is done |
+| Happy | happy eyes | speaking |
+| Greeting | tips his hat and waves | hello |
+| Shrug | open hands, one eyelid down | he may not or cannot do that |
+| Sorry | hat tipped down, worried eyes, wringing his hands | a reply failed |
+| Curious | leans in, one eye wide, hands out | something is handed to him |
+| Asleep | hat down, eyes closed, z's | the assistant service is not running |
+| Carried | see below | you are dragging him |
+
+The assistant's own turn shows idle, listening, thinking, working, needs
+input, finished, happy, sorry, asleep and carried
+(`AssistantHelpers.characterPose`). The other poses are there for whatever
+shows him.
+
+The star on his hat is his one status light. It replaces the amber and the
+blue pip he used to carry:
+
+| Star | It says |
 | --- | --- |
-| Listening | the box is open, or you are talking (the hat rises with your voice) |
-| Thinking | a question is being worked on; runes circle the hat |
-| Working | a tool is at work (a command, an edit); a spell glows in front of him |
-| Needs input | a question waits for your answer; he peeks from under the brim and an amber pip pulses |
-| Finished | an answer arrived: happy eyes, a nod and a short sparkle |
-| Carried | you are dragging him (see below) |
-| Happy, sorry, asleep | speaking; a failed reply; the assistant service is not running |
-| Idle | everything else |
+| Dim | nothing to report |
+| Accent, twinkling | he is at work |
+| Accent, steady | a reply you have not seen (`unread`), or he is attentive: listening, pointing, a finished turn |
+| Amber, pulsing | your move |
+| Red | it failed |
+| Dark | asleep |
+
+A ring round the star fills as a job reports how far it is (`progress`, 0 to
+1; below 0 there is no ring). The star swings on its thread when he changes
+pose. `helper` puts the wisp beside him in any pose, for a second question
+answered alongside. `facing: -1` mirrors him, so he can point the other way
+and his star shows when he is tucked behind the right screen edge; what is
+written ("?!", the z's) still reads the right way round.
+
+His magic takes the theme's accent: the runes, the spell, the lit star and
+its ring, the orb, the cauldron's brew, the wisp, the lines he writes and the
+light they cast on him. His eyes stay ice-white, and amber and red stay amber
+and red. Still pictures of him (the terminal, notifications, the installer)
+are in Cybex blue.
+
+His hands do something in most poses. While he works they keep moving: he
+taps his chin, circles the orb, writes, waves the wand, stirs. A pose that
+is not work moves once as it arrives and then holds still: three waves of
+hello, a thumbs-up, a shrug, wringing hands, two jabs of the wand. His eyes
+follow the pointer while it rests on him.
 
 Dragging him is a small panic. Picked up, he jumps, his hat pops off, "?!"
-flashes, sweat flies and his feet come out from under the cloak, kicking.
-While you move him he swings from where you hold him, his bottom trailing,
-and follows the pointer's speed and direction: pulled sideways, his hat and
-its tip blow back, his feet trail and his eyes look ahead; lifted, the hat is
-shoved down over his eyes; dropping, it floats off above him while he stares
-up at it. A diagonal drag combines both and stretches him along it. Held
-still, he trembles and sweats. A few quick back-and-forths make him dizzy:
-spiral eyes, his hat askew and stars circling it, for about two seconds after
-he is put down. Dropped, he lands with a thud, eyes squeezed shut and a puff
-of dust, harder the faster he was moving; his hat lands a beat later,
+flashes, sweat flies, his hands go up and his feet come out from under the
+cloak, kicking. While you move him he swings from where you hold him, his
+bottom trailing, his hands flailing, and follows the pointer's speed and
+direction: pulled sideways, his hat and its tip blow back, the star streams
+out behind, his hands and feet trail and his eyes look ahead; lifted, the hat
+is shoved down over his eyes; dropping, it floats off above him while he
+stares up at it. A diagonal drag combines both and stretches him along it.
+Held still, he trembles and sweats. A few quick back-and-forths make him
+dizzy: spiral eyes, his hat askew and stars circling it, for about two seconds
+after he is put down. Dropped, he lands with a thud, eyes squeezed shut and a
+puff of dust, harder the faster he was moving; his hat lands a beat later,
 crooked, and he shakes it straight.
-
-A blue pip marks a reply you have not seen, as the menubar dot does. His eyes
-follow the pointer while it rests on him.
 
 Wiz is cheap to keep on screen. He is drawn from still layers
 (`desktop/quickshell/assets/wiz/`), each rendered once at its final size and
 then only moved: no canvas, and no per-frame script except while he is being
-dragged. The overlay covers the whole
-display, so every frame he draws is a frame of the display. Idle, he holds
-still between blinks, glances and a rare wobble of the hat: a few frames a
-second, against sixty for a canvas redrawn every frame. Continuous
-motion is reserved for a running turn, recording and a drag; after a drop he
-is still again within about three seconds. A waiting question
-pulses three times, then once every eight seconds. With reduced motion, the
-power saver profile or an idle session he holds each pose still, and nothing
-runs while he is hidden.
+dragged. A sleeve is one picture, turned and stretched from the shoulder. The
+overlay covers the whole display, so every frame he draws is a frame of the
+display. Idle, he holds still between blinks, glances and a rare wobble of the
+hat: a few frames a second, against sixty for a canvas redrawn every frame.
+Continuous motion is reserved for a running turn, recording, a helper's wisp
+and a drag; after a drop he is still again within about three seconds. A
+waiting question pulses the star and waves his raised hand three times, then
+once every eight seconds. With reduced motion, the power saver profile or an
+idle session he holds each pose still, and nothing runs while he is hidden.
+
+The accent costs nothing per frame either. The layers that carry magic are
+drawn again from the rig once per accent (a few milliseconds) and shared by
+every Wiz on screen (`Common/WizArt.qml`); a change of theme redraws them
+once. The ring's arc is drawn again only when `progress` moves a sixtieth.
+`WizArt` also holds the one copy of the rig: a script imported by
+`Wiz.qml` itself would be loaded again for each of the well over a hundred
+parts he is built of.
+
+Measured against the Wiz he replaced (2026-11-26), each pair at the same
+moment, in a private headless Sway with Quickshell drawing on Mesa's llvmpipe,
+where the processor does the graphics card's work too: idle and a waiting
+question draw the same few frames a second as before (about 10 and 14,
+averaged over 80 s) for the same processor time, and every kind of work draws
+the display's 60 frames a second, as the old working pose did, for up to a
+tenth more time on the main and render threads together. He holds more
+memory: about 3 MB of script heap for the rig's larger tables and the accent's
+pictures, and 10 to 35 MB of resident memory in these runs, where the total
+itself moves by tens of megabytes from one run to the next.
 
 His artwork, poses and timing live in `Common/WizRig.js`. After changing it,
 run `scripts/export-wiz` to rebuild the layers, the still poses in
