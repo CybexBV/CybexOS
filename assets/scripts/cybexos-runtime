@@ -285,6 +285,56 @@ EOF
   fi
 }
 
+# Releases before 1.0.35 put GNOME Online Accounts' and Evolution Data Server's
+# whole share directories first on XDG_DATA_DIRS, and Hyprland imported that
+# list into systemd --user and D-Bus. Because an update whose boot path is
+# unchanged activates without a restart, a running session keeps those unindexed
+# applications folders until the next login, hiding the system's indexed OAuth2
+# handler from xdg-desktop-portal. Drop only those unindexed package share
+# directories; keep -icons symlinks, gsettings-schemas subpaths and everything else.
+strip_stale_data_dirs() {
+  local value=$1 entry changed=0
+  local -a entries=() kept=()
+  [[ -n $value ]] || return 1
+  IFS=: read -r -a entries <<<"$value"
+  for entry in "${entries[@]}"; do
+    if [[ $entry == /nix/store/* && ! -e $entry/applications/mimeinfo.cache ]] && {
+      [[ -e $entry/applications/org.gnome.OnlineAccounts.OAuth2.desktop ]] ||
+        [[ $entry =~ ^/nix/store/[^/]+-(gnome-online-accounts|evolution-data-server)-(unstable|[0-9])[^/]*/share/?$ ]]
+    }; then
+      changed=1
+      continue
+    fi
+    kept+=("$entry")
+  done
+  ((changed)) && ((${#kept[@]} > 0)) || return 1
+  local IFS=:
+  printf '%s\n' "${kept[*]}"
+}
+
+scrub_stale_session_data_dirs() {
+  local cleaned env_output line session_dirs=""
+  if [[ -n ${XDG_DATA_DIRS:-} ]] && cleaned=$(strip_stale_data_dirs "$XDG_DATA_DIRS"); then
+    export XDG_DATA_DIRS=$cleaned
+  fi
+  [[ ${CYBEXOS_RUNTIME_TESTING:-0} != 1 ]] || return 0
+  env_output=$(systemctl --user show-environment 2>/dev/null) || return 0
+  while IFS= read -r line; do
+    if [[ $line == XDG_DATA_DIRS=* ]]; then
+      session_dirs=${line#XDG_DATA_DIRS=}
+      break
+    fi
+  done <<<"$env_output"
+  # Skip shell-quoted systemd output rather than mangling unusual paths.
+  [[ -n $session_dirs && $session_dirs != \'* && $session_dirs != \"* && $session_dirs != \$\'* ]] || return 0
+  cleaned=$(strip_stale_data_dirs "$session_dirs") || return 0
+  systemctl --user set-environment "XDG_DATA_DIRS=$cleaned" 2>/dev/null || true
+  if command -v dbus-update-activation-environment >/dev/null; then
+    dbus-update-activation-environment --systemd "XDG_DATA_DIRS=$cleaned" 2>/dev/null || true
+  fi
+  systemctl --user try-restart --no-block xdg-desktop-portal.service xdg-desktop-portal-gtk.service 2>/dev/null || true
+}
+
 exec_runtime() {
   local kind=$1 selected user_config themed
   case $kind in
@@ -295,6 +345,7 @@ exec_runtime() {
           "$selected" >&2
         return 1
       }
+      scrub_stale_session_data_dirs
       # The authentication UI belongs to the selected shell. Stop the old
       # agent synchronously before QML registers its listener; this also
       # handles an upgrade while the previous agent is still running.

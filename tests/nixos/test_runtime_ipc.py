@@ -164,5 +164,86 @@ ShellRoot {
                 for value, result in zip(values, results):
                     self.assertEqual(result.returncode, 124, (value, result))
 
+    def _run_shell_startup_stub(self, *, process_dirs, session_dirs):
+        """Run `cybexos-runtime exec quickshell` with stubbed systemd/D-Bus/qs."""
+        root = Path(self.temporary.name) / 'scrub'
+        if root.exists():
+            shutil.rmtree(root)
+        bin_dir = root / 'bin'
+        bin_dir.mkdir(parents=True)
+        calls = root / 'calls.log'
+        captured_dirs = root / 'shell-xdg-data-dirs.txt'
+        # Remove shell-recovery.py so exec_runtime runs `qs` directly.
+        recovery = self.shell / 'scripts/shell-recovery.py'
+        if recovery.exists():
+            recovery.unlink()
+        systemctl = bin_dir / 'systemctl'
+        systemctl.write_text(f'''#!/usr/bin/env bash
+printf 'systemctl %s\\n' "$*" >> {shlex.quote(str(calls))}
+if [[ $1 == --user && $2 == show-environment ]]; then
+  printf 'DISPLAY=:0\\nXDG_DATA_DIRS=%s\\n' {shlex.quote(session_dirs)}
+  exit 0
+fi
+if [[ $1 == --user && $2 == show ]]; then
+  printf 'not-found\\n'
+  exit 0
+fi
+if [[ $1 == --user && $2 == is-active ]]; then
+  exit 3
+fi
+exit 0
+''')
+        systemctl.chmod(0o755)
+        dbus_update = bin_dir / 'dbus-update-activation-environment'
+        dbus_update.write_text(f'''#!/usr/bin/env bash
+printf 'dbus-update %s\\n' "$*" >> {shlex.quote(str(calls))}
+''')
+        dbus_update.chmod(0o755)
+        qs_stub = bin_dir / 'qs'
+        qs_stub.write_text(f'''#!/usr/bin/env bash
+printf '%s' "${{XDG_DATA_DIRS:-}}" > {shlex.quote(str(captured_dirs))}
+''')
+        qs_stub.chmod(0o755)
+        env = self.environment | {
+            'PATH': str(bin_dir) + ':' + os.environ.get('PATH', '/usr/bin:/bin'),
+            'XDG_DATA_DIRS': process_dirs,
+            'CYBEXOS_RUNTIME_TESTING': '0',
+        }
+        result = subprocess.run([str(self.command), 'exec', 'quickshell'], env=env,
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = calls.read_text().splitlines() if calls.exists() else []
+        return captured_dirs.read_text(), log
+
+    def test_shell_startup_scrubs_stale_unindexed_gnome_data_dirs_from_live_session(self):
+        stale_goa = '/nix/store/p47gb5gx7zma9q41iabhdr6xq9v5mdlx-gnome-online-accounts-3.58.1/share'
+        stale_eds = '/nix/store/2p0ixzs62nnmlxs2ycp44lwnl5chzz5n-evolution-data-server-3.62.1/share'
+        kept_icons = '/nix/store/7p1mqi8qw9syn29s2d29svjv4sflfm7i-gnome-online-accounts-icons/share'
+        kept_eds_icons = '/nix/store/983byyss2j1hkygwb77989s5w4wrcivy-evolution-data-server-icons/share'
+        kept_schemas = '/nix/store/2p0ixzs62nnmlxs2ycp44lwnl5chzz5n-evolution-data-server-3.62.1/share/gsettings-schemas/evolution-data-server-3.62.1'
+        kept_sw = '/run/current-system/sw/share'
+        session_dirs = ':'.join([stale_goa, stale_eds, kept_schemas, kept_sw])
+        process_dirs = ':'.join([kept_icons, kept_eds_icons, session_dirs])
+        expected_session = ':'.join([kept_schemas, kept_sw])
+        expected_process = ':'.join([kept_icons, kept_eds_icons, kept_schemas, kept_sw])
+
+        got_dirs, log = self._run_shell_startup_stub(process_dirs=process_dirs, session_dirs=session_dirs)
+        self.assertEqual(got_dirs, expected_process)
+        self.assertIn(f'systemctl --user set-environment XDG_DATA_DIRS={expected_session}', log)
+        self.assertIn(f'dbus-update --systemd XDG_DATA_DIRS={expected_session}', log)
+        self.assertIn('systemctl --user try-restart --no-block xdg-desktop-portal.service xdg-desktop-portal-gtk.service', log)
+
+    def test_shell_startup_leaves_clean_session_data_dirs_untouched(self):
+        clean_dirs = ':'.join([
+            '/nix/store/7p1mqi8qw9syn29s2d29svjv4sflfm7i-gnome-online-accounts-icons/share',
+            '/nix/store/983byyss2j1hkygwb77989s5w4wrcivy-evolution-data-server-icons/share',
+            '/nix/store/2p0ixzs62nnmlxs2ycp44lwnl5chzz5n-evolution-data-server-3.62.1/share/gsettings-schemas/evolution-data-server-3.62.1',
+            '/run/current-system/sw/share',
+        ])
+        got_dirs, log = self._run_shell_startup_stub(process_dirs=clean_dirs, session_dirs=clean_dirs)
+        self.assertEqual(got_dirs, clean_dirs)
+        self.assertFalse(any('set-environment' in line or 'dbus-update' in line or 'try-restart' in line for line in log), log)
+
+
 if __name__ == '__main__':
     unittest.main()
