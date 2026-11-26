@@ -31,7 +31,8 @@ Item {
 
     // The row being pointed at, the page it scrolls in, and Wiz's spot.
     property Item row: null
-    property SettingsPage page: null
+    property Item page: null
+    readonly property SettingsPage scrolling: page as SettingsPage
     property var spot: null
     property var ring: null
     property var area: null
@@ -73,12 +74,16 @@ Item {
         return null;
     }
 
-    // The scrolling page that holds the row: its viewport is where he may stand.
-    function pageOf(item: Item): SettingsPage {
+    // The scrolling page that holds the row: its viewport is where he may
+    // stand. A page that does not scroll (Wallpaper) is the view's page
+    // itself, the item its page loader holds.
+    function pageOf(item: Item): Item {
         for (let node = item ? item.parent : null; node; node = node.parent) {
             const page = node as SettingsPage;
             if (page && !page.embedded)
                 return page;
+            if (node.parent && node.parent.objectName === "settingsPageLoader")
+                return node;
         }
         return null;
     }
@@ -94,8 +99,10 @@ Item {
         const rowRect = mapped(row, { x: 0, y: 0, width: row.width, height: row.height });
         const settingsRow = row as SettingsRow;
         const parts = settingsRow ? settingsRow.guideParts() : null;
-        const top = mapped(page, { x: 0, y: page.topInset, width: page.width,
-            height: Math.max(0, page.height - page.topInset - page.bottomInset) });
+        const topInset = scrolling ? scrolling.topInset : 0;
+        const bottomInset = scrolling ? scrolling.bottomInset : 0;
+        const top = mapped(page, { x: 0, y: topInset, width: page.width,
+            height: Math.max(0, page.height - topInset - bottomInset) });
         // He may stand in the page's margin, a little above its top edge and
         // out to the gutter on either side, never over the rail or header.
         const pad = Theme.panelPadding;
@@ -223,10 +230,14 @@ Item {
     Connections {
         target: root.page
         enabled: root.page !== null
-        function onContentYChanged() { root.schedulePlace(); }
-        function onContentHeightChanged() { root.schedulePlace(); }
         function onWidthChanged() { root.schedulePlace(); }
         function onHeightChanged() { root.schedulePlace(); }
+    }
+    Connections {
+        target: root.scrolling
+        enabled: root.scrolling !== null
+        function onContentYChanged() { root.schedulePlace(); }
+        function onContentHeightChanged() { root.schedulePlace(); }
     }
     Connections {
         target: root.row

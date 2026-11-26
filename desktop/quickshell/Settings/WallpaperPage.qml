@@ -43,6 +43,8 @@ Item {
             anchors.bottom: options.top
             anchors.bottomMargin: Theme.settingsGroupSpacing
             label: I18n.tr("Current")
+            // Where search and Wiz's guide land for the wallpaper itself.
+            searchAnchor: "wall"
             // The readable name, then the file itself.
             hint: Settings.wall !== "" ? WallpaperNames.label(Settings.wall, false) + " · " + Settings.wall : I18n.tr("Cybex OS default")
             dirty: false

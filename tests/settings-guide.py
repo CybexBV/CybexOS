@@ -8,7 +8,9 @@ Run through nix develop with grim and wtype on PATH, e.g.
   nix develop -c nix shell nixpkgs#grim nixpkgs#wtype -c python3 -B tests/settings-guide.py
 
 It checks the tool's answer and its failures (a row this computer does not
-show among them); that a row on a page's second tab opens on that tab and a
+show among them); that every row of the search index with a key or an
+anchor is found and pointed at, and a row with neither opens its page and
+tab without him; that a row on a page's second tab opens on that tab and a
 row found by its search anchor is pointed at like a keyed one; that Wiz
 stands at the row and
 covers neither its label nor its control at a wide and a narrow window, for
@@ -157,6 +159,13 @@ def main():
         assert laptop in battery.read_text()
         battery.write_text(battery.read_text().replace(laptop, 'readonly property bool isLaptop: false'))
 
+        # The handle of every row of the search index that Wiz can point at.
+        pointable = json.loads(subprocess.run(
+            ['node', '-e', 'const { load } = require(process.argv[1]); const G = load("SettingsGuide.js");'
+             ' process.stdout.write(JSON.stringify(load("SettingsSearchData.js").ROWS'
+             '.filter(G.pointable).map(G.handle)))', str(ROOT / 'tests/quickshell/shell.cjs')],
+            capture_output=True, text=True, check=True).stdout)
+        assert len(pointable) > 80, pointable
         stub = subprocess.run(['node', '-e', "process.stdout.write(require(process.argv[1]).stub)",
                                str(ROOT / 'tests/quickshell/keybindings-support.cjs')],
                               capture_output=True, text=True, check=True).stdout
@@ -314,6 +323,18 @@ def main():
                 assert reply['ok'] and reply['result']['where'] == where and reply['result']['shown'], reply
                 s = pointing(key, f'{page} {tab}'.strip())
                 assert (s['page'], s['tab']) == (page, tab), s
+            # Every row of the index with a key or an anchor is found and
+            # pointed at, on whichever page, tab or dialog holds it (the
+            # Wallpaper page among them, which does not scroll).
+            for handle in pointable:
+                reply = show(handle)
+                assert reply['ok'] and reply['result']['shown'] is True and reply['result']['row'] == handle, reply
+            ipc('guide-test', 'close')
+            ended('closed')
+            for handle in ('wall', 'shuffle', 'notifDnd', 'controlIcon'):
+                assert show(handle)['ok']
+                pointing(handle, 'a row found by its anchor or in a page that does not scroll')
+
             # A row this computer does not show (Power's "Only on battery",
             # with no battery here and the switch off): Settings looks for
             # it, then the tool says so.
