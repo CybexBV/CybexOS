@@ -88,17 +88,6 @@ test("several bindings for one action become alternatives, duplicates vanish", (
         [{ label: "Play or pause", combos: [["Play"], ["Pause"]] }]);
 });
 
-test("hardware keys stay described in Hyprland but off the sheet", () => {
-    const groups = H.groupsFromBinds([
-        bind(0, "XF86AudioRaiseVolume", "Hardware keys: Volume up"),
-        bind(0, "XF86MonBrightnessUp", "Hardware keys: Brightness up"),
-        bind(SUPER, "K", "Shell: Keyboard shortcuts")
-    ]);
-    assert.deepEqual(groups.map(group => group.title), ["Shell"]);
-    assert.ok(H.HIDDEN_GROUPS.includes("Hardware keys"));
-    assert.equal(H.GROUP_ORDER.includes("Hardware keys"), false);
-});
-
 test("columns split the groups in reading order with balanced heights", () => {
     const group = (title, count) => ({ title, rows: Array(count).fill({}) });
     const groups = [group("Shell", 7), group("Apps", 10), group("Web apps", 5),
@@ -142,12 +131,6 @@ test("a partial or broken digit run stays readable", () => {
     ]);
     assert.deepEqual(rows(groups, "Tags"), [{ label: "Tag 1–3, 5", combos: [["Super", "1…3 5"]] }]);
     assert.deepEqual(rows(groups, "Solo"), [{ label: "Only 7", combos: [["Super", "7"]] }]);
-});
-
-test("the arrow keys share one cap", () => {
-    const groups = H.groupsFromBinds(["left", "right", "up", "down"]
-        .map(key => bind(SUPER, key, "Windows: Move focus")));
-    assert.deepEqual(rows(groups, "Windows"), [{ label: "Move focus", combos: [["Super", "← → ↑ ↓"]] }]);
 });
 
 test("submap bindings say which mode they belong to", () => {

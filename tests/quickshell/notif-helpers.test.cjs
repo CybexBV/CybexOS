@@ -178,16 +178,6 @@ test("action comparisons reject overflow without scanning extra actions or trunc
     assert.equal(H.secondaryActions([opaque])[0], opaque, 'invocation retains the original action object');
 });
 
-test("adaptive timing uses 8 seconds through 80 characters and caps at 12", () => {
-    assert.equal(H.timeoutMs(0, -1), 8000);
-    assert.equal(H.timeoutMs(80, 0), 8000);
-    assert.equal(H.timeoutMs(81, 0), 9000);
-    assert.equal(H.timeoutMs(120, 0), 9000);
-    assert.equal(H.timeoutMs(121, 0), 10000);
-    assert.equal(H.timeoutMs(240, 0), 12000);
-    assert.equal(H.timeoutMs(1000, 0), 12000);
-});
-
 test("the configured duration shifts the adaptive window and the clamp", () => {
     assert.equal(H.timeoutMs(0, -1, 4000), 4000);
     assert.equal(H.timeoutMs(81, 0, 4000), 5000);

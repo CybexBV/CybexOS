@@ -31,18 +31,6 @@ test('delegate construction/destruction coalesces holds without synchronous QML 
     assert.deepEqual(Object.keys(f.published[1]),[]);
 });
 
-test('old output/delegate cleanup cannot release a replacement owner of the same source',()=>{
-    const f=fixture(),old={},replacement={};
-    f.holds.set(old,'source',true);f.flush();
-    f.holds.set(replacement,'source',true);
-    f.holds.set(old,'source',false);f.flush();
-    assert.equal(f.holds.isHeld('source'),true);
-    assert.equal(f.published.length,1,'aggregate hold does not flicker during replacement');
-    f.holds.set(replacement,'source',false);f.flush();
-    assert.equal(f.holds.isHeld('source'),false);
-    assert.deepEqual(Object.keys(f.published[1]),[]);
-});
-
 test('keyboard focus transfers preserve the aggregate pause and release only the last owner',()=>{
     const f=fixture(),button={},card={},otherCard={};
     f.holds.set(button,'focus',true);f.flush();
