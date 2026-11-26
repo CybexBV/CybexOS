@@ -278,8 +278,18 @@ in pkgs.testers.runNixOSTest {
     objects = user("gdbus call --session --dest org.gnome.OnlineAccounts --object-path /org/gnome/OnlineAccounts"
                    " --method org.freedesktop.DBus.ObjectManager.GetManagedObjects")
     assert "org.gnome.OnlineAccounts.Account" not in objects, objects
-    reconnect = json.loads(machine.succeed(f"runuser -u tester -- env {session} cybexos-goa-account reconnect account_0 || true"))
+    reconnect = json.loads(machine.succeed(f"runuser -u tester -- env {session} WAYLAND_DISPLAY={wayland}"
+                                           " cybexos-goa-account reconnect account_0 || true"))
     assert reconnect == {"result": "failed", "reason": "gone"}, reconnect
+    # Microsoft 365 and Exchange calendars: the calendar service runs with
+    # evolution-ews's backends on its module path.
+    user("systemctl --user start evolution-source-registry.service")
+    registry = user("systemctl --user show -p MainPID --value evolution-source-registry.service").strip()
+    prefixes = machine.succeed(f"tr '\\0' '\\n' < /proc/{registry}/environ | sed -n 's/^EDS_EXTRA_PREFIXES=//p'").strip()
+    ews = [p for p in prefixes.split(":") if "evolution-ews" in p]
+    assert ews, prefixes
+    machine.succeed(f"test -e {ews[0]}/lib/evolution-data-server/registry-modules/module-microsoft365-backend.so")
+    machine.succeed(f"test -e {ews[0]}/lib/evolution-data-server/calendar-backends/libecalbackendmicrosoft365.so")
     assert machine.succeed("${pkgs.patchelf}/bin/patchelf --print-interpreter --print-rpath ${foreign}").split() == ["/lib64/ld-linux-x86-64.so.2"]
     loader = " ".join(f"{key}={shell_env[key]}" for key in ("NIX_LD", "NIX_LD_LIBRARY_PATH"))
     assert "pigz" in machine.succeed(f"runuser -u tester -- env -i {loader} ${foreign} --version 2>&1")

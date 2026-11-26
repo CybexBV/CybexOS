@@ -19,6 +19,12 @@ from typing import Any
 
 MAX_RANGE_SECONDS = 370 * 24 * 60 * 60
 DEFAULT_COLOR = "#62a0ea"
+# Online accounts whose calendars Evolution Data Server reads (Settings →
+# Online accounts lists the same kinds), and the backends their calendars
+# use: Microsoft 365 and Exchange come from evolution-ews. Nextcloud and
+# WebDAV calendars are CalDAV ones, known by their account link instead.
+CALENDAR_PROVIDERS = frozenset(("google", "ms_graph", "owncloud", "exchange", "webdav"))
+CALENDAR_BACKENDS = frozenset(("google", "microsoft365", "ews"))
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$")
 # The whole request, not each call: SourceRegistry/Goa new_sync can block for
 # tens of seconds when their D-Bus services are slow to activate, and every
@@ -57,8 +63,8 @@ def unavailable(message: str) -> int:
         {
             "available": False,
             "error": message,
-            "googleAccounts": 0,
-            "googleCalendarAccounts": 0,
+            "onlineAccounts": 0,
+            "onlineCalendarAccounts": 0,
             "calendars": [],
             "events": [],
             "sourceErrors": [],
@@ -192,20 +198,20 @@ def main(arguments: list[str]) -> int:
             f"({text(error, 'missing Python GI bindings', 160)})"
         )
 
-    google_accounts = 0
-    google_calendar_accounts = 0
-    google_account_ids: set[str] = set()
+    online_accounts = 0
+    online_calendar_accounts = 0
+    online_account_ids: set[str] = set()
     goa_error = ""
     try:
         goa_client = Goa.Client.new_sync(None)
         for account_object in goa_client.get_accounts():
             account = account_object.get_account()
-            if text(account.get_provider_type()).lower() != "google":
+            if text(account.get_provider_type()).lower() not in CALENDAR_PROVIDERS:
                 continue
-            google_accounts += 1
-            google_account_ids.add(text(account.get_id()))
+            online_accounts += 1
+            online_account_ids.add(text(account.get_id()))
             if not account.get_calendar_disabled():
-                google_calendar_accounts += 1
+                online_calendar_accounts += 1
     except Exception as error:  # GOA status must not hide otherwise usable EDS data.
         goa_error = text(error, "GNOME Online Accounts could not be read", 200)
 
@@ -220,9 +226,9 @@ def main(arguments: list[str]) -> int:
             f"({text(error, 'source registry unavailable', 160)})"
         )
 
-    def source_is_google(source: Any, calendar_extension: Any) -> bool:
+    def source_is_online(source: Any, calendar_extension: Any) -> bool:
         backend = text(calendar_extension.get_backend_name()).lower()
-        if backend == "google":
+        if backend in CALENDAR_BACKENDS:
             return True
 
         current = source
@@ -236,13 +242,13 @@ def main(arguments: list[str]) -> int:
             if current.has_extension(EDataServer.SOURCE_EXTENSION_GOA):
                 goa = current.get_extension(EDataServer.SOURCE_EXTENSION_GOA)
                 account_id = text(goa.get_account_id())
-                if account_id in google_account_ids:
+                if account_id in online_account_ids:
                     return True
             if current.has_extension(EDataServer.SOURCE_EXTENSION_COLLECTION):
                 collection = current.get_extension(
                     EDataServer.SOURCE_EXTENSION_COLLECTION
                 )
-                if text(collection.get_backend_name()).lower() == "google":
+                if text(collection.get_backend_name()).lower() in CALENDAR_BACKENDS:
                     return True
 
             parent_uid = text(current.get_parent())
@@ -263,8 +269,8 @@ def main(arguments: list[str]) -> int:
         end,
         {
             "goaError": goa_error,
-            "googleAccounts": google_accounts,
-            "googleCalendarAccounts": google_calendar_accounts,
+            "onlineAccounts": online_accounts,
+            "onlineCalendarAccounts": online_calendar_accounts,
         },
     )
 
@@ -273,7 +279,7 @@ def main(arguments: list[str]) -> int:
         source_uid: str,
         source_name: str,
         source_color: str,
-        is_google: bool,
+        is_online: bool,
     ) -> None:
         events: list[dict[str, Any]] = []
         seen_events: set[tuple[str, int, int]] = set()
@@ -315,7 +321,7 @@ def main(arguments: list[str]) -> int:
                         "calendarUid": source_uid,
                         "calendar": source_name,
                         "color": source_color,
-                        "isGoogle": is_google,
+                        "isOnline": is_online,
                         "summary": text(
                             component.get_summary(), "(Untitled event)", 500
                         ),
@@ -362,16 +368,16 @@ def main(arguments: list[str]) -> int:
         source_color = text(extension.get_color(), DEFAULT_COLOR, 16)
         if not COLOR_RE.fullmatch(source_color):
             source_color = DEFAULT_COLOR
-        is_google = source_is_google(source, extension)
+        is_online = source_is_online(source, extension)
         results.add_calendar(
             {
                 "uid": source_uid,
                 "name": source_name,
                 "color": source_color,
-                "isGoogle": is_google,
+                "isOnline": is_online,
             }
         )
-        jobs.append((source, source_uid, source_name, source_color, is_google))
+        jobs.append((source, source_uid, source_name, source_color, is_online))
 
     # Each connect waits up to CONNECT_WAIT_SECONDS on its own backend, so
     # one slow or offline calendar no longer delays the others.  A source

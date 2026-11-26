@@ -31,8 +31,8 @@ Singleton {
     // default window has to move with the clock.
     property bool requestIsDefault: false
     property double browsedAt: 0
-    property int googleAccounts: 0
-    property int googleCalendarAccounts: 0
+    property int onlineAccounts: 0
+    property int onlineCalendarAccounts: 0
     property var calendars: []
     property var events: []
     property var sourceErrors: []
@@ -52,10 +52,10 @@ Singleton {
         watchers = Math.max(0, watchers - 1);
     }
 
-    readonly property bool googleConnected: googleAccounts > 0
-        || calendars.some(calendar => calendar.isGoogle)
-    readonly property bool googleCalendarEnabled: googleCalendarAccounts > 0
-        || calendars.some(calendar => calendar.isGoogle)
+    readonly property bool accountConnected: onlineAccounts > 0
+        || calendars.some(calendar => calendar.isOnline)
+    readonly property bool accountCalendarEnabled: onlineCalendarAccounts > 0
+        || calendars.some(calendar => calendar.isOnline)
     readonly property string partialWarning: sourceErrors.length === 0 ? ""
         : sourceErrors.length === 1 ? "One calendar could not be read"
         : sourceErrors.length + " calendars could not be read"
@@ -186,6 +186,13 @@ Singleton {
         Settings.showPanel("accounts");
     }
 
+    // Straight to Settings' account picker.
+    function addAccount() {
+        Settings.showPanel("accounts");
+        if (!SystemSettings.externalBusy)
+            SystemSettings.accountPickerOpen = true;
+    }
+
     function openCalendar(value) {
         const date = value instanceof Date ? value : new Date(value);
         const pad = number => String(number).padStart(2, "0");
@@ -218,8 +225,8 @@ Singleton {
         fetchError = payload.available ? "" : payload.error
             || "GNOME calendar support is unavailable";
         goaError = payload.goaError;
-        googleAccounts = payload.googleAccounts;
-        googleCalendarAccounts = payload.googleCalendarAccounts;
+        onlineAccounts = payload.onlineAccounts;
+        onlineCalendarAccounts = payload.onlineCalendarAccounts;
         calendars = payload.calendars;
         events = payload.events;
         sourceErrors = payload.sourceErrors;

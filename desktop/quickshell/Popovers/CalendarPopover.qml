@@ -215,9 +215,9 @@ Surface {
         readonly property bool showFirstLoad: Calendar.loading && !Calendar.ready
         readonly property bool showFailure: Calendar.fetchError !== ""
             && (!Calendar.ready || !Calendar.available)
-        readonly property bool needsGoogle: !Calendar.googleConnected
-        readonly property bool calendarOff: Calendar.googleConnected
-            && !Calendar.googleCalendarEnabled
+        readonly property bool needsAccount: !Calendar.accountConnected
+        readonly property bool calendarOff: Calendar.accountConnected
+            && !Calendar.accountCalendarEnabled
 
         Item {
             width: parent.width
@@ -243,11 +243,11 @@ Surface {
                 anchors.right: refreshButton.left
                 anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
-                label: agenda.needsGoogle ? I18n.tr("Connect Google") : I18n.tr("Accounts")
+                label: agenda.needsAccount ? I18n.tr("Add account") : I18n.tr("Accounts")
                 hPadding: 14
                 tint: Theme.textLow
                 fill: "transparent"
-                onTriggered: Calendar.manageAccounts()
+                onTriggered: agenda.needsAccount ? Calendar.addAccount() : Calendar.manageAccounts()
             }
 
             IconButton {
@@ -271,20 +271,20 @@ Surface {
             kind: agenda.showFirstLoad ? "loading" : agenda.showFailure ? "error" : "empty"
             glyph: agenda.showFirstLoad ? "progress_activity"
                 : agenda.showFailure ? "event_busy"
-                : agenda.needsGoogle ? "account_circle"
+                : agenda.needsAccount ? "account_circle"
                 : agenda.calendarOff ? "sync_disabled" : "event_available"
             title: agenda.showFirstLoad ? "Checking calendars"
                 : agenda.showFailure ? "Calendar unavailable"
-                : agenda.needsGoogle ? "Connect Google Calendar"
+                : agenda.needsAccount ? "Connect a calendar"
                 : agenda.calendarOff ? "Calendar sync is off"
                 : root.upcomingMode ? "No upcoming events" : "Nothing on this date"
             detail: agenda.showFirstLoad
                 ? "Reading the Evolution Data Server cache"
                 : agenda.showFailure ? Calendar.fetchError
-                : agenda.needsGoogle
-                    ? "Add a Google account in Online Accounts; GNOME keeps the sign-in and sync credentials."
+                : agenda.needsAccount
+                    ? "Add a Google, Microsoft 365 or Nextcloud account in Settings; GNOME Online Accounts keeps the sign-in."
                 : agenda.calendarOff
-                    ? "Enable Calendar for the Google account in Online Accounts."
+                    ? "Turn on Use calendars for your account in Settings → Online accounts."
                 : root.upcomingMode
                     ? "Nothing scheduled in the next " + Calendar.daysAhead + " days."
                 : "Choose another date or return to Upcoming."
@@ -292,18 +292,20 @@ Surface {
 
         Row {
             visible: agenda.rows.length === 0
-                && (agenda.needsGoogle || agenda.calendarOff || agenda.showFailure)
+                && (agenda.needsAccount || agenda.calendarOff || agenda.showFailure)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 6
 
             ActionButton {
-                label: agenda.needsGoogle ? "Open Online Accounts"
+                label: agenda.needsAccount ? "Add account"
                     : agenda.calendarOff ? "Manage account" : "Try again"
                 tint: agenda.showFailure ? Theme.redText : Theme.accent
                 fill: agenda.showFailure ? Theme.redBgSoft : Theme.accentBgSoft
                 onTriggered: {
-                    if (agenda.showFailure && !agenda.needsGoogle && !agenda.calendarOff)
+                    if (agenda.showFailure && !agenda.needsAccount && !agenda.calendarOff)
                         Calendar.refresh();
+                    else if (agenda.needsAccount)
+                        Calendar.addAccount();
                     else
                         Calendar.manageAccounts();
                 }

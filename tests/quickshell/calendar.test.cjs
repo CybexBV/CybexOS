@@ -29,10 +29,10 @@ function event(summary, startMs, endMs, extra = {}) {
 test("calendar payloads are bounded, sorted and deduplicated", () => {
     const payload = Calendar.normalizePayload({
         available: true,
-        googleAccounts: 1.8,
-        googleCalendarAccounts: 1,
+        onlineAccounts: 1.8,
+        onlineCalendarAccounts: 1,
         calendars: [
-            { uid: "work", name: "Work", color: "#abc123", isGoogle: true },
+            { uid: "work", name: "Work", color: "#abc123", isOnline: true },
             null
         ],
         events: [
@@ -44,12 +44,12 @@ test("calendar payloads are bounded, sorted and deduplicated", () => {
         sourceErrors: [{ calendar: "Private", message: "offline" }]
     });
 
-    assert.equal(payload.googleAccounts, 1);
-    assert.equal(payload.googleCalendarAccounts, 1);
+    assert.equal(payload.onlineAccounts, 1);
+    assert.equal(payload.onlineCalendarAccounts, 1);
     assert.deepEqual(payload.events.map(item => item.summary), ["First", "Later"]);
     assert.equal(payload.events[1].color, Calendar.DEFAULT_COLOR);
     assert.deepEqual(payload.calendars, [
-        { uid: "work", name: "Work", color: "#abc123", isGoogle: true }
+        { uid: "work", name: "Work", color: "#abc123", isOnline: true }
     ]);
     assert.deepEqual(payload.sourceErrors,
         [{ calendar: "Private", message: "offline" }]);
