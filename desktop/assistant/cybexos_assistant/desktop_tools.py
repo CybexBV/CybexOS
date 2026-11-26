@@ -46,7 +46,7 @@ class DesktopToolsMixin:
         if answer not in ("allow", "always"):
             return {"isError": True, "text": note or "The person declined this."}
         turn.add_step(steps.entry(spec["label"], desktop.detail(name, arguments), tool=True))
-        turn.set_step(desktop.PRESENT.get(name, "Working"))
+        turn.set_step(desktop.PRESENT.get(name, "Working"), steps.desktop_kind(name))
         try:
             result = await self._desktop(name, arguments, turn)
         except DesktopError as error:

@@ -23,6 +23,99 @@ def editing(path):
     return "Editing " + basename(path) if path else "Editing a file"
 
 
+# ---- what kind of work a step is ---------------------------------------------
+# The turn snapshot's `stepKind`, beside the pill's line, so the character can
+# show it. Claude Code and Codex map the same way.
+
+THINK, READ, SEARCH, WRITE, RUN = "think", "read", "search", "write", "run"
+CHANGE, INSTALL, DELEGATE, TOOL = "change", "install", "delegate", "tool"
+KINDS = (THINK, READ, SEARCH, WRITE, RUN, CHANGE, INSTALL, DELEGATE, TOOL)
+
+CLAUDE_KINDS = {
+    "Read": READ, "NotebookRead": READ, "WebFetch": READ, "Skill": READ,
+    "WebSearch": SEARCH, "Grep": SEARCH, "Glob": SEARCH, "LS": SEARCH,
+    "Edit": WRITE, "Write": WRITE, "MultiEdit": WRITE, "NotebookEdit": WRITE,
+    "BashOutput": RUN, "KillShell": RUN, "KillBash": RUN,
+    "TodoWrite": THINK, "ExitPlanMode": THINK, "ToolSearch": THINK,
+    "Task": DELEGATE, "Agent": DELEGATE,
+}
+# Look-only desktop tools that search rather than read.
+DESKTOP_SEARCH = frozenset({"settings_search", "wallpaper_search", "software_search"})
+SHELL_FLAGS = ("-c", "-lc", "-cl", "-ec", "-ce")
+
+
+def desktop_kind(name):
+    """The kind of one of Cybex OS's own desktop tools (desktop.py)."""
+    from . import desktop
+    kind = desktop.kind(name)
+    if kind == desktop.LOOK:
+        return SEARCH if name in DESKTOP_SEARCH else READ
+    if kind in (desktop.CHANGE, desktop.ACT):
+        return CHANGE
+    if kind == desktop.INSTALL:
+        return INSTALL
+    return TOOL
+
+
+def command_kind(command, depth=0):
+    """`install` for a command that stages or applies a system change or adds
+    or removes an app; `run` for any other."""
+    from . import policy
+    for argv in policy.segments(str(command or "")) or []:
+        words = list(argv)
+        while words and (("=" in words[0] and not words[0].startswith("=")) or os.path.basename(words[0]) == "env"):
+            words.pop(0)
+        if not words:
+            continue
+        name = os.path.basename(words[0])
+        if name in policy.SHELLS and len(words) >= 3 and words[1] in SHELL_FLAGS and depth < 3:
+            if command_kind(words[2], depth + 1) == INSTALL:
+                return INSTALL
+            continue
+        verbs = [word for word in words[1:] if not word.startswith("-")]
+        if name == "cybex" and (verbs[:2] in (["update", "stage"], ["software", "stage"], ["update", "apply"])
+                                or verbs[:3] in (["software", "flathub", "install"],
+                                                 ["software", "flathub", "remove"])):
+            return INSTALL
+        if name == "flatpak" and verbs[:1] in (["install"], ["uninstall"]):
+            return INSTALL
+    return RUN
+
+
+def claude_kind(name, tool_input):
+    tool_input = tool_input if isinstance(tool_input, dict) else {}
+    if name == "Bash":
+        return command_kind(tool_input.get("command", ""))
+    if name in CLAUDE_KINDS:
+        return CLAUDE_KINDS[name]
+    from . import desktop
+    ours = desktop.tool_name(name) if name.startswith("mcp__") else ""
+    return desktop_kind(ours) if ours else TOOL
+
+
+def codex_kind(item):
+    kind = item.get("type") if isinstance(item, dict) else None
+    if kind == "commandExecution":
+        return command_kind(item.get("command", ""))
+    if kind == "fileChange":
+        return WRITE
+    if kind == "webSearch":
+        return SEARCH
+    if kind == "mcpToolCall":
+        from . import desktop
+        ours = desktop.tool_name(item.get("tool", ""))
+        return desktop_kind(ours) if ours and item.get("server") in (None, desktop.SERVER) else TOOL
+    if kind == "dynamicToolCall":
+        return TOOL
+    if kind in ("reasoning", "plan"):
+        return THINK
+    if kind == "imageView":
+        return READ
+    if kind == "collabAgentToolCall":
+        return DELEGATE
+    return ""
+
+
 def claude_tool(name, tool_input):
     tool_input = tool_input if isinstance(tool_input, dict) else {}
     if name == "Read":
@@ -76,8 +169,12 @@ def codex_item(item):
         return "Using " + short(item.get("tool", "a tool"), 40)
     if kind == "reasoning":
         return "Thinking"
+    if kind == "plan":
+        return "Planning"
     if kind == "imageView":
         return "Looking at the screenshot"
+    if kind == "collabAgentToolCall":
+        return "Delegating"
     return ""
 
 
@@ -146,4 +243,6 @@ def codex_record(item):
         return entry("Used " + (tool or "a tool"), item.get("server") or "")
     if kind == "imageView":
         return entry("Looked at an image")
+    if kind == "collabAgentToolCall" and item.get("tool") == "spawnAgent":
+        return entry("Asked a helper", item.get("prompt") or "")
     return None

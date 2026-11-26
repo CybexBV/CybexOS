@@ -301,11 +301,11 @@ class CodexAgent:
             if kind == "agentMessage":
                 self.message_item = item.get("id")
                 turn.reset_text()
-                turn.set_step("Thinking")
+                turn.set_step("Thinking", steps.THINK)
                 return
             if kind == "fileChange":
                 self.items[item.get("id")] = item
-            turn.set_step(steps.codex_item(item))
+            turn.set_step(steps.codex_item(item), steps.codex_kind(item))
             # The service records its own desktop tools as it runs them.
             if not (kind == "mcpToolCall" and item.get("server") == desktop.SERVER):
                 turn.add_step(steps.codex_record(item))

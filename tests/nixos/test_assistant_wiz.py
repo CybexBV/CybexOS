@@ -18,6 +18,8 @@ sys.path.insert(0, str(ROOT / "desktop" / "assistant"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cybexos_assistant import changes, desktop, mcp, policy, prompt, routines, steps  # noqa: E402
+from cybexos_assistant.claude import ClaudeAgent  # noqa: E402
+from cybexos_assistant.codex import CodexAgent  # noqa: E402
 from cybexos_assistant.turn import Turn  # noqa: E402
 from test_assistant import Client, ServiceTest  # noqa: E402
 
@@ -83,6 +85,124 @@ class StepsTest(unittest.TestCase):
         for index in range(100):
             turn.add_step(steps.entry("Read a file", str(index)))
         self.assertEqual(len(turn.steps), steps.MAX_STEPS)
+
+
+# Every look, change and install tool, with the kind the character shows.
+DESKTOP_KINDS = {
+    "desktop_status": "read", "settings_get": "read", "doctor_run": "read", "routine_list": "read",
+    "settings_search": "search", "wallpaper_search": "search", "software_search": "search",
+    "settings_set": "change", "wallpaper_set": "change", "app_open": "change", "window_focus": "change",
+    "window_move": "change", "window_close": "change", "workspace_switch": "change",
+    "routine_create": "change", "routine_delete": "change",
+    "flatpak_install": "install", "flatpak_remove": "install",
+}
+SYSTEM_COMMANDS = ("cybex update stage local", "cybex software stage obsidian",
+                   "cybex update apply " + "b" * 32 + " " + "c" * 64, "cybex software flathub install org.gimp.GIMP",
+                   "/bin/bash -lc 'cybex update stage local'", "cd ~ && cybex software stage obsidian")
+
+
+class StepKindTest(unittest.TestCase):
+    """stepKind beside the pill's line, the same for both agents."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp(prefix="nas-")
+        self.turn = Turn("t-1", "claude", "q", self.home, set(), lambda *args: None)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.home, ignore_errors=True)
+
+    def snapshot(self):
+        snapshot = self.turn.snapshot()
+        return snapshot["step"], snapshot["stepKind"]
+
+    def claude(self, name, tool_input):
+        agent = ClaudeAgent("claude", self.home, "")
+        agent.turn = self.turn
+        agent._handle({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "tu", "name": name, "input": tool_input}]}})
+        return self.snapshot()[1]
+
+    def codex(self, item):
+        agent = CodexAgent("codex", self.home, "")
+        agent.turn = self.turn
+        agent._notification("item/started", {"item": dict(item, id="i1")})
+        return self.snapshot()[1]
+
+    def test_a_new_turn_thinks_and_a_finished_one_has_no_kind(self):
+        self.assertEqual(self.snapshot(), ("Thinking", "think"))
+        self.turn.set_step("Reading shell.json", "read")
+        self.turn.finish("completed", "done")
+        self.assertEqual(self.snapshot(), ("", ""))
+
+    def test_claude_code_tools(self):
+        cases = {
+            "think": [("TodoWrite", {"todos": []}), ("ExitPlanMode", {}), ("ToolSearch", {"query": "x"})],
+            "read": [("Read", {"file_path": self.home + "/.config/cybexos/shell.json"}),
+                     ("Read", {"file_path": "/tmp/screenshot.png"}), ("WebFetch", {"url": "https://nixos.org/x"}),
+                     ("NotebookRead", {}), ("Skill", {"skill": "cybexos"})],
+            "search": [("WebSearch", {"query": "q"}), ("Grep", {"pattern": "bar"}), ("Glob", {"pattern": "*"}),
+                       ("LS", {"path": "/"})],
+            "write": [("Edit", {"file_path": self.home + "/notes.txt"}), ("Write", {"file_path": self.home + "/a"}),
+                      ("MultiEdit", {"file_path": self.home + "/b"}), ("NotebookEdit", {"notebook_path": "n.ipynb"})],
+            "run": [("Bash", {"command": "ls ~"}), ("Bash", {"command": "cybex update status"}),
+                    ("Bash", {"command": "echo cybex update stage local"}), ("BashOutput", {})],
+            "install": [("Bash", {"command": command}) for command in SYSTEM_COMMANDS],
+            "delegate": [("Task", {"description": "look around"}), ("Agent", {"description": "x"})],
+            "tool": [("mcp__example__action", {}), ("mcp__cybexos__rm_rf", {}), ("SomethingNew", {})],
+        }
+        for tool, kind in DESKTOP_KINDS.items():
+            cases.setdefault(kind, []).append(("mcp__cybexos__" + tool, {}))
+        for kind, calls in cases.items():
+            for name, tool_input in calls:
+                with self.subTest(name=name, tool_input=tool_input):
+                    self.turn.set_step("Before", "tool" if kind == "think" else "think")
+                    self.assertEqual(self.claude(name, tool_input), kind)
+        self.assertEqual(set(cases), set(steps.KINDS))
+        # The stream's first word on a tool, then its input, then a new message.
+        agent = ClaudeAgent("claude", self.home, "")
+        agent.turn = self.turn
+        agent._handle({"type": "stream_event", "event": {"type": "content_block_start",
+                                                         "content_block": {"type": "tool_use", "name": "Bash"}}})
+        self.assertEqual(self.snapshot(), ("Running a command", "run"))
+        self.assertEqual(self.claude("Bash", {"command": "cybex update stage local"}), "install")
+        agent._handle({"type": "stream_event", "event": {"type": "message_start"}})
+        self.assertEqual(self.snapshot(), ("Thinking", "think"))
+
+    def test_codex_items(self):
+        cases = {
+            "think": [{"type": "reasoning"}, {"type": "plan", "text": "1. look"}],
+            "read": [{"type": "imageView", "path": "/tmp/screenshot.png"}],
+            "search": [{"type": "webSearch", "query": "q"}],
+            "write": [{"type": "fileChange", "changes": [{"path": self.home + "/notes.txt"}]}],
+            "run": [{"type": "commandExecution", "command": "/bin/bash -lc 'rg bar ~/.config'"},
+                    {"type": "commandExecution", "command": "cybex update status"}],
+            "install": [{"type": "commandExecution", "command": command} for command in SYSTEM_COMMANDS],
+            "delegate": [{"type": "collabAgentToolCall", "tool": "spawnAgent", "prompt": "look around"}],
+            "tool": [{"type": "dynamicToolCall", "tool": "x"}, {"type": "mcpToolCall", "server": "example",
+                                                               "tool": "settings_set"}],
+        }
+        for tool, kind in DESKTOP_KINDS.items():
+            cases.setdefault(kind, []).append({"type": "mcpToolCall", "server": "cybexos", "tool": tool})
+        for kind, items in cases.items():
+            for item in items:
+                with self.subTest(item=item):
+                    self.turn.set_step("Before", "tool" if kind == "think" else "think")
+                    self.assertEqual(self.codex(item), kind)
+        self.assertEqual(set(cases), set(steps.KINDS))
+        self.turn.set_step("Running a command", "run")
+        self.assertEqual(self.codex({"type": "agentMessage", "text": ""}), "think")
+        self.assertEqual(steps.codex_kind({"type": "contextCompaction"}), "")
+
+    def test_desktop_tools_and_staging(self):
+        self.assertEqual({tool: steps.desktop_kind(tool) for tool in desktop.TOOLS}, DESKTOP_KINDS)
+        staged = policy.decide_command("cybex update stage local", self.home, "/nonexistent/status.json")
+        self.turn.set_step("Running cybex update stage local", "install")
+        self.assertEqual(asyncio.run(self.turn.authorize(staged))[0], "allow")
+        self.assertEqual(self.snapshot(), ("Waiting for administrator authentication", "install"))
+        # A line without a kind keeps the current one.
+        self.turn.set_step("Working")
+        self.assertEqual(self.snapshot(), ("Working", "install"))
 
 
 class DesktopToolsTest(unittest.TestCase):
@@ -363,6 +483,18 @@ class DesktopCallTest(ServiceTest):
                          [("Changed a preference", "bar", True), ("Opened an app", "Nonesuch", True)])
         invalid = await self.call("window_move", {"address": "a1"})
         self.assertEqual(invalid["text"], "workspace is required.")
+
+    async def test_each_tool_shows_its_kind(self):
+        await self.ask("hang")
+        for tool, arguments, step, kind in (
+                ("settings_get", {}, "Reading your preferences", "read"),
+                ("settings_search", {"query": "bar"}, "Looking up settings", "search"),
+                ("settings_set", {"key": "bar", "value": "transparent"}, "Changing a preference", "change"),
+                ("workspace_switch", {"workspace": 2}, "Switching workspace", "change")):
+            with self.subTest(tool=tool):
+                self.assertFalse((await self.call(tool, arguments))["isError"])
+                turn = await self.client.turn(lambda turn, step=step: turn["step"] == step)
+                self.assertEqual(turn["stepKind"], kind)
 
     async def test_a_side_question_may_only_look(self):
         await self.ask("hang")

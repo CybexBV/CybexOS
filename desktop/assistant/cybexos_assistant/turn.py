@@ -42,6 +42,8 @@ class Turn:
         self.prompt = prompt
         self.status = "running"
         self.step = "Thinking"
+        # What kind of work the step is (steps.KINDS), for the character.
+        self.step_kind = steps.THINK
         self.text = ""
         self.error = ""
         self.error_kind = ""
@@ -83,7 +85,7 @@ class Turn:
         changes = list(changes or [])
         return {
             "id": self.id, "agent": self.agent, "prompt": self.prompt, "status": self.status,
-            "step": self.step, "text": self.text, "error": self.error, "errorKind": self.error_kind,
+            "step": self.step, "stepKind": self.step_kind, "text": self.text, "error": self.error, "errorKind": self.error_kind,
             "approvals": [entry["card"] for entry in self._approvals.values()],
             "startedAt": self.started_at, "finishedAt": self.finished_at,
             # The files and preferences Undo would restore (what `changes` can undo now).
@@ -117,9 +119,12 @@ class Turn:
             self.text = ""
             self.updated()
 
-    def set_step(self, step):
-        if step and step != self.step and not self.finished and self.status != "waiting":
-            self.step = step
+    def set_step(self, step, kind=None):
+        """The pill's line and its kind; without a kind the current one stays."""
+        kind = self.step_kind if kind is None else kind
+        if step and (step, kind) != (self.step, self.step_kind) and not self.finished \
+                and self.status != "waiting":
+            self.step, self.step_kind = step, kind
             self.updated()
 
     def finish(self, status, text=None, error="", kind=""):
@@ -129,6 +134,7 @@ class Turn:
         self.error = error or ""
         self.error_kind = kind or (classify(error) if status == "failed" else "")
         self.step = ""
+        self.step_kind = ""
         self.finished_at = now_ms()
         self.deny_all()
 
@@ -160,7 +166,7 @@ class Turn:
         for path in decision.paths:
             self.snapshots.take(path)
         if decision.step:
-            self.set_step(decision.step)
+            self.set_step(decision.step, decision.step_kind or None)
         return result, ""
 
     async def ask(self, card, cancel_key=None):
