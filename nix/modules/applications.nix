@@ -189,6 +189,11 @@ in {
     services.speechd.enable = lib.mkDefault true;
     services.gnome.gnome-online-accounts.enable = lib.mkDefault cfg.features.connectedWidgets;
     services.gnome.evolution-data-server.enable = lib.mkDefault cfg.features.connectedWidgets;
+    # Microsoft 365 and Exchange calendars: Evolution Data Server reads them
+    # only through evolution-ews's backends (a GOA ms_graph account becomes a
+    # microsoft365 collection, an exchange account an ews one). Prebuilt.
+    services.gnome.evolution-data-server.plugins =
+      lib.mkIf config.services.gnome.evolution-data-server.enable [ pkgs.evolution-ews ];
     programs.gnupg.agent = { enable = true; pinentryPackage = pkgs.pinentry-gnome3; };
     programs.firefox = {
       enable = lib.mkDefault true;

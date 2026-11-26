@@ -6,7 +6,7 @@
   gnome-online-accounts, glib-networking, gsettings-desktop-schemas }:
 stdenv.mkDerivation {
   pname = "cybexos-goa-account";
-  version = "1";
+  version = "2";
   src = import ../package-source.nix {
     inherit lib source;
     paths = [ "desktop/goa-account" ];
@@ -37,14 +37,19 @@ stdenv.mkDerivation {
     for type in google ms_graph owncloud exchange imap_smtp webdav kerberos; do
       grep -q "\"type\":\"$type\"" providers.json
     done
-    ! grep -q '"type":"fedora"' providers.json
+    # Not `! grep`: a negated command never stops the build under `set -e`.
+    if grep -q '"type":"fedora"' providers.json; then exit 1; fi
     status=0; $out/bin/cybexos-goa-account add > /dev/null 2>&1 || status=$?
     test "$status" = 2
     # Nothing on the wrapper's data path may carry applications: a desktop
     # file without a MIME index there hides the system's indexed copy of
-    # GOA's OAuth2 handler from the browser handoff.
-    for dir in $(grep -ao "/nix/store/[^':\"]*" $out/bin/cybexos-goa-account | sort -u); do
-      test ! -e "$dir/applications"
+    # GOA's OAuth2 handler from the browser handoff. The wrapper is a binary
+    # one: its strings end in NUL bytes, which would glue neighbouring paths
+    # into one that never exists.
+    dirs=$(tr '\0' '\n' < $out/bin/cybexos-goa-account | grep -aoE "/nix/store/[^':\"[:space:]]+" | sort -u)
+    test -n "$dirs"
+    for dir in $dirs; do
+      if [ -e "$dir/applications" ]; then echo "$dir has applications"; exit 1; fi
     done
     runHook postInstallCheck
   '';

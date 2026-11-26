@@ -117,6 +117,17 @@ PopoutPanel {
         function onReviewRequested() { root.openChanges(); }
     }
 
+    // The account picker, however it was opened, is the one sheet shown.
+    Connections {
+        target: SystemSettings
+        function onAccountPickerOpenChanged() {
+            if (SystemSettings.accountPickerOpen) {
+                palette.hide();
+                changesSheet.hide();
+            }
+        }
+    }
+
     // Search results and Settings.showSetting() both jump by setting the key.
     Connections {
         target: Settings
@@ -131,6 +142,7 @@ PopoutPanel {
                 pageRelease.restart();
                 palette.hide();
                 changesSheet.hide();
+                accountPicker.hide();
                 // Shown once is enough: a reopened narrow window starts clean.
                 if (root.searchHintShown)
                     root.searchHintSeen = true;
@@ -968,6 +980,13 @@ PopoutPanel {
         id: accountPicker
         objectName: "accountPicker"
         anchors.fill: parent
+        onDismissed: {
+            if (!Settings.panelOpen)
+                return;
+            const item = root.navDelegate(Settings.page);
+            if (item)
+                item.forceActiveFocus();
+        }
     }
 
     SettingsPalette {

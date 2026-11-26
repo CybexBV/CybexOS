@@ -310,11 +310,22 @@ the place you see and choose them (2026-11, after a council review):
   floats in the top-right corner (`desktop/hypr/looknfeel.lua`), clear of the
   sign-in page. Settings comes back with the result: added, connected again,
   cancelled, or the reason it failed; reopened meanwhile, it offers Cancel.
-  An added account counts once goa-daemon can hand out its credentials;
-  otherwise Settings says so. Errors that quote the browser's answer are
-  never shown.
+  An added or reconnected account counts once goa-daemon can hand out its
+  credentials; otherwise Settings says so. GOA's own error text never
+  reaches Settings, since it can quote the browser's answer: the helper
+  names the kind of failure (refused, certificate, network, an unusable
+  browser answer, …) and Settings words it. The notice stays while the page
+  is open.
 - **Cancel** closes GOA's dialog window rather than cancelling GOA's task:
-  with no parent window, GOA 3.58 deadlocks when its task is cancelled.
+  with no parent window, GOA 3.58 deadlocks when its task is cancelled. A
+  helper still running 10 seconds after Cancel is killed, and Settings reports
+  the sign-in as cancelled; a provider list that takes over 15 seconds is
+  killed too.
+- **Calendars** of Google, Microsoft 365, Nextcloud, Exchange and WebDAV
+  accounts reach the calendar popup through Evolution Data Server. Microsoft
+  365 and Exchange need evolution-ews's backends, which Cybex OS adds to the
+  calendar service (`nix/modules/applications.nix`). With no such account,
+  the popup's Add account opens this picker.
 - **Logos** are the marks GOA installs in the icon theme (`AccountLogo.qml`,
   see `desktop/quickshell/assets/README.md`); generic kinds get a glyph.
 - GOA's per-account switches for mail, contacts and files are not offered:

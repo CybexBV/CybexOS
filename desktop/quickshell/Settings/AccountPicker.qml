@@ -10,8 +10,13 @@ import "../Common"
 // names only what the computer uses them for: calendars. Choosing one
 // closes Settings and opens GOA's own sign-in dialog for that kind
 // (SystemSettings.addAccount); the footer stays put while the list scrolls.
+// The keyboard stays in the sheet: Tab and the arrows go round its rows and
+// Cancel, and a row they reach scrolls into view.
 Item {
     id: root
+
+    // Closed while Settings stays open: the view puts focus back.
+    signal dismissed()
 
     readonly property bool open: SystemSettings.accountPickerOpen
     readonly property var lead: ["google", "ms_graph", "owncloud"]
@@ -30,13 +35,54 @@ Item {
     Accessible.name: I18n.tr("Add an account")
 
     function hide() {
+        if (!open)
+            return;
         SystemSettings.accountPickerOpen = false;
+        dismissed();
     }
     onOpenChanged: {
         if (!open)
             return;
+        list.contentY = 0;
         SystemSettings.loadAccountProviders();
-        Qt.callLater(() => cancelAction.forceActiveFocus());
+        Qt.callLater(focusFirst);
+    }
+    Connections {
+        target: SystemSettings
+        function onAccountProvidersChanged() {
+            if (root.open)
+                Qt.callLater(root.focusFirst);
+        }
+    }
+
+    // The rows in reading order, then Cancel.
+    function stops() {
+        const picks = [];
+        for (let i = 0; i < rows.children.length; i++) {
+            const item = rows.children[i];
+            if (item.isPick && item.visible)
+                picks.push(item);
+        }
+        return picks.concat([cancelAction]);
+    }
+    function focusFirst() {
+        if (open)
+            stops()[0].forceActiveFocus();
+    }
+    function step(from, forward) {
+        const all = stops();
+        const at = all.indexOf(from);
+        const next = at === -1 ? (forward ? 0 : all.length - 1)
+            : (at + (forward ? 1 : -1) + all.length) % all.length;
+        all[next].forceActiveFocus();
+    }
+    function reveal(item) {
+        const top = item.y;
+        const bottom = item.y + item.height;
+        if (top < list.contentY)
+            list.contentY = top;
+        else if (bottom > list.contentY + list.height)
+            list.contentY = bottom - list.height;
     }
 
     // Brand names stay as they are; generic kinds get plain names.
@@ -167,6 +213,10 @@ Item {
                 id: cancelAction
                 text: I18n.tr("Cancel")
                 onTriggered: root.hide()
+                Keys.onTabPressed: event => { root.step(cancelAction, true); event.accepted = true; }
+                Keys.onBacktabPressed: event => { root.step(cancelAction, false); event.accepted = true; }
+                Keys.onUpPressed: event => { root.step(cancelAction, false); event.accepted = true; }
+                Keys.onDownPressed: event => { root.step(cancelAction, true); event.accepted = true; }
             }
         }
     }
@@ -175,6 +225,7 @@ Item {
     component PickRow: Rectangle {
         id: pick
         required property var modelData
+        readonly property bool isPick: true
         readonly property bool lit: pickMouse.containsMouse || activeFocus
         width: rows.width
         height: Theme.scaled(52)
@@ -190,6 +241,14 @@ Item {
         Keys.onReturnPressed: root.choose(modelData)
         Keys.onEnterPressed: root.choose(modelData)
         Keys.onSpacePressed: root.choose(modelData)
+        Keys.onTabPressed: event => { root.step(pick, true); event.accepted = true; }
+        Keys.onBacktabPressed: event => { root.step(pick, false); event.accepted = true; }
+        Keys.onUpPressed: event => { root.step(pick, false); event.accepted = true; }
+        Keys.onDownPressed: event => { root.step(pick, true); event.accepted = true; }
+        onActiveFocusChanged: {
+            if (activeFocus)
+                root.reveal(pick);
+        }
 
         AccountLogo {
             id: logo
