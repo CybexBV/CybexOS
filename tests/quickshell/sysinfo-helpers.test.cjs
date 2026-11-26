@@ -112,3 +112,16 @@ test("df parsing validates the C-locale header, root target, and values", () => 
     ])
         assert.equal(H.parseDf(malformed), null);
 });
+
+test("uptime parsing and formatting stay compact at minute boundaries", () => {
+    assert.equal(H.parseUptime("90061.42 12345.67\n"), 90061);
+    assert.equal(H.parseUptime("unavailable"), null);
+    assert.equal(H.formatUptime(0), "0m");
+    assert.equal(H.formatUptime(59), "0m");
+    assert.equal(H.formatUptime(60), "1m");
+    assert.equal(H.formatUptime(3600), "1h");
+    assert.equal(H.formatUptime(3660), "1h 1m");
+    assert.equal(H.formatUptime(90060), "1d 1h 1m");
+    assert.equal(H.formatUptime(-1), "Unavailable");
+});
+

@@ -110,6 +110,26 @@ test("inline Markdown draws as safe rich text, code on a chip", () => {
     assert.equal(A.inlineHtml("unfinished **bold"), "unfinished **bold", "an open marker shows while it streams");
 });
 
+test("the first paragraph leads with its first sentence", () => {
+    assert.deepEqual(A.leadParts("Good news — every check passed. No problems found."),
+        { first: "Good news — every check passed.", rest: "No problems found." });
+    assert.deepEqual(A.leadParts("Still streaming the first sentence"),
+        { first: "Still streaming the first sentence", rest: "" });
+    assert.deepEqual(A.leadParts("Use e.g. this one. Then that."), { first: "Use e.g. this one.", rest: "Then that." });
+    assert.deepEqual(A.leadParts("**Done. All good** now. Next."), { first: "**Done. All good** now.", rest: "Next." },
+        "a sentence never ends inside bold");
+    assert.deepEqual(A.leadParts("Version 96.6 is out! Update now."), { first: "Version 96.6 is out!", rest: "Update now." });
+    assert.equal(A.leadParts("x".repeat(A.LEAD_SENTENCE_MAX + 1) + ". More."), null, "a long sentence is no headline");
+    assert.equal(A.leadParts(""), null);
+    assert.equal(A.leadHtml("Passed `x`. The rest.", { rest: "#c3c0b7" }),
+        "<span style=\"font-weight:600;\">Passed <span style=\"white-space:pre-wrap;\"> x </span>.</span> "
+        + "<span style=\"color:#c3c0b7;\">The rest.</span>");
+    const markdown = read("Assistant/AssistantMarkdown.qml");
+    assert.match(markdown, /property bool lead: false/);
+    assert.match(markdown, /root\.lead && block\.index === 0/);
+    assert.match(markdown, /font\.pixelSize: headline !== "" \? Theme\.typography\.title/);
+});
+
 test("a change reads as what it is, with its old and new value", () => {
     const rows = [{ key: "barOpacity", label: "Menubar opacity" }];
     const setting = A.changeRow({ id: "ch-1", kind: "setting", key: "barOpacity", before: 1, after: 0.8,

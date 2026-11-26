@@ -30,6 +30,23 @@ test("timestamps parse the same from Python, recovery ids and plain ISO", () => 
         assert.ok(Number.isNaN(LocalTime.parse(junk)), String(junk));
 });
 
+test("a timestamp reads as today, yesterday, a weekday or a date", () => {
+    const now = new Date(2026, 8, 24, 20, 30).getTime();
+    const at = (d, h, m, y = 2026, mo = 8) => new Date(y, mo, d, h, m).getTime();
+    assert.equal(LocalTime.label(at(24, 19, 16), now, true), "Today at 19:16");
+    assert.equal(LocalTime.label(at(24, 19, 16), now, false), "Today at 7:16 PM");
+    assert.equal(LocalTime.label(at(23, 8, 2), now, true), "Yesterday at 08:02");
+    assert.equal(LocalTime.label(at(23, 0, 5), now, false), "Yesterday at 12:05 AM");
+    assert.equal(LocalTime.label(at(20, 21, 40), now, true), "Sunday at 21:40");
+    assert.equal(LocalTime.label(at(12, 8, 2), now, true), "12 Sep at 08:02");
+    assert.equal(LocalTime.label(at(12, 8, 2, 2025), now, true), "12 Sep 2025");
+    // Calendar days, not 24-hour spans: 23:59 yesterday is still yesterday
+    // at 00:01 today.
+    assert.equal(LocalTime.label(at(23, 23, 59), at(24, 0, 1), true), "Yesterday at 23:59");
+    assert.equal(LocalTime.fromText("junk", now, true, "junk"), "junk");
+    assert.equal(LocalTime.label(Number.NaN, now, true), "");
+});
+
 test("Online accounts has an explicit empty state and no standing Refresh", () => {
     const accounts = read("Settings/AccountsPage.qml");
     assert.doesNotMatch(accounts, /SystemServiceStatus/);
