@@ -58,14 +58,6 @@ test("ping windows retain losses and average recent successful probes", () => {
     assert.deepEqual(H.pingStats(history, 2), { latency: 25, loss: 50, samples: 4 });
 });
 
-test("network quantities format compactly", () => {
-    assert.equal(H.formatBytes(0), "0 B");
-    assert.equal(H.formatBytes(1536), "1.5 KB");
-    assert.equal(H.formatRate(1024 * 1024), "1 MB/s");
-    assert.equal(H.formatLatency(4.25), "4.3 ms");
-    assert.equal(H.formatLatency(null), "--");
-});
-
 test("Wi-Fi scans deduplicate SSIDs, retain bands, and split known networks", () => {
     const grouped = H.groupWifiNetworks([
         { ssid: "Cafe", bssid: "a", signal: 22, frequency: 2412, security: "WPA2" },

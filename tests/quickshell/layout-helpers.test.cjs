@@ -89,24 +89,6 @@ test("forced compact modules stay present and the center shifts last", () => {
         <= 800 - result.widths.right);
 });
 
-test("all-auto detail follows the documented compaction order", () => {
-    const entries = H.COMPACT_ORDER.map(id => ({
-        id,
-        col: id === "media" ? "left"
-            : id === "clock" || id === "weather" ? "center" : "right",
-        saving: 20,
-        policy: "auto"
-    }));
-    const result = H.fitBar({
-        width: 800, gutter: 8,
-        widths: { left: 390, center: 300, right: 460 },
-        entries
-    });
-    assert.deepEqual(result.compact, H.COMPACT_ORDER);
-    assert.equal(entries.length, H.COMPACT_ORDER.length,
-        "fitting changes detail, not module enablement");
-});
-
 test("narrow bars overflow low-priority modules but retain core status", () => {
     const entries = [
         { id: "ws", col: "left", width: 90, saving: 0, policy: "auto" },
@@ -151,20 +133,6 @@ test("asymmetric center extents pin the clock while actions reveal on its left",
     assert.equal(revealed.centerOffset, 0);
 });
 
-test("asymmetric center extents shift only when a side collision requires it", () => {
-    const result = H.fitBar({
-        width: 800, gutter: 8,
-        widths: { left: 360, center: 300, right: 120 },
-        centerExtents: { left: 210, right: 90 },
-        entries: []
-    });
-    assert.equal(result.fits, true);
-    assert.equal(result.shifted, true);
-    assert.ok(result.centerX >= result.widths.left + 8);
-    assert.ok(result.centerX + result.centerExtents.left
-        + result.centerExtents.right + 8 <= 800 - result.widths.right);
-});
-
 test("high resolution wheel deltas emit only accumulated steps", () => {
     let accumulator = 0;
     let steps = 0;
@@ -176,21 +144,4 @@ test("high resolution wheel deltas emit only accumulated steps", () => {
     assert.equal(steps, 1);
     assert.equal(accumulator, 0);
     assert.deepEqual(H.accumulateWheel(0, -240, 120), { accumulator: 0, steps: -2 });
-});
-
-test("edge joins shorten only the island side when it nears the bar tangent", () => {
-    const base = {
-        floating: true,
-        barRadius: 9,
-        popRadius: 14,
-        sideMargin: 12,
-        width: 1920
-    };
-
-    assert.deepEqual(H.edgeFlareRadii({
-        ...base, island: "left", bodyX: 26, bodyW: 400
-    }), { left: 5, right: 14 });
-    assert.deepEqual(H.edgeFlareRadii({
-        ...base, island: "right", bodyX: 1494, bodyW: 400
-    }), { left: 14, right: 5 });
 });

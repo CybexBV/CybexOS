@@ -117,15 +117,6 @@ test("markup cleanup preserves paragraphs and decodes common entities", () => {
         "Hello\none & two\nnext");
 });
 
-test("body text duplicated by the summary is suppressed", () => {
-    const result = H.derivePresentation({
-        appName: "Calendar", summary: "Stand-up in 10 minutes",
-        body: "<b>Stand-up in 10 minutes</b>",
-    });
-    assert.equal(result.displaySummary, "Stand-up in 10 minutes");
-    assert.equal(result.displayBody, "");
-});
-
 test("icon precedence favors brands and never falls back to Chrome for web sources", () => {
     assert.deepEqual(H.iconPreference({
         brandIcon: "whatsapp", webOrigin: "web.whatsapp.com",

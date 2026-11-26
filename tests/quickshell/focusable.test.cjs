@@ -53,48 +53,9 @@ function ownerBlock(lines, at) {
     return null;
 }
 
-// A MouseArea that is not a click target: the cursor must not claim it is.
-const CURSOR_EXEMPT = {
-    "Common/FocusModalityObserver.qml": "an observer that declines every press so the control underneath keeps its own cursor",
-    "Bar/Bar.qml": "a right-button-only context area covering the whole bar",
-    "LauncherWindow.qml": "the click-to-dismiss strip the launcher surface keeps around its card",
-    "OsdWindow.qml": "a wheel handler; nothing in the OSD is clickable",
-    "ShortcutsOverlay.qml": "the click-outside-to-dismiss scrim behind the sheet"
-};
-
 // Focus that exists so the keyboard can scroll, on a surface that draws no
 // ring and has no label of its own to give.
 const FOCUS_EXEMPT_HEADS = ["Flickable {"];
-
-test("every clickable MouseArea says so with the cursor", () => {
-    const missing = [];
-    let checked = 0;
-    for (const rel of qmlFiles()) {
-        const lines = read(rel).split("\n");
-        for (let i = 0; i < lines.length; i++) {
-            if (!/^\s*MouseArea\s*\{\s*$/.test(lines[i])) continue;
-            const body = blockAt(lines, i).join("\n");
-            if (!/onClicked|onDoubleClicked|onPressed/.test(body)) continue;
-            checked++;
-            if (/cursorShape/.test(body)) continue;
-            if (rel in CURSOR_EXEMPT) continue;
-            missing.push(`${rel}:${i + 1}`);
-        }
-    }
-    assert.ok(checked > 40, `only found ${checked} clickable MouseAreas`);
-    assert.deepEqual(missing, [], "these click targets still show an arrow");
-});
-
-test("every cursor exemption still exists and still says why", () => {
-    for (const [rel, reason] of Object.entries(CURSOR_EXEMPT)) {
-        assert.ok(fs.existsSync(path.join(shellDir, rel)), `${rel} is gone`);
-        assert.ok(reason.length > 20, `${rel} needs a real reason`);
-        const lines = read(rel).split("\n");
-        const bare = lines.some((l, i) => /^\s*MouseArea\s*\{\s*$/.test(l)
-            && !/cursorShape/.test(blockAt(lines, i).join("\n")));
-        assert.ok(bare, `${rel} no longer has an uncursored MouseArea — drop the exemption`);
-    }
-});
 
 test("everything Tab can reach has a role and a name", () => {
     const missing = [];

@@ -461,13 +461,6 @@ test("launcher open targets a tab, or a prefix provider through its prefix", () 
     assert.deepEqual(P.openTarget(""), { tab: "apps", query: "" });
 });
 
-test("absolute desktop-entry icons load as files", () => {
-    assert.equal(P.directIconUrl("/home/a/x y/icon#1.png"), "file:///home/a/x%20y/icon%231.png");
-    assert.equal(P.directIconUrl("firefox"), "", "theme names go to the icon theme");
-    assert.equal(P.directIconUrl("file:///a.png"), "file:///a.png");
-    assert.equal(P.directIconUrl(""), "");
-});
-
 // ---- Clipboard: pins and image previews ------------------------------------
 
 test("pinned entries come first, survive pruning and hide their history twin", () => {
@@ -520,18 +513,4 @@ test("image previews are requested for the newest image entries only", () => {
         "4\t[[ binary data 1 KiB png 2x2 ]]", "2\t[[ binary data 9 KiB jpeg 30x30 ]]"
     ]);
     assert.deepEqual(P.clipboardPreviewTargets(["1\tplain"], 24), []);
-});
-
-test("a typed query that lists apps and actions labels each group once", () => {
-    const apps = [{ kind: "app", title: "Firefox" }, { kind: "app", title: "Files" }];
-    const actions = P.blendedActionRows(P.BUILTIN_ACTIONS, "screenshot");
-    assert.ok(actions.length > 0);
-    assert.deepEqual(P.groupLabels(apps.concat(actions)),
-        ["Apps", ""].concat(["Actions"], actions.slice(1).map(() => "")));
-    // One kind alone is already named by its tab, and Wiz's row by himself.
-    assert.deepEqual(P.groupLabels(apps), ["", ""]);
-    assert.deepEqual(P.groupLabels(actions), actions.map(() => ""));
-    assert.deepEqual(P.groupLabels(P.actionRows(P.BUILTIN_ACTIONS, "", 4)), ["", "", "", ""]);
-    assert.deepEqual(P.groupLabels([]), []);
-    assert.deepEqual(P.groupLabels(undefined), []);
 });

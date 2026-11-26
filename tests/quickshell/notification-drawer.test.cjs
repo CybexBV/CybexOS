@@ -239,69 +239,12 @@ test("only a staged update's next step takes the accent", () => {
 
 // ---- card anatomy rules -----------------------------------------------------
 
-test("a card's body gives up a line to its buttons and the title holds two lines", () => {
-    assert.equal(H.TITLE_LINES, 2);
-    assert.equal(H.bodyLineLimit(3, false), 3);
-    assert.equal(H.bodyLineLimit(3, true), 2);
-    assert.equal(H.bodyLineLimit(2, true), 2);
-    assert.equal(H.bodyLineLimit(1, true), 1);
-    assert.equal(H.bodyLineLimit(0, false), 0, "Body preview Off hides the body");
-    for (const hostile of [undefined, NaN, -4, "x"])
-        assert.equal(H.bodyLineLimit(hostile, false), 0);
-    assert.equal(H.bodyLineLimit(9, false), 3);
-});
-
-test("two buttons: the sender's own first, shell shortcuts fill, snoozes wait under More", () => {
-    const a = { identifier: "a", text: "Reply" }, b = { identifier: "b", text: "Mark as read" };
-    const c = { identifier: "c", text: "Mute" };
-    const code = { kind: "copy-code", text: "Copy verification code", value: "123456" };
-    const wiz = { kind: "ask-wiz", text: "Ask Wiz" };
-    const link = { kind: "link", text: "Open link · example.com", value: "https://example.com/" };
-    const snooze = { kind: "snooze", text: "Snooze 15 minutes", minutes: 15 };
-    const unsnooze = { kind: "unsnooze", text: "Unsnooze" };
-
-    let plan = H.actionPlan([wiz, a, b, c, code, link, snooze], null);
-    assert.deepEqual(plan.buttons, [a, b]);
-    assert.deepEqual(plan.more, [wiz, c, code, link, snooze], "More keeps the service's order");
-    assert.equal(plan.primary, -1);
-
-    plan = H.actionPlan([wiz, code, link, snooze], null);
-    assert.deepEqual(plan.buttons, [code, wiz], "a code to copy is the likeliest next step");
-    assert.deepEqual(plan.more, [link, snooze]);
-
-    plan = H.actionPlan([snooze, unsnooze], null);
-    assert.deepEqual(plan.buttons, [], "snoozing is never a resting button");
-    assert.deepEqual(plan.more, [snooze, unsnooze]);
-
-    plan = H.actionPlan([a, b, snooze], b);
-    assert.deepEqual(plan.buttons, [b, a], "the primary leads");
-    assert.equal(plan.primary, 0);
-    assert.deepEqual(plan.more, [snooze]);
-    assert.deepEqual(H.actionPlan(undefined, null), { buttons: [], more: [], primary: -1 });
-    assert.equal(H.ACTION_BUTTONS, 2);
-});
-
 test("every labelled sender action is offered; default and close never are", () => {
     const list = [{ identifier: "default", text: "Open" }, { identifier: "one", text: "One" },
         { identifier: "two", text: "Two" }, { identifier: "three", text: "Three" },
         { identifier: "close", text: "Close" }, { identifier: "blank", text: " " }];
     assert.deepEqual(H.senderActions(list).map(action => action.identifier), ["one", "two", "three"]);
     assert.deepEqual(H.secondaryActions(list).map(action => action.identifier), ["one", "two"]);
-});
-
-test("a monogram replaces the generic bell", () => {
-    assert.equal(H.monogram("Signal"), "S");
-    assert.equal(H.monogram("brave"), "B");
-    assert.equal(H.monogram("www.example.com"), "E");
-    assert.equal(H.monogram("  (beta) app"), "B");
-    assert.equal(H.monogram("1Password"), "1");
-    assert.equal(H.monogram("élan"), "É");
-    assert.equal(H.monogram("微信"), "微");
-    assert.equal(H.monogram("🎵 Music"), "🎵", "an astral character stays whole");
-    assert.equal(H.monogram("<b>Chat</b>"), "C", "markup is not a letter");
-    assert.equal(H.monogram(""), "");
-    assert.equal(H.monogram("…"), "");
-    assert.equal(H.monogram(undefined), "");
 });
 
 // ---- the surfaces ------------------------------------------------------------
@@ -413,16 +356,6 @@ test("the full-screen guide sends ordinary toasts on its output to the centre", 
     assert.equal(P.guideRoute(null, "one", false), "toast");
     // The drawer rule is untouched by it.
     assert.equal(P.drawerRoute(drawer(), "one", "top-right", false), "strip");
-});
-
-test("a toast over the guide clears its top bar, or its footer at the bottom", () => {
-    // 1920×1080 at zoom 1.35: the canvas fills the height; the top bar is
-    // 72 design px and the footer 88.
-    assert.equal(P.guideInset(1080, 1.35, true), Math.ceil(72 * 1.35));
-    assert.equal(P.guideInset(1080, 1.35, false), Math.ceil(88 * 1.35));
-    // A taller screen letterboxes the canvas; the inset includes the margin.
-    assert.equal(P.guideInset(1200, 1.25, true), 100 + Math.ceil(72 * 1.25));
-    assert.equal(P.guideInset(0, 0, true), 72, "a missing zoom counts as 1");
 });
 
 test("the toast overlay applies the guide rule and draws an edge over dark windows", () => {

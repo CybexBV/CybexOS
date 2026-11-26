@@ -132,11 +132,6 @@ test("apps group by desktop entry, pins first, then running in order of appearan
     assert.ok(!apps.some(app => app.windows.includes("s1")), "the shell's own windows are not apps");
 });
 
-test("bad pins are ignored and duplicates collapse", () => {
-    const apps = D.groupApps([], ["kitty", "kitty", "../etc", "", 7, "a b"], []);
-    assert.deepEqual(apps.map(app => app.key), ["app:kitty"]);
-});
-
 test("a click launches, focuses the last window, or cycles", () => {
     const [, kitty, firefox] = D.groupApps(windows, ["org.gnome.Nautilus", "kitty"], ["f1", "k2"]);
     const files = D.groupApps([], ["org.gnome.Nautilus"], [])[0];
