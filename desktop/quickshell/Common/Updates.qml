@@ -174,12 +174,12 @@ Singleton {
         if (explicit === true) preparationAllowed = true;
         if (checker.busy) return;
         checkError = "";
-        checker.run(["cybex", "update", "check"]);
+        checker.run(["cybex", "update", "check", "--json"]);
     }
     function refreshStatus() {
         if (poll.busy) return;
         pollEpoch = requestEpoch;
-        poll.run(["cybex", "update", "status"]);
+        poll.run(["cybex", "update", "status", "--json"]);
     }
     function selectSource(name, selected) {
         if (runActive || !["upstream", "cybexos"].includes(name)) return;
@@ -192,7 +192,7 @@ Singleton {
         }
         requestError = "";
         requestAction = args[0];
-        requester.run(["cybex", "update"].concat(args));
+        requester.run(["cybex", "update"].concat(args).concat(["--json"]));
     }
     function prepare() { if (actions.prepare) request(["stage", selectedScope]); }
     // A prepared update with different sources is replaced by a new preview.
@@ -225,7 +225,7 @@ Singleton {
     function setAutomatic(name, enabled) {
         if (chooser.busy || !["prepare", "confirm"].includes(name)) return;
         requestError = "";
-        chooser.run(["cybex", "update", "automatic", name, enabled ? "on" : "off"]);
+        chooser.run(["cybex", "update", "automatic", name, enabled ? "on" : "off", "--json"]);
     }
     // Only Cybex OS releases follow the channel. The next check offers what
     // the chosen channel has; a beta release prepared for review goes stale
@@ -233,7 +233,7 @@ Singleton {
     function setChannel(name) {
         if (channelChooser.busy || !["stable", "beta"].includes(name) || name === channel) return;
         requestError = "";
-        channelChooser.run(["cybex", "update", "channel", name]);
+        channelChooser.run(["cybex", "update", "channel", name, "--json"]);
     }
     // The units validate state as root and take no input; a polkit rule lets
     // the signed-in administrator start them without a prompt.

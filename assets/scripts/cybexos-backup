@@ -1392,7 +1392,10 @@ def browser_profiles(context, output, environ):
 def parser():
     parser = argparse.ArgumentParser(
         prog="cybex backup", description="Encrypted backups of your home folder.")
-    commands = parser.add_subparsers(dest="command")
+    commands = parser.add_subparsers(
+        dest="command",
+        metavar="{setup,confirm-key,recovery-key,now,status,snapshots,restore,automatic,excludes}",
+    )
     setup_command = commands.add_parser("setup", help="choose where backups go")
     setup_command.add_argument("kind", choices=("local", "sftp"))
     setup_command.add_argument("target", help="a folder, or an SSH alias or user@host")
@@ -1406,7 +1409,7 @@ def parser():
     key_command.add_argument("--json", action="store_true")
     now_command = commands.add_parser("now", help="back up now")
     now_command.add_argument("--notify", action="store_true", help="report a failure as a notification")
-    commands.add_parser("scheduled", help="the timer's daily backup and weekly reminder")
+    commands.add_parser("scheduled")
     status_command = commands.add_parser("status", help="show the last and next backup")
     status_command.add_argument("--json", action="store_true")
     snapshots_command = commands.add_parser("snapshots", help="list the backups")
@@ -1419,7 +1422,7 @@ def parser():
     automatic_command = commands.add_parser("automatic", help="turn daily backups on or off")
     automatic_command.add_argument("state", choices=("on", "off"))
     commands.add_parser("excludes", help="list what backups leave out")
-    commands.add_parser("browser-profiles", help="the earlier app-backup browser export") \
+    commands.add_parser("browser-profiles") \
         .add_argument("output", nargs="?")
     return parser
 

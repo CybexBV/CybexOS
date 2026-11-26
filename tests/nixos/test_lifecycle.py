@@ -1945,7 +1945,7 @@ class LiveLifecycleTests(unittest.TestCase):
     def test_desktop_authorization_uses_the_privileged_nixos_wrapper_with_a_hostile_path(self):
         from cybexos import cli
         commands = [
-            ['update', 'stage', 'local'], ['update', 'history'],
+            ['update', 'stage', 'local', '--json'], ['update', 'history', '--json'],
             ['software', 'stage', '{}'], ['maintenance', 'preview'],
             ['config', 'region', 'timezone', 'UTC', '"UTC"'],
         ]
@@ -1970,14 +1970,23 @@ class LiveLifecycleTests(unittest.TestCase):
             marker.touch()
             for action in ('check', 'status'):
                 output = io.StringIO()
-                with self.subTest(action=action), patch.object(cli, 'LIVE_MARKER', marker), \
-                     patch.object(sys, 'argv', ['cybex', 'update', action]), \
+                with self.subTest(action=action, mode='json'), patch.object(cli, 'LIVE_MARKER', marker), \
+                     patch.object(sys, 'argv', ['cybex', 'update', action, '--json']), \
                      patch.object(cli.Engine, 'check') as check, patch.object(cli.os, 'execv') as execute, \
                      contextlib.redirect_stdout(output):
                     cli.main()
                     state = json.loads(output.getvalue())
                     self.assertFalse(state['available'])
                     self.assertIn('after installation', state.get('reason', state.get('phase', '')))
+                    check.assert_not_called()
+                    execute.assert_not_called()
+                human = io.StringIO()
+                with self.subTest(action=action, mode='human'), patch.object(cli, 'LIVE_MARKER', marker), \
+                     patch.object(sys, 'argv', ['cybex', 'update', action]), \
+                     patch.object(cli.Engine, 'check') as check, patch.object(cli.os, 'execv') as execute, \
+                     contextlib.redirect_stdout(human):
+                    cli.main()
+                    self.assertIn('after installation', human.getvalue())
                     check.assert_not_called()
                     execute.assert_not_called()
 

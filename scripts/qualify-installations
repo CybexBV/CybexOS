@@ -348,7 +348,7 @@ def run(label, args):
     except Exception as error:
         output[label] = {'error': str(error)}
         return ''
-status_body = run('updaterStatus', ['cybex', 'update', 'status'])
+status_body = run('updaterStatus', ['cybex', 'update', 'status', '--json'])
 try:
     status = json.loads(status_body)
 except (ValueError, TypeError):
@@ -797,12 +797,12 @@ subprocess.run(prefix + ['systemd-run', '--user', '--quiet', '--collect', '--uni
         self.authorize(command, payload=json.dumps({'action': 'set-enabled', 'enabled': False}) + '\n')
         assert not json.loads(self.command('cybexos-passwordless-sudo status'))['enabled']
         assert self.command(sudo).strip() == 'required'
-        code, output = self.authorize(['/run/current-system/sw/bin/cybex', 'update', 'stage', 'local'])
+        code, output = self.authorize(['/run/current-system/sw/bin/cybex', 'update', 'stage', 'local', '--json'])
         accepted = json.loads(output)
         assert code == 0 and accepted['accepted'], accepted
         wait_state(self, ('ready',), timeout=600)
-        candidate = json.loads(self.command('cybex update status'))
-        self.command('cybex update discard ' + candidate['transaction'])
+        candidate = json.loads(self.command('cybex update status --json'))
+        self.command('cybex update discard ' + candidate['transaction'] + ' --json')
         wait_state(self, ('idle',), timeout=120)
         evidence.update(result='passed', sshCancellation=True, sshEnable=True, sshDisable=True,
                         sudoCancellation=True, sudoEnable=True, sudoDisable=True,
@@ -1123,16 +1123,17 @@ subprocess.run(prefix + ['systemd-run', '--user', '--quiet', '--collect', '--uni
 def wait_state(vm, expected, timeout=2100, previous=None):
     """Observe the real worker; asynchronous acceptance is not completion."""
     script = '''deadline=$((SECONDS + TIMEOUT))
+status_json() { cybex update status --json 2>/dev/null || cybex update status; }
 while test "$SECONDS" -lt "$deadline"; do
-  read -r state transaction < <(cybex update status | python3 -c 'import json,sys;s=json.load(sys.stdin);print(s["state"],s.get("transaction",""))')
+  read -r state transaction < <(status_json | python3 -c 'import json,sys;s=json.load(sys.stdin);print(s["state"],s.get("transaction",""))')
   if test "$transaction" = PREVIOUS; then sleep 2; continue; fi
   case "$state" in
-    EXPECTED) cybex update status; exit 0 ;;
-    failed|rolled-back) cybex update status; exit 1 ;;
+    EXPECTED) status_json; exit 0 ;;
+    failed|rolled-back) status_json; exit 1 ;;
   esac
   sleep 2
 done
-cybex update status
+status_json
 exit 1'''.replace('TIMEOUT', str(timeout)).replace('EXPECTED', '|'.join(expected)).replace('PREVIOUS', shlex.quote(previous or 'no-previous-transaction'))
     return vm.command(script, timeout=timeout + 30)
 
@@ -1156,15 +1157,15 @@ def upstream_hold(status):
 
 
 def stage_request(vm, scope='local'):
-    previous = json.loads(vm.command('cybex update status').strip()).get('transaction')
-    vm.command('cybex update stage ' + shlex.quote(scope))
+    previous = json.loads(vm.command('cybex update status --json 2>/dev/null || cybex update status').strip()).get('transaction')
+    vm.command(f'if cybex update status --json >/dev/null 2>&1; then cybex update stage {shlex.quote(scope)} --json; else cybex update stage {shlex.quote(scope)}; fi')
     return previous
 
 
 def stage(vm, scope='local'):
     previous = stage_request(vm, scope)
     wait_state(vm, ('ready',), previous=previous)
-    vm.command('cybex update status > /run/qa-status.json')
+    vm.command('cybex update status --json > /run/qa-status.json')
     # Parsing directly from the serial console can include prompts; have the
     # guest produce only base64 JSON between the command's completion markers.
     import base64
@@ -1187,7 +1188,7 @@ def grub_selection(system):
 
 
 def apply(vm, status):
-    vm.command('cybex update apply ' + shlex.quote(status['transaction']) + ' ' + shlex.quote(status['reviewToken']))
+    vm.command('cybex update apply ' + shlex.quote(status['transaction']) + ' ' + shlex.quote(status['reviewToken']) + ' --json')
     wait_state(vm, ('awaiting-boot',), timeout=300)
     check_trial_selection(vm)
 
@@ -1218,7 +1219,7 @@ def authenticated_boot(vm, encrypted):
 def confirm(vm):
     """The signed-in desktop requests confirmation itself; health decides."""
     wait_state(vm, ('done',), timeout=300)
-    request = json.loads(vm.command('cybex update status').strip())['request']
+    request = json.loads(vm.command('cybex update status --json 2>/dev/null || cybex update status').strip())['request']
     if request.get('action') != 'confirm' or request.get('state') != 'done':
         raise RuntimeError('The trial boot was not confirmed by its own request: ' + json.dumps(request))
     # Quickshell started the fixed unit through the session's polkit rule.
@@ -1386,7 +1387,7 @@ def qualify_boot_update(vm, encrypted):
     if marker not in parameters():
         raise RuntimeError('Confirmed boot update did not boot its kernel parameters')
 
-    vm.command('cybex update rollback ' + candidate['transaction'])
+    vm.command('cybex update rollback ' + candidate['transaction'] + ' --json')
     wait_state(vm, ('rolled-back',), timeout=180)
     vm.reboot(encrypted)
     vm.login_desktop()
@@ -1412,7 +1413,7 @@ def qualify_lifecycle(vm, encrypted, checks=None):
     enter a Nix expression, retained evidence or host serial log.
     """
     checks = {} if checks is None else checks
-    discovery = json.loads(vm.command('cybex update check', timeout=240).strip())
+    discovery = json.loads(vm.command('cybex update check --json', timeout=240).strip())
     if discovery['upstream']['state'] not in ('current', 'available'):
         raise RuntimeError('Cannot qualify independent upstream discovery: ' + json.dumps(discovery))
     vendor = discovery['cybexos']
@@ -1433,8 +1434,8 @@ QA
 ''').strip())
     # Background preparation: the same unit the desktop starts, deciding on
     # its own discovery. Without a newer Nixpkgs it must do nothing.
-    vm.command('cybex update automatic prepare on')
-    previous = json.loads(vm.command('cybex update status').strip()).get('transaction')
+    vm.command('cybex update automatic prepare on --json')
+    previous = json.loads(vm.command('cybex update status --json').strip()).get('transaction')
     vm.command('systemctl start cybexos-update-auto.service', timeout=900)
     # The unit's own result line; systemd adds its lifecycle messages around it.
     automatic = json.loads(vm.command("journalctl -b -u cybexos-update-auto.service -o cat --no-pager | grep '^{' | tail -n 1").strip())
@@ -1443,7 +1444,7 @@ QA
         if automatic.get('scope') != 'upstream' or not automatic.get('accepted'):
             raise RuntimeError('Background preparation did not request the available upstream update: ' + json.dumps(automatic))
         wait_state(vm, ('ready', 'failed'), previous=previous)
-        vm.command('cybex update status > /run/qa-status.json')
+        vm.command('cybex update status --json > /run/qa-status.json')
         import base64
         upstream = json.loads(base64.b64decode(vm.command('base64 -w0 /run/qa-status.json').strip()))
         if upstream['state'] == 'failed':
@@ -1460,7 +1461,7 @@ QA
         if automatic != {'skipped': 'current'}:
             raise RuntimeError('Background preparation acted without an available update: ' + json.dumps(automatic))
         upstream = stage(vm, 'upstream')
-    vm.command('cybex update automatic prepare off')
+    vm.command('cybex update automatic prepare off --json')
     checks['automaticPreparation'] = {'result': 'passed', 'outcome': automatic,
                                       'highlights': upstream.get('highlights'), 'held': held}
     if upstream['inputs']['cybexos'] != before['cybexos']:
@@ -1552,7 +1553,7 @@ cybexos-health desktop-required
     edit_import(vm, 'qualification-fault.nix', '{ pkgs, ... }: { environment.systemPackages = [ (pkgs.runCommand "cybexos-qualification-interruption" {} "sleep 300; touch $out") ]; }')
     previous = stage_request(vm)
     wait_state(vm, ('building',), timeout=180, previous=previous)
-    worker = json.loads(vm.command('cybex update status').strip())['request']['unit']
+    worker = json.loads(vm.command('cybex update status --json').strip())['request']['unit']
     if not re.fullmatch(r'cybexos-update@[a-f0-9]{32}\.service', worker):
         raise AssertionError('Invalid update worker: ' + worker)
     vm.command('systemctl kill --kill-whom=all --signal=KILL ' + worker)
@@ -1567,7 +1568,7 @@ cybexos-health desktop-required
     # An unconfirmed trial boots once; the next boot returns to the previous
     # generation and recovery restores it. This candidate is then quarantined.
     # Automatic confirmation would keep this candidate on an autologin boot.
-    vm.command('cybex update automatic confirm off')
+    vm.command('cybex update automatic confirm off --json')
     edit_import(vm, 'qualification-unconfirmed.nix', '{ ... }: { environment.etc."cybexos-qualification-unconfirmed".text = "unconfirmed"; }')
     unconfirmed = stage(vm)
     apply(vm, unconfirmed)
@@ -1580,7 +1581,7 @@ cybexos-health desktop-required
     vm.login_desktop()
     vm.command(preserve)
     checks['unconfirmedTrialFallback'] = {'result': 'passed', 'transaction': unconfirmed['transaction']}
-    vm.command('cybex update automatic confirm on')
+    vm.command('cybex update automatic confirm on --json')
 
     edit_import(vm, 'qualification-candidate.nix', '{ ... }: { environment.etc."cybexos-qualification-candidate".text = "candidate"; }')
     candidate = stage(vm)
@@ -1591,7 +1592,7 @@ cybexos-health desktop-required
     vm.command(preserve.replace('    assert hashlib', "    if path.endswith('/local/default.nix'): continue\n    assert hashlib"))
     vm.command('test "$(cat /etc/cybexos-qualification-candidate)" = candidate')
     checks['localApplyBootConfirm'] = {'result': 'passed', 'transaction': candidate['transaction']}
-    vm.command('cybex update rollback ' + candidate['transaction'])
+    vm.command('cybex update rollback ' + candidate['transaction'] + ' --json')
     wait_state(vm, ('rolled-back',), timeout=180)
     vm.reboot(encrypted)
     vm.login_desktop()
@@ -1678,7 +1679,7 @@ def qualify(iso, encrypted, base, lifecycle=True, evidence=None, *, interactive=
             raise RuntimeError('ISO release identity differs from its installer source NAR')
         evidence['isoReleaseIdentity'] = identity
         milestones['isoSourceIdentity'] = {'result': 'passed'}
-        live_hardware = json.loads(vm.command('cybex hardware').strip())
+        live_hardware = json.loads(vm.command('cybex hardware --json').strip())
         if live_hardware['release'] != {key: identity[key] for key in ('version', 'revision', 'narHash', 'nixos') if key in identity}:
             raise RuntimeError('Hardware inventory has a different ISO source identity')
         if live_hardware['assessment']['blockers'] or not any(d.get('driver') and d['interfaces'] for d in live_hardware['assessment']['networkDevices']):
@@ -1712,10 +1713,10 @@ def qualify(iso, encrypted, base, lifecycle=True, evidence=None, *, interactive=
         # Background preparation waits ten minutes after sign-in and for the
         # boot timer. Keep the run deterministic; the lifecycle scenario
         # exercises it explicitly.
-        policy = json.loads(vm.command('cybex update status').strip())['automatic']
+        policy = json.loads(vm.command('cybex update status --json').strip())['automatic']
         if policy != {'prepare': True, 'confirm': True}:
             raise RuntimeError('Fresh installation has an unexpected automatic update policy: ' + json.dumps(policy))
-        vm.command('cybex update automatic prepare off')
+        vm.command('cybex update automatic prepare off --json')
         milestones['automaticUpdatePolicy'] = {'result': 'passed', 'default': policy, 'preparationDuringRun': False}
         milestones['quietBoot'] = vm.quiet_boot()
         vm.command('''grep -q "^submenu 'Earlier versions  ›' --class history --class submenu --id cybexos-generations {$" /boot/grub/grub.cfg
@@ -1746,7 +1747,7 @@ lock = json.loads(Path('/etc/nixos/flake.lock').read_text())
 print(json.dumps(lock['nodes'][lock['nodes'][lock['root']]['inputs']['cybexos']]['locked']))
 QA_SOURCE''').strip())
         milestones['installedSourceIdentity'] = check_installed_identity(identity, installed_identity, installed_source)
-        installed_hardware = json.loads(vm.command('cybex hardware').strip())
+        installed_hardware = json.loads(vm.command('cybex hardware --json').strip())
         if (installed_hardware['release'] != {key: installed_identity[key] for key in ('version', 'revision', 'narHash', 'nixos') if key in installed_identity}
                 or installed_hardware['assessment']['blockers']):
             raise RuntimeError('Installed hardware inventory differs from the checked installed source or has blockers')
