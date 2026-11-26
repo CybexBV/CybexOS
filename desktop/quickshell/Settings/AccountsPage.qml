@@ -25,9 +25,13 @@ SettingsPage {
 
     Claim {
         active: page.visible && Settings.panelOpen
-        onClaimed: page.service.acquire()
+        onClaimed: {
+            page.service.acquire();
+            Qt.callLater(page.openRequested);
+        }
         onReleased: {
             page.removing = "";
+            SystemSettings.accountPickerRequested = false;
             SystemSettings.accountPickerOpen = false;
             // Seen once is enough: the next visit starts without it.
             if (!SystemSettings.accountTaskRunning)
@@ -39,6 +43,16 @@ SettingsPage {
     function addAccount() {
         if (available && !SystemSettings.externalBusy)
             SystemSettings.accountPickerOpen = true;
+    }
+    function openRequested() {
+        if (!SystemSettings.accountPickerRequested || !service.loaded)
+            return;
+        SystemSettings.accountPickerRequested = false;
+        addAccount();
+    }
+    Connections {
+        target: page.service
+        function onLoadedChanged() { page.openRequested(); }
     }
 
     Column {

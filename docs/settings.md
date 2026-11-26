@@ -318,7 +318,7 @@ the place you see and choose them (2026-11, after a council review):
   is open.
 - **Cancel** closes GOA's dialog window rather than cancelling GOA's task:
   with no parent window, GOA 3.58 deadlocks when its task is cancelled. A
-  helper still running 8 seconds after Cancel is killed, and Settings reports
+  helper still running 10 seconds after Cancel is killed, and Settings reports
   the sign-in as cancelled; a provider list that takes over 15 seconds is
   killed too.
 - **Calendars** of Google, Microsoft 365, Nextcloud, Exchange and WebDAV

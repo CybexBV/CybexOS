@@ -41,6 +41,9 @@ Singleton {
     // hold Settings forever: a list that does not come back, or a sign-in
     // still running a while after Cancel, is killed.
     property bool accountPickerOpen: false
+    // Asked for from outside Settings (the calendar's Add account): the
+    // accounts page opens the picker once it knows accounts are available.
+    property bool accountPickerRequested: false
     property var accountProviders: []
     property bool accountProvidersLoaded: false
     property string accountProvidersError: ""
@@ -147,7 +150,7 @@ Singleton {
             "unsupported": I18n.tr("This kind of account cannot be reconnected here."),
             "unknown-provider": I18n.tr("This kind of account is not available on this computer."),
             "exists": I18n.tr("This account is already on this computer."),
-            "denied": I18n.tr("The sign-in was refused. Check the account name and password, then try again."),
+            "denied": I18n.tr("The sign-in was refused. Check the account details and try again."),
             "certificate": I18n.tr("The server's security certificate could not be trusted."),
             "network": I18n.tr("The server could not be reached. Check the network connection and the server address."),
             "response": I18n.tr("The browser's answer could not be used. Close older sign-in tabs and try again.")
@@ -191,8 +194,9 @@ Singleton {
         }
     }
     property Timer cancelWatchdog: Timer {
-        // Past the helper's own five seconds after Cancel.
-        interval: 8000
+        // Past the helper's own worst case after Cancel: five seconds for
+        // GOA, then two to see whether an account landed meanwhile.
+        interval: 10000
         onTriggered: {
             if (root.accountTask.running)
                 root.accountTask.signal(9);

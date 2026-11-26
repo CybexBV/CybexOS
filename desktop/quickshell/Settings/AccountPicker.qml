@@ -72,7 +72,9 @@ Item {
     function step(from, forward) {
         const all = stops();
         const at = all.indexOf(from);
-        all[(at + (forward ? 1 : -1) + all.length) % all.length].forceActiveFocus();
+        const next = at === -1 ? (forward ? 0 : all.length - 1)
+            : (at + (forward ? 1 : -1) + all.length) % all.length;
+        all[next].forceActiveFocus();
     }
     function reveal(item) {
         const top = item.y;

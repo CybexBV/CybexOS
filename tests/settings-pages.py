@@ -207,6 +207,7 @@ TEST_IPC = '''
             const stops = picker.stops();
             picker.step(stops.find(item => item.activeFocus) || stops[0], forward);
         }
+        function requestAccountPicker(): void { Calendar.addAccount(); }
         function chooseAccount(type: string): void {
             const picker = shell.findNamed(shell.settingsRoot(), "accountPicker");
             picker.choose(SystemSettings.accountProviders.find(p => p.type === type));
@@ -472,6 +473,14 @@ def main():
             screenshot('19-account-picker.png')
             assert ipc('settings-test', 'pressEscape') == 'true'
             wait(lambda: not accounts()['picker'] and state()['open'], 'Escape closes only the picker')
+            # The calendar's Add account opens the picker only where online
+            # accounts are installed; here they are not, so the page's own
+            # message stays in view.
+            show('plugins')
+            ipc('settings-test', 'requestAccountPicker')
+            wait(lambda: state()['page'] == 'accounts', 'the calendar request lands on Online accounts')
+            time.sleep(1)
+            assert not accounts()['picker'], accounts()
             ipc('settings-test', 'openAccountPicker')
             wait(lambda: accounts()['shown'], 'the picker again')
             ipc('settings-test', 'chooseAccount', 'google')

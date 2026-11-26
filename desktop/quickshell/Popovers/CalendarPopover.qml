@@ -275,34 +275,35 @@ Surface {
                 : agenda.calendarOff ? "sync_disabled" : "event_available"
             title: agenda.showFirstLoad ? "Checking calendars"
                 : agenda.showFailure ? "Calendar unavailable"
-                : agenda.needsAccount ? "Connect a calendar"
+                : agenda.needsAccount ? I18n.tr("Connect a calendar")
                 : agenda.calendarOff ? "Calendar sync is off"
                 : root.upcomingMode ? "No upcoming events" : "Nothing on this date"
             detail: agenda.showFirstLoad
                 ? "Reading the Evolution Data Server cache"
                 : agenda.showFailure ? Calendar.fetchError
                 : agenda.needsAccount
-                    ? "Add a Google, Microsoft 365 or Nextcloud account in Settings; GNOME Online Accounts keeps the sign-in."
+                    ? I18n.tr("Add a Google, Microsoft 365 or Nextcloud account in Settings; GNOME Online Accounts keeps the sign-in.")
                 : agenda.calendarOff
-                    ? "Turn on Use calendars for your account in Settings → Online accounts."
+                    ? I18n.tr("Turn on Use calendars for your account in Settings → Online accounts.")
                 : root.upcomingMode
                     ? "Nothing scheduled in the next " + Calendar.daysAhead + " days."
                 : "Choose another date or return to Upcoming."
         }
 
         Row {
-            visible: agenda.rows.length === 0
+            visible: agenda.rows.length === 0 && !agenda.showFirstLoad
                 && (agenda.needsAccount || agenda.calendarOff || agenda.showFailure)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 6
 
             ActionButton {
-                label: agenda.needsAccount ? "Add account"
-                    : agenda.calendarOff ? "Manage account" : "Try again"
+                // A failure answers first: Try again, whatever the accounts.
+                label: agenda.showFailure ? "Try again"
+                    : agenda.needsAccount ? I18n.tr("Add account") : "Manage account"
                 tint: agenda.showFailure ? Theme.redText : Theme.accent
                 fill: agenda.showFailure ? Theme.redBgSoft : Theme.accentBgSoft
                 onTriggered: {
-                    if (agenda.showFailure && !agenda.needsAccount && !agenda.calendarOff)
+                    if (agenda.showFailure)
                         Calendar.refresh();
                     else if (agenda.needsAccount)
                         Calendar.addAccount();

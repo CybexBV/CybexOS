@@ -46,7 +46,7 @@ stdenv.mkDerivation {
     # GOA's OAuth2 handler from the browser handoff. The wrapper is a binary
     # one: its strings end in NUL bytes, which would glue neighbouring paths
     # into one that never exists.
-    dirs=$(tr '\0' '\n' < $out/bin/cybexos-goa-account | grep -oE "/nix/store/[^':\"[:space:]]+" | sort -u)
+    dirs=$(tr '\0' '\n' < $out/bin/cybexos-goa-account | grep -aoE "/nix/store/[^':\"[:space:]]+" | sort -u)
     test -n "$dirs"
     for dir in $dirs; do
       if [ -e "$dir/applications" ]; then echo "$dir has applications"; exit 1; fi

@@ -186,11 +186,11 @@ Singleton {
         Settings.showPanel("accounts");
     }
 
-    // Straight to Settings' account picker.
+    // Straight to Settings' account picker, which the accounts page opens
+    // once it knows online accounts are installed.
     function addAccount() {
+        SystemSettings.accountPickerRequested = true;
         Settings.showPanel("accounts");
-        if (!SystemSettings.externalBusy)
-            SystemSettings.accountPickerOpen = true;
     }
 
     function openCalendar(value) {

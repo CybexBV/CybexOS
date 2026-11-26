@@ -155,7 +155,7 @@ class _Extension:
     def get_color(self):
         return "#123456"
     def get_backend_name(self):
-        return "local"
+        return self.spec.get("backend", "local")
 
 
 class _Source:
@@ -217,6 +217,27 @@ class EDataServer:
             return _Registry()
 
 
+class _Account:
+    def __init__(self, spec):
+        self.spec = spec
+    def get_provider_type(self):
+        return self.spec["type"]
+    def get_id(self):
+        return self.spec["id"]
+    def get_calendar_disabled(self):
+        return self.spec.get("disabled", False)
+
+
+class _AccountObject:
+    def __init__(self, spec):
+        self.spec = spec
+    def get_account(self):
+        return _Account(self.spec)
+    def get_calendar(self):
+        # GOA exports a calendar only where one is served and switched on.
+        return object() if self.spec.get("calendar") and not self.spec.get("disabled") else None
+
+
 class Goa:
     class Client:
         @staticmethod
@@ -224,10 +245,10 @@ class Goa:
             return Goa
     @staticmethod
     def get_accounts():
-        return []
+        return [_AccountObject(spec) for spec in CONFIG.get("accounts", [])]
 `;
 
-function runFakeEds(sources, deadlineSeconds) {
+function runFakeEds(sources, deadlineSeconds, accounts = []) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "calendar-eds-"));
     try {
         const gi = path.join(tmp, "gi");
@@ -253,7 +274,7 @@ function runFakeEds(sources, deadlineSeconds) {
         const run = spawnSync("python3", ["-B", "-c", script], {
             encoding: "utf8",
             timeout: 15000,
-            env: { ...process.env, FAKE_EDS: JSON.stringify({ sources }), FAKE_EDS_LOG: log },
+            env: { ...process.env, FAKE_EDS: JSON.stringify({ sources, accounts }), FAKE_EDS_LOG: log },
         });
         return {
             run,
@@ -266,6 +287,28 @@ function runFakeEds(sources, deadlineSeconds) {
         fs.rmSync(tmp, { recursive: true, force: true });
     }
 }
+
+test("every calendar-capable online account counts, and its calendars are online ones", () => {
+    const { run, payload } = runFakeEds([
+        { uid: "m365", name: "Work", backend: "microsoft365" },
+        { uid: "ews", name: "Office", backend: "ews" },
+        { uid: "local", name: "Personal" },
+    ], 10, [
+        { id: "a1", type: "ms_graph", calendar: true },
+        { id: "a2", type: "exchange", calendar: true, disabled: true },
+        { id: "a3", type: "owncloud", calendar: true },
+        { id: "a4", type: "webdav", calendar: false },
+        { id: "a5", type: "webdav", calendar: true, disabled: true },
+        { id: "a6", type: "imap_smtp" },
+    ]);
+    assert.equal(run.status, 0, run.stderr);
+    // A contacts-only WebDAV account and a mail account are not calendar
+    // accounts; a WebDAV one with its calendars switched off is.
+    assert.equal(payload.onlineAccounts, 4);
+    assert.equal(payload.onlineCalendarAccounts, 2);
+    assert.deepEqual(payload.calendars.map(calendar => [calendar.name, calendar.isOnline]),
+        [["Office", true], ["Personal", false], ["Work", true]]);
+});
 
 test("calendar sources connect side by side with a one-second connect wait", () => {
     const { run, payload, connects } = runFakeEds([

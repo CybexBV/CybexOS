@@ -117,6 +117,17 @@ PopoutPanel {
         function onReviewRequested() { root.openChanges(); }
     }
 
+    // The account picker, however it was opened, is the one sheet shown.
+    Connections {
+        target: SystemSettings
+        function onAccountPickerOpenChanged() {
+            if (SystemSettings.accountPickerOpen) {
+                palette.hide();
+                changesSheet.hide();
+            }
+        }
+    }
+
     // Search results and Settings.showSetting() both jump by setting the key.
     Connections {
         target: Settings

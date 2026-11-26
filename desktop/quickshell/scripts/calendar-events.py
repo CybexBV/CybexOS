@@ -206,7 +206,17 @@ def main(arguments: list[str]) -> int:
         goa_client = Goa.Client.new_sync(None)
         for account_object in goa_client.get_accounts():
             account = account_object.get_account()
-            if text(account.get_provider_type()).lower() not in CALENDAR_PROVIDERS:
+            kind = text(account.get_provider_type()).lower()
+            if kind not in CALENDAR_PROVIDERS:
+                continue
+            # A WebDAV account may serve contacts only. GOA also drops the
+            # calendar of one whose calendars are switched off, which still
+            # counts (as switched off).
+            if (
+                kind == "webdav"
+                and account_object.get_calendar() is None
+                and not account.get_calendar_disabled()
+            ):
                 continue
             online_accounts += 1
             online_account_ids.add(text(account.get_id()))
