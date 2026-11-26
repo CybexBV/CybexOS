@@ -119,6 +119,7 @@ in pkgs.testers.runNixOSTest {
   testScript = ''
     import json
     import re
+    import shlex
     import time
     from typing import Any
 
@@ -222,6 +223,16 @@ in pkgs.testers.runNixOSTest {
     shell_env = dict(line.split("=", 1) for line in machine.succeed(f"tr '\\0' '\\n' < /proc/{shell_pid}/environ").splitlines() if "=" in line)
     data_dirs = shell_env.get("XDG_DATA_DIRS", "").split(":")
     assert "/home/tester/.local/share/flatpak/exports/share" in data_dirs and "/var/lib/flatpak/exports/share" in data_dirs, data_dirs
+    # Online Accounts' Google sign-in returns through a link that its OAuth2
+    # handler opens. The shell, and the session environment that
+    # xdg-desktop-portal starts with, must both find that handler: a
+    # data folder without a MIME index ahead of the system's hides it.
+    handler = machine.succeed("sed -n 's/^MimeType=//p' /run/current-system/sw/share/applications/org.gnome.OnlineAccounts.OAuth2.desktop").strip()
+    session_env = dict(line.split("=", 1) for line in user("systemctl --user show-environment").splitlines() if "=" in line)
+    for name, dirs in (("shell", shell_env["XDG_DATA_DIRS"]), ("session", session_env.get("XDG_DATA_DIRS", ""))):
+        for mime in filter(None, handler.split(";")):
+            found = machine.succeed(f"runuser -u tester -- env XDG_DATA_DIRS={shlex.quote(dirs)} ${pkgs.glib.bin}/bin/gio mime {mime}")
+            assert "\torg.gnome.OnlineAccounts.OAuth2.desktop" in found, (name, mime, found)
     assert machine.succeed("${pkgs.patchelf}/bin/patchelf --print-interpreter --print-rpath ${foreign}").split() == ["/lib64/ld-linux-x86-64.so.2"]
     loader = " ".join(f"{key}={shell_env[key]}" for key in ("NIX_LD", "NIX_LD_LIBRARY_PATH"))
     assert "pigz" in machine.succeed(f"runuser -u tester -- env -i {loader} ${foreign} --version 2>&1")

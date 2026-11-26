@@ -3,7 +3,7 @@
   gobject-introspection, wrapGAppsNoGuiHook, networkmanager, libsecret,
   gnome-online-accounts, evolution-data-server, libical, fwupd, glib-networking,
   gsettings-desktop-schemas, adwaita-icon-theme,
-  callPackage, wayfreeze, tesseract, zbar, qrencode, hyprpicker, hyprsunset, imagemagick, matugen,
+  callPackage, runCommand, wayfreeze, tesseract, zbar, qrencode, hyprpicker, hyprsunset, imagemagick, matugen,
   libnotify, wtype, pulseaudio, pipewire, wireplumber, wl-clipboard, cliphist, grim, slurp,
   wf-recorder, ffmpeg, libva-utils, jq, procps, findutils, gnugrep, gnused, gawk,
   xdg-utils, xdg-terminal-exec, curl, nodejs, iw, iproute2, brightnessctl, playerctl, bluez, upower,
@@ -32,6 +32,15 @@ let
     libxkbcommon  # xkbcli: the shortcut recorder's keycode -> keysym map
     pciutils  # lspci: device names in cybex doctor
     xsettingsd xrdb xsetroot ];  # the pointer for X11 applications (scripts/pointer.py)
+  # Only the icons of the desktop's GNOME packages go on the helpers'
+  # XDG_DATA_DIRS. Their applications folders have no MIME index, so GIO
+  # would let those copies hide the system's indexed ones: through Hyprland
+  # this list reaches the whole session and xdg-desktop-portal, and Google's
+  # sign-in in Online Accounts then found no app for its return link.
+  iconData = map (package: runCommand "${package.pname}-icons" {} ''
+    mkdir -p $out/share
+    ln -s ${package}/share/icons $out/share/icons
+  '') [ adwaita-icon-theme gnome-online-accounts evolution-data-server ];
   images = stdenv.mkDerivation {
     pname = "cybexos-notification-images";
     version = "1";
@@ -113,7 +122,7 @@ in stdenv.mkDerivation {
         --prefix PATH : "$out/bin" \
         --prefix PATH : /run/wrappers/bin \
         --set-default XKB_CONFIG_ROOT ${xkeyboard-config}/etc/X11/xkb \
-        --prefix XDG_DATA_DIRS : ${lib.makeSearchPath "share" [ adwaita-icon-theme gnome-online-accounts evolution-data-server ]} \
+        --prefix XDG_DATA_DIRS : ${lib.makeSearchPath "share" iconData} \
         --prefix QML_IMPORT_PATH : ${lib.makeSearchPath "lib/qt-6/qml" [ images qt6.qtwebsockets qt6.qtmultimedia qt6.qt5compat ]}
     done
   '';
