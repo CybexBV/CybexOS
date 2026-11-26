@@ -17,9 +17,12 @@ The shell chooses icons by semantic role:
 see [nerd-icons/README.md](nerd-icons/README.md) for the pinned list and its
 regeneration.
 
-`wiz/` holds the assistant character's layers. They are generated: edit
-`Common/WizRig.js` and run `scripts/export-wiz` (docs/assistant.md). Wiz is
-original project artwork under the repository MIT license.
+`wiz/` holds the assistant character's layers: his body, eyes, hat and star,
+his sleeves and hands, and the things he works with, one picture each
+(`WizRig.LAYERS` names them). They are generated: edit `Common/WizRig.js` and
+run `scripts/export-wiz` (docs/assistant.md). The pictures are in Cybex blue;
+`Common/WizArt.qml` draws the ones that carry magic again in the theme's
+accent. Wiz is original project artwork under the repository MIT license.
 
 Online-account providers are the one exception to the allow-list:
 `Settings/AccountLogo.qml` draws the official marks GNOME Online Accounts

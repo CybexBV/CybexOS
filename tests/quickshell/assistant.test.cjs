@@ -101,32 +101,169 @@ test("Wiz's pose follows the most urgent state and what a running turn is doing"
     assert.equal(pose({ listening: true, busy: true }), "listening");
     assert.equal(pose({ busy: true, composing: true }), "thinking");
     assert.equal(pose({ celebrating: true, failed: true }), "finished");
-    assert.equal(pose({ waiting: true, busy: true, step: "Waiting for your approval" }), "needs-input");
-    // The service's own "Thinking" step (turn.py) is thinking; any tool step is work.
+    assert.equal(pose({ waiting: true, busy: true, step: "Waiting for your approval", stepKind: "run" }), "needs-input");
+    // Every kind of step the service reports has its own pose.
+    const kinds = { think: "thinking", read: "reading", search: "searching", write: "writing", run: "casting",
+        change: "casting", install: "brewing", delegate: "delegating", tool: "working" };
+    for (const [kind, expected] of Object.entries(kinds)) {
+        assert.equal(pose({ busy: true, step: "A step", stepKind: kind }), expected, kind);
+        assert.equal(A.workPose(kind, "A step"), expected, kind);
+    }
+    assert.deepEqual(A.STEP_POSES, kinds);
+    // The kind wins over the line: the service's own words don't matter.
+    assert.equal(pose({ busy: true, step: "Thinking", stepKind: "read" }), "reading");
+    // An older service sends no kind: the service's own "Thinking" step
+    // (turn.py) is thinking, any tool step is work.
     assert.equal(pose({ busy: true, step: "Thinking" }), "thinking");
     assert.equal(pose({ busy: true, step: "" }), "thinking");
     assert.equal(pose({ busy: true, step: "Running nix flake check" }), "working");
-    assert.equal(pose({ transcribing: true, step: "Editing shell.json" }), "thinking",
+    // No step at all ("" from a newer service) thinks too; an unknown kind falls back.
+    assert.equal(pose({ busy: true, step: "", stepKind: "" }), "thinking");
+    assert.equal(pose({ busy: true, step: "Doing a new thing", stepKind: "juggle" }), "working");
+    assert.equal(pose({ transcribing: true, step: "Editing shell.json", stepKind: "write" }), "thinking",
         "transcribing is not a turn at work");
+    // How a turn ended: a nod, a thumbs-up after a minute or more, a shrug
+    // when the ownership rules refused something.
     assert.equal(pose({ celebrating: true }), "finished");
+    assert.equal(pose({ celebrating: true, took: 59999 }), "finished");
+    assert.equal(pose({ celebrating: true, took: 60000 }), "proud");
+    assert.equal(A.PROUD_AFTER_MS, 60000);
+    assert.equal(pose({ celebrating: true, refused: true }), "shrug");
+    assert.equal(pose({ celebrating: true, refused: true, took: 120000 }), "shrug", "a refusal outweighs the time");
+    assert.equal(pose({ refused: true }), "idle", "only the celebration shrugs");
     assert.equal(pose({ speaking: true }), "happy");
+    // A reply that offers something to act on: he points at it, once the
+    // celebration is over and while nothing else is going on.
+    assert.equal(pose({ offers: true }), "pointing");
+    assert.equal(pose({ offers: true, celebrating: true }), "finished");
+    assert.equal(pose({ offers: true, speaking: true }), "happy");
+    assert.equal(pose({ offers: true, composing: true }), "listening");
+    // A file held over him: curious, over everything but a drag and no service.
+    assert.equal(pose({ fileOver: true }), "curious");
+    assert.equal(pose({ fileOver: true, busy: true, stepKind: "read" }), "curious");
+    assert.equal(pose({ fileOver: true, waiting: true }), "curious");
+    assert.equal(pose({ fileOver: true, dragging: true }), "carried");
+    assert.equal(A.characterPose({ fileOver: true }), "asleep");
+    // Drowsy after a long quiet while: over an idle Wiz, an open box, a
+    // pointed-at reply and a seen failure, never over a question at work or
+    // waiting, a routine's finding, a celebration or speech.
+    assert.equal(A.DROWSY_AFTER_MS, 600000);
+    for (const quiet of [{}, { composing: true }, { offers: true }, { failed: true }])
+        assert.equal(pose({ drowsy: true, ...quiet }), "drowsy", JSON.stringify(quiet));
+    assert.equal(pose({ drowsy: true, busy: true, stepKind: "search" }), "searching");
+    assert.equal(pose({ drowsy: true, waiting: true, busy: true }), "needs-input");
+    assert.equal(pose({ drowsy: true, attention: true }), "needs-input");
+    assert.equal(pose({ drowsy: true, celebrating: true }), "finished");
+    assert.equal(pose({ drowsy: true, speaking: true }), "happy");
+    assert.equal(pose({ drowsy: true, listening: true }), "listening");
     // Being dragged wins over everything, even a turn at work or no service.
     assert.equal(pose({ dragging: true }), "carried");
-    assert.equal(pose({ dragging: true, busy: true, step: "Reading a file", waiting: true }), "carried");
+    assert.equal(pose({ dragging: true, busy: true, step: "Reading a file", stepKind: "read", waiting: true }), "carried");
     assert.equal(A.characterPose({ dragging: true }), "carried");
     assert.equal(pose({ failed: true }), "sorry");
     assert.equal(pose({}), "idle");
     const W = load("WizRig.js");
     for (const state of [{}, base, { ...base, composing: true }, { ...base, waiting: true, busy: true },
         { ...base, busy: true, step: "Reading a file" }, { ...base, busy: true }, { ...base, celebrating: true },
-        { ...base, speaking: true }, { ...base, failed: true }, { ...base, dragging: true }])
+        { ...base, celebrating: true, took: 90000 }, { ...base, celebrating: true, refused: true },
+        { ...base, speaking: true }, { ...base, failed: true }, { ...base, dragging: true },
+        { ...base, offers: true }, { ...base, fileOver: true }, { ...base, drowsy: true }]
+        .concat(Object.keys(kinds).map(kind => ({ ...base, busy: true, stepKind: kind }))))
         assert.ok(W.STATES.includes(A.characterPose(state)), "every pose is one Wiz can show");
     const shared = read("Common/Assistant.qml");
     assert.doesNotMatch(shared, /\bmood\b/);
     assert.match(shared, /readonly property string pose: AssistantHelpers\.characterPose\(characterState\)/);
     assert.match(shared, /step: root\.turn \? root\.turn\.step \|\| "" : ""/);
+    assert.match(shared, /stepKind: root\.turn \? root\.turn\.stepKind : undefined/);
+    assert.match(shared, /refused: !!\(root\.turn && root\.turn\.refused\)/);
+    assert.match(shared, /took: root\.turn && root\.turn\.finishedAt \? root\.turn\.finishedAt - \(root\.turn\.startedAt \|\| 0\) : 0/);
     assert.match(repo("desktop/assistant/cybexos_assistant/turn.py"), /self\.step = "Thinking"/,
         "the service's thinking step is the one characterPose recognises");
+    // The service's kinds are exactly the ones a pose exists for.
+    const kindsLine = /KINDS = \(([^)]*)\)/.exec(repo("desktop/assistant/cybexos_assistant/steps.py"))[1];
+    assert.deepEqual(kindsLine.split(",").map(name => name.trim()).sort(),
+        ["CHANGE", "DELEGATE", "INSTALL", "READ", "RUN", "SEARCH", "THINK", "TOOL", "WRITE"]);
+});
+
+test("Wiz points at a reply that offers something to act on", () => {
+    const done = { status: "completed", plugins: [], staged: "" };
+    assert.equal(A.replyOffers(null, {}, []), false);
+    assert.equal(A.replyOffers(done, {}, []), false, "a plain answer offers nothing to act on");
+    const widget = { ...done, plugins: [{ id: "personal.cputemp", name: "CPU temperature" }] };
+    assert.equal(A.replyOffers(widget, {}, []), true, "Add to bar");
+    assert.equal(A.replyOffers(widget, {}, ["personal.cputemp"]), false, "added already");
+    assert.equal(A.replyOffers({ ...widget, plugins: widget.plugins.concat([{ id: "personal.b" }]) }, {},
+        ["personal.cputemp"]), true, "one of two still to add");
+    // On the bar already, whoever put it there (Settings, `cybex plugin
+    // enable`, this reply before the shell restarted): nothing to point at.
+    assert.equal(A.replyOffers(widget, {}, [], ["personal.cputemp"]), false, "on the bar already");
+    assert.equal(A.replyOffers(widget, {}, [], ["personal.other"]), true, "another widget is on the bar");
+    assert.equal(A.replyOffers(widget, {}, undefined, undefined), true, "nothing known yet: the button is there");
+    const two = { ...widget, plugins: widget.plugins.concat([{ id: "personal.b" }]) };
+    assert.equal(A.replyOffers(two, {}, ["personal.b"], ["personal.cputemp"]), false, "one clicked, one on the bar");
+    assert.equal(A.replyOffers(two, {}, [], ["personal.cputemp"]), true, "one of two on the bar");
+    // The review is offered whatever is on the bar.
+    assert.equal(A.replyOffers({ ...widget, staged: "tx-1" }, { transaction: "tx-1", state: "ready" }, [],
+        ["personal.cputemp"]), true);
+    const staged = { ...done, staged: "tx-1" };
+    assert.equal(A.replyOffers(staged, { transaction: "tx-1", state: "ready" }, []), true, "Review change…");
+    assert.equal(A.replyOffers(staged, { transaction: "tx-1", state: "preparing" }, []), false, "not built yet");
+    assert.equal(A.replyOffers(staged, { transaction: "tx-1", state: "done" }, []), false, "applied");
+    assert.equal(A.replyOffers(staged, { transaction: "tx-2", state: "ready" }, []), false, "another change");
+    assert.equal(A.replyOffers({ ...widget, status: "failed" }, {}, []), false, "a failure is sorry, not a pointer");
+    const shared = read("Common/Assistant.qml");
+    // What is on the bar is the shell's own word (Common/UserPlugins), read
+    // only while a reply is open.
+    assert.match(shared, /readonly property bool replyOffers: replyOpen && !composing && !historyOpen && !busy\s*&& AssistantHelpers\.replyOffers\(turn, Updates\.deployment, addedWidgets,\s*UserPlugins\.enabledWidgets\.map\(widget => widget\.id\)\)/);
+    assert.match(read("Common/UserPlugins.qml"), /readonly property var enabledWidgets: widgets\.filter\(plugin => plugin\.enabled\)/);
+    assert.equal(shared.match(/UserPlugins\./g).length, 1, "nothing else in the assistant makes the plugin scan start");
+    assert.match(shared, /function addWidget\(pluginId\) \{[\s\S]*?addedWidgets = addedWidgets\.concat\(\[pluginId\]\)/);
+    assert.match(shared, /offers: root\.replyOffers/);
+    // The buttons it counts are the reply's own.
+    const reply = read("Assistant/AssistantReply.qml");
+    assert.match(reply, /label: I18n\.tr\("Add to bar"\)/);
+    assert.match(reply, /visible: root\.deploymentState === "ready"[\s\S]*?label: I18n\.tr\("Review change…"\)/);
+});
+
+test("Wiz gets drowsy after ten quiet minutes, on one timer, and wakes when used", () => {
+    const shared = read("Common/Assistant.qml");
+    assert.match(shared, /property int drowsyAfter: AssistantHelpers\.DROWSY_AFTER_MS/);
+    // Never while something runs or waits for the person.
+    const quiet = /readonly property bool quiet: ([\s\S]*?)\n\s*onQuietChanged/.exec(shared)[1];
+    for (const term of ["shown", "connected", "!busy", "!sideBusy", "queue === null", "!listening", "!transcribing",
+        "!speaking", "!celebrating", "!dragging", "!fileOver", "!unread", 'attentionConversation === ""'])
+        assert.ok(quiet.includes(term), term);
+    assert.match(shared, /onQuietChanged: \{\s*if \(!quiet\)\s*drowsy = false;/);
+    assert.match(shared, /Timer \{\s*id: dozing\s*interval: root\.drowsyAfter\s*running: root\.quiet && !root\.drowsy\s*onTriggered: root\.drowsy = true\s*\}/);
+    assert.equal((shared.match(/id: dozing/g) || []).length, 1, "one timer");
+    // Every way of using him stirs him: a click, a question, the box, typing.
+    assert.match(shared, /function characterClicked\(\) \{\s*stir\(\);/);
+    assert.match(shared, /function send\(text\) \{\s*stir\(\);/);
+    for (const change of ["onReplyOpenChanged: stir()", "onHistoryOpenChanged: stir()", "onDraftChanged: stir()"])
+        assert.ok(shared.includes(change), change);
+    assert.match(shared, /onComposingChanged: \{\s*stir\(\);/);
+    assert.match(shared, /drowsy: root\.drowsy/);
+    // Hovering him or the box, and a file held over him.
+    const window = read("AssistantWindow.qml");
+    assert.match(window, /id: characterHover\s*onHoveredChanged: \{[\s\S]*?if \(hovered\) \{\s*Assistant\.stir\(\);/);
+    assert.match(window, /id: dockHover\s*onHoveredChanged: Assistant\.stir\(\)/);
+    assert.match(window, /onContainsDragChanged: \{\s*Assistant\.fileOver = containsDrag;\s*Assistant\.stir\(\);/);
+});
+
+test("the wisp works beside him only while work runs or waits behind him, and tucked right he faces left", () => {
+    const shared = read("Common/Assistant.qml");
+    // Never without the service: what it last said about its questions
+    // stays in turn, side and queue, and an asleep Wiz draws nothing.
+    assert.match(shared, /readonly property bool helper: connected && \(sideBusy \|\| queue !== null \|\| \(busy && !!turn\.routine\)\)/);
+    assert.match(shared, /readonly property bool busy: connected && AssistantHelpers\.active\(turn\)/);
+    assert.match(shared, /readonly property bool sideBusy: connected && AssistantHelpers\.active\(side\)/);
+    assert.match(shared, /readonly property bool waiting: connected && turn !== null && turn\.status === "waiting"/);
+    assert.match(shared, /readonly property int facing: Settings\.assistantTuck === "right" && !dragging \? -1 : 1/);
+    const window = read("AssistantWindow.qml");
+    assert.match(window, /Wiz \{\s*id: character[\s\S]*?helper: Assistant\.helper\s*facing: Assistant\.facing/);
+    assert.match(read("shell.qml"), /helper: Assistant\.helper, facing: Assistant\.facing/);
+    // The service runs a routine in the main lane, marked on the snapshot.
+    assert.match(repo("desktop/assistant/cybexos_assistant/server.py"), /Routines \(routines\.py\) run in the main lane/);
 });
 
 test("readouts: elapsed time, home-relative paths and closure changes", () => {

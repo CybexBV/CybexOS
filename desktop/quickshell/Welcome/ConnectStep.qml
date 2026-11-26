@@ -174,51 +174,19 @@ Item {
             width: card.width - Kiosk.px(56)
             spacing: Kiosk.px(12)
         }
-        // Wiz in the card's top-left corner. Asleep, two small z's float up
-        // beside his hat; with reduced motion they are not there.
+        // Wiz in the card's top-left corner. Asleep, he snores: his own z's
+        // rise beside his hat (Wiz.snoring, asked for only here; everywhere
+        // else they stand still). With reduced motion they stand still too.
         Loader {
             active: card.character !== ""
             x: Kiosk.px(8)
             y: Kiosk.px(6)
             width: Kiosk.px(104)
             height: width
-            sourceComponent: Item {
-                Character.Wiz {
-                    id: wiz
-                    objectName: "connectWiz"
-                    anchors.fill: parent
-                    pose: card.character
-                }
-                Repeater {
-                    model: wiz.pose === "asleep" && wiz.live ? 2 : 0
-                    delegate: KioskText {
-                        id: snore
-                        required property int index
-                        readonly property real unit: wiz.width / 120
-                        text: "z" // i18n: untranslated (a snore)
-                        size: snore.index === 0 ? 13 : 11
-                        font.weight: Font.Bold
-                        tone: "fog"
-                        x: 97 * unit
-                        y: 36 * unit
-                        opacity: 0
-                        // The second a half rise behind the first.
-                        SequentialAnimation {
-                            running: true
-                            PauseAnimation { duration: snore.index * 1300 }
-                            ParallelAnimation {
-                                loops: Animation.Infinite
-                                XAnimator { target: snore; from: 97 * snore.unit; to: 108 * snore.unit; duration: 2600 }
-                                YAnimator { target: snore; from: 36 * snore.unit; to: 6 * snore.unit; duration: 2600; easing.type: Easing.OutSine }
-                                SequentialAnimation {
-                                    OpacityAnimator { target: snore; from: 0; to: 0.9; duration: 500 }
-                                    PauseAnimation { duration: 1300 }
-                                    OpacityAnimator { target: snore; from: 0.9; to: 0; duration: 800 }
-                                }
-                            }
-                        }
-                    }
-                }
+            sourceComponent: Character.Wiz {
+                objectName: "connectWiz"
+                pose: card.character
+                snoring: true
             }
         }
     }

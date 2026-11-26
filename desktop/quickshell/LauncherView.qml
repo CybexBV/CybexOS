@@ -716,9 +716,11 @@ Surface {
 
     // ---- Ask Wiz ---------------------------------------------------------
     // The launcher's one two-line row: a query nothing matched, offered to
-    // the assistant (LauncherProviders.askRows). Wiz listens beside his name,
-    // the query is quoted under it, and Enter hands it over. He holds still
-    // but for a blink; nothing loops while the launcher is open.
+    // the assistant (LauncherProviders.askRows). Wiz is curious beside his
+    // name, hands out for what is handed to him, the query is quoted under
+    // it, and Enter hands it over. His hands move once as the row appears,
+    // then he holds still but for a blink; nothing loops while the launcher
+    // is open.
     component AskWiz: Item {
         // A touch below the middle: his hat's tip reaches higher above the
         // middle than his feet reach below it.
@@ -728,7 +730,7 @@ Surface {
             y: Math.round((parent.height - height) / 2) + Theme.scaled(2)
             width: root.askWizSize
             height: root.askWizSize
-            pose: "listening"
+            pose: "curious"
         }
 
         Column {

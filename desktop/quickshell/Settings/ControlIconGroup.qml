@@ -65,6 +65,8 @@ SettingsGroup {
 
     // ---- the three choices ------------------------------------------------
     Item {
+        // Where search and Wiz's guide land for the button icon.
+        property string searchAnchor: "controlIcon"
         width: parent.width
         height: choices.height
 

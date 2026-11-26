@@ -640,7 +640,7 @@ class Server(ConversationsMixin, DesktopToolsMixin):
                 turn.finished_at = int(stored.get("finishedAt") or 0)
             else:
                 turn.status, turn.error, turn.error_kind, turn.finished_at = "failed", RESTARTED, "crashed", now_ms()
-            turn.step = ""
+            turn.step, turn.step_kind = "", ""
             plugins = stored.get("plugins")
             turn.plugins = [entry for entry in plugins if isinstance(entry, dict)
                             and isinstance(entry.get("id"), str) and policy.PLUGIN_ID.fullmatch(entry["id"])] \

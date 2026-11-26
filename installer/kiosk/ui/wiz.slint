@@ -8,13 +8,15 @@
 // So scripts/export-wiz cuts each pose into a few pictures (assets/wiz), from
 // the desktop's rig, and src/wiz.rs draws each once at its physical size. This
 // file only moves and swaps them, in whole frames on the pixel grid, 25 a
-// second while something moves. Only thinking and working loop. The other
-// poses hold still: a blink every few seconds, a waiting question pulses three
-// times and then every 8 s, and a finished installation nods and sparkles
-// once. Under a sheet or the reconnecting screen every pose holds still.
-// With reduced motion (the menu's switch, Store.reduced-motion) he shows
-// each pose's first frame and never moves: no loop, blink, pulse or cheer.
-// That frame still tells the poses apart (the runes, the spell, the pip).
+// second while something moves. Only thinking and brewing loop: the runes,
+// or the stir and the bubbles, and the star twinkling. The other poses hold
+// still: a blink every few seconds, a waiting question pulses the amber star
+// on his hat three times and then every 8 s, and a finished installation nods
+// and sparkles once. Under a sheet or the reconnecting screen every pose
+// holds still. With reduced motion (the menu's switch, Store.reduced-motion)
+// he shows each pose's first frame and never moves: no loop, blink, pulse or
+// cheer. That frame still tells the poses apart (the runes, the cauldron, the
+// star's colour).
 //
 // His frame is the rig's WizRig.STILL_BOX, [-8, -12, 136, 132] in rig units,
 // with his feet on the ground at rig y 110. Motion follows the rig's ops().
@@ -39,8 +41,8 @@ component Art inherits Image {
 }
 
 export component Wiz inherits Rectangle {
-    // thinking, working, needs-input, happy, sorry, or finished: a nod and a
-    // sparkle, then happy.
+    // thinking (checking), brewing (installing), needs-input (your move),
+    // happy, sorry, or finished: a nod and a sparkle, then happy.
     in property <string> pose: "happy";
     // From his top edge to his feet: screens stand him on a card with it.
     out property <length> feet: 122 * root.unit;
@@ -52,7 +54,7 @@ export component Wiz inherits Rectangle {
     property <string> look: root.pose == "finished" ? "happy" : root.pose;
     property <bool> still: Store.reduced-motion;
     property <bool> animated: Store.sheet == "" && Store.connected && !root.still;
-    property <bool> loops: root.pose == "thinking" || root.pose == "working";
+    property <bool> loops: root.pose == "thinking" || root.pose == "brewing";
 
     // Rig units to whole physical pixels: an offset that rounds the same never
     // repaints.
@@ -130,8 +132,8 @@ export component Wiz inherits Rectangle {
     pure function orbit(q: int) -> angle {
         return root.t * 1.25rad + q * 90deg + 0.4rad;
     }
-    // Working: the spell flickers in steps of 120 ms and its ring turns.
-    property <int> step: root.still ? 0 : floor(root.tick / 3.0);
+    // Brewing: one of the stir's twelve steps, each 160 ms.
+    property <int> stir: root.still ? 0 : Math.mod(floor(root.tick / 4.0), 12);
 
     // Rig (0, 0), for the pictures' centres.
     Rectangle {
@@ -152,40 +154,6 @@ export component Wiz inherits Rectangle {
             dy: root.bob + root.px(2.2 * root.nod);
         }
 
-        if root.pose == "working": Rectangle {
-            width: 0;
-            height: 0;
-            Art {
-                name: "working-glow";
-                ppu: root.ppu;
-                size: [1, 1.07, 0.97, 1.1, 0.95, 1.04][Math.mod(root.step, 6)];
-                dy: root.bob;
-            }
-
-            Art {
-                name: "working-ring" + Math.mod(root.step, 3);
-                ppu: root.ppu;
-                dy: root.bob;
-            }
-
-            Art {
-                name: "working-core";
-                ppu: root.ppu;
-                size: [1, 0.95, 1.08, 0.98, 1.06][Math.mod(root.step, 5)];
-                dy: root.bob;
-            }
-
-            // Motes rise off the spell and fade, a quarter of a rise apart.
-            for j in 4: Art {
-                property <float> rise: Math.mod(root.t * 0.8 + j * 0.25, 1);
-                name: "working-mote";
-                ppu: root.ppu;
-                dx: root.px(sin((j * 2.3 + root.t * 2.5) * 1rad) * 3.5 * (1 - 0.3 * self.rise));
-                dy: root.bob + root.px(-15 * self.rise);
-                opacity: 1 - self.rise;
-            }
-        }
-
         if root.pose == "thinking": Rectangle {
             width: 0;
             height: 0;
@@ -194,7 +162,7 @@ export component Wiz inherits Rectangle {
                 name: "thinking-rune" + q;
                 ppu: root.ppu;
                 size: round((0.82 + 0.22 * sin(self.at)) * 10) / 10.0;
-                dx: root.px(31 * cos(self.at));
+                dx: root.px(32 * cos(self.at));
                 dy: root.hat-bob + root.px(6.5 * sin(self.at) + 1.3 * sin(root.t * 2.2rad + q * 1rad));
                 opacity: 0.5;
                 visible: sin(self.at) <= 0;
@@ -215,10 +183,44 @@ export component Wiz inherits Rectangle {
                 name: "thinking-rune" + q;
                 ppu: root.ppu;
                 size: round((0.82 + 0.22 * sin(self.at)) * 10) / 10.0;
-                dx: root.px(31 * cos(self.at));
+                dx: root.px(32 * cos(self.at));
                 dy: root.hat-bob + root.px(6.5 * sin(self.at) + 1.3 * sin(root.t * 2.2rad + q * 1rad));
                 visible: sin(self.at) > 0;
             }
+        }
+
+        // At work, checking or brewing: the star on his hat twinkles, its
+        // light fading over the dim star in the hat's picture, a twinkle a
+        // second as the rig's. Held still, it is lit.
+        if root.pose == "thinking" || root.pose == "brewing": Art {
+            name: root.pose + "-star";
+            ppu: root.ppu;
+            dy: root.hat-bob;
+            opacity: root.still ? 1 : round((0.61 + 0.39 * sin(root.t * 6.5rad)) * 10) / 10.0;
+        }
+
+        // Brewing: bubbles rise off the brew and fade, a fifth of a rise
+        // apart, wobbling as they go and shrinking a little.
+        if root.pose == "brewing": Rectangle {
+            width: 0;
+            height: 0;
+            for j in 5: Art {
+                property <float> rise: Math.mod(root.t * 0.6 + j * 0.2, 1);
+                name: "brewing-bubble" + j;
+                ppu: root.ppu;
+                size: round((1 - 0.3 * self.rise) * 10) / 10.0;
+                dx: root.px(1.71 * sin((root.t * 2 + j * 1.9) * 1rad));
+                dy: root.bob + root.px(-17.1 * self.rise);
+                opacity: 1 - self.rise;
+            }
+        }
+
+        // And he stirs: his hand goes round and the wand sweeps through the
+        // brew, in twelve drawn steps to a turn of about two seconds.
+        if root.pose == "brewing": Art {
+            name: "brewing-stir" + root.stir;
+            ppu: root.ppu;
+            dy: root.bob;
         }
 
         // Finished: each sparkle grows and shrinks in 600 ms, in turn.
@@ -234,23 +236,16 @@ export component Wiz inherits Rectangle {
             }
         }
 
-        // A question waiting: the amber pip, and a ring widening off it.
+        // A question waiting: the star on his hat glows amber. A pulse dims
+        // it to the dim star in the hat's picture and brings it back.
         if root.pose == "needs-input": Rectangle {
             width: 0;
             height: 0;
             Art {
                 property <float> spread: root.since-pulse / 28.0;
-                name: "needs-input-ring";
+                name: "needs-input-star";
                 ppu: root.ppu;
-                // The rig's ring grows from 3 to 9 units; the picture's is 5.4.
-                size: round((3 + 6 * self.spread) / 5.4 * 8) / 8.0;
-                opacity: 0.8 * (1 - self.spread);
-                visible: root.since-pulse < 28 && !root.still;
-            }
-
-            Art {
-                name: "needs-input-pip";
-                ppu: root.ppu;
+                opacity: root.since-pulse < 28 && !root.still ? 1 - round(sin(self.spread * 180deg) * 7) / 10.0 : 1;
             }
         }
     }

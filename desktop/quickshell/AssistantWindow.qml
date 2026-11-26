@@ -174,6 +174,7 @@ PanelWindow {
             settled = false;
             entered = false;
             faded = false;
+            Assistant.fileOver = false;
         }
         Qt.callLater(root.enter);
     }
@@ -393,6 +394,8 @@ PanelWindow {
             hovered: characterHover.hovered
             unread: Assistant.unread
             boxAbove: root.dockPlace.above
+            helper: Assistant.helper
+            facing: Assistant.facing
             opacity: root.faded ? 0.22 : 1
             rotation: root.tuck === "left" ? 12 : root.tuck === "right" ? -12 : 0
             scale: dragArea.pressed && !root.dragging ? 0.94 : root.dragging ? 1.06 : 1
@@ -434,6 +437,7 @@ PanelWindow {
                     root.lastHoverAt = 0;
                     root.fastSamples = 0;
                     if (hovered) {
+                        Assistant.stir();
                         rest.restart();
                     } else {
                         rest.stop();
@@ -449,10 +453,15 @@ PanelWindow {
                 }
             }
 
+            // Held over him, he is curious, hands out to catch it.
             DropArea {
                 id: characterDrop
                 anchors.fill: parent
                 keys: ["text/uri-list"]
+                onContainsDragChanged: {
+                    Assistant.fileOver = containsDrag;
+                    Assistant.stir();
+                }
                 onDropped: drop => {
                     if (drop.hasUrls) {
                         Assistant.attachUrls(drop.urls);
@@ -595,6 +604,7 @@ PanelWindow {
 
             HoverHandler {
                 id: dockHover
+                onHoveredChanged: Assistant.stir()
             }
 
             AssistantComposer {

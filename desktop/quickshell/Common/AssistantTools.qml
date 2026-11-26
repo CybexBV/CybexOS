@@ -2,9 +2,11 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import "SettingsGuide.js" as Guide
 import "SettingsHelpers.js" as SettingsHelpers
 import "SettingsSearchData.js" as SearchData
 import "WallhavenHelpers.js" as WallhavenHelpers
+import "WidgetCatalog.js" as WidgetCatalog
 import "WindowCommands.js" as WindowCommands
 
 // The desktop tools only the shell can carry out (docs/assistant.md). The
@@ -33,10 +35,6 @@ Singleton {
         return JSON.stringify(a) === JSON.stringify(b);
     }
 
-    function typeOf(value) {
-        return (Array.isArray(value) || value instanceof Array) ? "list" : value === null ? "none" : typeof value;
-    }
-
     function handle(tool, args, respond, fail) {
         try {
             switch (tool) {
@@ -44,6 +42,7 @@ Singleton {
             case "settings_search": return respond(search(String(args.query || "")));
             case "settings_get": return respond(read(args.keys));
             case "settings_set": return setValue(args.key, args.value, respond, fail);
+            case "settings_show": return showSetting(String(args.row || ""), respond, fail);
             case "wallpaper_set": return setWallpaper(args, respond, fail);
             case "app_open": return openApp(String(args.app || ""), respond, fail);
             case "window_info": return respond(windowInfo(args.address));
@@ -97,22 +96,13 @@ Singleton {
         };
     }
 
+    // Every row of Settings' search index that matches, each with the one
+    // string settings_show takes (`row`) and whether settings_set may change
+    // it (`changeable`: a known key that is not the assistant's own). The
+    // rows it can change keep their value, default and type (SettingsGuide.js).
     function search(query) {
-        const words = query.toLowerCase().split(/\s+/).filter(word => word !== "");
-        const defaults = SettingsHelpers.defaults();
-        const rows = SearchData.ROWS.filter(row => row.key !== "" && !blockedKey(row.key) && known(row.key))
-            .map(row => {
-                const haystack = (row.label + " " + row.group + " " + row.pageLabel + " " + row.terms + " "
-                    + row.key).toLowerCase();
-                return { row: row, score: words.filter(word => haystack.indexOf(word) !== -1).length };
-            })
-            .filter(entry => words.length === 0 || entry.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 12);
-        return { results: rows.map(entry => ({
-            key: entry.row.key, label: entry.row.label, page: entry.row.pageLabel, group: entry.row.group,
-            current: Settings[entry.row.key], default: defaults[entry.row.key],
-            type: typeOf(defaults[entry.row.key]) })) };
+        return Guide.searchResult(SearchData.ROWS, query, SettingsHelpers.defaults(), key => Settings[key],
+            key => blockedKey(key));
     }
 
     function read(keys) {
@@ -128,6 +118,91 @@ Singleton {
                 values[key] = Settings[key];
         }
         return unknown.length > 0 ? { values: values, unknown: unknown } : { values: values };
+    }
+
+    // ---- showing ----------------------------------------------------------------
+    // settings_show ("Show me where"): Settings opens at the row and its own
+    // small Wiz points at it (Settings.showGuide). It answers once he stands
+    // there, with where the row is in the words the window shows, or fails
+    // when the window found no such row; the failures are for the agent, so
+    // they stay English. A row with neither a key nor an anchor cannot be
+    // found on its page: Settings opens that page, and the answer says so
+    // (`shown` false) and where on it to look. Nothing changes, so nothing is
+    // recorded.
+    property var guideWaiting: null
+
+    // Page › tab › widget › row, in the words the Settings window shows.
+    function guidePlace(row) {
+        const page = Settings.pageInfo(row.page);
+        const tab = row.tab ? (page.tabs || []).find(entry => entry.id === row.tab) : null;
+        const widget = row.widget ? WidgetCatalog.widgetName(row.widget) : "";
+        const result = { row: Guide.handle(row), label: I18n.tr(row.label), page: I18n.tr(page.label),
+            tab: tab ? I18n.tr(tab.label) : "", group: I18n.tr(row.group || ""), widget: widget };
+        result.where = [result.page, result.tab, result.widget, result.label].filter(part => part !== "").join(" › ");
+        return result;
+    }
+
+    function showSetting(text, respond, fail) {
+        const row = Guide.rowFor(SearchData.ROWS, text);
+        if (!row) {
+            if (known(text))
+                return fail("Settings has no row for " + text + ", so it cannot be shown. Say how it is set instead.");
+            return fail("There is no setting called " + text + ". Use settings_search to find one.");
+        }
+        if (guideWaiting) {
+            guideWaiting.fail("Another setting was shown instead.");
+            guideWaiting = null;
+            guideDeadline.stop();
+        }
+        if (!Guide.pointable(row)) {
+            Settings.showGuide(row);
+            const place = guidePlace(row);
+            const page = [place.page, place.tab, place.widget].filter(part => part !== "").join(" › ");
+            const spot = (place.group !== "" && place.group !== place.label ? place.group + " › " : "") + place.label;
+            return respond(Object.assign(place, { shown: false,
+                note: "Settings is open on " + page + ", but Wiz cannot point at this row there. "
+                    + "Tell the person where to look on that page: " + spot + "." }));
+        }
+        guideWaiting = { serial: -1, row: row, respond: respond, fail: fail };
+        Settings.showGuide(row);
+        guideWaiting.serial = Settings.guideSerial;
+        guideDeadline.restart();
+        checkGuide();
+    }
+
+    function checkGuide() {
+        const waiting = guideWaiting;
+        if (!waiting || Settings.guideSerial !== waiting.serial)
+            return;
+        if (Settings.guideState === "pointing") {
+            guideWaiting = null;
+            guideDeadline.stop();
+            waiting.respond(Object.assign(guidePlace(waiting.row), { shown: true }));
+        } else if (Settings.guideState === "missing") {
+            guideWaiting = null;
+            guideDeadline.stop();
+            waiting.fail("Settings has no " + waiting.row.label + " row on this computer, so it could not be shown.");
+        } else if (Settings.guideState === "") {
+            guideWaiting = null;
+            guideDeadline.stop();
+            waiting.fail("Settings was closed or left before Wiz could point at the row.");
+        }
+    }
+
+    Connections {
+        target: Settings
+        function onGuideStateChanged() { root.checkGuide(); }
+    }
+
+    Timer {
+        id: guideDeadline
+        interval: 8000
+        onTriggered: {
+            const waiting = root.guideWaiting;
+            root.guideWaiting = null;
+            if (waiting)
+                waiting.fail("Settings did not open in time.");
+        }
     }
 
     function windowFor(address) {

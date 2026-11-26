@@ -49,11 +49,20 @@ legacy BIOS start is the same build's 800×600 notice.
 
 Wiz, the assistant's character (docs/assistant.md), appears in the terminal
 as a still picture of a pose: `scripts/export-wiz` writes each pose at rest to
-`assets/wiz/<pose>.svg`, and the desktop package renders the one it needs with
-librsvg at build time. He never speaks, and the boot logo stays the Cybex mark.
+`assets/wiz/<pose>.svg`, and the desktop package renders the ones it needs
+with librsvg at build time: idle for the terminal, and finished, needs-input
+and sorry for the assistant's notifications (thinking is rendered too, though
+no notification uses it today). He never speaks, and the
+boot logo stays the Cybex mark. The stills keep his glows (blurred eyes, the
+star and its halo, gradients), and librsvg 2.63 draws them as Chromium does
+(compared for every pose on 2026-11-26) but for one thing: it cuts off the
+glow of a turned shape, at 45 degrees all but a strip. So `WizRig.stillSVG`
+draws every glowing shape unturned, its turn carried into its points
+(`tests/quickshell/wiz-stills.test.cjs`).
 
 - **Terminal.** Typing a plain `fastfetch` at fish's prompt in kitty shows Wiz
-  (`idle`, 9 rows high) through kitty's graphics protocol. The default
+  (`idle`, his hands at rest and the star on his hat dim, 9 rows high) through
+  kitty's graphics protocol. The default
   fastfetch config's logo is `$CYBEXOS_FASTFETCH_LOGO`, else the braille
   logo; fish's `fastfetch` function sets it only when the config names it,
   the shell runs in kitty itself, fastfetch writes to the terminal, there are

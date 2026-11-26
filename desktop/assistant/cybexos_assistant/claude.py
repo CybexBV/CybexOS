@@ -257,7 +257,7 @@ class ClaudeAgent:
             name = event.get("type")
             if name == "message_start":
                 turn.reset_text()
-                turn.set_step("Thinking")
+                turn.set_step("Thinking", steps.THINK)
             elif name == "content_block_delta":
                 delta = event.get("delta") or {}
                 if delta.get("type") == "text_delta":
@@ -265,12 +265,13 @@ class ClaudeAgent:
             elif name == "content_block_start":
                 block = event.get("content_block") or {}
                 if block.get("type") == "tool_use":
-                    turn.set_step(steps.claude_tool(block.get("name", ""), {}))
+                    tool = block.get("name", "")
+                    turn.set_step(steps.claude_tool(tool, {}), steps.claude_kind(tool, {}))
         elif kind == "assistant":
             for block in (message.get("message") or {}).get("content") or []:
                 if isinstance(block, dict) and block.get("type") == "tool_use":
                     name, tool_input = block.get("name", ""), block.get("input") or {}
-                    turn.set_step(steps.claude_tool(name, tool_input))
+                    turn.set_step(steps.claude_tool(name, tool_input), steps.claude_kind(name, tool_input))
                     # The service records its own desktop tools as it runs them.
                     if not desktop.ours(name):
                         turn.add_step(steps.claude_record(name, tool_input))

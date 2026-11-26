@@ -104,6 +104,10 @@ while True:
         finish(first["behavior"] + "/" + second["behavior"])
     elif "other tool" in text:
         finish(ask("r1", "mcp__example__action", {"value": 1})["behavior"])
+    elif "refuse" in text:
+        first = ask("r1", "Bash", {"command": "sudo nixos-rebuild switch"})
+        second = ask("r2", "Bash", {"command": "touch ~/y"})
+        finish(first["behavior"] + "/" + second["behavior"])
     elif "edit" in text:
         target = home / ("notes.txt" if "ordinary" in text else ".config/cybexos/shell.json")
         answer = ask("r1", "Edit", {"file_path": str(target), "old_string": "a", "new_string": "b"})
@@ -229,6 +233,13 @@ while True:
             result = request("item/commandExecution/requestApproval",
                              {"threadId": thread[0], "turnId": "tu-1", "itemId": "c1", "command": "rm -rf ~/x",
                               "cwd": str(home), "reason": "Clean up", "startedAtMs": 0, "kind": "command", "environmentId": None})
+            final("decision:" + result["decision"])
+        elif "refuse" in text:
+            notify("item/started", {"threadId": thread[0], "turnId": "tu-1",
+                                    "item": {"type": "commandExecution", "id": "c1", "command": "sudo reboot"}})
+            result = request("item/commandExecution/requestApproval",
+                             {"threadId": thread[0], "turnId": "tu-1", "itemId": "c1", "command": "sudo reboot",
+                              "cwd": str(home), "reason": "Restart", "startedAtMs": 0, "kind": "command", "environmentId": None})
             final("decision:" + result["decision"])
         elif "permissions" in text:
             result = request("item/permissions/requestApproval", {

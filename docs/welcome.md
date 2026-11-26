@@ -57,9 +57,13 @@ assistant. Each opens windows, so the guide steps aside while you use them:
   back by itself once the agent reports you are signed in, and
   **Cancel sign-in** stops a sign-in you abandoned. Your sign-in stays with
   the agent; Cybex OS never stores it. Wiz stands in the card's corner:
-  asleep, with two small z's (none with reduced motion), while the service is
-  not running or no agent is signed in; attentive while you sign in; happy
-  once you have; sorry when the sign-in could not be checked.
+  asleep while the service is not running or no agent is signed in;
+  attentive while you sign in; happy once you have; sorry when the sign-in
+  could not be checked. Asleep, he snores here: his z's rise beside his hat
+  and fade, one after the other, the cue that he sleeps until an account is
+  connected. This is the one place they move (`snoring` on
+  `Assistant/Wiz.qml`); everywhere else in the shell they stand still, and
+  here too with reduced motion.
 
 When you leave the guide, it closes the windows these sign-ins opened, as
 their close buttons would: a 1Password or Chrome window still open, and the

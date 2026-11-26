@@ -344,6 +344,8 @@ Singleton {
         if (!restoringPage && panelOpen && previousPage !== "" && previousPage !== page)
             pageHistory = pageHistory.concat([previousPage]).slice(-30);
         previousPage = page;
+        if (guideKey !== "" && page !== guidePage)
+            endGuide("page");
     }
     function goBack() {
         if (pageHistory.length === 0)
@@ -403,12 +405,16 @@ Singleton {
     property string panelScreenName: ""
     signal presentPanel()
 
-    function showPanel(targetPage, targetScreenName, key) {
+    // `targetTab`, when it is one of the page's tabs, wins over the tab
+    // resolveTab would choose: a caller that knows the row's own tab (the
+    // assistant's guide) opens that one.
+    function showPanel(targetPage, targetScreenName, key, targetTab) {
         const resolved = resolvePage(targetPage, key);
         if (targetPage === "drawer")
             openWidgetSettings("control");
         else if (resolved !== "") {
-            const tab = resolveTab(targetPage, key);
+            const tab = targetTab && tabsOf(resolved).some(entry => entry.id === targetTab)
+                ? targetTab : resolveTab(targetPage, key);
             if (tab !== "")
                 setTab(resolved, tab);
             page = resolved;
@@ -430,6 +436,107 @@ Singleton {
         showPanel(targetPage, targetScreenName, key);
         highlightKey = "";
         highlightKey = key;
+    }
+
+    // ---- Show me where (docs/assistant.md) ----------------------------------
+    // The assistant's settings_show: Settings opens at one row of the search
+    // index (SettingsSearchData.ROWS) and, when the row has a key or an
+    // anchor to find it by, a small Wiz points at it
+    // (Settings/SettingsGuide.qml) until the person changes that setting,
+    // leaves its page or tab, closes Settings or guideTimeout passes. One
+    // guide at a time; another call moves him. `guideState` is "" (none),
+    // "finding" (the window looks for the row), "pointing" or "missing" (the
+    // row is not on this computer's page); `guideEnded` says why the last
+    // one ended: changed, page, closed, time, other (another jump), gone (the
+    // row went away) or missing.
+    //
+    // Long enough to read the answer and find the window; tests shorten it.
+    property int guideTimeout: 30000
+    property string guideKey: ""
+    property string guidePage: ""
+    property string guideTab: ""
+    property string guideWidget: ""
+    property string guideState: ""
+    property string guideEnded: ""
+    property int guideSerial: 0
+    property string guideValue: ""
+    property bool guideStarting: false
+
+    function guideValueText(key) {
+        return Object.prototype.hasOwnProperty.call(defaults, key) ? JSON.stringify(root[key]) : "";
+    }
+
+    // Returns whether Wiz will point. A row with neither a key nor an anchor
+    // cannot be found on its page: its page (and tab, or widget dialog)
+    // opens without him, and a guide that was running ends.
+    function showGuide(row) {
+        const key = row.key || row.anchor || "";
+        guideStarting = true;
+        guideTimer.stop();
+        if (row.widget) {
+            showPanel("bar", "", key);
+            openWidgetSettings(row.widget);
+        } else {
+            showPanel(row.page, "", key, row.tab || "");
+        }
+        if (key === "") {
+            guideStarting = false;
+            endGuide("other");
+            return false;
+        }
+        guideKey = key;
+        guidePage = page;
+        guideTab = tab;
+        guideWidget = row.widget || "";
+        guideValue = guideValueText(key);
+        guideEnded = "";
+        guideState = "finding";
+        guideSerial++;
+        highlightKey = "";
+        highlightKey = key;
+        guideStarting = false;
+        return true;
+    }
+
+    // The window found the row and Wiz stands beside it: the time runs from here.
+    function guideShown() {
+        if (guideKey === "")
+            return;
+        guideState = "pointing";
+        guideTimer.restart();
+    }
+
+    function endGuide(reason) {
+        if (guideKey === "" || guideStarting)
+            return;
+        guideTimer.stop();
+        guideEnded = reason;
+        guideState = reason === "missing" ? "missing" : "";
+        guideKey = "";
+        guideWidget = "";
+    }
+
+    Timer {
+        id: guideTimer
+        interval: root.guideTimeout
+        onTriggered: root.endGuide("time")
+    }
+
+    onPanelOpenChanged: {
+        if (!panelOpen)
+            endGuide("closed");
+    }
+    onTabChanged: {
+        if (guideKey !== "" && tab !== guideTab)
+            endGuide("page");
+    }
+    onRevisionChanged: {
+        if (guideKey !== "" && guideValue !== "" && guideValueText(guideKey) !== guideValue)
+            endGuide("changed");
+    }
+    onHighlightKeyChanged: {
+        if (guideKey !== "" && highlightKey !== "" && highlightKey !== guideKey)
+            endGuide("other");
     }
 
     function togglePanel(targetPage, targetScreenName) {

@@ -3,8 +3,8 @@
 // (docs/assistant.md):
 //
 //   desktop/quickshell/assets/wiz/<layer>.svg   the layers the shell moves
-//   assets/wiz/<pose>.svg                        each pose at rest, for the boot
-//                                                splash, lock screen and terminal
+//   assets/wiz/<pose>.svg                        each pose at rest, in Cybex blue,
+//                                                for the terminal and notifications
 //   installer/kiosk/assets/wiz/<pose>-<part>.svg the poses the installer shows,
 //                                                in the parts it moves
 //
@@ -24,18 +24,31 @@ const WizRig = require(path.join(root, "desktop/quickshell/Common/WizRig.js"));
 // The installer kiosk (installer/kiosk/ui/wiz.slint) draws with Slint's
 // software renderer, which moves, fades and swaps pictures but neither rotates
 // nor scales them. Each pose it shows is three pictures in place: his body
-// (cloak, collar and shadow), his eyes (again half and fully closed, for a
-// blink) and his hat. The pose's moving parts are the shell's layers, drawn
-// around the point they move about in that pose. Every picture is cropped to
-// what it draws, so a blink or a passing rune repaints only a little.
-const KIOSK_POSES = ["thinking", "working", "needs-input", "happy", "sorry"];
-
-function posed(state, patch) {
-    const rig = WizRig.create(0);
-    rig.update(0, state, { reducedMotion: true });
-    Object.assign(rig.cur, patch);
-    return rig.ops({});
-}
+// (shadow, boots, cloak, arms, cape, what he holds and his hands), his eyes
+// with their lids (again half and fully closed, for a blink) and his hat. The
+// pose's moving parts are cut out apart, placed where they move in that pose.
+// Every picture is cropped to what it draws, so a blink, a rune or a bubble
+// repaints only a little.
+//
+//   thinking     checking: runes circle the hat, the star twinkles
+//   brewing      installing: he stirs the cauldron, bubbles rise, the star twinkles
+//   needs-input  your move: the amber star pulses
+//   happy        all good; with sparkles, a finished installation
+//   sorry        it failed: the red star
+const KIOSK_POSES = ["thinking", "brewing", "needs-input", "happy", "sorry"];
+const BODY = ["shadow", "leg", "boot", "body", "glow", "underlight", "sleeve", "cuff", "cape", "pot", "bubble", "book", "orb",
+    "orb-swirl", "orb-shine", "scroll", "scroll-line", "wand", "wand-tip", "quill", "finger", "hand", "wisp", "zzz"];
+const EYES = ["eyes", "lids"];
+const HAT = ["brim", "cone", "thread", "star"];
+// Where the star moves, its light lies over a dim star in the hat's picture:
+// it twinkles while he works and pulses for a question.
+const STAR_APART = ["thinking", "brewing", "needs-input"];
+// Brewing: the drawn steps of one turn of the stir, and how far his hand and
+// wand go (the rig's act "stir": 3.4 and 1.1 units, 9 degrees).
+const STIR = { steps: 12, rx: 3.4, ry: 1.1, wandA: 9 };
+// The bubbles on the brew: each one's place and radius in the cauldron's own
+// units, as Rig.prototype.ops draws them at the start of their rise.
+const BUBBLES = [0, 1, 2, 3, 4].map(b => ({ x: -6 + b * 3, y: -5, r: 0.8 + 1.1 * Math.abs(Math.sin(b * 1.7)) }));
 
 // The matrix m followed by one of toSVG's transforms.
 function then(m, step) {
@@ -71,27 +84,51 @@ function placed(ops, layer, point) {
     return found;
 }
 
-// The whole units around the drawing of `layers`, `margin` wider on each side.
-function bounds(ops, layers, margin) {
-    const xs = [], ys = [];
+// A test of ops: a list of layers, or a function of the op.
+function chooser(keep) {
+    return Array.isArray(keep) ? op => keep.includes(op.layer) : keep;
+}
+
+// The ops of the hand on the picture's right, the one he stirs with.
+function rightHand(ops) {
+    const right = new Set();
+    walk(ops, (op, map) => { if (op.layer === "hand" && map(0, 0)[0] > WizRig.LAYOUT.ground[0]) right.add(op); });
+    return right;
+}
+
+// The corner and control points of what `keep` picks, in the still's frame.
+function points(ops, keep) {
+    const found = [];
+    keep = chooser(keep);
     walk(ops, (op, map) => {
-        if (!layers.includes(op.layer)) return;
-        const points = op.k === "radial"
+        if (!keep(op)) return;
+        const own = op.k === "radial"
             ? [[op.cx - op.r, op.cy - op.r * op.sy], [op.cx + op.r, op.cy + op.r * op.sy],
                 [op.cx - op.r, op.cy + op.r * op.sy], [op.cx + op.r, op.cy - op.r * op.sy]]
             : op.d.flatMap(segment => segment.slice(1).flatMap((v, i, all) => i % 2 ? [] : [[v, all[i + 1]]]));
-        for (const [x, y] of points.map(p => map(p[0], p[1]))) {
-            xs.push(x);
-            ys.push(y);
-        }
+        found.push(...own.map(p => map(p[0], p[1])));
     });
-    const x = Math.floor(Math.min(...xs) - margin), y = Math.floor(Math.min(...ys) - margin);
-    return [x, y, Math.ceil(Math.max(...xs) + margin) - x, Math.ceil(Math.max(...ys) + margin) - y];
+    if (!found.length) throw new Error("the pose does not draw that");
+    const xs = found.map(p => p[0]), ys = found.map(p => p[1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
-function picture(ops, layers, box) {
-    const kept = ops.filter(op => (op.k !== "path" && op.k !== "radial") || layers.includes(op.layer));
-    return WizRig.toSVG(kept, null, box || bounds(ops, layers, 1.5)) + "\n";
+// The whole units around the drawing of `keep`, `margin` wider on each side.
+function bounds(ops, keep, margin) {
+    const [x0, y0, x1, y1] = points(ops, keep);
+    const x = Math.floor(x0 - margin), y = Math.floor(y0 - margin);
+    return [x, y, Math.ceil(x1 + margin) - x, Math.ceil(y1 + margin) - y];
+}
+
+function picture(ops, keep, box) {
+    keep = chooser(keep);
+    const kept = [];
+    for (const op of ops) {
+        // A group that holds nothing of these layers goes.
+        if (op.k === "end" && kept.length && kept[kept.length - 1].k === "g") kept.pop();
+        else if ((op.k !== "path" && op.k !== "radial") || keep(op)) kept.push(op);
+    }
+    return WizRig.toSVG(kept, null, box || bounds(ops, keep, 1.5)) + "\n";
 }
 
 // One of the shell's layers around `centre`, scaled and turned about it.
@@ -102,39 +139,57 @@ function part(name, centre, scale = 1, turn = 0) {
     return WizRig.toSVG(ops, null, [centre[0] + b[0] * scale, centre[1] + b[1] * scale, b[2] * scale, b[3] * scale]) + "\n";
 }
 
+// Brewing's moving parts in the still's frame: where each bubble starts on the
+// brew, how far it rises (15 of the cauldron's units) and how long one of the
+// cauldron's units is, for the bubbles' wobble.
+function brew(ops) {
+    const start = BUBBLES.map(b => placed(ops, "pot", [b.x, b.y]));
+    const top = placed(ops, "pot", [BUBBLES[0].x, BUBBLES[0].y - 15]);
+    const side = placed(ops, "pot", [BUBBLES[0].x + 1, BUBBLES[0].y]);
+    return { start, rise: Math.hypot(top[0] - start[0][0], top[1] - start[0][1]),
+        unit: Math.hypot(side[0] - start[0][0], side[1] - start[0][1]) };
+}
+
 function kiosk() {
     const files = {};
     for (const state of KIOSK_POSES) {
-        const ops = posed(state), add = (name, svg) => { files[`${state}-${name}.svg`] = svg; };
-        add("body", picture(ops, ["shadow", "body", "underlight", "collar"]));
-        add("hat", picture(ops, ["brim", "cone"]));
+        const ops = WizRig.stillOps(state), add = (name, svg) => { files[`${state}-${name}.svg`] = svg; };
+        if (state === "brewing") {
+            // The stirring hand with its wand, and the bubbles, move on their own.
+            const stirs = rightHand(ops), apart = ["bubble", "wand", "wand-tip"];
+            add("body", picture(ops, op => BODY.includes(op.layer) && !apart.includes(op.layer) && !stirs.has(op)));
+        } else add("body", picture(ops, BODY));
+        add("hat", picture(STAR_APART.includes(state) ? WizRig.stillOps(state, { light: "rest" }) : ops, HAT));
+        if (STAR_APART.includes(state))
+            add("star", picture(ops, ["star"]));
         // The blink's frames share the open eyes' box; the glow needs room.
         const eyes = bounds(ops, ["eyes"], 5), open = WizRig.POSES[state].eyeOpen;
-        add("eyes", picture(ops, ["eyes"], eyes));
+        add("eyes", picture(ops, EYES, eyes));
         if (state !== "happy") {
-            add("eyes-half", picture(posed(state, { eyeOpen: open * 0.45 }), ["eyes"], eyes));
-            add("eyes-shut", picture(posed(state, { eyeOpen: open * 0.08 }), ["eyes"], eyes));
+            add("eyes-half", picture(WizRig.stillOps(state, { patch: { eyeOpen: open * 0.45 } }), EYES, eyes));
+            add("eyes-shut", picture(WizRig.stillOps(state, { patch: { eyeOpen: open * 0.08 } }), EYES, eyes));
         }
         if (state === "thinking") {
             const orbit = placed(ops, "brim", [WizRig.LAYOUT.orbit.cx, WizRig.LAYOUT.orbit.cy]);
             for (let q = 0; q < 4; q++)
                 add(`rune${q}`, part(`rune${q}`, orbit));
-        } else if (state === "working") {
-            const core = WizRig.LAYERS["spell-core"].at, mote = WizRig.LAYERS.mote.at;
-            const spell = placed(ops, "spell-core", core);
-            add("glow", part("spell-glow", spell));
-            add("core", part("spell-core", spell));
-            add("mote", part("mote", [spell[0] + mote[0] - core[0], spell[1] + mote[1] - core[1]]));
-            // The ring turns in three steps across the gap between two dashes.
-            const dashes = WizRig.layerOps("spell-ring")[0].d.filter(segment => segment[0] === "M").length;
-            for (let i = 0; i < 3; i++)
-                add(`ring${i}`, part("spell-ring", spell, 1, i * 120 / dashes));
-        } else if (state === "needs-input") {
-            const pip = placed(ops, "pip", WizRig.LAYOUT.pip);
-            add("pip", part("pip", pip));
-            add("ring", part("pip-ring", pip));
+        } else if (state === "brewing") {
+            // One turn of the stir in drawn steps: his hand goes round and
+            // the wand sweeps through the brew.
+            const P = WizRig.POSES.brewing;
+            for (let i = 0; i < STIR.steps; i++) {
+                const a = 2 * Math.PI * i / STIR.steps;
+                const turn = WizRig.stillOps(state, { patch: { rx: P.rx + Math.cos(a) * STIR.rx, ry: P.ry + Math.sin(a) * STIR.ry,
+                    wandA: P.wandA - Math.cos(a) * STIR.wandA } });
+                const stirs = rightHand(turn);
+                add(`stir${i}`, picture(turn, op => op.layer === "wand" || op.layer === "wand-tip" || stirs.has(op)));
+            }
+            // Each bubble at the start of its rise, at its own size: the
+            // shell's bubble layer is the first and smallest.
+            const at = brew(ops);
+            BUBBLES.forEach((b, j) => add(`bubble${j}`, part("bubble", at.start[j], b.r / BUBBLES[0].r)));
         } else if (state === "happy") {
-            // A finished turn's sparkles, each at its own size.
+            // A finished installation's sparkles, each at its own size.
             WizRig.LAYOUT.sparks.forEach((spark, z) =>
                 add(`sparkle${z}`, part("sparkle", placed(ops, "body", spark), spark[3])));
         }
@@ -185,4 +240,6 @@ function main(argv) {
     return differs ? 1 : 0;
 }
 
-process.exitCode = main(process.argv.slice(2));
+// The installer's test reads where its moving parts go.
+if (require.main === module) process.exitCode = main(process.argv.slice(2));
+else module.exports = { brew, placed, STIR, BUBBLES, KIOSK_POSES };

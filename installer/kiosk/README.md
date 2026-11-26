@@ -66,9 +66,12 @@ pose's moving parts placed where they move in that pose. Slint's software
 renderer cannot rotate or scale and rasterises an SVG on every repaint, so
 `src/wiz.rs` rasterises each picture once at its exact physical size and
 `ui/wiz.slint` only moves, fades and swaps them on the pixel grid, at 25 frames a
-second and only while he thinks or works (the runes, the spell), blinks, pulses
-a waiting question or celebrates the finished installation. A loop repaints
-about 3,000 physical pixels a frame at zoom 1. Sheets and the reconnecting
+second and only while he thinks or brews (the runes, or the stir and the
+bubbles, and the star twinkling), blinks, pulses a waiting question or
+celebrates the finished installation. The stir is twelve drawn steps of his
+hand and wand; the twinkle fades the lit star over a dim one, since the star
+cannot turn. A loop repaints only what moved: a few small pictures each frame,
+and his whole figure on the frames where his breathing moves him a pixel. Sheets and the reconnecting
 screen hold him still. With reduced motion he shows each pose's first frame and
 never moves, and the activity marks stop blinking; the stage list, the elapsed
 time and the pose itself still say what is happening.

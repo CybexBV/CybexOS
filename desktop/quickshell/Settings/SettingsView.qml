@@ -970,10 +970,20 @@ PopoutPanel {
     }
 
     // ---- overlays --------------------------------------------------------
+    // Wiz pointing at the row the assistant was asked about ("Show me
+    // where"), under the palette and the review sheet.
+    SettingsGuide {
+        objectName: "settingsGuide"
+        view: root
+    }
+
+    // Above the guide, which comes back on top of the view when it leaves a
+    // widget's dialog.
     ChangesSheet {
         id: changesSheet
         objectName: "changesSheet"
         anchors.fill: parent
+        z: 1
     }
 
     AccountPicker {
@@ -993,6 +1003,7 @@ PopoutPanel {
         id: palette
         objectName: "settingsPalette"
         anchors.fill: parent
+        z: 1
         onFinished: {
             const item = root.navDelegate(Settings.page);
             if (item)

@@ -23,11 +23,13 @@ macro_rules! art {
 /// Every file in assets/wiz.
 const ART: &[(&str, &str)] = art![
     "thinking-body", "thinking-eyes", "thinking-eyes-half", "thinking-eyes-shut", "thinking-hat",
-    "thinking-rune0", "thinking-rune1", "thinking-rune2", "thinking-rune3",
-    "working-body", "working-eyes", "working-eyes-half", "working-eyes-shut", "working-hat",
-    "working-glow", "working-core", "working-mote", "working-ring0", "working-ring1", "working-ring2",
+    "thinking-rune0", "thinking-rune1", "thinking-rune2", "thinking-rune3", "thinking-star",
+    "brewing-body", "brewing-eyes", "brewing-eyes-half", "brewing-eyes-shut", "brewing-hat", "brewing-star",
+    "brewing-stir0", "brewing-stir1", "brewing-stir2", "brewing-stir3", "brewing-stir4", "brewing-stir5",
+    "brewing-stir6", "brewing-stir7", "brewing-stir8", "brewing-stir9", "brewing-stir10", "brewing-stir11",
+    "brewing-bubble0", "brewing-bubble1", "brewing-bubble2", "brewing-bubble3", "brewing-bubble4",
     "needs-input-body", "needs-input-eyes", "needs-input-eyes-half", "needs-input-eyes-shut", "needs-input-hat",
-    "needs-input-pip", "needs-input-ring",
+    "needs-input-star",
     "happy-body", "happy-eyes", "happy-hat",
     "happy-sparkle0", "happy-sparkle1", "happy-sparkle2", "happy-sparkle3", "happy-sparkle4",
     "sorry-body", "sorry-eyes", "sorry-eyes-half", "sorry-eyes-shut", "sorry-hat",
@@ -98,7 +100,7 @@ mod tests {
 
     #[test]
     fn each_pose_has_its_parts_and_a_blink_shares_the_eyes_box() {
-        for pose in ["thinking", "working", "needs-input", "happy", "sorry"] {
+        for pose in ["thinking", "brewing", "needs-input", "happy", "sorry"] {
             for part in ["body", "eyes", "hat"] {
                 assert!(ART.iter().any(|(name, _)| *name == format!("{pose}-{part}")), "{pose}-{part}");
             }
@@ -123,15 +125,15 @@ mod tests {
         let sharp = art("happy-body", 2.0, 1.0);
         assert_eq!(sharp.image.size().width, 2 * w as u32);
         assert_eq!((sharp.x, sharp.y), (2.0 * body.x, 2.0 * body.y));
-        // A scaled part keeps its centre.
-        let pulse = art("needs-input-ring", 1.5, 1.6);
-        let still = art("needs-input-ring", 1.5, 1.0);
-        assert!(pulse.image.size().width > still.image.size().width);
-        assert_eq!((pulse.x, pulse.y), (still.x, still.y));
-        // Something is drawn: the cloak's colour beside its seam.
+        // A scaled part keeps its centre: a bubble shrinks as it rises.
+        let still = art("brewing-bubble4", 1.5, 1.0);
+        let risen = art("brewing-bubble4", 1.5, 0.7);
+        assert!(risen.image.size().width < still.image.size().width);
+        assert_eq!((risen.x, risen.y), (still.x, still.y));
+        // Something is drawn: the cape's colour beside its clasp.
         let pixels = body.image.to_rgba8().unwrap();
-        let cloak = pixels.as_slice()[(h as usize / 2) * w as usize + w as usize / 2 - 8];
-        assert_eq!((cloak.r, cloak.g, cloak.b, cloak.a), (0x23, 0x26, 0x2c, 255));
+        let cape = pixels.as_slice()[(h as usize / 2) * w as usize + w as usize / 2 - 8];
+        assert_eq!((cape.r, cape.g, cape.b, cape.a), (0x30, 0x35, 0x3f, 255));
         assert_eq!(art("nothing", 1.0, 1.0).image.size().width, 0);
     }
 }

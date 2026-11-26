@@ -18,6 +18,8 @@ sys.path.insert(0, str(ROOT / "desktop" / "assistant"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cybexos_assistant import changes, desktop, mcp, policy, prompt, routines, steps  # noqa: E402
+from cybexos_assistant.claude import ClaudeAgent  # noqa: E402
+from cybexos_assistant.codex import CodexAgent  # noqa: E402
 from cybexos_assistant.turn import Turn  # noqa: E402
 from test_assistant import Client, ServiceTest  # noqa: E402
 
@@ -85,6 +87,156 @@ class StepsTest(unittest.TestCase):
         self.assertEqual(len(turn.steps), steps.MAX_STEPS)
 
 
+# Every look, change and install tool, with the kind the character shows.
+DESKTOP_KINDS = {
+    "desktop_status": "read", "settings_get": "read", "doctor_run": "read", "routine_list": "read",
+    "settings_search": "search", "wallpaper_search": "search", "software_search": "search",
+    "settings_set": "change", "wallpaper_set": "change", "app_open": "change", "window_focus": "change",
+    "window_move": "change", "window_close": "change", "workspace_switch": "change",
+    "settings_show": "change", "routine_create": "change", "routine_delete": "change",
+    "flatpak_install": "install", "flatpak_remove": "install",
+}
+SYSTEM_COMMANDS = ("cybex update stage local", "cybex software stage obsidian",
+                   "cybex update apply " + "b" * 32 + " " + "c" * 64, "cybex software flathub install org.gimp.GIMP",
+                   "/bin/bash -lc 'cybex update stage local'", "cd ~ && cybex software stage obsidian",
+                   # The friendly CLI (lifecycle/cybexos/cli.py): the guided update, apps, Flathub.
+                   "cybex update", "cybex update --yes", "cybex update -y --scope local", "cybex update --scope=both",
+                   "cybex update --no-apply", "cybex --json update stage local", "cybex update stage --no-wait both",
+                   "cybex update apply", "cybex update apply --yes", "cybex update rollback",
+                   "cybex update retry-failed " + "b" * 32,
+                   "cybex apps install obsidian", "cybex apps install --source flathub -y org.gimp.GIMP",
+                   "cybex apps remove --source nix obsidian", "cybex apps update", "cybex apps update org.gimp.GIMP",
+                   "cybex software flathub remove org.gimp.GIMP", "cybex software flathub update",
+                   "flatpak install flathub org.gimp.GIMP", "flatpak --user install -y org.gimp.GIMP",
+                   "flatpak uninstall org.gimp.GIMP", "flatpak remove org.gimp.GIMP", "flatpak update",
+                   "flatpak update -y --user", "/run/current-system/sw/bin/cybex apps install obsidian",
+                   # Past variable assignments and env with its options.
+                   "LANG=C cybex update stage local", "env cybex update stage local", "env -i cybex update stage local",
+                   "env -u LANG -C /tmp cybex apps install obsidian", "env --unset=LANG FOO=1 cybex update --yes",
+                   "env -S 'cybex update stage local'", "sh -c 'env -i cybex apps remove obsidian'")
+# Commands that only read, or change something other than what is installed.
+PLAIN_COMMANDS = ("cybex update status", "cybex update status --json", "cybex update check", "cybex update --json",
+                  "cybex --json update", "cybex update --help", "cybex update history", "cybex update log",
+                  "cybex update channel beta", "cybex update automatic prepare off", "cybex update confirm",
+                  "cybex update discard", "cybex apps list", "cybex apps search gimp", "cybex apps info gimp",
+                  "cybex apps updates", "cybex apps install --help", "cybex software flathub updates",
+                  "cybex software search gimp", "cybex status", "cybex cleanup run", "flatpak list",
+                  "flatpak info org.gimp.GIMP", "flatpak search gimp", "echo cybex update stage local",
+                  "env -i cybex update status", "env", "LANG=C", "cybex", "flatpak")
+
+
+class StepKindTest(unittest.TestCase):
+    """stepKind beside the pill's line, the same for both agents."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp(prefix="nas-")
+        self.turn = Turn("t-1", "claude", "q", self.home, set(), lambda *args: None)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.home, ignore_errors=True)
+
+    def snapshot(self):
+        snapshot = self.turn.snapshot()
+        return snapshot["step"], snapshot["stepKind"]
+
+    def claude(self, name, tool_input):
+        agent = ClaudeAgent("claude", self.home, "")
+        agent.turn = self.turn
+        agent._handle({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "tu", "name": name, "input": tool_input}]}})
+        return self.snapshot()[1]
+
+    def codex(self, item):
+        agent = CodexAgent("codex", self.home, "")
+        agent.turn = self.turn
+        agent._notification("item/started", {"item": dict(item, id="i1")})
+        return self.snapshot()[1]
+
+    def test_installing_commands_brew_and_others_run(self):
+        for command in SYSTEM_COMMANDS:
+            with self.subTest(command=command):
+                self.assertEqual(steps.command_kind(command), "install")
+        for command in PLAIN_COMMANDS:
+            with self.subTest(command=command):
+                self.assertEqual(steps.command_kind(command), "run")
+
+    def test_a_new_turn_thinks_and_a_finished_one_has_no_kind(self):
+        self.assertEqual(self.snapshot(), ("Thinking", "think"))
+        self.turn.set_step("Reading shell.json", "read")
+        self.turn.finish("completed", "done")
+        self.assertEqual(self.snapshot(), ("", ""))
+
+    def test_claude_code_tools(self):
+        cases = {
+            "think": [("TodoWrite", {"todos": []}), ("ExitPlanMode", {}), ("ToolSearch", {"query": "x"})],
+            "read": [("Read", {"file_path": self.home + "/.config/cybexos/shell.json"}),
+                     ("Read", {"file_path": "/tmp/screenshot.png"}), ("WebFetch", {"url": "https://nixos.org/x"}),
+                     ("NotebookRead", {}), ("Skill", {"skill": "cybexos"})],
+            "search": [("WebSearch", {"query": "q"}), ("Grep", {"pattern": "bar"}), ("Glob", {"pattern": "*"}),
+                       ("LS", {"path": "/"})],
+            "write": [("Edit", {"file_path": self.home + "/notes.txt"}), ("Write", {"file_path": self.home + "/a"}),
+                      ("MultiEdit", {"file_path": self.home + "/b"}), ("NotebookEdit", {"notebook_path": "n.ipynb"})],
+            "run": [("Bash", {"command": "ls ~"}), ("Bash", {"command": "cybex update status"}),
+                    ("Bash", {"command": "echo cybex update stage local"}), ("BashOutput", {})],
+            "install": [("Bash", {"command": command}) for command in SYSTEM_COMMANDS],
+            "delegate": [("Task", {"description": "look around"}), ("Agent", {"description": "x"})],
+            "tool": [("mcp__example__action", {}), ("mcp__cybexos__rm_rf", {}), ("SomethingNew", {})],
+        }
+        for tool, kind in DESKTOP_KINDS.items():
+            cases.setdefault(kind, []).append(("mcp__cybexos__" + tool, {}))
+        for kind, calls in cases.items():
+            for name, tool_input in calls:
+                with self.subTest(name=name, tool_input=tool_input):
+                    self.turn.set_step("Before", "tool" if kind == "think" else "think")
+                    self.assertEqual(self.claude(name, tool_input), kind)
+        self.assertEqual(set(cases), set(steps.KINDS))
+        # The stream's first word on a tool, then its input, then a new message.
+        agent = ClaudeAgent("claude", self.home, "")
+        agent.turn = self.turn
+        agent._handle({"type": "stream_event", "event": {"type": "content_block_start",
+                                                         "content_block": {"type": "tool_use", "name": "Bash"}}})
+        self.assertEqual(self.snapshot(), ("Running a command", "run"))
+        self.assertEqual(self.claude("Bash", {"command": "cybex update stage local"}), "install")
+        agent._handle({"type": "stream_event", "event": {"type": "message_start"}})
+        self.assertEqual(self.snapshot(), ("Thinking", "think"))
+
+    def test_codex_items(self):
+        cases = {
+            "think": [{"type": "reasoning"}, {"type": "plan", "text": "1. look"}],
+            "read": [{"type": "imageView", "path": "/tmp/screenshot.png"}],
+            "search": [{"type": "webSearch", "query": "q"}],
+            "write": [{"type": "fileChange", "changes": [{"path": self.home + "/notes.txt"}]}],
+            "run": [{"type": "commandExecution", "command": "/bin/bash -lc 'rg bar ~/.config'"},
+                    {"type": "commandExecution", "command": "cybex update status"}],
+            "install": [{"type": "commandExecution", "command": command} for command in SYSTEM_COMMANDS],
+            "delegate": [{"type": "collabAgentToolCall", "tool": "spawnAgent", "prompt": "look around"}],
+            "tool": [{"type": "dynamicToolCall", "tool": "x"}, {"type": "mcpToolCall", "server": "example",
+                                                               "tool": "settings_set"}],
+        }
+        for tool, kind in DESKTOP_KINDS.items():
+            cases.setdefault(kind, []).append({"type": "mcpToolCall", "server": "cybexos", "tool": tool})
+        for kind, items in cases.items():
+            for item in items:
+                with self.subTest(item=item):
+                    self.turn.set_step("Before", "tool" if kind == "think" else "think")
+                    self.assertEqual(self.codex(item), kind)
+        self.assertEqual(set(cases), set(steps.KINDS))
+        self.turn.set_step("Running a command", "run")
+        self.assertEqual(self.codex({"type": "agentMessage", "text": ""}), "think")
+        self.assertEqual(steps.codex_kind({"type": "contextCompaction"}), "")
+
+    def test_desktop_tools_and_staging(self):
+        self.assertEqual({tool: steps.desktop_kind(tool) for tool in desktop.TOOLS}, DESKTOP_KINDS)
+        staged = policy.decide_command("cybex update stage local", self.home, "/nonexistent/status.json")
+        self.turn.set_step("Running cybex update stage local", "install")
+        self.assertEqual(asyncio.run(self.turn.authorize(staged))[0], "allow")
+        self.assertEqual(self.snapshot(), ("Waiting for administrator authentication", "install"))
+        # A line without a kind keeps the current one.
+        self.turn.set_step("Working")
+        self.assertEqual(self.snapshot(), ("Working", "install"))
+
+
 class DesktopToolsTest(unittest.TestCase):
     def test_every_tool_is_described_and_named_for_mcp(self):
         listing = desktop.listing()
@@ -103,6 +255,44 @@ class DesktopToolsTest(unittest.TestCase):
         self.assertEqual(desktop.tool_name("mcp__cybexos__app_open"), "app_open")
         self.assertEqual(desktop.tool_name("mcp__other__app_open"), "")
 
+    def test_showing_a_setting_takes_one_row_and_acts(self):
+        spec = desktop.TOOLS["settings_show"]
+        # It opens a window on the person's screen: acting, not looking, and
+        # nothing for Undo, so not a change either.
+        self.assertEqual((spec["kind"], spec["where"], spec["label"]), (desktop.ACT, "shell", "Showed a setting"))
+        # One string, the row settings_search gives every result.
+        self.assertEqual(spec["schema"], {"type": "object", "properties": {"row": {"type": "string"}},
+                                          "additionalProperties": False, "required": ["row"]})
+        listed = next(tool for tool in desktop.listing() if tool["name"] == "settings_show")
+        self.assertFalse(listed["annotations"]["readOnlyHint"])
+        self.assertIn("where a setting is", listed["description"])
+        self.assertIn("row is the row of a settings_search result", listed["description"])
+        self.assertIn("When shown is false", listed["description"])
+        self.assertEqual(desktop.validate("settings_show", {}), "row is required.")
+        self.assertEqual(desktop.validate("settings_show", {"row": 3}), "row must be a string.")
+        self.assertEqual(desktop.validate("settings_show", {"key": "glassEnabled"}), "row is required.")
+        self.assertEqual(desktop.validate("settings_show", {"row": "wall", "value": 1}), "Unknown argument value.")
+        self.assertEqual(desktop.validate("settings_show", {"row": "glassEnabled"}), "")
+        self.assertEqual(desktop.validate("settings_show", {"row": "keyboard:keyboard-layouts"}), "")
+        self.assertEqual(steps.desktop_kind("settings_show"), "change")
+        self.assertEqual(steps.claude_tool("mcp__cybexos__settings_show", {"row": "wall"}), "Showing a setting")
+        self.assertEqual(steps.claude_record("mcp__cybexos__settings_show", {"row": "keyboard:keyboard-layouts"}),
+                         {"label": "Showed a setting", "detail": "keyboard:keyboard-layouts", "tool": True})
+        self.assertEqual(steps.codex_record({"type": "mcpToolCall", "server": "cybexos", "tool": "settings_show",
+                                             "arguments": {"row": "glassEnabled"}}),
+                         {"label": "Showed a setting", "detail": "glassEnabled", "tool": True})
+
+    def test_searching_says_which_rows_can_be_changed(self):
+        search = desktop.TOOLS["settings_search"]
+        self.assertEqual(search["schema"]["required"], ["query"])
+        for words in ("row (the string to pass to settings_show)", "changeable",
+                      "Only a result with changeable true can be changed with settings_set", "can only be shown"):
+            self.assertIn(words, search["description"])
+        self.assertIn("changeable true", desktop.TOOLS["settings_set"]["description"])
+        # settings_set still takes a key and a value, nothing else.
+        self.assertEqual(desktop.TOOLS["settings_set"]["schema"]["required"], ["key", "value"])
+        self.assertEqual(desktop.validate("settings_set", {"row": "glassEnabled", "value": True}), "key is required.")
+
     def test_policy_lets_the_service_decide_on_its_own_tools(self):
         self.assertEqual(policy.decide_tool("mcp__cybexos__window_close", {}, "/h").action, "allow")
 
@@ -120,6 +310,14 @@ class PromptTest(unittest.TestCase):
         self.assertTrue(text.endswith("Why does this fail?"))
         self.assertIn("may only look", prompt.turn_text("q", look_only=True))
         self.assertIn("ATTENTION: yes", prompt.turn_text("q", routine="Monday check"))
+        # Asked where something is, the agent shows it; asked to change it, it changes it.
+        self.assertIn("settings_show", prompt.INSTRUCTIONS)
+        self.assertIn("asks where a setting is", prompt.INSTRUCTIONS)
+        self.assertIn("pass the result's row to settings_show", prompt.INSTRUCTIONS)
+        self.assertIn("When its answer has shown false", prompt.INSTRUCTIONS)
+        self.assertIn("change it with settings_set as before", prompt.INSTRUCTIONS)
+        self.assertIn("Only a settings_search result with changeable true can be changed with\n  settings_set",
+                      prompt.INSTRUCTIONS)
         self.assertEqual(prompt.turn_text("plain"), "plain")
 
 
@@ -330,6 +528,57 @@ class AttachmentTest(ServiceTest):
         self.assertFalse(picture.exists())
 
 
+class RefusalTest(ServiceTest):
+    async def test_a_refusal_marks_the_rest_of_the_turn_with_both_agents(self):
+        for agent, expected in (("claude", "deny/allow"), ("codex", "decision:decline")):
+            with self.subTest(agent=agent):
+                self.client.notifications.clear()
+                started = await self.ask("refuse to reboot", agent=agent)
+                self.assertFalse(started["refused"])
+                refused = await self.client.turn(lambda turn: turn["refused"])
+                self.assertEqual(refused["status"], "running")
+                done = await self.client.finished()
+                self.assertEqual((done["status"], done["text"], done["refused"]), ("completed", expected, True))
+                self.client.notifications.clear()
+                await self.ask("echo me", agent=agent)
+                self.assertFalse((await self.client.finished())["refused"])
+
+    async def test_the_persons_own_deny_is_not_a_refusal(self):
+        self.approval_policy("ask")
+        for agent, text in (("claude", "bash"), ("codex", "command")):
+            with self.subTest(agent=agent):
+                self.client.notifications.clear()
+                await self.ask(text, agent=agent)
+                card = (await self.client.turn(lambda turn: turn["approvals"]))["approvals"][0]
+                await self.client.result("approval.respond", {"id": card["id"], "decision": "deny"})
+                done = await self.client.finished()
+                self.assertEqual(done["status"], "completed")
+                self.assertFalse(any(m["params"]["turn"]["refused"] for m in self.client.notifications
+                                     if m["method"] == "turn.updated" and m["params"]["turn"]))
+
+    async def test_each_kind_of_refusal_counts(self):
+        for decision in (policy.decide_edit(["/etc/cybexos/release.json"], self.harness.home),
+                         policy.decide_command("sudo true"), policy.decide_command("reboot"),
+                         policy.decide_command("systemctl poweroff"), policy.decide_command("nixos-rebuild switch"),
+                         policy.decide_command("cybex update rollback")):
+            with self.subTest(decision=decision):
+                turn = Turn("t-1", "claude", "q", self.harness.home, set(), lambda *args: None)
+                self.assertEqual((await turn.authorize(decision))[0], "deny")
+                self.assertTrue(turn.snapshot()["refused"])
+                await turn.authorize(policy.decide_command("ls"))
+                self.assertTrue(turn.snapshot()["refused"])
+
+
+# What the shell answers for settings_show (Common/AssistantTools.qml).
+SHOWN = {"row": "glassEnabled", "label": "Glass effect", "page": "Appearance", "tab": "", "group": "Surfaces",
+         "widget": "", "where": "Appearance › Glass effect", "shown": True}
+# And for a row Wiz cannot point at: Settings opened on its page.
+PAGE_ONLY = {"row": "keyboard:keyboard-layouts", "label": "Keyboard layouts", "page": "Keyboard", "tab": "Layouts",
+             "group": "Keyboard layouts", "widget": "", "where": "Keyboard › Layouts › Keyboard layouts",
+             "shown": False, "note": "Settings is open on Keyboard › Layouts, but Wiz cannot point at this row "
+                                     "there. Tell the person where to look on that page: Keyboard layouts."}
+
+
 class DesktopCallTest(ServiceTest):
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -337,6 +586,7 @@ class DesktopCallTest(ServiceTest):
             "settings_set": {"ok": True, "result": {"key": "bar", "before": "solid", "after": "transparent"}},
             "window_info": {"ok": True, "result": {"title": "notes.txt — Editor", "app": "Editor"}},
             "app_open": {"ok": False, "error": "No app is called Nonesuch."},
+            "settings_show": {"ok": True, "result": SHOWN},
         }).open(self.harness.socket)
         self.tools = await Client().open(self.harness.socket)
 
@@ -364,6 +614,18 @@ class DesktopCallTest(ServiceTest):
         invalid = await self.call("window_move", {"address": "a1"})
         self.assertEqual(invalid["text"], "workspace is required.")
 
+    async def test_each_tool_shows_its_kind(self):
+        await self.ask("hang")
+        for tool, arguments, step, kind in (
+                ("settings_get", {}, "Reading your preferences", "read"),
+                ("settings_search", {"query": "bar"}, "Looking up settings", "search"),
+                ("settings_set", {"key": "bar", "value": "transparent"}, "Changing a preference", "change"),
+                ("workspace_switch", {"workspace": 2}, "Switching workspace", "change")):
+            with self.subTest(tool=tool):
+                self.assertFalse((await self.call(tool, arguments))["isError"])
+                turn = await self.client.turn(lambda turn, step=step: turn["step"] == step)
+                self.assertEqual(turn["stepKind"], kind)
+
     async def test_a_side_question_may_only_look(self):
         await self.ask("hang")
         await self.ask("hang")
@@ -374,6 +636,47 @@ class DesktopCallTest(ServiceTest):
         self.assertIn("may only look", refused["text"])
         side = await self.client.turn(lambda turn: turn["needsChange"], lane="side")
         self.assertTrue(side["lookOnly"])
+
+    async def test_showing_a_setting_answers_where_it_is_and_records_nothing(self):
+        await self.ask("hang")
+        shown = await self.call("settings_show", {"row": "glassEnabled"})
+        self.assertFalse(shown["isError"])
+        self.assertEqual(json.loads(shown["text"]), SHOWN)
+        self.assertEqual(self.shell.requests[-1], ("settings_show", {"row": "glassEnabled"}))
+        turn = await self.client.turn(lambda turn: turn["step"] == "Showing a setting")
+        self.assertEqual(turn["stepKind"], "change")
+        self.assertEqual([(step["label"], step["detail"], step["tool"]) for step in turn["steps"]],
+                         [("Showed a setting", "glassEnabled", True)])
+        # An unknown key, or one Settings has no row for, fails with the shell's words.
+        self.shell.answers["settings_show"] = {
+            "ok": False, "error": "There is no setting called glass. Use settings_search to find one."}
+        unknown = await self.call("settings_show", {"row": "glass"})
+        self.assertEqual((unknown["isError"], unknown["text"]),
+                         (True, "There is no setting called glass. Use settings_search to find one."))
+        self.assertEqual((await self.call("settings_show", {}))["text"], "row is required.")
+        # A row Wiz cannot point at: the shell's answer, page and note, goes back as it is.
+        self.shell.answers["settings_show"] = {"ok": True, "result": PAGE_ONLY}
+        opened = await self.call("settings_show", {"row": "keyboard:keyboard-layouts"})
+        self.assertEqual((opened["isError"], json.loads(opened["text"])), (False, PAGE_ONLY))
+        self.assertEqual(self.shell.requests[-1], ("settings_show", {"row": "keyboard:keyboard-layouts"}))
+        await self.client.result("turn.stop")
+        done = await self.client.finished()
+        self.assertEqual(done["changes"], [])
+        self.assertEqual((await self.client.result("change.list"))["changes"], [])
+
+    async def test_showing_a_setting_needs_no_card_but_is_not_looking(self):
+        self.approval_policy("ask")
+        await self.ask("hang")
+        self.assertFalse((await self.call("settings_show", {"row": "glassEnabled"}))["isError"])
+        self.assertEqual((await self.client.turn(lambda turn: turn["step"] == "Showing a setting"))["approvals"], [])
+        # A question answered alongside may only look; a window put on the
+        # person's screen unasked is not looking.
+        await self.ask("hang")
+        refused = await self.call("settings_show", {"row": "glassEnabled"}, lane="side")
+        self.assertTrue(refused["isError"])
+        self.assertIn("may only look", refused["text"])
+        self.assertEqual(len([tool for tool, _ in self.shell.requests if tool == "settings_show"]), 1)
+        self.assertTrue((await self.client.turn(lambda turn: turn["needsChange"], lane="side"))["lookOnly"])
 
     async def test_closing_a_window_always_asks_and_installs_ask_first(self):
         await self.ask("hang")

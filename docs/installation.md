@@ -154,15 +154,19 @@ The flow is **Welcome → Disk → You → Software → Review → Installing �
   log belongs to this boot only.
 - **Done** offers restart or power off; installation never reboots by itself.
 
-Wiz, the assistant's character, keeps the system check, the installation and
-its outcome company without a word. Runes circle his hat while a check runs; he
-peeks from under it, an amber pip pulsing, while a check warns or fails or a
-question is open (a test build you accepted no longer counts); he is happy once
-everything passes. While the disk is written he works a spell, checking instead
-while the worker waits for a lost connection. When it is done he nods and
-sparkles; a stop that needs you shows him waiting, and a failure, sorry. He
-stays off Disk, You and Review, so the erase warning keeps full attention, and
-holds still under the sheets.
+Wiz, the assistant's character, keeps the system check, the software choice,
+the installation and its outcome company without a word. The star on the tip
+of his hat is his status light, as on the desktop. While a check runs he
+thinks: runes circle his hat and the star twinkles. He peeks from under the
+brim with a hand raised, the star pulsing amber, while a check warns or fails
+or a question is open (a test build you accepted no longer counts) and while
+you choose your software: it is your move. He is happy once everything passes.
+While the disk is written he brews: he stirs a cauldron, bubbles rise and the
+star twinkles; while the worker waits for a lost connection he thinks instead.
+When it is done he nods and sparkles. A stop that needs you shows him waiting
+with the amber star, and a failure, sorry, with the star red. He stays off
+Disk, You and Review, so the erase warning keeps full attention, and holds
+still under the sheets and with reduced motion.
 
 Before building the desktop, the installer explicitly copies already-built
 dependencies from the medium into the fresh machine's Nix store. This also

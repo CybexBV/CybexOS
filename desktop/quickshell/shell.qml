@@ -188,6 +188,7 @@ ShellRoot {
                 authChecking: Assistant.authChecking, hasDraft: Assistant.draft.trim() !== "",
                 x: Settings.assistantX, y: Settings.assistantY, size: Assistant.characterSize,
                 turn: Assistant.turn ? Assistant.turn.status : "", pose: Assistant.pose,
+                helper: Assistant.helper, facing: Assistant.facing,
                 composing: Assistant.composing, listening: Assistant.listening,
                 historyOpen: Assistant.historyOpen, continuing: Assistant.continuing,
                 conversations: Assistant.conversations.length,

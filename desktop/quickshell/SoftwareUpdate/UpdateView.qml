@@ -37,9 +37,9 @@ Item {
 
     onPageChanged: problemDetails = false
 
-    // Wiz (UpdatesHelpers.statusPose). A kept release is finished: he nods
-    // and sparkles once as the Kept page, or What's New, comes into view,
-    // then settles into happy.
+    // Wiz (UpdatesHelpers.statusPose). A kept release is proud: a thumbs-up
+    // and a sparkle once as the Kept page, or What's New, comes into view,
+    // then he settles into happy.
     readonly property var wiz: Helpers.statusPose(whatsNew ? "whats-new" : page, problem,
         Helpers.confirmFailed(deployment.state, deployment.request), kept !== null)
     readonly property string celebration: !service.appOpen ? ""
@@ -47,7 +47,7 @@ Item {
         : kept ? "kept " + kept.version : ""
     property string celebrated: ""
     property bool celebrating: false
-    readonly property string pose: wiz.pose === "finished" && !celebrating ? "happy" : wiz.pose
+    readonly property string pose: wiz.pose === "proud" && !celebrating ? "happy" : wiz.pose
 
     function celebrateOnce() {
         if (celebration !== "" && celebration !== celebrated) celebrate.restart();

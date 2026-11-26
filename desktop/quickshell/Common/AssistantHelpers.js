@@ -142,33 +142,88 @@ function finished(turn) {
     return !!turn && FINISHED_STATUSES.indexOf(turn.status) !== -1;
 }
 
+// What Wiz does for each kind of step the service reports (`stepKind`,
+// docs/assistant.md): a command and a desktop change are both spells.
+var STEP_POSES = {
+    think: "thinking", read: "reading", search: "searching", write: "writing", run: "casting",
+    change: "casting", install: "brewing", delegate: "delegating", tool: "working"
+};
+// A question that ran this long ends with a thumbs-up rather than a nod.
+var PROUD_AFTER_MS = 60000;
+// Nobody used the assistant for this long: he gets drowsy.
+var DROWSY_AFTER_MS = 600000;
+
+// The pose for a running turn's step. A service from before `stepKind`
+// sends none: then a tool's step is work and its own step is thinking.
+function workPose(stepKind, step) {
+    if (stepKind && STEP_POSES[stepKind])
+        return STEP_POSES[stepKind];
+    return step && step !== THINKING_STEP ? "working" : "thinking";
+}
+
+// How a completed turn is celebrated: a shrug when the ownership rules
+// refused something it asked for, a thumbs-up after a minute or more, a nod
+// otherwise.
+function celebrationPose(refused, took) {
+    if (refused)
+        return "shrug";
+    return (took || 0) >= PROUD_AFTER_MS ? "proud" : "finished";
+}
+
+// Whether an open reply offers something to act on: a widget to add to the
+// bar, or a staged change the updater has built and checked, waiting for
+// review (Assistant/AssistantReply.qml). A widget is on offer until it is on
+// the bar: `onBar` is what the shell itself knows to be there, whoever put
+// it there and whenever, and `added` what this reply's button was clicked
+// for a moment ago, before the shell has seen it.
+function replyOffers(turn, deployment, added, onBar) {
+    if (!turn || turn.status !== "completed")
+        return false;
+    var done = (added || []).concat(onBar || []);
+    var widget = (turn.plugins || []).some(function(plugin) {
+        return done.indexOf(plugin.id) === -1;
+    });
+    var review = !!turn.staged && !!deployment && deployment.transaction === turn.staged
+        && deployment.state === "ready";
+    return widget || review;
+}
+
 // Wiz's pose (Assistant/Wiz.qml), the most urgent state first: being
-// dragged, no service, the microphone, a question waiting, a turn at work (a
-// tool's step is work, the service's own step is thinking), a finished turn's
-// celebration or another happy moment, a failed reply, and an open box, which
-// he listens to.
+// dragged, no service, a file held over him, the microphone, a question
+// waiting, a turn at work (by the kind of its step), a routine's finding, a
+// finished turn's celebration or another happy moment, a long quiet while, a
+// failed reply, an open box, which he listens to, and a reply that offers
+// something to act on, which he points at.
 function characterPose(state) {
     if (state.dragging)
         return "carried";
     if (!state.connected)
         return "asleep";
+    if (state.fileOver)
+        return "curious";
     if (state.listening)
         return "listening";
     if (state.waiting)
         return "needs-input";
-    if (state.busy || state.transcribing)
-        return state.busy && state.step && state.step !== THINKING_STEP ? "working" : "thinking";
-    // A routine found something: the amber pip until it is opened.
+    if (state.busy)
+        return workPose(state.stepKind, state.step);
+    if (state.transcribing)
+        return "thinking";
+    // A routine found something: the amber star until it is opened.
     if (state.attention)
         return "needs-input";
     if (state.celebrating)
-        return "finished";
+        return celebrationPose(state.refused, state.took);
     if (state.speaking)
         return "happy";
+    if (state.drowsy)
+        return "drowsy";
     if (state.failed)
         return "sorry";
     if (state.composing)
         return "listening";
+    if (state.offers)
+        return "pointing";
     return "idle";
 }
 
@@ -671,6 +726,12 @@ var exported = {
     modelFor: modelFor,
     active: active,
     finished: finished,
+    STEP_POSES: STEP_POSES,
+    PROUD_AFTER_MS: PROUD_AFTER_MS,
+    DROWSY_AFTER_MS: DROWSY_AFTER_MS,
+    workPose: workPose,
+    celebrationPose: celebrationPose,
+    replyOffers: replyOffers,
     characterPose: characterPose,
     elapsedLabel: elapsedLabel,
     displayPath: displayPath,

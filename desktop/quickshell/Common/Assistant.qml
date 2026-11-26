@@ -35,7 +35,7 @@ Singleton {
     // The question waiting until Wiz is free ("Up next"), or null.
     property var queue: null
     property var routines: []
-    // The conversation a routine found something in: Wiz shows the amber pip
+    // The conversation a routine found something in: Wiz's star is amber
     // until it is opened.
     property string attentionConversation: ""
     // Bumped whenever the change log changes, so Settings reloads it.
@@ -67,9 +67,13 @@ Singleton {
     property bool authChecking: false
     property string signingIn: ""
 
-    readonly property bool busy: AssistantHelpers.active(turn)
-    readonly property bool sideBusy: AssistantHelpers.active(side)
-    readonly property bool waiting: turn !== null && turn.status === "waiting"
+    // Without the service nothing runs or waits. `turn`, `side` and `queue`
+    // keep its last word until it is back (hello), so each of these asks
+    // `connected` first: a stopped service leaves no working box, no wisp and
+    // nothing drawing behind.
+    readonly property bool busy: connected && AssistantHelpers.active(turn)
+    readonly property bool sideBusy: connected && AssistantHelpers.active(side)
+    readonly property bool waiting: connected && turn !== null && turn.status === "waiting"
     readonly property var approvals: turn && turn.approvals ? turn.approvals : []
     readonly property bool hasReply: AssistantHelpers.finished(turn)
     // The conversation a running question belongs to.
@@ -116,16 +120,70 @@ Singleton {
     property bool statusShown: false
     readonly property bool failed: turn !== null && turn.status === "failed" && replyOpen
 
+    // A file or image is held over the character, about to be dropped on him.
+    property bool fileOver: false
+    // Widgets the reply on screen offered and its button has added since.
+    property var addedWidgets: []
+    // The reply in view offers something to act on: he points at it. A
+    // widget is on offer until it is on the bar, as the shell itself knows
+    // (Common/UserPlugins): added from Settings or with `cybex plugin
+    // enable`, or before the shell last started, it is not offered again.
+    readonly property bool replyOffers: replyOpen && !composing && !historyOpen && !busy
+        && AssistantHelpers.replyOffers(turn, Updates.deployment, addedWidgets,
+            UserPlugins.enabledWidgets.map(widget => widget.id))
+
     readonly property var characterState: ({
         connected: root.connected, listening: root.listening, waiting: root.waiting,
         busy: root.busy, transcribing: root.transcribing, dragging: root.dragging,
         speaking: root.speaking, celebrating: root.celebrating, failed: root.failed,
         composing: root.composing || root.historyOpen, step: root.turn ? root.turn.step || "" : "",
-        attention: root.attentionConversation !== ""
+        stepKind: root.turn ? root.turn.stepKind : undefined,
+        refused: !!(root.turn && root.turn.refused),
+        took: root.turn && root.turn.finishedAt ? root.turn.finishedAt - (root.turn.startedAt || 0) : 0,
+        attention: root.attentionConversation !== "", fileOver: root.fileOver,
+        drowsy: root.drowsy, offers: root.replyOffers
     })
     readonly property string pose: AssistantHelpers.characterPose(characterState)
+    // The wisp beside him: someone works alongside or waits behind him. A
+    // second question answered in the side lane, a question waiting as Up
+    // next, or a routine's run (which takes the main lane). It keeps him
+    // drawing, so only while that work really runs or waits, and never
+    // without the service: asleep, he draws nothing.
+    readonly property bool helper: connected && (sideBusy || queue !== null || (busy && !!turn.routine))
+    // Tucked behind the right edge he faces left, so his star still shows;
+    // picked up, he turns back.
+    readonly property int facing: Settings.assistantTuck === "right" && !dragging ? -1 : 1
     // Wiz stands on his own and needs the room.
     readonly property real characterSize: Theme.scaled(88)
+
+    // ---- drowsy --------------------------------------------------------------
+    // After a long while in which nobody used the assistant (no hover, click,
+    // question, box or drag) he gets drowsy; anything of that kind wakes him
+    // (stir). Never while something is going on or waits for the person: a
+    // question running, alongside or Up next, a reply not yet seen, a routine's
+    // finding. One timer, started afresh whenever he is used.
+    property int drowsyAfter: AssistantHelpers.DROWSY_AFTER_MS
+    property bool drowsy: false
+    readonly property bool quiet: shown && connected && !busy && !sideBusy && queue === null && !listening
+        && !transcribing && !speaking && !celebrating && !dragging && !fileOver && !unread
+        && attentionConversation === "" && !capturing
+    onQuietChanged: {
+        if (!quiet)
+            drowsy = false;
+    }
+
+    function stir() {
+        drowsy = false;
+        if (dozing.running)
+            dozing.restart();
+    }
+
+    Timer {
+        id: dozing
+        interval: root.drowsyAfter
+        running: root.quiet && !root.drowsy
+        onTriggered: root.drowsy = true
+    }
 
     // ---- voice ---------------------------------------------------------------
     // Voxtype runs on every installation; Dictation watches its state for us.
@@ -363,6 +421,7 @@ Singleton {
     }
 
     function characterClicked() {
+        stir();
         if (Settings.assistantTuck !== "") {
             untuck();
             return;
@@ -604,6 +663,7 @@ Singleton {
 
     // ---- asking ----------------------------------------------------------------
     function send(text) {
+        stir();
         const prompt = String(text === undefined ? draft : text).trim();
         if (prompt === "" || (busy && queue !== null && sideBusy))
             return;
@@ -849,6 +909,8 @@ Singleton {
 
     function addWidget(pluginId) {
         Quickshell.execDetached(["cybex", "plugin", "enable", pluginId]);
+        if (addedWidgets.indexOf(pluginId) === -1)
+            addedWidgets = addedWidgets.concat([pluginId]);
         notice = I18n.tr("Added to the bar.");
     }
 
@@ -1577,6 +1639,8 @@ Singleton {
     function adopt(next) {
         const previous = turn;
         turn = next || null;
+        if (!next || !previous || previous.id !== next.id)
+            addedWidgets = [];
         if (!next)
             return;
         const wasActive = previous !== null && previous.id === next.id && AssistantHelpers.active(previous);
@@ -1754,14 +1818,22 @@ Singleton {
             root.routines = result.routines || [];
             const previous = root.turn;
             root.turn = result.turn || null;
+            if (!root.turn || !previous || previous.id !== root.turn.id)
+                root.addedWidgets = [];
             if (root.turn && AssistantHelpers.finished(root.turn)
                     && (!previous || previous.id !== root.turn.id))
                 root.replyOpen = false;
         });
     }
 
+    // Opening or closing the box, and typing in it, is using him.
+    onReplyOpenChanged: stir()
+    onHistoryOpenChanged: stir()
+    onDraftChanged: stir()
+
     // Recheck on opening: the person may have signed in or out in a terminal.
     onComposingChanged: {
+        stir();
         if (composing && connected)
             refreshAuth();
         if (composing && continuing !== "" && thread === null)

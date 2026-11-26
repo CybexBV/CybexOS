@@ -312,7 +312,7 @@ fn network_panel_stays_available_while_installation_waits_for_reconnection() {
     assert_eq!(store.get_install_pose(), "thinking", "Wiz should check while the network is away");
     state.message = "Connection restored. Resuming installation…".into();
     app.borrow_mut().apply_state(state);
-    assert_eq!(store.get_install_pose(), "working");
+    assert_eq!(store.get_install_pose(), "brewing");
 }
 
 /// Frames drawn while Slint's clock runs `ms` milliseconds ahead.
@@ -425,15 +425,15 @@ fn wiz_moves_only_while_he_checks_or_works_and_never_under_a_sheet() {
     assert_eq!(store.get_check_pose(), "needs-input");
     let waiting = frames_over(&surface, 20_000);
     assert!(waiting > 0 && waiting < 200, "needs-input drew {waiting} frames in 20 s");
-    // Installing: the spell works on, sorry after a failure.
+    // Installing: he stirs his brew, sorry after a failure.
     app.borrow_mut().apply_state(State {
         phase: "installing".into(),
         stage: 2,
         ..State::default()
     });
     draw(&surface);
-    assert_eq!(store.get_install_pose(), "working");
-    assert!(frames_over(&surface, 1000) >= 20, "working should loop");
+    assert_eq!(store.get_install_pose(), "brewing");
+    assert!(frames_over(&surface, 1000) >= 20, "brewing should loop");
     let mut failed = State {
         phase: "error".into(),
         error: "The installation download service could not be reached.".into(),
@@ -898,9 +898,9 @@ fn reduced_motion_holds_wiz_still_and_keeps_progress_readable() {
     assert!(frames_over(&surface, 3000) <= 3, "Wiz moved with reduced motion on");
     app.borrow_mut().apply_state(State { phase: "installing".into(), stage: 2, ..State::default() });
     draw(&surface);
-    assert!(frames_over(&surface, 3000) <= 4, "the spell moved with reduced motion on");
-    assert_eq!(store.get_install_pose(), "working", "the pose still says what happens");
+    assert!(frames_over(&surface, 3000) <= 4, "the brew moved with reduced motion on");
+    assert_eq!(store.get_install_pose(), "brewing", "the pose still says what happens");
     store.invoke_toggle_reduced_motion();
     draw(&surface);
-    assert!(frames_over(&surface, 1000) >= 20, "working should loop again");
+    assert!(frames_over(&surface, 1000) >= 20, "brewing should loop again");
 }

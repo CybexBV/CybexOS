@@ -52,7 +52,8 @@ or set up themselves.
     (Settings → **Include the focused window**, on by default);
   - selected text: `Super+Shift+I` opens the box with the primary
     selection attached;
-  - files and images dropped on Wiz (a ring shows where) or on the box, and
+  - files and images dropped on Wiz (a ring shows where, and he is curious,
+    hands out to catch it, while one is held over him) or on the box, and
     images pasted with `Ctrl+V`. Images go to the agent as images; other
     files as text, up to 256 KB, and the service refuses anything that is
     neither. Dropped and pasted images are copied to the scratch folder and
@@ -119,15 +120,37 @@ or set up themselves.
   Update's problem page an **Ask Wiz about this** button. Either opens the
   box with what that place knows attached as a chip and the question typed;
   nothing is sent until Enter. They show only while Wiz can answer.
+- **Ask where a setting is.** "Where do I change the wallpaper?" or "where
+  do I turn on the glass effect?" opens Settings on that page, scrolled to
+  the row (a folded **Advanced** group unfolds), and a small Wiz stands
+  beside the row and points at it while the row stays lit. The answer says
+  where it is in Settings' own words ("Appearance › Glass effect"). He
+  leaves when you change that setting, go to another page, close Settings,
+  or after 30 seconds. Asking him to change it changes it, as before. Any
+  row Settings' own search finds can be shown this way; for one he cannot
+  point at (a Network or Sound row, say), Settings opens on its
+  page and the answer says where on it to look.
 - **Talk** by holding `Super+I` (or the microphone button) and releasing it to
   send. The words are transcribed locally by Voxtype, with dictation's
   speech model and languages ([dictation.md](dictation.md)); no audio leaves
   the computer. `Esc` or the cancel button discards a recording.
-- **While it works** the character shows what it is doing (see
-  [The character](#the-character)) and the box a short line about the
-  current step. Clicking the character while it works tucks the box away;
-  a blue dot appears when the reply is ready. `Super+I` brings the box back
-  with its **Ask something else…** field.
+- **While it works** the character shows what kind of work the current
+  step is, and the box a short line about it: he thinks, reads a book,
+  searches an orb, writes on a scroll, casts a spell for a command or a
+  change, brews an install, or hands work to a helper (see
+  [The character](#the-character)). The star on his hat twinkles while he
+  works. Clicking the character while it works tucks the box away; his star
+  stays lit when the reply is ready. `Super+I` brings the box back with its
+  **Ask something else…** field.
+- **How it ended.** A finished question gets a nod and a sparkle, a
+  thumbs-up when it ran for a minute or more, and a shrug when the ownership
+  rules refused something it asked for (see the table below). A failed one
+  makes him sorry, with a red star. While the reply offers something to act
+  on, **Add to bar** or **Review change…**, he points his wand at it.
+- **Quiet.** After ten minutes in which nobody used the assistant (no
+  hover, click, question, box or drag) he gets drowsy, eyelids half down.
+  Anything of that kind wakes him. He never dozes while a question runs or
+  waits, a reply is unseen or a routine found something.
 - **A second question meanwhile** is answered alongside, in its own
   conversation, with permission only to look: read, search, the web, and
   read-only commands and desktop tools. If it needs to change something, it
@@ -135,7 +158,8 @@ or set up themselves.
   with changes allowed, as soon as the current question is done. **Run now**
   stops the current question first (after asking); × removes the waiting
   one. At most one question runs alongside and one waits; a question that
-  continues the running conversation waits too.
+  continues the running conversation waits too. While either is there, a
+  small wisp works beside Wiz; it also shows while a routine runs.
 - **A notification** says when a question that took longer than 20 seconds
   has finished, or when a question needs your answer, while the box was not
   in view on the screen you are using (hidden, tucked, another display, game
@@ -170,8 +194,10 @@ or set up themselves.
 - **Keeping out of the way.** Dragged near a corner or the middle of a side,
   he lands there (the spots show while dragging); anywhere else he stays
   exactly where he is dropped. Pushed past the left or right edge, he tucks
-  away with only his hat brim and one eye showing; his pips still show,
-  resting on him shows his status, and a click or `Super+I` brings him out.
+  away with only his hat brim and one eye showing. His star still shows
+  (behind the right edge he faces left, so it does), resting on him shows
+  his status, and a click or `Super+I` brings him out; picked up, he turns
+  back.
   A pointer that sweeps across him without stopping makes him fade to a
   ghost and lets its clicks through to the window underneath, until it moves
   away or rests on him for half a second (Settings → **Fade while working
@@ -228,10 +254,11 @@ apply live, check values, and record every change for Undo:
 
 | Tool | What it does | Without asking |
 | --- | --- | --- |
-| `desktop_status`, `settings_search`, `settings_get`, `wallpaper_search`, `software_search`, `doctor_run`, `routine_list` | Look: windows, workspaces, displays, theme; settings with their values; Wallhaven; Flathub; the system check; routines | Yes, also alongside and in routines |
+| `desktop_status`, `settings_search`, `settings_get`, `wallpaper_search`, `software_search`, `doctor_run`, `routine_list` | Look: windows, workspaces, displays, theme; Settings' rows, with the values of those `settings_set` may change; Wallhaven; Flathub; the system check; routines | Yes, also alongside and in routines |
 | `settings_set`, `wallpaper_set` | Change a preference (checked exactly as the Settings window checks it; the assistant's own settings are refused) or the wallpaper (a Wallhaven image is downloaded into the wallpaper folder) | Yes; listed under Changed |
 | `routine_create`, `routine_delete` | Create or remove a routine | Yes; listed under Changed |
 | `app_open`, `window_focus`, `window_move`, `workspace_switch` | Open an app, focus or move a window, show a workspace | Yes |
+| `settings_show` | Open Settings at one row, where a small Wiz points at it, or on its page (see below) | Yes, but not alongside or in routines: opening a window is not looking. Nothing to undo |
 | `window_close` | Close a window | **Always asks**, even under Always allow: the app may have unsaved work |
 | `flatpak_install`, `flatpak_remove` | Install or remove a Flathub app for this account (`cybex software flathub`), waiting until it is done | Asks under Ask first; listed under Changed, and Undo removes or reinstalls it |
 
@@ -241,6 +268,53 @@ that only the desktop can carry out (preferences, the wallpaper, windows,
 apps) go to the shell as `desktop.request` and are answered by
 `Common/AssistantTools.qml`. The shell and terminal stay available for
 everything else, under the policy table above.
+
+`settings_search` searches every row of Settings' search index
+(`Common/SettingsSearchData.js`), best first, at most 12. Each result has
+`row`, the one string `settings_show` takes for it, its `label`, `page` and
+`group`, its `key` (`""` for a row without one) and `changeable`. Only a
+row with a settings key that is not the assistant's own is changeable; it
+also has `current`, `default` and `type`, and `settings_set` takes its
+`key`. Every other row (the assistant's own settings, default apps,
+shortcuts, displays, sound, network and the like) can only be shown, and
+`settings_set` still refuses its key. A row's `row` is its settings key,
+else its search anchor, else its page and label (`keyboard:keyboard-layouts`;
+`Common/SettingsGuide.js`).
+
+`settings_show` ("Show me where") takes one `row`. The agent is told to use
+it when the person asks where a setting is or how to find it, and to change
+a setting with `settings_set` when asked to change it. For a row with a key
+or an anchor, Settings opens at the row (its own tab, a widget's dialog, an
+unfolded **Advanced** group), and the tool answers once Wiz stands there,
+with where it is in the words the window shows: `{"row", "label", "page",
+"tab", "group", "widget", "where": "Appearance › Glass effect", "shown":
+true}`. A row with neither cannot be found on its page: Settings opens that
+page and tab (or the widget's dialog) without Wiz, ends a guide that was
+running, and answers at once with `"shown": false` and a `note` that says
+where on the page to look, which the agent passes on. An unknown row, a
+setting no row shows, and a row this computer does not show (Settings looks
+for four seconds) fail with a sentence for the agent. Its step reads
+"Showing a setting" and its `stepKind` is `change`: like `app_open` it acts
+on the desktop, so the corner Wiz casts while the window opens.
+
+In Settings (`Settings/SettingsGuide.qml`), a 48 px Wiz in the `pointing`
+pose stands beside the row, facing it, and points with his wand; the row
+keeps its search wash and gets a 2 px accent ring for as long as he points.
+Where he stands is plain geometry (`Common/SettingsGuide.js`): the first of
+these spots whose box covers neither the row's label as drawn nor any of
+its controls (nor its changed mark and reset chip), and lies in the page's
+visible area and margin, wins: before the label in the page's margin,
+pointing right; between the label and its control, pointing at the
+control; after the row, pointing left; over the row pointing down; under it
+pointing up. He arrives with a short drop and a landing, glides when a
+second call moves him, and holds still once settled (about three seconds):
+no animation and no frame drawn for him while he points. With reduced
+motion he is simply there. He waits unseen while the row is scrolled out of
+view. The guide ends, and he leaves, when the person changes that setting,
+leaves the page or tab, closes Settings, another jump lands (search, a Home
+link), the row goes away (a dialog closed, a group folded) or after 30
+seconds. One guide at a time. Nothing of him exists between guides; the
+corner Wiz is not involved.
 
 ## Changes and Undo
 
@@ -270,7 +344,7 @@ missed while the computer was off runs once at the next chance. It only
 looks: its question may not change anything, and fixes wait for the person
 in its conversation, which History marks with a calendar. Its reply starts
 with a verdict line the service reads and removes. With a finding, or always
-when the routine says so, a notification follows and Wiz shows the amber pip
+when the routine says so, a notification follows and Wiz's star stays amber
 until the conversation is opened; with nothing to report, only History has
 the run. Routines are kept in `routines.json` beside the conversations, whatever
 **Keep conversations** says.
@@ -299,49 +373,162 @@ Settings → Assistant, stored in `~/.config/cybexos/shell.json`:
 
 ### The character
 
-Wiz is a small figure in a charcoal cloak under an oversized, slightly
-crooked hat with the red Cybex band. His face stays in shadow and two glowing
-eyes carry the expression. He follows the assistant's turn:
+Wiz is a small figure in a charcoal cloak and cape under an oversized,
+slightly crooked hat with the red Cybex band. His face stays in shadow; two
+glowing ice-white eyes, with eyelids, carry the expression. He has pale
+mittens on sleeves that stretch, a wand, boots, and a star that hangs from the
+tip of his hat. His hands show at rest.
 
-| Pose | When |
+`pose` on `Assistant/Wiz.qml` is one of these:
+
+| Pose | What he does | When the assistant shows it |
+| --- | --- | --- |
+| Idle | stands, blinks and glances around | nothing else below applies |
+| Drowsy | eyelids half down, hands tucked in | ten minutes (`DROWSY_AFTER_MS`) without a hover, click, question, box or drag, while nothing runs or waits for you (no question at work, alongside or Up next, no unseen reply, no routine's finding) |
+| Listening | leans in with a hand at his ear; the hat rises with your voice | you are talking, or the box or History is open |
+| Thinking | looks up, a finger tapping his chin; runes circle the hat | the step is `think` or there is none yet, and while your words are transcribed |
+| Working | the same as casting | the step is `tool`, any other tool; also any tool step from a service that sends no `stepKind` |
+| Reading | holds an open book; his eyes run along the lines | the step is `read`: a file, a page, an image or a look-only desktop tool |
+| Searching | his hands round a glowing orb | the step is `search`: the web, files or the desktop's search tools |
+| Writing | writes line after line on a scroll with a quill | the step is `write`: editing a file |
+| Casting | waves his wand; a spell glows at its tip | the step is `run` (a command) or `change` (a desktop tool that changes or acts) |
+| Brewing | stirs a cauldron; bubbles rise | the step is `install`: adding, removing or updating an app, or staging or applying a system change |
+| Delegating | an open hand towards the wisp beside him | the step is `delegate`: a helper agent |
+| Needs input | peeks from under the brim with a hand raised | a question waits for your answer, or a routine found something |
+| Pointing | points his wand at the box: down, or up when it opens above him | the reply in view offers **Add to bar** for a widget that is not on the bar yet, however it would have got there (the shell's own list, `UserPlugins.enabledWidgets`), or **Review change…** (built and checked), once the celebration is over |
+| Finished | happy eyes, a nod and a short sparkle | for 2.4 s after a question completed in under a minute |
+| Proud | a thumbs-up and a sparkle | for 2.4 s after a question completed that ran a minute or more (`PROUD_AFTER_MS`) |
+| Happy | happy eyes | speaking a reply |
+| Greeting | tips his hat and waves | not by the assistant: the welcome guide's hello |
+| Shrug | open hands, one eyelid down | for 2.4 s after a question completed in which the ownership rules refused something it asked for (`turn.refused`), however long it ran |
+| Sorry | hat tipped down, worried eyes, wringing his hands | the reply in view failed |
+| Curious | leans in, one eye wide, hands out | a file or image is held over him, about to be dropped |
+| Asleep | hat down, eyes closed, three still z's | the assistant service is not running |
+| Carried | see below | you are dragging him |
+
+`AssistantHelpers.characterPose` picks the assistant's pose, the most urgent
+first: carried, asleep, curious, listening to your voice, needs input, the
+work pose (thinking while your words are transcribed), a routine's finding,
+the celebration (shrug, proud or finished), happy, drowsy, sorry, listening
+to the box, pointing, idle. Greeting is there for the welcome guide; other
+surfaces use the rest as [Wiz elsewhere](#wiz-elsewhere) says.
+
+The star on his hat is his one status light. It replaces the amber and the
+blue pip he used to carry:
+
+| Star | It says |
 | --- | --- |
-| Listening | the box is open, or you are talking (the hat rises with your voice) |
-| Thinking | a question is being worked on; runes circle the hat |
-| Working | a tool is at work (a command, an edit); a spell glows in front of him |
-| Needs input | a question waits for your answer; he peeks from under the brim and an amber pip pulses |
-| Finished | an answer arrived: happy eyes, a nod and a short sparkle |
-| Carried | you are dragging him (see below) |
-| Happy, sorry, asleep | speaking; a failed reply; the assistant service is not running |
-| Idle | everything else |
+| Dim | nothing to report |
+| Accent, twinkling | he is at work |
+| Accent, steady | a reply you have not seen (`unread`), or he is attentive: listening, pointing, a finished turn |
+| Amber, pulsing | your move |
+| Red | it failed |
+| Dark | asleep |
+
+A ring round the star fills as a job reports how far it is (`progress`, 0 to
+1; below 0 there is no ring). The star swings on its thread when he changes
+pose. Only Software Update's status page sets `progress`, from the same
+measured fraction as its progress bar: a download whose size is known, or
+the firmware's percent. A turn reports only steps, never how far it is, so
+the assistant's Wiz has no ring.
+`helper` puts the wisp beside him in any pose but asleep: the assistant sets
+it while a second question is answered alongside, one waits Up next, or a
+routine runs (`Assistant.helper`), and only then, as the wisp keeps him
+drawing. Without the service nothing runs or waits, whatever it last said
+about its questions: no wisp, no working box, and asleep he draws nothing.
+`facing: -1` mirrors him, so he can point the other way and his star shows
+when he is tucked behind the right screen edge (`Assistant.facing`; picked
+up, he faces right again); what is written ("?!", the z's) still reads the
+right way round.
+
+His magic takes the theme's accent: the runes, the spell, the lit star and
+its ring, the orb, the cauldron's brew, the wisp, the lines he writes and the
+light they cast on him. His eyes stay ice-white, and amber and red stay amber
+and red. Still pictures of him (the terminal, notifications, the installer)
+are in Cybex blue.
+
+His hands do something in most poses. While he works they keep moving: he
+taps his chin, circles the orb, writes, waves the wand, stirs. A pose that
+is not work moves once as it arrives and then holds still: three waves of
+hello, a thumbs-up, a shrug, wringing hands, two jabs of the wand. His eyes
+follow the pointer while it rests on him.
 
 Dragging him is a small panic. Picked up, he jumps, his hat pops off, "?!"
-flashes, sweat flies and his feet come out from under the cloak, kicking.
-While you move him he swings from where you hold him, his bottom trailing,
-and follows the pointer's speed and direction: pulled sideways, his hat and
-its tip blow back, his feet trail and his eyes look ahead; lifted, the hat is
-shoved down over his eyes; dropping, it floats off above him while he stares
-up at it. A diagonal drag combines both and stretches him along it. Held
-still, he trembles and sweats. A few quick back-and-forths make him dizzy:
-spiral eyes, his hat askew and stars circling it, for about two seconds after
-he is put down. Dropped, he lands with a thud, eyes squeezed shut and a puff
-of dust, harder the faster he was moving; his hat lands a beat later,
+flashes, sweat flies, his hands go up and his feet come out from under the
+cloak, kicking. While you move him he swings from where you hold him, his
+bottom trailing, his hands flailing, and follows the pointer's speed and
+direction: pulled sideways, his hat and its tip blow back, the star streams
+out behind, his hands and feet trail and his eyes look ahead; lifted, the hat
+is shoved down over his eyes; dropping, it floats off above him while he
+stares up at it. A diagonal drag combines both and stretches him along it.
+Held still, he trembles and sweats. A few quick back-and-forths make him
+dizzy: spiral eyes, his hat askew and stars circling it, for about two seconds
+after he is put down. Dropped, he lands with a thud, eyes squeezed shut and a
+puff of dust, harder the faster he was moving; his hat lands a beat later,
 crooked, and he shakes it straight.
-
-A blue pip marks a reply you have not seen, as the menubar dot does. His eyes
-follow the pointer while it rests on him.
 
 Wiz is cheap to keep on screen. He is drawn from still layers
 (`desktop/quickshell/assets/wiz/`), each rendered once at its final size and
 then only moved: no canvas, and no per-frame script except while he is being
-dragged. The overlay covers the whole
-display, so every frame he draws is a frame of the display. Idle, he holds
-still between blinks, glances and a rare wobble of the hat: a few frames a
-second, against sixty for a canvas redrawn every frame. Continuous
-motion is reserved for a running turn, recording and a drag; after a drop he
-is still again within about three seconds. A waiting question
-pulses three times, then once every eight seconds. With reduced motion, the
-power saver profile or an idle session he holds each pose still, and nothing
-runs while he is hidden.
+dragged. A sleeve is one picture, turned and stretched from the shoulder.
+Only what every pose shows is always there: his body, face, hat, hands and
+star. What a pose or a moment adds (the runes, whatever he works with, the
+wisp, the z's, the sparkles, the progress ring, his legs and all that a drag
+throws about) is made as it fades in and let go once it has faded out, which
+takes the main thread about half a millisecond. A Wiz that never works, like
+the one in the empty notification centre, holds none of it.
+
+The overlay covers the whole display, so every frame he draws is a frame of
+the display. Idle, he holds still between blinks, glances and a rare wobble of
+the hat: a few frames a second, against sixty for a canvas redrawn every frame.
+Continuous motion is reserved for a running turn, recording, a helper's wisp
+and a drag; after a drop he is still again within about three seconds. A
+waiting question pulses the star and waves his raised hand three times, then
+once every eight seconds. Asleep, he draws nothing: his z's stand still. Only
+the welcome guide's Connect step sets `snoring`, which makes them rise beside
+his hat and fade in a loop, the cue there that he sleeps until an account is
+connected. With reduced motion, the power saver profile or an idle session he
+holds each pose still: every loop and gesture stops at once, a fade already
+on its way runs out within half a second, and nothing runs while he is hidden.
+
+Three things Qt's Animators do when they stop shape `Wiz.qml` (measured in
+Quickshell on Qt 6.12). One that is stopped leaves its item where it was; in
+a sequence only the last step does, an earlier one falls back to where the
+item stood. `complete()` does not end one: it runs on to its end. And
+stopping one emits `finished`. So every loop puts back what it moved as it
+stops, whatever plays once is stopped and put back when he may no longer
+move, the star turns a quarter at a time instead of in a loop that runs to
+its end, and the animation that settles him between poses is never started
+again while it runs. `tests/quickshell/wiz.test.cjs` reads every item an
+Animator moves from the file and fails for one that is not put back.
+
+The accent costs nothing per frame either. The layers that carry magic are
+drawn again from the rig once per accent (a few milliseconds) and shared by
+every Wiz on screen (`Common/WizArt.qml`); a change of theme redraws them
+once. The ring's arc is drawn again only when `progress` moves a sixtieth.
+Qt loads a picture in the accent off the main thread, so the first time a pose
+needs one it shows a frame or two into the pose's fade. `WizArt` also holds
+the one copy of the rig: a script imported by `Wiz.qml` itself would be loaded
+again for every Wiz and every part he is built of.
+
+Measured against the Wiz he replaced (2026-11-26), each pair at the same
+moment, in a private headless Sway with Quickshell drawing on Mesa's llvmpipe,
+where the processor does the graphics card's work too: idle and a waiting
+question draw the same few frames a second as before (about 10 and 14,
+averaged over 80 s) for the same processor time, and every kind of work draws
+the display's 60 frames a second, as the old working pose did, for up to a
+tenth more time on the main and render threads together.
+
+He holds less memory than that Wiz did. Counted as the difference between nine
+of him on screen and one (the shell's private memory, three runs each, all
+within 0.1 MB), a resting Wiz holds 0.9 MB, where the old one held 4.4 MB,
+2.7 MB of it his own copy of the rig's script. After every pose and a drag he
+holds 2.0 MB (5.7 MB before): what has run once keeps that much, and further
+turns add nothing. The first Wiz on screen also brings the rig and the
+pictures, 5.3 MB in all (11.6 MB before), and each further size he is shown
+at brings its own pictures, about 0.5 MB. The shell's total says little about
+him: its allocator hands freed memory back late, so the total moves by tens of
+megabytes between identical runs.
 
 His artwork, poses and timing live in `Common/WizRig.js`. After changing it,
 run `scripts/export-wiz` to rebuild the layers, the still poses in
@@ -352,22 +539,28 @@ of date.
 
 The same character shows the state of the system's other long or uncertain
 moments, and each pose means the same thing everywhere: thinking is checking,
-working is changing something, the amber pip is your move, listening is a
-question to you, sorry is a failure and asleep is nothing available. He speaks
+working is changing something (casting a command or a setting, brewing an
+install), the amber star is your move, listening is a question to you, sorry
+(with the red star) is a failure and asleep is nothing available. He speaks
 only once, in the welcome guide's hello; everywhere else he only shows.
 
 | Where | What he shows |
 | --- | --- |
-| Installer ([installation](installation.md)) | the system check (thinking, happy, or the amber pip), the installation (working), done (finished), stopped or failed |
+| Installer ([installation](installation.md)) | the system check (thinking, then happy, or the amber star), the Software step (the amber star), the installation (brewing), done (finished), stopped (the amber star) or failed (sorry) |
 | Welcome guide ([welcome](welcome.md)) | a greeting on Hello, asleep on Connect until an agent is signed in, the system check on Ready, then the hop to his corner |
-| Software Update ([updates](updates.md)) | every status page, and What's New once a new Cybex OS version is kept |
-| Launcher | **Ask Wiz** when nothing matches |
+| Software Update ([updates](updates.md)) | every status page: thinking while checking, brewing while preparing, installing or restoring, with the ring round his star when a download or the firmware reports how far it is; a thumbs-up for a kept Cybex OS version and its What's New |
+| Launcher | **Ask Wiz** when nothing matches: curious, hands out for your words |
 | Notifications | the empty notification centre; asleep under Focus |
-| Disk unlock at boot, lock screen, kitty's fastfetch ([branding](branding.md)) | still pictures: asleep, listening as you type, sorry or happy at unlock |
+| Notes | the empty notes popover, pointing at **Write a note** |
+| Settings | only when asked where a setting is: beside its row, pointing at it ([Desktop tools](#desktop-tools)) |
+| The assistant's own notifications | a still picture of the news: finished, needs input or sorry |
+| Kitty's fastfetch ([branding](branding.md)) | a still picture: idle, the star dim |
 
 He stays out of permission prompts, the installer's disk choice and erase
-review, Settings pages, the update review, the menubar, notification toasts,
-the boot menu and the recovery desktop. While the welcome guide fills the
+review, Settings pages (he appears there only when asked to show a
+setting), the update review, the menubar, other notification toasts, the
+boot menu, the boot splash and its disk unlock, the lock screen and the
+recovery desktop. While the welcome guide fills the
 screen, its Wiz is the only one: the corner Wiz waits and takes over when the
 guide closes.
 
@@ -515,6 +708,8 @@ A turn snapshot:
   "prompt": "Make the menubar transparent",
   "status": "running | waiting | completed | stopped | failed",
   "step": "Editing shell.json",
+  "stepKind": "think | read | search | write | run | change | install | delegate | tool | ''",
+  "refused": false,
   "text": "…",
   "error": "",
   "errorKind": "auth | missing | crashed | ''",
@@ -555,6 +750,19 @@ A conversation summary:
   "updatedAt": 1761223400000
 }
 ```
+
+`stepKind` says what kind of work `step` is, the same for Claude Code and
+Codex: `think` (reasoning, planning), `read` (files, web pages, images and the
+look-only desktop tools that read), `search` (the web, files and the desktop
+search tools), `write` (editing files), `run` (a command), `change` (a desktop
+tool that changes or acts), `install` (adding, removing or updating an app,
+or staging or applying a system change, the guided `cybex update` among
+them), `delegate` (a helper agent), `tool` (any other tool), or `""` when
+there is no step. While a card waits, it keeps the kind of
+the action waiting. `refused` turns true once the ownership rules refused a
+tool request in this question (the Refused rows above, and the recovery
+commands such as `cybex update rollback`) and stays true until it ends; the
+person's own Deny is not a refusal. Neither is kept after a restart.
 
 `ready` (apply cards only) is true when the lifecycle status shows that
 transaction built and checked. Errors: `-32001` busy, `-32002` no such

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 from urllib.parse import urlparse
 
 
@@ -21,6 +22,166 @@ def running(command):
 
 def editing(path):
     return "Editing " + basename(path) if path else "Editing a file"
+
+
+# ---- what kind of work a step is ---------------------------------------------
+# The turn snapshot's `stepKind`, beside the pill's line, so the character can
+# show it. Claude Code and Codex map the same way.
+
+THINK, READ, SEARCH, WRITE, RUN = "think", "read", "search", "write", "run"
+CHANGE, INSTALL, DELEGATE, TOOL = "change", "install", "delegate", "tool"
+KINDS = (THINK, READ, SEARCH, WRITE, RUN, CHANGE, INSTALL, DELEGATE, TOOL)
+
+CLAUDE_KINDS = {
+    "Read": READ, "NotebookRead": READ, "WebFetch": READ, "Skill": READ,
+    "WebSearch": SEARCH, "Grep": SEARCH, "Glob": SEARCH, "LS": SEARCH,
+    "Edit": WRITE, "Write": WRITE, "MultiEdit": WRITE, "NotebookEdit": WRITE,
+    "BashOutput": RUN, "KillShell": RUN, "KillBash": RUN,
+    "TodoWrite": THINK, "ExitPlanMode": THINK, "ToolSearch": THINK,
+    "Task": DELEGATE, "Agent": DELEGATE,
+}
+# Look-only desktop tools that search rather than read.
+DESKTOP_SEARCH = frozenset({"settings_search", "wallpaper_search", "software_search"})
+SHELL_FLAGS = ("-c", "-lc", "-cl", "-ec", "-ce")
+
+
+def desktop_kind(name):
+    """The kind of one of Cybex OS's own desktop tools (desktop.py)."""
+    from . import desktop
+    kind = desktop.kind(name)
+    if kind == desktop.LOOK:
+        return SEARCH if name in DESKTOP_SEARCH else READ
+    # Acting on the desktop is a change too, though nothing is recorded:
+    # opening an app, moving a window, opening Settings at a row for
+    # settings_show. Wiz casts while the window opens; the small Wiz in
+    # Settings does the pointing.
+    if kind in (desktop.CHANGE, desktop.ACT):
+        return CHANGE
+    if kind == desktop.INSTALL:
+        return INSTALL
+    return TOOL
+
+
+# env's options that take the next word as their value.
+ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-a", "--argv0"})
+# cybex's options that take the next word as their value (lifecycle/cybexos/cli.py).
+CYBEX_VALUE_OPTIONS = frozenset({"--scope", "--source", "--names"})
+# What builds, stages or activates a system, or adds, removes or updates apps,
+# in cybex's own command set (lifecycle/cybexos/cli.py): the guided `cybex
+# update` (with no subcommand) is handled apart, as it only reads with --json.
+CYBEX_INSTALLS = (
+    ("update", "stage"), ("update", "apply"), ("update", "rollback"), ("update", "retry-failed"),
+    ("apps", "install"), ("apps", "remove"), ("apps", "update"),
+    ("software", "stage"),
+    ("software", "flathub", "install"), ("software", "flathub", "remove"), ("software", "flathub", "update"),
+)
+# Flatpak's verbs that install, remove or update apps (remove is uninstall's alias).
+FLATPAK_INSTALLS = frozenset({"install", "uninstall", "remove", "update"})
+
+
+def unwrapped(words):
+    """The command a word list runs, past variable assignments and `env` with its options."""
+    words = list(words)
+    while words:
+        first = words[0]
+        if "=" in first and not first.startswith(("=", "-")):
+            words.pop(0)
+            continue
+        if os.path.basename(first) != "env":
+            break
+        words.pop(0)
+        while words and words[0].startswith("-"):
+            option = words.pop(0)
+            if option == "--":
+                break
+            if option in ("-S", "--split-string") and words:
+                try:
+                    words = shlex.split(words.pop(0)) + words
+                except ValueError:
+                    return []
+            elif option.startswith("--split-string="):
+                try:
+                    words = shlex.split(option.split("=", 1)[1]) + words
+                except ValueError:
+                    return []
+            elif option in ENV_VALUE_OPTIONS and words:
+                words.pop(0)
+    return words
+
+
+def cybex_installs(args):
+    """Whether `cybex ARGS` installs (see CYBEX_INSTALLS), as cybex itself parses them."""
+    positional, options = [], set()
+    args = list(args)
+    while args:
+        word = args.pop(0)
+        if word.startswith("-"):
+            options.add(word.split("=", 1)[0])
+            if word in CYBEX_VALUE_OPTIONS and args:
+                args.pop(0)
+        else:
+            positional.append(word)
+    if options & {"-h", "--help"}:
+        return False
+    if positional == ["update"]:
+        # The guided update checks, prepares and applies; with --json it only prints the status.
+        return "--json" not in options
+    return any(tuple(positional[:len(verbs)]) == verbs for verbs in CYBEX_INSTALLS)
+
+
+def command_kind(command, depth=0):
+    """`install` for a command that builds, stages or activates a system, or
+    adds, removes or updates an app; `run` for any other."""
+    from . import policy
+    for argv in policy.segments(str(command or "")) or []:
+        words = unwrapped(argv)
+        if not words:
+            continue
+        name = os.path.basename(words[0])
+        if name in policy.SHELLS and len(words) >= 3 and words[1] in SHELL_FLAGS and depth < 3:
+            if command_kind(words[2], depth + 1) == INSTALL:
+                return INSTALL
+            continue
+        if name == "cybex" and cybex_installs(words[1:]):
+            return INSTALL
+        verbs = [word for word in words[1:] if not word.startswith("-")]
+        if name == "flatpak" and verbs[:1] and verbs[0] in FLATPAK_INSTALLS:
+            return INSTALL
+    return RUN
+
+
+def claude_kind(name, tool_input):
+    tool_input = tool_input if isinstance(tool_input, dict) else {}
+    if name == "Bash":
+        return command_kind(tool_input.get("command", ""))
+    if name in CLAUDE_KINDS:
+        return CLAUDE_KINDS[name]
+    from . import desktop
+    ours = desktop.tool_name(name) if name.startswith("mcp__") else ""
+    return desktop_kind(ours) if ours else TOOL
+
+
+def codex_kind(item):
+    kind = item.get("type") if isinstance(item, dict) else None
+    if kind == "commandExecution":
+        return command_kind(item.get("command", ""))
+    if kind == "fileChange":
+        return WRITE
+    if kind == "webSearch":
+        return SEARCH
+    if kind == "mcpToolCall":
+        from . import desktop
+        ours = desktop.tool_name(item.get("tool", ""))
+        return desktop_kind(ours) if ours and item.get("server") in (None, desktop.SERVER) else TOOL
+    if kind == "dynamicToolCall":
+        return TOOL
+    if kind in ("reasoning", "plan"):
+        return THINK
+    if kind == "imageView":
+        return READ
+    if kind == "collabAgentToolCall":
+        return DELEGATE
+    return ""
 
 
 def claude_tool(name, tool_input):
@@ -76,8 +237,12 @@ def codex_item(item):
         return "Using " + short(item.get("tool", "a tool"), 40)
     if kind == "reasoning":
         return "Thinking"
+    if kind == "plan":
+        return "Planning"
     if kind == "imageView":
         return "Looking at the screenshot"
+    if kind == "collabAgentToolCall":
+        return "Delegating"
     return ""
 
 
@@ -146,4 +311,6 @@ def codex_record(item):
         return entry("Used " + (tool or "a tool"), item.get("server") or "")
     if kind == "imageView":
         return entry("Looked at an image")
+    if kind == "collabAgentToolCall" and item.get("tool") == "spawnAgent":
+        return entry("Asked a helper", item.get("prompt") or "")
     return None

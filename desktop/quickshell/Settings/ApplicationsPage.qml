@@ -31,7 +31,7 @@ SettingsPage {
                     readonly property var role: DefaultApplications.roles[modelData.id] || ({})
                     width: parent.width
                     label: I18n.tr(modelData.label)
-                    property string searchAnchor: "applications-" + modelData.id
+                    searchAnchor: "applications-" + modelData.id
                     model: role.choices || []
                     current: role.selected || ""
                     enabled: !DefaultApplications.busy && model.length > 0
@@ -46,7 +46,7 @@ SettingsPage {
             }
             ValueRow {
                 width: parent.width; label: I18n.tr("Install other apps for these in Software")
-                property string searchAnchor: "applications-software-defaults"
+                searchAnchor: "applications-software-defaults"
                 SettingsAction { text: I18n.tr("Choose in Software…"); glyph: "apps"; onTriggered: Software.showDefaults("") }
             }
         }

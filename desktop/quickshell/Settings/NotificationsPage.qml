@@ -49,6 +49,8 @@ SettingsPage {
             SwitchRow {
                 width: parent.width
                 label: I18n.tr("Focus")
+                // Notifs owns the value, so search finds the row by this.
+                searchAnchor: "notifDnd"
                 description: I18n.tr("Silences pop-ups; notifications still collect in the center")
                 checked: Notifs.dnd
                 dirty: Settings.notifDnd !== Settings.defaults.notifDnd

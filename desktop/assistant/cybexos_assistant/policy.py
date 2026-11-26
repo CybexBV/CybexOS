@@ -82,7 +82,7 @@ class Decision:
     """allow, deny or ask; ask carries the card the person sees."""
 
     def __init__(self, action, message="", card=None, step="", paths=(), key=None, always=False,
-                 changes=False):
+                 changes=False, step_kind=""):
         self.action = action
         # Asks even under Always allow (a desktop tool that could lose work).
         self.always = always
@@ -91,6 +91,8 @@ class Decision:
         self.message = message
         self.card = card
         self.step = step
+        # The step's kind for the character (steps.KINDS); "" keeps the current one.
+        self.step_kind = step_kind
         self.paths = list(paths)
         # What an "always" answer remembers for the rest of the conversation.
         self.key = key
@@ -99,8 +101,8 @@ class Decision:
         return f"Decision({self.action!r}, {self.message or self.step or ''!r})"
 
 
-def allow(step="", paths=()):
-    return Decision("allow", step=step, paths=paths)
+def allow(step="", paths=(), step_kind=""):
+    return Decision("allow", step=step, paths=paths, step_kind=step_kind)
 
 
 def deny(message):
@@ -424,9 +426,9 @@ def decide_command(command, home=None, status_path=None, depth=0):
         if name == "cybex":
             verbs = [arg for arg in argv[1:] if arg != "--json"]
             if verbs[:2] == ["update", "stage"] and len(verbs) == 3 and verbs[2] in STAGE_SCOPES:
-                return allow(step="Waiting for administrator authentication")
+                return allow(step="Waiting for administrator authentication", step_kind="install")
             if verbs[:2] == ["software", "stage"] and len(verbs) == 3:
-                return allow(step="Waiting for administrator authentication")
+                return allow(step="Waiting for administrator authentication", step_kind="install")
             if verbs[:2] == ["update", "apply"] and len(verbs) == 4:
                 card = apply_card(command, verbs[2], status_path)
                 return ask(card, key=None)
