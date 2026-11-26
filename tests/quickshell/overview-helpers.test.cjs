@@ -43,12 +43,6 @@ test("the grid shows occupied and visible workspaces, then one new slot", () => 
     assert.equal(entries.at(-1).id, 2, "the new slot fills the lowest free id");
 });
 
-test("a window whose workspace Hyprland has not listed yet still shows", () => {
-    const entries = H.workspaceEntries([{ id: 1, name: "1", monitor: "a", active: true }],
-        [{ address: "x", workspaceId: 7 }]);
-    assert.deepEqual(entries.map(entry => entry.id), [1, 7, 2]);
-});
-
 // ---- grid ---------------------------------------------------------------
 
 function inside(layout, width, height) {

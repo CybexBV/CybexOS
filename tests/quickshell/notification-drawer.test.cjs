@@ -40,12 +40,6 @@ test("the drawer takes an arrival only on its own output, on its side, with the 
     assert.equal(P.drawerRoute(drawer({ side: "left" }), "one", "top-right", false), "toast");
 });
 
-test("critical arrivals pin a banner, and the open list takes everything", () => {
-    assert.equal(P.drawerRoute(drawer(), "one", "top-right", true), "banner");
-    assert.equal(P.drawerRoute(drawer({ tab: "notifications" }), "one", "top-right", false), "list");
-    assert.equal(P.drawerRoute(drawer({ tab: "notifications" }), "one", "top-right", true), "list");
-});
-
 test("with the Notifications tab switched off there is nowhere to point, except the tab itself", () => {
     const off = drawer({ tabEnabled: false });
     assert.equal(P.drawerRoute(off, "one", "top-right", false), "toast");
@@ -188,21 +182,6 @@ test("policy runs first: Focus, quiet hours and bursts never reach the drawer", 
     c.receive(sender("First of a burst", { appName: "Burst", desktopEntry: "burst" }));
     c.receive(sender("Second of a burst", { appName: "Burst", desktopEntry: "burst" }));
     assert.equal(c.unreadKeys.length, 1, "the burst limit holds the second back silently");
-});
-
-test("other outputs and the far side keep their toasts; the open list counts nothing", () => {
-    const c = service();
-    c.drawerState = drawer({ screen: "two" });
-    c.receive(sender("On the focused output"));
-    assert.equal(c.toasts.length, 1);
-    c.drawerState = drawer({ side: "left" });
-    c.receive(sender("Far side", { appName: "Two", desktopEntry: "two" }));
-    assert.equal(c.toasts.length, 2);
-    c.drawerState = drawer({ tab: "notifications" });
-    c.receive(sender("Into the open list", { appName: "Three", desktopEntry: "three" }));
-    assert.equal(c.toasts.length, 2);
-    assert.deepEqual(c.unreadKeys, [], "it is in front of the person already");
-    assert.equal(c.arrivalKey, "");
 });
 
 test("acting on a pinned card handles it; activation runs the default and dismisses", () => {

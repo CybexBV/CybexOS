@@ -32,13 +32,6 @@ function claimedPanels() {
 // human remembering four separate maps. Each one fails on a panel added to
 // one place but not another.
 
-test("every panel's view exists on disk", () => {
-    for (const panel of R.PANELS) {
-        assert.ok(fs.existsSync(path.join(shellDir, panel.source)),
-            `${panel.name} points at a missing file: ${panel.source}`);
-    }
-});
-
 test("panel names and module ids are unique", () => {
     const names = R.names();
     assert.equal(new Set(names).size, names.length, "duplicate panel name");

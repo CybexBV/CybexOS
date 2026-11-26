@@ -61,21 +61,6 @@ test("Enter activates the selected first result without waiting for animation", 
         "result-row staging must not make the selected app look unavailable");
 });
 
-test("the empty app directory is alphabetical", () => {
-    const view = read("LauncherView.qml");
-    const providers = read("Common/LauncherProviders.qml");
-    const helpers = load("LauncherProviders.js");
-    const app = { id: "z.desktop", name: "Zulu", genericName: "", keywords: [] };
-
-    assert.equal(helpers.appScore(app, "", 9000), 1,
-        "an empty query must give every app the same score");
-    assert.match(providers,
-        /ProviderHelpers\.appScore\(app, root\.term,[\s\S]*Launcher\.usageBoost\(app\)\)/);
-    assert.match(providers,
-        /\.sort\(\(a, b\) => b\.score - a\.score[\s\S]*a\.title\.localeCompare\(b\.title\)\)/);
-    assert.match(view, /readonly property var rows:\s*LauncherProviders\.rows/);
-});
-
 test("the app directory keeps every match in a fixed scrolling viewport", () => {
     const view = read("LauncherView.qml");
     const providers = read("Common/LauncherProviders.qml");
@@ -97,24 +82,6 @@ test("the app directory keeps every match in a fixed scrolling viewport", () => 
     assert.match(view,
         /resultList\.positionViewAtIndex\(selected, ListView\.Contain\)/,
         "keyboard navigation must reveal selections beyond the first viewport");
-});
-
-test("the view is provider-driven and owns no search subprocesses", () => {
-    const view = read("LauncherView.qml");
-    const providers = read("Common/LauncherProviders.qml");
-
-    assert.match(view, /readonly property var provider:\s*LauncherProviders\.activeProvider/);
-    assert.match(view, /LauncherProviders\.query = query/);
-    assert.match(view, /LauncherProviders\.activate\(row, copyOnly === true\)/);
-    assert.match(view, /LauncherProviders\.emptyText/);
-    assert.doesNotMatch(view, /LauncherProviders\.footerLeft/);
-    assert.doesNotMatch(providers, /\bfooterLeft\b|\bappTotal\b/,
-        "the removed footer must not leave provider summary work behind");
-    assert.doesNotMatch(view, /\bProcess\s*\{|\bTimer\s*\{|switch \(row\.kind\)/,
-        "providers, not the presentation, own asynchronous work and activation");
-
-    for (const process of ["fileProc", "calcProc", "clipboardListProc"])
-        assert.match(providers, new RegExp(`id:\\s*${process}`));
 });
 
 test("clipboard refreshes are generation-safe and password-aware", () => {

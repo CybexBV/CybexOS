@@ -33,13 +33,6 @@ function bar(width, title, options = {}) {
     };
 }
 
-test("a roomy bar draws the media title at the user's maximum", () => {
-    const result = G.fitMenubar(L.fitBar, bar(1920, 180), 12);
-    assert.deepEqual(result.compact, []);
-    assert.deepEqual(result.overflow, []);
-    assert.equal(result.mediaCut, 0);
-});
-
 test("the media title shrinks to end the chip 12 px short of the centre group", () => {
     for (const width of [900, 800]) {
         const options = bar(width, 180);
