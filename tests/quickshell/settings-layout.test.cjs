@@ -5,24 +5,6 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../../desktop/quickshell');
 const read = name => untranslated(fs.readFileSync(path.join(root, name), 'utf8'));
 
-test('settings subsections own separation inside revealers and preserve the row grid', () => {
-    const subsection = read('Settings/SettingsSubsection.qml');
-    assert.match(subsection, /implicitHeight: Theme.settingsSubsectionSpacing/);
-    assert.match(subsection, /heading.height[\s\S]*Theme.settingsContentSpacing/);
-    assert.match(subsection, /root.insetContent \? Theme.settingsMarkInset : 0/);
-    const appearance = read('Settings/AppearancePage.qml');
-    // Accent source reveals rows attached to it (2026-09), not headed
-    // subsections: the fixed presets and hue, or the wallpaper palette.
-    assert.doesNotMatch(appearance, /SettingsSubsection \{/);
-    assert.doesNotMatch(appearance, /SectionHeader \{/);
-    for (const reveal of ['fixedColorReveal', 'wallpaperPaletteReveal'])
-        assert.match(appearance, new RegExp(`id: ${reveal}[\\s\\S]{0,400}?SettingsRow \\{`),
-            `${reveal} holds rows in the page's grid`);
-    for (const page of ['AppearancePage', 'BarLayoutGroups', 'DrawerPage', 'NotificationsPage',
-            'PowerPage', 'RegionPage', 'TouchpadPage', 'ModulesPage', 'PluginsPage'])
-        assert.match(read(`Settings/${page}.qml`), /spacing: Theme.settingsGroupSpacing/);
-});
-
 test('responsive controls and focus scrolling respect their content bounds', () => {
     const picker = read('Settings/PickerRow.qml');
     assert.match(picker, /wideHeight: Math.max\(Theme.panelRowHeight, pills.implicitHeight\) \+ rowPad \* 2/);

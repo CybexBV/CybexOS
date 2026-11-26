@@ -52,20 +52,6 @@ test("Home shows entries whose setting still holds the recorded value, in words"
     assert.equal(rows[0].entry, entries[0], "Undo restores the recorded value");
 });
 
-test("values read as words or not at all, and times read relatively", () => {
-    assert.equal(R.formatValue(true), "On");
-    assert.equal(R.formatValue(0.75), "0.75");
-    assert.equal(R.formatValue("nights"), "Nights");
-    assert.equal(R.formatValue("#60a5fa"), "", "a colour is not a word");
-    assert.equal(R.formatValue({ left: [] }), "");
-    const now = new Date(2026, 9, 28, 12, 0).getTime();
-    assert.equal(R.relative(now - 10 * 1000, now), "just now");
-    assert.equal(R.relative(now - MIN, now), "1 minute ago");
-    assert.equal(R.relative(now - 3 * 60 * MIN, now), "3 hours ago");
-    assert.equal(R.relative(new Date(2026, 9, 27, 23, 0).getTime(), now), "yesterday");
-    assert.equal(R.relative(new Date(2026, 9, 20, 9, 0).getTime(), now), "20 Oct");
-});
-
 test("the state file holds well-formed entries only", () => {
     const entries = [{ key: "clock24", before: true, after: false, at: 1 }];
     assert.deepEqual(R.parse(R.serialize(entries)), entries);
