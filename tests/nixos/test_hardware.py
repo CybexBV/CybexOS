@@ -318,11 +318,19 @@ class HardwareAssessmentTests(unittest.TestCase):
     def test_cli_hardware_is_read_only_and_available_in_live_environment(self):
         from cybexos import cli
         output = io.StringIO()
-        with patch.object(sys, 'argv', ['cybex', 'hardware']), patch.object(hardware, 'report', return_value={'scope': 'inventory'}), \
+        with patch.object(sys, 'argv', ['cybex', 'hardware', '--json']), patch.object(hardware, 'report', return_value={'scope': 'inventory'}), \
                 patch.object(cli, 'Engine') as engine, patch.object(cli, 'require_installed') as installed, \
                 patch.object(cli.os, 'execv') as privileged, contextlib.redirect_stdout(output):
             cli.main()
         self.assertEqual(json.loads(output.getvalue()), {'scope': 'inventory'})
+        engine.assert_not_called(); installed.assert_not_called(); privileged.assert_not_called()
+
+        human = io.StringIO()
+        with patch.object(sys, 'argv', ['cybex', 'hardware']), patch.object(hardware, 'report', return_value={'scope': 'inventory'}), \
+                patch.object(cli, 'Engine') as engine, patch.object(cli, 'require_installed') as installed, \
+                patch.object(cli.os, 'execv') as privileged, contextlib.redirect_stdout(human):
+            cli.main()
+        self.assertIn('Hardware:', human.getvalue())
         engine.assert_not_called(); installed.assert_not_called(); privileged.assert_not_called()
 
 

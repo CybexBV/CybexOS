@@ -301,9 +301,9 @@ class NativeDiagnostics(unittest.TestCase):
             ('systemctl', 'is-system-running'): (0, 'running'),
             ('systemctl', 'is-active', 'NetworkManager.service'): (0, 'active'),
             ('systemctl', '--user', 'is-active', 'personal.service'): (0, 'active'),
-            ('cybex', 'update', 'status'): (0, '{"state":"done"}'),
+            ('cybex', 'update', 'status', '--json'): (0, '{"state":"done"}'),
             ('hyprctl', '-j', 'configerrors'): (0, '["", " "]'),
-            ('cybex', 'shell', 'status'): (0, '{"safe":false}'),
+            ('cybex', 'shell', 'status', '--json'): (0, '{"safe":false}'),
             ('systemctl', '--user', 'is-active', 'quickshell.service'): (0, 'active'),
         }
         values.update(replies or {})
@@ -325,8 +325,8 @@ class NativeDiagnostics(unittest.TestCase):
     def test_failed_service_pending_deployment_and_safe_shell_are_actionable(self):
         result = self.probe({
             ('systemctl', 'is-active', 'NetworkManager.service'): (3, 'failed'),
-            ('cybex', 'update', 'status'): (0, '{"state":"awaiting-boot"}'),
-            ('cybex', 'shell', 'status'): (0, '{"safe":true,"reason":"Repeated crashes"}'),
+            ('cybex', 'update', 'status', '--json'): (0, '{"state":"awaiting-boot"}'),
+            ('cybex', 'shell', 'status', '--json'): (0, '{"safe":true,"reason":"Repeated crashes"}'),
         })
         warnings = {check['name']: check['detail'] for check in result['checks'] if check['state'] == 'warning'}
         self.assertEqual(result['overall'], 'warning')
@@ -349,7 +349,7 @@ class NativeDiagnostics(unittest.TestCase):
         self.assertFalse(any('--all' in command for command in self.calls))
 
     def test_unavailable_and_malformed_responses_never_mean_healthy(self):
-        for command in [('cybex', 'update', 'status'), ('hyprctl', '-j', 'configerrors'), ('cybex', 'shell', 'status'),
+        for command in [('cybex', 'update', 'status', '--json'), ('hyprctl', '-j', 'configerrors'), ('cybex', 'shell', 'status', '--json'),
                         ('systemctl', '--user', 'is-active', 'quickshell.service')]:
             with self.subTest(command=command):
                 self.assertEqual(self.probe({command: (127, 'not installed')})['overall'], 'warning')

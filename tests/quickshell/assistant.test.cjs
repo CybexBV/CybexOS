@@ -273,7 +273,7 @@ test("the installation feature carries the service, the agents and the menubar",
     assert.match(applications, /lib\.optionals cfg\.features\.assistant \[ assistant \]/);
     // The installer offers no switch for it: every installation includes it.
     assert.match(repo("installer/cybexos-install"), /the assistant is always\s*# included/);
-    assert.match(repo("lifecycle/cybexos/cli.py"), /for name in \('agent', 'assistant', 'backup', 'report', 'doctor'\):/);
+    assert.match(repo("lifecycle/cybexos/cli.py"), /PASSTHROUGH = \('agent', 'assistant', 'backup', 'report', 'doctor', 'plugin', 'shell', 'theme'\)/);
     assert.match(read("Common/Settings.qml"), /readonly property bool assistantConfigured:\s*Quickshell\.env\("CYBEXOS_ASSISTANT"\) !== "0"/);
 });
 

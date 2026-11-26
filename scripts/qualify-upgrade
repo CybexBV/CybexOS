@@ -535,7 +535,7 @@ exit 1''')
 
 
 def status(vm):
-    return guest_json(vm, 'cybex update status')
+    return guest_json(vm, 'cybex update status --json 2>/dev/null || cybex update status')
 
 
 def prepare(harness, vm, scope):
@@ -695,7 +695,7 @@ def upgrade(harness, iso, source, target, base, evidence, *, standin, applicatio
         # nothing newer than the release, and NixOS packages current when
         # they came with it.
         steps['standInAfterwards'] = redirect(vm, standin)
-        check = guest_json(vm, 'cybex update check')
+        check = guest_json(vm, 'cybex update check --json')
         vendor, upstream = check.get('cybexos', {}), check.get('upstream', {})
         wanted = ('current',) if final_scope == 'both' else ('current', 'available')
         if vendor.get('state') != 'current' or vendor.get('error') or upstream.get('state') not in wanted:

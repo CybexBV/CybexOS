@@ -700,7 +700,7 @@ def check_desktop(scrub):
             unknown.append('Hyprland did not answer')
     else:
         unknown.append('this is not a Hyprland session')
-    code, output, _ = run([tool('cybex'), 'shell', 'status'])
+    code, output, _ = run([tool('cybex'), 'shell', 'status', '--json'])
     shell = json_or_none(output) if code == 0 else None
     if isinstance(shell, dict) and isinstance(shell.get('safe'), bool):
         facts['shell']['safeMode'] = shell['safe']
@@ -833,7 +833,7 @@ def check_laptop():
 
 
 def check_hardware_support():
-    code, output, _ = run(['cybex', 'hardware'])
+    code, output, _ = run(['cybex', 'hardware', '--json'])
     inventory = json_or_none(output) if code == 0 else None
     support = inventory.get('support') if isinstance(inventory, dict) else None
     if not isinstance(support, dict) or support.get('status') not in ('generic', 'experimental', 'unsupported', 'qualified'):
