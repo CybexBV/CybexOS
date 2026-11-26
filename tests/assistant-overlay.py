@@ -88,6 +88,13 @@ def ask(request_id, tool, tool_input):
         if message.get("type") == "control_response" and message["response"]["request_id"] == request_id:
             return message["response"]["response"]
 
+def hold(name):
+    """Waits for the test to say go, so it can see what Wiz shows meanwhile."""
+    gate = home.parent / name
+    deadline = time.time() + 60
+    while not gate.exists() and time.time() < deadline:
+        time.sleep(0.05)
+
 def reply(text):
     emit({"type": "stream_event", "event": {"type": "message_start"}})
     for word in text.split(" "):
@@ -121,6 +128,24 @@ while True:
             target.write_text(json.dumps({"id": "personal.cputemp", "name": "CPU temperature",
                                           "version": "1.0.0", "apiVersion": 1, "entrypoint": "Widget.qml"}))
         reply("I made a CPU temperature widget. It is off until you add it to the bar.")
+    elif "poses" in text:
+        # One step of each kind, each held until the test has seen it.
+        work = [("Read", {"file_path": str(home / "notes.txt")}),
+                ("Grep", {"pattern": "wifi", "path": str(home)}),
+                ("Edit", {"file_path": str(home / "notes.txt"), "old_string": "a", "new_string": "b"}),
+                ("Bash", {"command": "ls ~"}),
+                ("Bash", {"command": "cybex software flathub install org.gnome.Calculator"})]
+        for number, (tool, tool_input) in enumerate(work, 1):
+            emit({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": f"p{number}", "name": tool, "input": tool_input}]}})
+            hold(f"go-{number}")
+        reply("That is how I look at work.")
+    elif "reboot" in text:
+        answer = ask("r1", "Bash", {"command": "sudo reboot"})
+        reply("Restarting." if answer["behavior"] == "allow" else "I may not restart the computer.")
+    elif "alongside" in text:
+        hold("go-side")
+        reply("Nothing needs changing.")
     else:
         reply("I can help with Cybex OS.")
 '''
@@ -218,6 +243,7 @@ class Session:
             '\n        function draft(): string { return Assistant.draft; }'
             '\n        function setting(key: string, value: string): void { Settings.set(key, JSON.parse(value)); }'
             '\n        function close(): void { Assistant.closeBox(); }'
+            '\n        function drowsyAfter(ms: int): void { Assistant.drowsyAfter = ms; Assistant.stir(); }'
             '\n        function tool(name: string, args: string): string { let out = null;'
             ' AssistantTools.handle(name, JSON.parse(args), r => out = {ok: true, result: r},'
             ' e => out = {ok: false, error: String(e)}); return JSON.stringify(out); }'
@@ -523,11 +549,40 @@ def main():
             session.drag(landed['x'] + landed['size'] / 2, landed['y'] + landed['size'] / 2,
                          1439 - landed['x'] - landed['size'] / 2, 0)
             session.wait(lambda: session.shell_state().get('tuck') == 'right', 'the tuck behind the right edge')
+            # Tucked behind the right edge he faces left, so his star shows.
+            assert session.shell_state()['facing'] == -1, session.shell_state()
+            session.pointer.move(20, 880)
+            session.screenshot('assistant-tucked-right.png')
             session.ipc('compose')
             session.wait(lambda: (lambda s: s.get('tuck') == '' and s.get('composing'))(session.shell_state()),
                          'Wiz back out with the box')
+            assert session.shell_state()['facing'] == 1, session.shell_state()
             session.press('-k', 'Escape')
             session.wait(lambda: not session.shell_state().get('composing'), 'the box to close')
+            # Tucked again and dragged out by what shows of him: he turns
+            # back as he is picked up.
+            state = session.shell_state()
+            session.drag(state['x'] + state['size'] / 2, state['y'] + state['size'] / 2,
+                         1439 - state['x'] - state['size'] / 2, 0)
+            state = session.wait(lambda: (lambda s: s if s.get('tuck') == 'right' else None)(session.shell_state()),
+                                 'the tuck behind the right edge again')
+            held = []
+            session.drag(1440 - 14, state['y'] + state['size'] / 2, -400, 0,
+                         held=lambda: held.append((lambda s: (s.get('pose'), s.get('facing')))(session.shell_state())))
+            assert held == [('carried', 1)], held
+            session.wait(lambda: (lambda s: s.get('tuck') == '' and s.get('facing') == 1
+                                  and s.get('pose') != 'carried')(session.shell_state()), 'Wiz dragged out')
+            session.screenshot('assistant-untucked.png')
+            # Behind the left edge he faces right, as drawn.
+            state = session.shell_state()
+            session.drag(state['x'] + state['size'] / 2, state['y'] + state['size'] / 2,
+                         1 - state['x'] - state['size'] / 2, 0)
+            session.wait(lambda: session.shell_state().get('tuck') == 'left', 'the tuck behind the left edge')
+            assert session.shell_state()['facing'] == 1, session.shell_state()
+            session.pointer.move(720, 880)
+            session.screenshot('assistant-tucked-left.png')
+            session.ipc('untuck')
+            session.wait(lambda: session.shell_state().get('tuck') == '', 'Wiz out from the left edge')
 
             # The shell's own desktop tools: values are checked as Settings
             # checks them, and the assistant's own settings are refused.
@@ -586,6 +641,68 @@ def main():
             session.wait(lambda: session.shell_state().get("pose") == "finished", "Wiz's celebration")
             session.wait(lambda: session.shell_state().get("pose") != "finished", "the end of the celebration")
 
+            # What he does follows the kind of work the step is: reading,
+            # searching, writing, a command and an install.
+            session.ipc("ask", "Show me your poses")
+            kinds = (("read", "reading"), ("search", "searching"), ("write", "writing"), ("run", "casting"),
+                     ("install", "brewing"))
+            for number, (kind, expected) in enumerate(kinds, 1):
+                session.wait(lambda: session.shell_state().get("pose") == expected, f"Wiz {expected}")
+                assert session.turn()["stepKind"] == kind, session.turn()
+                if number == 1:
+                    # A second question alongside, asked as the box asks
+                    # it: the wisp works beside him while he keeps reading.
+                    assert not session.shell_state()["helper"], session.shell_state()
+                    started = session.call("turn.start", {"text": "Look alongside for a moment",
+                                                          "agent": "claude"})["result"]
+                    assert started["turn"]["lane"] == "side", started
+                    session.wait(lambda: (lambda s: s.get("side") == "running" and s.get("helper"))(
+                        session.shell_state()), "the wisp beside him for the side question")
+                    assert session.shell_state()["pose"] == "reading", session.shell_state()
+                    # A third waits as Up next, and keeps the wisp after the
+                    # side question is answered; removed, the wisp goes.
+                    waiting = session.call("turn.start", {"text": "Then tell me the time", "agent": "claude"})
+                    assert waiting["result"].get("queued"), waiting
+                    session.wait(lambda: session.shell_state().get("queued"), "the question Up next")
+                    (session.base / "go-side").touch()
+                    session.wait(lambda: (lambda s: s.get("side") == "completed" and s.get("helper"))(
+                        session.shell_state()), "the side answer, with a question still Up next")
+                    assert session.call("queue.remove", {})["result"] == {"ok": True}
+                    session.wait(lambda: (lambda s: not s.get("queued") and not s.get("helper"))(
+                        session.shell_state()), "the wisp to go")
+                (session.base / f"go-{number}").touch()
+            session.finished("Show me your poses")
+            session.wait(lambda: session.shell_state().get("pose") == "finished", "the nod after the poses")
+            for number in range(1, len(kinds) + 1):
+                (session.base / f"go-{number}").unlink()
+
+            # The ownership rules refused a request: he shrugs as it ends.
+            session.ipc("ask", "Reboot the computer for me")
+            refused = session.finished("Reboot the computer for me")
+            assert refused["refused"] is True and refused["status"] == "completed", refused
+            session.wait(lambda: session.shell_state().get("pose") == "shrug", "Wiz's shrug")
+            session.wait(lambda: session.shell_state().get("pose") != "shrug", "the end of the shrug")
+
+            # A quiet while (shortened here) makes him drowsy; the pointer
+            # coming to rest on him wakes him.
+            session.ipc("close")
+            session.wait(lambda: not session.shell_state().get("composing"), "the box to close")
+            session.ipc("drowsyAfter", "2500")
+            session.wait(lambda: session.shell_state().get("pose") == "drowsy", "Wiz drowsy", timeout=15)
+            state = session.shell_state()
+            session.pointer.move(state["x"] + state["size"] / 2, state["y"] + state["size"] / 2)
+            session.wait(lambda: session.shell_state().get("pose") == "idle", "Wiz awake again", timeout=2)
+            session.pointer.move(20, 880)
+            # Never while a question runs, however short the delay.
+            session.ipc("ask", "Show me your poses again")
+            session.wait(lambda: session.shell_state().get("pose") == "reading", "Wiz at work")
+            time.sleep(3.5)
+            assert session.shell_state()["pose"] == "reading", session.shell_state()
+            for number in range(1, len(kinds) + 1):
+                (session.base / f"go-{number}").touch()
+            session.finished("Show me your poses again")
+            session.ipc("drowsyAfter", "600000")
+
             # Ask first takes effect on the next question without a service restart.
             preferences = json.loads(session.preferences.read_text())
             preferences["assistantApprovalPolicy"] = "ask"
@@ -606,6 +723,9 @@ def main():
             session.ipc("ask", "Create a CPU temperature widget")
             made = session.finished("Create a CPU temperature widget")
             assert made["plugins"] == [{"id": "personal.cputemp", "name": "CPU temperature"}], made
+            # The reply offers Add to bar: after his nod he points at it.
+            session.wait(lambda: session.shell_state().get("pose") == "pointing", "Wiz pointing at Add to bar")
+            session.screenshot("assistant-pointing.png")
 
             # Hiding takes the character away and reports it; the service keeps the conversation.
             session.ipc("hide")
@@ -616,11 +736,13 @@ def main():
             hello = session.call("hello", {"client": "overlay-test", "protocol": 1})["result"]
             assert hello["turn"]["resumable"] is True, hello
             rows = hello["conversations"]
-            # Every question so far was asked in a box of its own: each is a
-            # conversation, newest first.
+            # Every question so far was asked in a box of its own, or
+            # alongside: each is a conversation, newest first. The one
+            # removed from Up next never started.
             assert [row["title"] for row in rows] == [
-                "Create a CPU temperature widget", "Clean up my old downloads", "Clean up these downloads",
-                "Make the menubar transparent", "connect my printer"], rows
+                "Create a CPU temperature widget", "Clean up my old downloads", "Show me your poses again",
+                "Reboot the computer for me", "Show me your poses", "Look alongside for a moment",
+                "Clean up these downloads", "Make the menubar transparent", "connect my printer"], rows
 
             # History. Shown again, the character is clicked (Super+I's tap
             # does the same): a new conversation, with the recent ones under
@@ -637,7 +759,7 @@ def main():
             session.wait(lambda: session.shell_state().get("historyOpen"), "History")
             session.screenshot("assistant-history.png")
             # A conversation opened from History is shown and continued.
-            older = rows[2]
+            older = next(row for row in rows if row["title"] == "Clean up these downloads")
             session.ipc("open", older["id"])
             session.wait(lambda: (lambda s: s.get("composing") and s.get("continuing") == older["id"]
                                   and not s.get("historyOpen"))(session.shell_state()), "the opened conversation")
@@ -698,7 +820,7 @@ def main():
             output = session.log()
             errors = [line for line in output.splitlines() if QML_ERRORS.search(line)]
             assert not errors, "\n".join(errors)
-            print("Assistant onboarding/draft preservation, Ask Wiz from the launcher (signed out and in), the status line on rest, repeated pointer dragging, snapping and tucking, the shell's desktop tools, default automatic approvals, Ask first, what changed with Undo and the steps, the wide view, widget hand-off, Wiz's poses (carried while dragged), hiding, conversation history (new by default, open and continue, delete, restore, clear) and the empty notification centre passed")
+            print("Assistant onboarding/draft preservation, Ask Wiz from the launcher (signed out and in), the status line on rest, repeated pointer dragging, snapping and tucking, the shell's desktop tools, default automatic approvals, Ask first, what changed with Undo and the steps, the wide view, widget hand-off, Wiz's poses (carried while dragged, facing left behind the right edge, each kind of work, the wisp for a question alongside or Up next, a shrug after a refusal, drowsy and awake, pointing at Add to bar), hiding, conversation history (new by default, open and continue, delete, restore, clear) and the empty notification centre passed")
         finally:
             session.stop()
 
