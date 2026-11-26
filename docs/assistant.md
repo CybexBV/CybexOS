@@ -126,7 +126,10 @@ or set up themselves.
   beside the row and points at it while the row stays lit. The answer says
   where it is in Settings' own words ("Appearance › Glass effect"). He
   leaves when you change that setting, go to another page, close Settings,
-  or after 30 seconds. Asking him to change it changes it, as before.
+  or after 30 seconds. Asking him to change it changes it, as before. Any
+  row Settings' own search finds can be shown this way; for one he cannot
+  point at (a Network or Sound row, say), Settings opens on its
+  page and the answer says where on it to look.
 - **Talk** by holding `Super+I` (or the microphone button) and releasing it to
   send. The words are transcribed locally by Voxtype, with dictation's
   speech model and languages ([dictation.md](dictation.md)); no audio leaves
@@ -251,11 +254,11 @@ apply live, check values, and record every change for Undo:
 
 | Tool | What it does | Without asking |
 | --- | --- | --- |
-| `desktop_status`, `settings_search`, `settings_get`, `wallpaper_search`, `software_search`, `doctor_run`, `routine_list` | Look: windows, workspaces, displays, theme; settings with their values; Wallhaven; Flathub; the system check; routines | Yes, also alongside and in routines |
+| `desktop_status`, `settings_search`, `settings_get`, `wallpaper_search`, `software_search`, `doctor_run`, `routine_list` | Look: windows, workspaces, displays, theme; Settings' rows, with the values of those `settings_set` may change; Wallhaven; Flathub; the system check; routines | Yes, also alongside and in routines |
 | `settings_set`, `wallpaper_set` | Change a preference (checked exactly as the Settings window checks it; the assistant's own settings are refused) or the wallpaper (a Wallhaven image is downloaded into the wallpaper folder) | Yes; listed under Changed |
 | `routine_create`, `routine_delete` | Create or remove a routine | Yes; listed under Changed |
 | `app_open`, `window_focus`, `window_move`, `workspace_switch` | Open an app, focus or move a window, show a workspace | Yes |
-| `settings_show` | Open Settings at one setting's row, where a small Wiz points at it (see below) | Yes, but not alongside or in routines: opening a window is not looking. Nothing to undo |
+| `settings_show` | Open Settings at one row, where a small Wiz points at it, or on its page (see below) | Yes, but not alongside or in routines: opening a window is not looking. Nothing to undo |
 | `window_close` | Close a window | **Always asks**, even under Always allow: the app may have unsaved work |
 | `flatpak_install`, `flatpak_remove` | Install or remove a Flathub app for this account (`cybex software flathub`), waiting until it is done | Asks under Ask first; listed under Changed, and Undo removes or reinstalls it |
 
@@ -266,18 +269,33 @@ apps) go to the shell as `desktop.request` and are answered by
 `Common/AssistantTools.qml`. The shell and terminal stay available for
 everything else, under the policy table above.
 
-`settings_show` ("Show me where") takes a key from `settings_search` (or a
-row's anchor in `Common/SettingsSearchData.js`). The agent is told to use it
-when the person asks where a setting is or how to find it, and to change a
-setting with `settings_set` when asked to change it. Settings opens at the
-row (its tab, a widget's dialog, an unfolded **Advanced** group), and the
-tool answers once Wiz stands there, with where it is in the words the window
-shows: `{"key", "label", "page", "tab", "group", "widget", "where":
-"Appearance › Glass effect", "shown": true}`. An unknown key, a setting no
-row shows, and a row this computer does not show (Settings looks for four
-seconds) fail with a sentence for the agent. Its step reads "Showing a
-setting" and its `stepKind` is `change`: like `app_open` it acts on the
-desktop, so the corner Wiz casts while the window opens.
+`settings_search` searches every row of Settings' search index
+(`Common/SettingsSearchData.js`), best first, at most 12. Each result has
+`row`, the one string `settings_show` takes for it, its `label`, `page` and
+`group`, its `key` (`""` for a row without one) and `changeable`. Only a
+row with a settings key that is not the assistant's own is changeable; it
+also has `current`, `default` and `type`, and `settings_set` takes its
+`key`. Every other row (the assistant's own settings, default apps,
+shortcuts, displays, sound, network and the like) can only be shown, and
+`settings_set` still refuses its key. A row's `row` is its settings key,
+else its search anchor, else its page and label (`keyboard:keyboard-layouts`;
+`Common/SettingsGuide.js`).
+
+`settings_show` ("Show me where") takes one `row`. The agent is told to use
+it when the person asks where a setting is or how to find it, and to change
+a setting with `settings_set` when asked to change it. For a row with a key
+or an anchor, Settings opens at the row (its own tab, a widget's dialog, an
+unfolded **Advanced** group), and the tool answers once Wiz stands there,
+with where it is in the words the window shows: `{"row", "label", "page",
+"tab", "group", "widget", "where": "Appearance › Glass effect", "shown":
+true}`. A row with neither cannot be found on its page: Settings opens that
+page and tab (or the widget's dialog) without Wiz, ends a guide that was
+running, and answers at once with `"shown": false` and a `note` that says
+where on the page to look, which the agent passes on. An unknown row, a
+setting no row shows, and a row this computer does not show (Settings looks
+for four seconds) fail with a sentence for the agent. Its step reads
+"Showing a setting" and its `stepKind` is `change`: like `app_open` it acts
+on the desktop, so the corner Wiz casts while the window opens.
 
 In Settings (`Settings/SettingsGuide.qml`), a 48 px Wiz in the `pointing`
 pose stands beside the row, facing it, and points with his wand; the row

@@ -440,7 +440,8 @@ Singleton {
 
     // ---- Show me where (docs/assistant.md) ----------------------------------
     // The assistant's settings_show: Settings opens at one row of the search
-    // index (SettingsSearchData.ROWS) and a small Wiz points at it
+    // index (SettingsSearchData.ROWS) and, when the row has a key or an
+    // anchor to find it by, a small Wiz points at it
     // (Settings/SettingsGuide.qml) until the person changes that setting,
     // leaves its page or tab, closes Settings or guideTimeout passes. One
     // guide at a time; another call moves him. `guideState` is "" (none),
@@ -465,10 +466,11 @@ Singleton {
         return Object.prototype.hasOwnProperty.call(defaults, key) ? JSON.stringify(root[key]) : "";
     }
 
+    // Returns whether Wiz will point. A row with neither a key nor an anchor
+    // cannot be found on its page: its page (and tab, or widget dialog)
+    // opens without him, and a guide that was running ends.
     function showGuide(row) {
         const key = row.key || row.anchor || "";
-        if (key === "")
-            return false;
         guideStarting = true;
         guideTimer.stop();
         if (row.widget) {
@@ -476,6 +478,11 @@ Singleton {
             openWidgetSettings(row.widget);
         } else {
             showPanel(row.page, "", key, row.tab || "");
+        }
+        if (key === "") {
+            guideStarting = false;
+            endGuide("other");
+            return false;
         }
         guideKey = key;
         guidePage = page;

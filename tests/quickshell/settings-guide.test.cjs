@@ -144,11 +144,101 @@ test("settings_show is a shell tool the assistant service lists and the shell ca
     const service = fs.readFileSync(path.join(shellDir, "../assistant/cybexos_assistant/desktop.py"), "utf8");
     assert.match(service, /"settings_show": \{\s*"kind": ACT, "where": "shell"/);
     const tools = read("Common/AssistantTools.qml");
-    assert.match(tools, /case "settings_show": return showSetting\(/);
-    assert.match(tools, /function showSetting\(key, respond, fail\) \{[\s\S]*?Settings\.showGuide\(row\);/);
+    assert.match(tools, /case "settings_show": return showSetting\(String\(args\.row \|\| ""\), respond, fail\);/);
+    assert.match(tools, /function showSetting\(text, respond, fail\) \{[\s\S]*?Settings\.showGuide\(row\);/);
     // Nothing is written: no Settings.set or save on this path.
     const body = tools.match(/function showSetting[\s\S]*?\n    \}/)[0];
     assert.doesNotMatch(body, /Settings\.set\(|saveNow/);
+});
+
+// The assistant's view of the search index: settings_search's answer and the
+// one string per row that settings_show takes.
+const { ROWS } = load("SettingsSearchData.js");
+const DEFAULTS = load("SettingsHelpers.js").defaults();
+const TOOLS = read("Common/AssistantTools.qml");
+// The assistant's own settings, as AssistantTools.blockedKey says.
+const BLOCKED = new RegExp(TOOLS.match(/function blockedKey\(key\) \{\s*return \/(.*?)\/\.test\(key\);/)[1]);
+const blocked = key => BLOCKED.test(key);
+const searchFor = query => G.searchResult(ROWS, query, DEFAULTS, key => DEFAULTS[key], blocked).results;
+
+test("every row of the index has one handle, and the handle finds it again", () => {
+    const handles = ROWS.map(G.handle);
+    assert.equal(new Set(handles).size, ROWS.length, "no two rows share a handle");
+    for (const row of ROWS) {
+        assert.equal(G.rowFor(ROWS, G.handle(row)), row, G.handle(row));
+        if (row.key)
+            assert.equal(G.handle(row), row.key);
+        else if (row.anchor)
+            assert.equal(G.handle(row), row.anchor);
+        else
+            assert.match(G.handle(row), new RegExp(`^${row.page}:[a-z0-9]+(-[a-z0-9]+)*$`));
+    }
+    assert.equal(G.handle(ROWS.find(row => row.label === "Keyboard layouts")), "keyboard:keyboard-layouts");
+    assert.equal(G.rowFor(ROWS, ""), null);
+    assert.equal(G.rowFor(ROWS, "glass"), null);
+    assert.equal(G.rowFor(ROWS, "assistantShown"), null, "a key no row shows names no row");
+});
+
+test("settings_search gives every row of the index a handle settings_show takes", () => {
+    let pointing = 0, pageOnly = 0;
+    for (const row of ROWS) {
+        const hit = searchFor(row.label).find(entry => G.rowFor(ROWS, entry.row) === row);
+        assert.ok(hit, `searching "${row.label}" finds ${G.handle(row)}`);
+        assert.equal(hit.row, G.handle(row));
+        assert.deepEqual([hit.label, hit.page, hit.group], [row.label, row.pageLabel, row.group || ""]);
+        if (G.pointable(row))
+            pointing++;
+        else
+            pageOnly++;
+    }
+    assert.equal(pointing + pageOnly, ROWS.length);
+    assert.ok(pointing > 0 && pageOnly > 0);
+    // Rows the old search hid: an anchor, the assistant's own and one with neither.
+    for (const [query, row] of [["terminal", "applications-terminal"], ["speak replies", "assistantSpeak"],
+        ["keyboard layouts", "keyboard:keyboard-layouts"], ["add shortcut", "shortcuts-add"]])
+        assert.equal(searchFor(query)[0].row, row, query);
+    assert.equal(searchFor("").length, 12, "no words: the index from the top");
+    assert.deepEqual(searchFor("zzzz-nothing"), []);
+});
+
+test("only a known key that is not the assistant's own can be changed", () => {
+    for (const row of ROWS) {
+        const hit = searchFor(row.label).find(entry => entry.row === G.handle(row));
+        const own = row.key !== "" && blocked(row.key);
+        if (row.key && !own) {
+            // The fields settings_search always gave, and the new ones.
+            assert.deepEqual(Object.keys(hit), ["key", "label", "page", "group", "current", "default", "type",
+                "row", "changeable"], row.key);
+            assert.equal(hit.changeable, true);
+            assert.equal(hit.key, row.key);
+            assert.equal(hit.type, G.valueType(DEFAULTS[row.key]));
+        } else {
+            assert.deepEqual(Object.keys(hit), ["key", "label", "page", "group", "row", "changeable"], hit.row);
+            assert.equal(hit.changeable, false, hit.row);
+            // What settings_set would be handed for it is refused there: not a
+            // known key, or the assistant's own.
+            for (const name of [hit.key, hit.row].filter(Boolean))
+                assert.ok(!Object.prototype.hasOwnProperty.call(DEFAULTS, name) || blocked(name), name);
+        }
+    }
+    assert.ok(ROWS.some(row => row.key && blocked(row.key)), "the index holds some of the assistant's own");
+    const answer = G.searchResult(ROWS, "glass", DEFAULTS, () => true, blocked);
+    assert.match(answer.note, /Only a result with changeable true\s+can be changed, with settings_set/);
+    assert.equal(answer.results[0].current, true, "current comes from the shell's settings");
+    // settings_set itself refuses an unknown key and the assistant's own.
+    const set = TOOLS.match(/function setValue\(key, value, respond, fail\) \{[\s\S]*?\n    \}/)[0];
+    assert.match(set, /if \(!known\(key\)\)\s*return fail\(/);
+    assert.match(set, /if \(blockedKey\(key\)\)\s*return fail\(/);
+    assert.match(TOOLS, /return Guide\.searchResult\(SearchData\.ROWS, query, SettingsHelpers\.defaults\(\), key => Settings\[key\],\s*key => blockedKey\(key\)\);/);
+});
+
+test("a row Wiz cannot point at opens its page and says so", () => {
+    const show = TOOLS.match(/function showSetting\(text, respond, fail\) \{[\s\S]*?\n    \}/)[0];
+    assert.match(show, /const row = Guide\.rowFor\(SearchData\.ROWS, text\);/);
+    assert.match(show, /if \(!Guide\.pointable\(row\)\) \{\s*Settings\.showGuide\(row\);[\s\S]*?return respond\(Object\.assign\(place, \{ shown: false,\s*note: "Settings is open on " \+ page/);
+    const guide = read("Common/Settings.qml").match(/function showGuide\(row\) \{[\s\S]*?\n    \}/)[0];
+    // The page opens first, then a row with neither key nor anchor ends any guide and stops there.
+    assert.match(guide, /showPanel\(row\.page, "", key, row\.tab \|\| ""\);\s*\}\s*if \(key === ""\) \{\s*guideStarting = false;\s*endGuide\("other"\);\s*return false;/);
 });
 
 test("the guide opens the row's own tab, not the one the page would choose", () => {

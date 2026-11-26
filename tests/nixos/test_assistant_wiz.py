@@ -255,27 +255,43 @@ class DesktopToolsTest(unittest.TestCase):
         self.assertEqual(desktop.tool_name("mcp__cybexos__app_open"), "app_open")
         self.assertEqual(desktop.tool_name("mcp__other__app_open"), "")
 
-    def test_showing_a_setting_takes_one_key_and_acts(self):
+    def test_showing_a_setting_takes_one_row_and_acts(self):
         spec = desktop.TOOLS["settings_show"]
         # It opens a window on the person's screen: acting, not looking, and
         # nothing for Undo, so not a change either.
         self.assertEqual((spec["kind"], spec["where"], spec["label"]), (desktop.ACT, "shell", "Showed a setting"))
-        self.assertEqual(spec["schema"], {"type": "object", "properties": {"key": {"type": "string"}},
-                                          "additionalProperties": False, "required": ["key"]})
+        # One string, the row settings_search gives every result.
+        self.assertEqual(spec["schema"], {"type": "object", "properties": {"row": {"type": "string"}},
+                                          "additionalProperties": False, "required": ["row"]})
         listed = next(tool for tool in desktop.listing() if tool["name"] == "settings_show")
         self.assertFalse(listed["annotations"]["readOnlyHint"])
         self.assertIn("where a setting is", listed["description"])
-        self.assertEqual(desktop.validate("settings_show", {}), "key is required.")
-        self.assertEqual(desktop.validate("settings_show", {"key": 3}), "key must be a string.")
-        self.assertEqual(desktop.validate("settings_show", {"key": "wall", "value": 1}), "Unknown argument value.")
-        self.assertEqual(desktop.validate("settings_show", {"key": "glassEnabled"}), "")
+        self.assertIn("row is the row of a settings_search result", listed["description"])
+        self.assertIn("When shown is false", listed["description"])
+        self.assertEqual(desktop.validate("settings_show", {}), "row is required.")
+        self.assertEqual(desktop.validate("settings_show", {"row": 3}), "row must be a string.")
+        self.assertEqual(desktop.validate("settings_show", {"key": "glassEnabled"}), "row is required.")
+        self.assertEqual(desktop.validate("settings_show", {"row": "wall", "value": 1}), "Unknown argument value.")
+        self.assertEqual(desktop.validate("settings_show", {"row": "glassEnabled"}), "")
+        self.assertEqual(desktop.validate("settings_show", {"row": "keyboard:keyboard-layouts"}), "")
         self.assertEqual(steps.desktop_kind("settings_show"), "change")
-        self.assertEqual(steps.claude_tool("mcp__cybexos__settings_show", {"key": "wall"}), "Showing a setting")
-        self.assertEqual(steps.claude_record("mcp__cybexos__settings_show", {"key": "wall"}),
-                         {"label": "Showed a setting", "detail": "wall", "tool": True})
+        self.assertEqual(steps.claude_tool("mcp__cybexos__settings_show", {"row": "wall"}), "Showing a setting")
+        self.assertEqual(steps.claude_record("mcp__cybexos__settings_show", {"row": "keyboard:keyboard-layouts"}),
+                         {"label": "Showed a setting", "detail": "keyboard:keyboard-layouts", "tool": True})
         self.assertEqual(steps.codex_record({"type": "mcpToolCall", "server": "cybexos", "tool": "settings_show",
-                                             "arguments": {"key": "glassEnabled"}}),
+                                             "arguments": {"row": "glassEnabled"}}),
                          {"label": "Showed a setting", "detail": "glassEnabled", "tool": True})
+
+    def test_searching_says_which_rows_can_be_changed(self):
+        search = desktop.TOOLS["settings_search"]
+        self.assertEqual(search["schema"]["required"], ["query"])
+        for words in ("row (the string to pass to settings_show)", "changeable",
+                      "Only a result with changeable true can be changed with settings_set", "can only be shown"):
+            self.assertIn(words, search["description"])
+        self.assertIn("changeable true", desktop.TOOLS["settings_set"]["description"])
+        # settings_set still takes a key and a value, nothing else.
+        self.assertEqual(desktop.TOOLS["settings_set"]["schema"]["required"], ["key", "value"])
+        self.assertEqual(desktop.validate("settings_set", {"row": "glassEnabled", "value": True}), "key is required.")
 
     def test_policy_lets_the_service_decide_on_its_own_tools(self):
         self.assertEqual(policy.decide_tool("mcp__cybexos__window_close", {}, "/h").action, "allow")
@@ -297,7 +313,11 @@ class PromptTest(unittest.TestCase):
         # Asked where something is, the agent shows it; asked to change it, it changes it.
         self.assertIn("settings_show", prompt.INSTRUCTIONS)
         self.assertIn("asks where a setting is", prompt.INSTRUCTIONS)
-        self.assertIn("change it with\n  settings_set as before", prompt.INSTRUCTIONS)
+        self.assertIn("pass the result's row to settings_show", prompt.INSTRUCTIONS)
+        self.assertIn("When its answer has shown false", prompt.INSTRUCTIONS)
+        self.assertIn("change it with settings_set as before", prompt.INSTRUCTIONS)
+        self.assertIn("Only a settings_search result with changeable true can be changed with\n  settings_set",
+                      prompt.INSTRUCTIONS)
         self.assertEqual(prompt.turn_text("plain"), "plain")
 
 
@@ -550,8 +570,13 @@ class RefusalTest(ServiceTest):
 
 
 # What the shell answers for settings_show (Common/AssistantTools.qml).
-SHOWN = {"key": "glassEnabled", "label": "Glass effect", "page": "Appearance", "tab": "", "group": "Surfaces",
+SHOWN = {"row": "glassEnabled", "label": "Glass effect", "page": "Appearance", "tab": "", "group": "Surfaces",
          "widget": "", "where": "Appearance › Glass effect", "shown": True}
+# And for a row Wiz cannot point at: Settings opened on its page.
+PAGE_ONLY = {"row": "keyboard:keyboard-layouts", "label": "Keyboard layouts", "page": "Keyboard", "tab": "Layouts",
+             "group": "Keyboard layouts", "widget": "", "where": "Keyboard › Layouts › Keyboard layouts",
+             "shown": False, "note": "Settings is open on Keyboard › Layouts, but Wiz cannot point at this row "
+                                     "there. Tell the person where to look on that page: Keyboard layouts."}
 
 
 class DesktopCallTest(ServiceTest):
@@ -614,10 +639,10 @@ class DesktopCallTest(ServiceTest):
 
     async def test_showing_a_setting_answers_where_it_is_and_records_nothing(self):
         await self.ask("hang")
-        shown = await self.call("settings_show", {"key": "glassEnabled"})
+        shown = await self.call("settings_show", {"row": "glassEnabled"})
         self.assertFalse(shown["isError"])
         self.assertEqual(json.loads(shown["text"]), SHOWN)
-        self.assertEqual(self.shell.requests[-1], ("settings_show", {"key": "glassEnabled"}))
+        self.assertEqual(self.shell.requests[-1], ("settings_show", {"row": "glassEnabled"}))
         turn = await self.client.turn(lambda turn: turn["step"] == "Showing a setting")
         self.assertEqual(turn["stepKind"], "change")
         self.assertEqual([(step["label"], step["detail"], step["tool"]) for step in turn["steps"]],
@@ -625,10 +650,15 @@ class DesktopCallTest(ServiceTest):
         # An unknown key, or one Settings has no row for, fails with the shell's words.
         self.shell.answers["settings_show"] = {
             "ok": False, "error": "There is no setting called glass. Use settings_search to find one."}
-        unknown = await self.call("settings_show", {"key": "glass"})
+        unknown = await self.call("settings_show", {"row": "glass"})
         self.assertEqual((unknown["isError"], unknown["text"]),
                          (True, "There is no setting called glass. Use settings_search to find one."))
-        self.assertEqual((await self.call("settings_show", {}))["text"], "key is required.")
+        self.assertEqual((await self.call("settings_show", {}))["text"], "row is required.")
+        # A row Wiz cannot point at: the shell's answer, page and note, goes back as it is.
+        self.shell.answers["settings_show"] = {"ok": True, "result": PAGE_ONLY}
+        opened = await self.call("settings_show", {"row": "keyboard:keyboard-layouts"})
+        self.assertEqual((opened["isError"], json.loads(opened["text"])), (False, PAGE_ONLY))
+        self.assertEqual(self.shell.requests[-1], ("settings_show", {"row": "keyboard:keyboard-layouts"}))
         await self.client.result("turn.stop")
         done = await self.client.finished()
         self.assertEqual(done["changes"], [])
@@ -637,12 +667,12 @@ class DesktopCallTest(ServiceTest):
     async def test_showing_a_setting_needs_no_card_but_is_not_looking(self):
         self.approval_policy("ask")
         await self.ask("hang")
-        self.assertFalse((await self.call("settings_show", {"key": "glassEnabled"}))["isError"])
+        self.assertFalse((await self.call("settings_show", {"row": "glassEnabled"}))["isError"])
         self.assertEqual((await self.client.turn(lambda turn: turn["step"] == "Showing a setting"))["approvals"], [])
         # A question answered alongside may only look; a window put on the
         # person's screen unasked is not looking.
         await self.ask("hang")
-        refused = await self.call("settings_show", {"key": "glassEnabled"}, lane="side")
+        refused = await self.call("settings_show", {"row": "glassEnabled"}, lane="side")
         self.assertTrue(refused["isError"])
         self.assertIn("may only look", refused["text"])
         self.assertEqual(len([tool for tool, _ in self.shell.requests if tool == "settings_show"]), 1)

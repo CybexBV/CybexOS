@@ -64,9 +64,9 @@ TEST_IPC = '''
     property var toolAnswer: null
     IpcHandler {
         target: "guide-test"
-        function point(key: string): void {
+        function point(row: string): void {
             shell.toolAnswer = null;
-            AssistantTools.handle("settings_show", { key: key },
+            AssistantTools.handle("settings_show", { row: row },
                 result => shell.toolAnswer = { ok: true, result: result },
                 error => shell.toolAnswer = { ok: false, error: error });
         }
@@ -323,6 +323,28 @@ def main():
             assert failed == {'ok': False, 'error': 'Settings has no Only on battery row on this computer, '
                                                     'so it could not be shown.'}, failed
             assert state()['ended'] == 'missing', state()
+
+            # A row with neither a key nor an anchor: Settings opens its page
+            # and tab without Wiz, and the answer says so and where to look.
+            # A guide that was pointing on that page ends.
+            assert show('shortcuts-add')['ok']
+            pointing('shortcuts-add', 'before a row he cannot point at')
+            reply = show('keyboard:hand-written-shortcuts')
+            assert reply == {'ok': True, 'result': {
+                'row': 'keyboard:hand-written-shortcuts', 'label': 'Hand-written shortcuts', 'page': 'Keyboard',
+                'tab': 'Shortcuts', 'group': 'Keyboard shortcuts', 'widget': '',
+                'where': 'Keyboard › Shortcuts › Hand-written shortcuts', 'shown': False,
+                'note': 'Settings is open on Keyboard › Shortcuts, but Wiz cannot point at this row there. '
+                        'Tell the person where to look on that page: Keyboard shortcuts › Hand-written shortcuts.'}}, reply
+            s = ended('other')
+            assert (s['open'], s['page'], s['tab'], s['state']) == (True, 'keyboard', 'shortcuts', ''), s
+            # From a closed window, on a page's first tab when it is the row's.
+            ipc('guide-test', 'close')
+            wait(lambda: state().get('open') is False and state(), 'Settings closed')
+            reply = show('keyboard:keyboard-layouts')
+            assert reply['ok'] and reply['result']['shown'] is False, reply
+            s = wait(lambda: (s := state()).get('open') and s, 'Settings open on Keyboard')
+            assert (s['page'], s['tab'], s['key'], s['wiz']) == ('keyboard', 'layouts', '', None), s
             ipc('guide-test', 'close')
 
             # A row near the top of a page, in a wide window: the answer says

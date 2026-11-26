@@ -56,8 +56,12 @@ TOOLS = {
     },
     "settings_search": {
         "kind": LOOK, "where": "shell", "label": "Looked up settings",
-        "description": "Searches the Cybex OS settings by words. Each result has the settings key, its label, "
-                       "its page, its current and default value and its type. Use the key with settings_set.",
+        "description": "Searches the rows of the Cybex OS Settings window by words, best first. Every result "
+                       "has row (the string to pass to settings_show), its label, page and group, and "
+                       "changeable. Only a result with changeable true can be changed with settings_set, using "
+                       "its key; it also has its current and default value and its type. The others (the "
+                       "assistant's own settings, and rows that are not preferences, such as default apps, "
+                       "shortcuts, displays, sound or network) can only be shown.",
         "schema": _schema({"query": {"type": "string"}}, ["query"]),
     },
     "settings_get": {
@@ -67,18 +71,21 @@ TOOLS = {
     },
     "settings_set": {
         "kind": CHANGE, "where": "shell", "label": "Changed a preference",
-        "description": "Sets one Cybex OS setting; it applies at once and the person can undo it. The value "
-                       "must be one the setting accepts: check settings_search first. Settings of the "
-                       "assistant itself cannot be changed here.",
+        "description": "Sets one Cybex OS setting; it applies at once and the person can undo it. key is the "
+                       "key of a settings_search result with changeable true, and the value must be one the "
+                       "setting accepts: check settings_search first. Settings of the assistant itself cannot "
+                       "be changed here.",
         "schema": _schema({"key": {"type": "string"}, "value": {}}, ["key", "value"]),
     },
     "settings_show": {
         "kind": ACT, "where": "shell", "label": "Showed a setting",
-        "description": "Opens Settings at one setting's row, where a small Wiz points at it until the person "
-                       "changes it, leaves the page or closes Settings. Use it when the person asks where a "
-                       "setting is or how to find it; it changes nothing. key is a key from settings_search. "
-                       "The answer says where the row is in Settings' own words (page, tab, group, label).",
-        "schema": _schema({"key": {"type": "string"}}, ["key"]),
+        "description": "Opens Settings at one row, where a small Wiz points at it until the person changes it, "
+                       "leaves the page or closes Settings. Use it when the person asks where a setting is or "
+                       "how to find it; it changes nothing. row is the row of a settings_search result. The "
+                       "answer says where the row is in Settings' own words (page, tab, group, label). When "
+                       "shown is false, Wiz could not point at that row: Settings opened on its page, and the "
+                       "answer's note says where to look on it, so tell the person.",
+        "schema": _schema({"row": {"type": "string"}}, ["row"]),
     },
     "wallpaper_search": {
         "kind": LOOK, "where": "service", "label": "Searched Wallhaven",
@@ -197,7 +204,7 @@ def kind(name):
 def detail(name, arguments):
     """The grey part of a step: what the tool was pointed at."""
     arguments = arguments if isinstance(arguments, dict) else {}
-    for key in ("key", "query", "app", "id", "wallhaven", "file", "question"):
+    for key in ("key", "row", "query", "app", "id", "wallhaven", "file", "question"):
         value = arguments.get(key)
         if isinstance(value, str) and value.strip():
             text = " ".join(value.split())
