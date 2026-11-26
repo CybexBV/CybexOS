@@ -619,10 +619,11 @@ def upgrade(harness, iso, source, target, base, evidence, *, standin, applicatio
             vm.command('cybex update channel beta')
         before = machine_inputs(vm)
         steps['installed'] = {'result': 'passed', 'applications': applications, 'release': installed,
-                              'channel': guest_json(vm, 'cybex update channel'), 'inputs': before}
+                              'channel': guest_json(vm, 'cybex update channel --json 2>/dev/null || cybex update channel'),
+                              'inputs': before}
 
         steps['standIn'] = redirect(vm, standin)
-        discovery = guest_json(vm, 'cybex update check')
+        discovery = guest_json(vm, 'cybex update check --json 2>/dev/null || cybex update check')
         vendor = discovery.get('cybexos', {})
         if (vendor.get('state') != 'available' or vendor.get('available') != target['version']
                 or vendor.get('revision') != target['revision']):
