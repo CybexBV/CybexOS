@@ -1,10 +1,16 @@
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from unittest import mock
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 loader = importlib.machinery.SourceFileLoader('image_parity', str(Path(__file__).resolve().parents[2] / 'scripts/check-image-parity'))
@@ -247,6 +253,43 @@ class PromptStatusTests(unittest.TestCase):
         self.assertEqual(limits, sorted(set(limits), reverse=True))
         self.assertEqual(limits[-1], 1)
         self.assertEqual(guest.keys, [])
+
+
+class PersonalWidgetFixtureTests(unittest.TestCase):
+    """The lifecycle's personal widget is never live without its setting."""
+
+    def test_label_is_set_before_the_widget_is_enabled(self):
+        state = qualification.PERSONAL_STATE
+        self.assertLess(state.index('cybex plugin set personal.qualification label'),
+                        state.index('cybex plugin enable personal.qualification'))
+
+    def test_the_helper_keeps_a_setting_made_before_enabling(self):
+        helper = ROOT / 'desktop/quickshell/scripts/user-plugins.py'
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            package = base / 'data/cybexos/plugins/personal.qualification'
+            package.mkdir(parents=True)
+            (package / 'manifest.json').write_text(json.dumps({
+                'id': 'personal.qualification', 'name': 'Qualification', 'version': '1.0.0',
+                'apiVersion': 1, 'entrypoint': 'Widget.qml'}))
+            (package / 'Widget.qml').write_text('import QtQuick\nItem {}\n')
+            environment = {key: value for key, value in os.environ.items()
+                           if key not in ('CYBEXOS_USER_CONFIG_ROOT', 'CYBEXOS_PLUGIN_ROOT')}
+            environment.update(HOME=str(base), XDG_CONFIG_HOME=str(base / 'config'), XDG_DATA_HOME=str(base / 'data'))
+
+            def widget(*arguments):
+                if arguments:
+                    subprocess.run([sys.executable, str(helper), *arguments], env=environment, check=True)
+                listed = subprocess.run([sys.executable, str(helper), 'list'], env=environment, check=True,
+                                        capture_output=True, text=True).stdout
+                return next(row for row in json.loads(listed)['widgets'] if row['id'] == 'personal.qualification')
+
+            row = widget('set', 'personal.qualification', 'label', '"persistent-widget"')
+            self.assertFalse(row['enabled'])
+            row = widget('enable', 'personal.qualification', '--width', '120', '--order', '2')
+            self.assertTrue(row['enabled'])
+            self.assertEqual(row['settings'], {'label': 'persistent-widget'})
+
 
 if __name__ == '__main__':
     unittest.main()

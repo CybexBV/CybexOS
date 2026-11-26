@@ -1366,6 +1366,35 @@ PERSONAL_MODULE = '''{ pkgs, ... }: {
 '''
 
 
+# Personal state an update must keep: a VPN key, a personal widget with a
+# setting and data, and a shell preference. QA secrets are generated only
+# inside the disposable guest.
+PERSONAL_STATE = '''python3 - <<'QA'
+from pathlib import Path
+import json, os, pwd, base64
+secret = Path('/var/lib/cybexos/secrets/qualification-vpn.key')
+secret.write_text(base64.b64encode(os.urandom(32)).decode() + '\\n'); secret.chmod(0o600)
+user = pwd.getpwnam('cybexqa'); home = Path(user.pw_dir)
+plugin = home / '.local/share/cybexos/plugins/personal.qualification'
+plugin.mkdir(parents=True)
+(plugin / 'manifest.json').write_text(json.dumps({'id':'personal.qualification','name':'Qualification', 'version':'1.0.0','apiVersion':1,'entrypoint':'Widget.qml'}))
+(plugin / 'Widget.qml').write_text('import QtQuick\\nText { required property var pluginApi; text: pluginApi.settings.label; Component.onCompleted: console.log("CYBEXOS_QA_PLUGIN_API:" + pluginApi.version + ":" + pluginApi.settings.label) }\\n')
+preferences = home / '.config/cybexos/shell.json'
+saved = json.loads(preferences.read_text()) if preferences.exists() else {}
+saved['reducedMotion'] = True
+preferences.write_text(json.dumps(saved))
+for path in [plugin, *plugin.rglob('*'), preferences]:
+    os.chown(path, user.pw_uid, user.pw_gid)
+QA
+# The label first: the shell loads an enabled widget within moments of the
+# registry change, and one loaded without its label logs "Unable to assign
+# [undefined] to QString", a QML error that desktop health rightly rejects.
+runuser -u cybexqa -- cybex plugin set personal.qualification label '"persistent-widget"'
+runuser -u cybexqa -- cybex plugin enable personal.qualification --width 120 --order 2
+runuser -u cybexqa -- sh -c 'printf personal-plugin-state > "$HOME/.local/share/cybexos/plugin-data/personal.qualification/state"'
+'''
+
+
 def edit_import(vm, filename, text=None):
     """Modify only a task-owned local module and its explicit import."""
     code = '''from pathlib import Path
@@ -1494,27 +1523,7 @@ QA
                   if held else 'actual independent discovery and complete upstream worker build/validation; candidate remains unapplied; unchanged identity is not changed-package update qualification')}
     checks['bootUpdateAndRollback'] = qualify_boot_update(vm, encrypted)
     edit_import(vm, 'qualification.nix', PERSONAL_MODULE)
-    vm.command('''python3 - <<'QA'
-from pathlib import Path
-import json, os, pwd, base64
-secret = Path('/var/lib/cybexos/secrets/qualification-vpn.key')
-secret.write_text(base64.b64encode(os.urandom(32)).decode() + '\\n'); secret.chmod(0o600)
-user = pwd.getpwnam('cybexqa'); home = Path(user.pw_dir)
-plugin = home / '.local/share/cybexos/plugins/personal.qualification'
-plugin.mkdir(parents=True)
-(plugin / 'manifest.json').write_text(json.dumps({'id':'personal.qualification','name':'Qualification', 'version':'1.0.0','apiVersion':1,'entrypoint':'Widget.qml'}))
-(plugin / 'Widget.qml').write_text('import QtQuick\\nText { required property var pluginApi; text: pluginApi.settings.label; Component.onCompleted: console.log("CYBEXOS_QA_PLUGIN_API:" + pluginApi.version + ":" + pluginApi.settings.label) }\\n')
-preferences = home / '.config/cybexos/shell.json'
-saved = json.loads(preferences.read_text()) if preferences.exists() else {}
-saved['reducedMotion'] = True
-preferences.write_text(json.dumps(saved))
-for path in [plugin, *plugin.rglob('*'), preferences]:
-    os.chown(path, user.pw_uid, user.pw_gid)
-QA
-runuser -u cybexqa -- cybex plugin enable personal.qualification --width 120 --order 2
-runuser -u cybexqa -- cybex plugin set personal.qualification label '"persistent-widget"'
-runuser -u cybexqa -- sh -c 'printf personal-plugin-state > "$HOME/.local/share/cybexos/plugin-data/personal.qualification/state"'
-''')
+    vm.command(PERSONAL_STATE)
     baseline = stage(vm)
     apply(vm, baseline)
     authenticated_boot(vm, encrypted)
