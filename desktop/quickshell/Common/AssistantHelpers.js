@@ -986,6 +986,42 @@ function modelLabel(agent, value) {
     return value || "Default";
 }
 
+// How hard the agent thinks. "default" leaves it to the agent's own
+// configuration; Codex also has "none". `short` fits the picker's segments.
+var EFFORT_LEVELS = [
+    { value: "default", label: "Auto", short: "Auto" },
+    { value: "none", label: "None", short: "None" },
+    { value: "low", label: "Low", short: "Low" },
+    { value: "medium", label: "Medium", short: "Med" },
+    { value: "high", label: "High", short: "High" },
+    { value: "xhigh", label: "XHigh", short: "XHigh" },
+    { value: "max", label: "Max", short: "Max" }
+];
+var CLAUDE_EFFORTS = EFFORT_LEVELS.filter(function(choice) { return choice.value !== "none"; });
+var CODEX_EFFORTS = EFFORT_LEVELS;
+
+function effortChoices(agent) {
+    return agent === "codex" ? CODEX_EFFORTS : CLAUDE_EFFORTS;
+}
+
+// The effort sent with a turn: "" leaves it to the agent, like modelFor.
+function effortFor(agent, claudeEffort, codexEffort) {
+    var value = agent === "codex" ? codexEffort : claudeEffort;
+    if (!value || value === "default")
+        return "";
+    return effortChoices(agent).some(function(choice) { return choice.value === value; }) ? value : "";
+}
+
+function effortLabel(agent, value) {
+    if (!value || value === "default")
+        return "Auto";
+    var choices = effortChoices(agent);
+    for (var i = 0; i < choices.length; i++) {
+        if (choices[i].value === value)
+            return choices[i].label;
+    }
+    return value;
+}
 
 // ---- telling the person ----------------------------------------------------------------
 // A question that took this long earns a notification when it finishes out of sight.
@@ -1105,6 +1141,9 @@ var exported = {
     tuckedX: tuckedX,
     modelChoices: modelChoices,
     modelLabel: modelLabel,
+    effortChoices: effortChoices,
+    effortFor: effortFor,
+    effortLabel: effortLabel,
     NOTIFY_AFTER_MS: NOTIFY_AFTER_MS,
     notifies: notifies,
     isImagePath: isImagePath,
