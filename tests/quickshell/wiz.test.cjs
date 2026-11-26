@@ -21,6 +21,21 @@ const uncommented = source => source.replace(/^\s*\/\/.*$/gm, "");
 const code = uncommented(wiz), artCode = uncommented(art);
 const leaves = ops => ops.filter(op => op.k === "path" || op.k === "radial");
 
+// The whole of each QML block that `opening` begins, braces matched.
+function blocks(source, opening) {
+    const found = [];
+    for (const match of source.matchAll(new RegExp(opening.source + " \\{", "g"))) {
+        let depth = 0, end = match.index + match[0].length - 1;
+        do {
+            if (source[end] === "{") depth++;
+            else if (source[end] === "}") depth--;
+            end++;
+        } while (depth > 0);
+        found.push(source.slice(match.index, end));
+    }
+    return found;
+}
+
 // The matrix m followed by one of the rig's transform steps.
 function then(m, step) {
     let n;
@@ -388,23 +403,34 @@ test("loops run only while live and busy, and Wiz holds still otherwise", () => 
     assert.deepEqual(code.match(/\bact = [^;]+;/g), ['act = "";', "act = pose;"]);
     assert.match(code, /function settle\(\) \{\s*act = "";/);
     assert.match(code, /function resume\(\) \{\s*if \(!live\)\s*return;\s*act = pose;\s*gesture\(\);\s*if \(!looping\)\s*return;/);
-    // Each infinite loop is gated on a live-derived condition, is one of the
-    // two loops resume() starts only while looping, or is a wave that runs as
-    // its user says.
-    const loops = [...wiz.matchAll(/(?:SequentialAnimation|RotationAnimator|ParallelAnimation)(?: on \w+)? \{\s*(?:id: (\w+)\s*)?(?:running: ([^\n]+)\s*)?loops: Animation\.Infinite/g)];
+    // Each infinite loop is gated on a live-derived condition, or is a wave,
+    // which runs as its user says.
+    const loops = [...wiz.matchAll(/(component Sine[XYR]: )?(?:SequentialAnimation|ParallelAnimation|[XY]Animator|RotationAnimator|ScaleAnimator)(?: on \w+)? \{\s*(?:id: \w+\s*)?(?:running: ([^\n]+)\s*)?loops: Animation\.Infinite/g)];
     assert.equal(loops.length, (code.match(/Animation\.Infinite/g) || []).length,
         "every infinite loop is in the shape this contract reads");
     const gate = /^(?:root\.live && [^\n]+|root\.act === "[a-z-]+"(?: && root\.recording)?|root\.casting|root\.busy && root\.act !== ""|(?:orbiter|mote|bubble|spell)\.running(?: && orbiter\.front)?)$/;
-    for (const [source, id, running] of loops) {
-        if (["breathing", "swaying", "sineX", "sineY", "sineR"].includes(id))
+    assert.equal(loops.filter(([, wave]) => wave).length, 3, "SineX, SineY and SineR");
+    for (const [source, wave, running] of loops) {
+        if (wave)
             continue;
         assert.ok(running, `an infinite loop without a running condition: ${source}`);
         assert.match(running, gate, source);
     }
+    // A wave runs on a live-derived condition too, but for the two that
+    // resume() starts, and only while he is looping.
     const waves = [...code.matchAll(/^ *Sine[XYR] \{([^}]*)\}/gm)].map(match => match[1]);
     assert.ok(waves.length >= 20, `${waves.length} waves`);
-    for (const body of waves)
-        assert.match(body.match(/running: ([^;\n]+)/)[1], gate, body);
+    const started = [];
+    for (const body of waves) {
+        const running = body.match(/running: ([^;\n]+)/);
+        if (running)
+            assert.match(running[1], gate, body);
+        else
+            started.push(body.match(/id: (\w+);/)[1]);
+    }
+    assert.deepEqual(started, ["breathing", "swaying"]);
+    assert.match(code, /if \(!looping\)\s*return;\s*breathDepth = [^;]+;\s*swayReach = [^;]+;\s*breathing\.start\(\);\s*swaying\.start\(\);\s*\}/);
+    assert.match(code, /function settle\(\) \{\s*act = "";\s*breathing\.stop\(\);\s*swaying\.stop\(\);/);
     // Each kind of work moves in its own way, and only as that pose.
     for (const state of ["thinking", "reading", "searching", "writing", "brewing", "delegating", "carried"])
         assert.match(code, new RegExp(`running: root\\.act === "${state}"`), state);
@@ -441,6 +467,49 @@ test("loops run only while live and busy, and Wiz holds still otherwise", () => 
     // Without motion everything a loop moved goes back to where it rests.
     assert.match(code, /\} else \{\s*settling\.stop\(\);\s*breath\.y = 0;\s*dimmer\.opacity = 0;\s*for \(const item of shifted\) \{\s*item\.x = 0;\s*item\.y = 0;\s*\}\s*for \(const item of turned\)\s*item\.rotation = 0;/);
     assert.match(code, /onLiveChanged: \{[\s\S]*settle\(\);\s*\}/);
+});
+
+// Qt's SineCurve is (1 - cos 2πt) / 2 and its CosineCurve (1 + sin 2πt) / 2
+// (QEasingCurve), so one Animator between the two ends of a wave's reach is
+// the rig's sine, where four eased quarter steps were before.
+test("a wave is one Animator, and the same motion as the rig's sine", () => {
+    const body = name => code.match(new RegExp(`function ${name}\\(([^)]*)\\) \\{\\s*return ([^;]+);\\s*\\}`));
+    const cosine = JSON.parse(code.match(/readonly property var cosine: (\[[^\]]+\])/)[1]);
+    const Easing = {
+        SineCurve: t => (Math.sin(t * 2 * Math.PI - Math.PI / 2) + 1) / 2,
+        CosineCurve: t => (Math.cos(t * 2 * Math.PI - Math.PI / 2) + 1) / 2
+    };
+    const [wave, far, curve] = ["wave", "far", "curve"].map(name =>
+        new Function("cosine", "Easing", ...body(name)[1].split(", "), `return ${body(name)[2]};`).bind(null, cosine, Easing));
+    const middle = 61, reach = 32;
+    for (let phase = 0; phase < 4; phase++) {
+        const from = middle + far(phase) * reach, to = middle - far(phase) * reach;
+        const at = t => from + (to - from) * curve(phase)(t);
+        // Where the rig's sine is at each quarter, and in between.
+        for (let step = 0; step <= 4; step++)
+            assert.ok(Math.abs(at(step / 4) - wave(step, phase, middle, reach)) < 1e-9, `phase ${phase}, quarter ${step}`);
+        for (let i = 0; i <= 64; i++)
+            assert.ok(Math.abs(at(i / 64) - (middle + reach * Math.cos(2 * Math.PI * i / 64 + phase * Math.PI / 2))) < 1e-9,
+                `phase ${phase} at ${i}/64`);
+    }
+    for (const [name, animator] of [["SineX", "XAnimator"], ["SineY", "YAnimator"], ["SineR", "RotationAnimator"]])
+        assert.match(code, new RegExp(`component ${name}: ${animator} \\{\\s*loops: Animation\\.Infinite\\s*property real reach: 1\\s*`
+            + `property int period: 1000\\s*property int phase: 0\\s*from: root\\.far\\(phase\\) \\* reach\\s*to: -from\\s*`
+            + `duration: period\\s*easing\\.type: root\\.curve\\(phase\\)\\s*\\}`), name);
+    // An orbiter goes round on three of them, a quarter apart, and its place
+    // in front of or behind the cone changes on the same quarters.
+    const orbiter = blocks(code, /component Orbiter: Item/)[0];
+    assert.match(orbiter, /XAnimator on x \{\s*running: orbiter\.running\s*loops: Animation\.Infinite\s*from: orbiter\.orbit\.cx \+ root\.far\(orbiter\.index\) \* orbiter\.orbit\.rx\s*to: orbiter\.orbit\.cx - root\.far\(orbiter\.index\) \* orbiter\.orbit\.rx\s*duration: 4 \* orbiter\.quarter\s*easing\.type: root\.curve\(orbiter\.index\)/);
+    assert.match(orbiter, /YAnimator on y \{\s*running: orbiter\.running\s*loops: Animation\.Infinite\s*from: orbiter\.orbit\.cy \+ root\.far\(orbiter\.lag\) \* orbiter\.orbit\.ry\s*to: orbiter\.orbit\.cy - root\.far\(orbiter\.lag\) \* orbiter\.orbit\.ry\s*duration: 4 \* orbiter\.quarter\s*easing\.type: root\.curve\(orbiter\.lag\)/);
+    assert.match(orbiter, /ScaleAnimator on scale \{\s*running: orbiter\.running\s*loops: Animation\.Infinite\s*from: \(0\.82 \+ root\.far\(orbiter\.lag\) \* 0\.22\) \* orbiter\.size\s*to: \(0\.82 - root\.far\(orbiter\.lag\) \* 0\.22\) \* orbiter\.size\s*duration: 4 \* orbiter\.quarter\s*easing\.type: root\.curve\(orbiter\.lag\)/);
+    assert.match(orbiter, /readonly property int lag: \(index \+ 3\) % 4/);
+    assert.equal(orbiter.match(/OpacityAnimator \{ from: orbiter\.near\(\d\); to: orbiter\.near\(\d\); duration: orbiter\.quarter \}/g).length, 4);
+    // Where it stands when it may not move is the wave's start.
+    assert.match(orbiter, /x: root\.wave\(0, index, orbit\.cx, orbit\.rx\)\s*y: root\.wave\(0, lag, orbit\.cy, orbit\.ry\)\s*scale: root\.wave\(0, lag, 0\.82 \* size, 0\.22 \* size\)/);
+    assert.equal(code.match(/root\.wave\(/g).length, 3, "no wave is stepped through quarter by quarter any more");
+    // Breathing and the sway start in the middle and go out first, as before.
+    assert.match(code, /SineY \{ id: breathing; target: breath; reach: root\.breathDepth; period: 2992; phase: 3 \}/);
+    assert.match(code, /SineR \{ id: swaying; target: sway; reach: root\.swayReach; period: 4488; phase: 3 \}/);
 });
 
 test("the star swings once on a change of pose; it twinkles and turns only at work", () => {
@@ -534,9 +603,9 @@ test("carried, he reacts only while live and always comes back to rest", () => {
     assert.match(code, /\} else \{\s*impact = Math\.min\(1, 0\.35 \+ 0\.65 \* Math\.sqrt\(ux \* ux \+ uy \* uy\)\);[\s\S]{0,80}ux = 0;\s*uy = 0;\s*if \(live\)\s*land\(\);\s*if \(dizzy\)\s*recover\.restart\(\);/);
     // His hands flail and are left a little behind; his feet kick.
     for (const hand of ["leftAct", "rightAct"])
-        assert.equal(code.match(new RegExp(`Sine[XY] \\{ item: ${hand}; running: root\\.act === "carried";`, "g")).length, 2, hand);
+        assert.equal(code.match(new RegExp(`Sine[XY] \\{ target: ${hand}; running: root\\.act === "carried";`, "g")).length, 2, hand);
     assert.match(code, /readonly property point leftReach: Qt\.point\(\(lx - layout\.shoulders\[0\]\[0\]\) \* arms \+ reaction\.handX,/);
-    assert.match(code, /running: root\.live && root\.carried\s*loops: Animation\.Infinite\s*RotationAnimator \{ from: root\.wave\(0, leg\.phase, 0, 16\)/);
+    assert.match(code, /SineR \{ target: kick; running: root\.live && root\.carried; reach: 16; period: 480; phase: leg\.phase \}/);
     // Every one-shot ends where it began.
     for (const id of ["startling", "landing"]) {
         const start = code.indexOf(`id: ${id}`);
@@ -580,7 +649,7 @@ test("he can face the other way, point at the box, and have a helper", () => {
     assert.match(code, /property bool helper: false/);
     assert.match(code, /property real wisp: Math\.max\(stance\.wisp, helper \? 1 : 0\)/);
     for (const item of ["wispBob", "wispFlicker"])
-        assert.match(code, new RegExp(`Sine[XYR] \\{ item: ${item}; running: root\\.live && helperWisp\\.visible;`), item);
+        assert.match(code, new RegExp(`Sine[XYR] \\{ target: ${item}; running: root\\.live && helperWisp\\.visible;`), item);
 });
 
 test("Wiz is the only character and holds still with reduced motion or nobody there", () => {

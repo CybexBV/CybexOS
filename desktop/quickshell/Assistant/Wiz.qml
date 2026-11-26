@@ -249,53 +249,54 @@ Item {
     }
 
     // ---- waves -----------------------------------------------------------------
-    // The rig's runes, motes, hands and sway follow sines. A quarter period is
-    // one eased step, so a looping wave is four Animators, and a wave starting
-    // a quarter later is the same four in a rotated order.
+    // The rig's runes, hands and sway follow sines: middle + reach * cos of
+    // the turn, starting `phase` quarters into it (wave() is where that is
+    // after `step` quarters more). Qt's SineCurve is one whole turn of a
+    // cosine and CosineCurve one of a sine, so a looping wave is a single
+    // Animator between middle + far * reach and middle - far * reach: there
+    // and back from the first (phase 0 and 2), or from halfway to the second,
+    // to the first and back to halfway (phase 1 and 3).
     readonly property var cosine: [1, 0, -1, 0]
     function wave(step, phase, middle, amplitude) {
         return middle + amplitude * cosine[(phase + step) % 4];
     }
-    function ease(step, phase) {
-        return (phase + step) % 2 === 0 ? Easing.InSine : Easing.OutSine;
+    function far(phase) {
+        return phase < 2 ? 1 : -1;
+    }
+    function curve(phase) {
+        return phase % 2 === 0 ? Easing.SineCurve : Easing.CosineCurve;
     }
 
     // An item going to and fro, or turning to and fro, about where it rests.
-    component SineX: SequentialAnimation {
-        id: sineX
+    component SineX: XAnimator {
         loops: Animation.Infinite
-        required property Item item
         property real reach: 1
         property int period: 1000
         property int phase: 0
-        XAnimator { target: sineX.item; from: root.wave(0, sineX.phase, 0, sineX.reach); to: root.wave(1, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(0, sineX.phase) }
-        XAnimator { target: sineX.item; from: root.wave(1, sineX.phase, 0, sineX.reach); to: root.wave(2, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(1, sineX.phase) }
-        XAnimator { target: sineX.item; from: root.wave(2, sineX.phase, 0, sineX.reach); to: root.wave(3, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(2, sineX.phase) }
-        XAnimator { target: sineX.item; from: root.wave(3, sineX.phase, 0, sineX.reach); to: root.wave(4, sineX.phase, 0, sineX.reach); duration: sineX.period / 4; easing.type: root.ease(3, sineX.phase) }
+        from: root.far(phase) * reach
+        to: -from
+        duration: period
+        easing.type: root.curve(phase)
     }
-    component SineY: SequentialAnimation {
-        id: sineY
+    component SineY: YAnimator {
         loops: Animation.Infinite
-        required property Item item
         property real reach: 1
         property int period: 1000
         property int phase: 0
-        YAnimator { target: sineY.item; from: root.wave(0, sineY.phase, 0, sineY.reach); to: root.wave(1, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(0, sineY.phase) }
-        YAnimator { target: sineY.item; from: root.wave(1, sineY.phase, 0, sineY.reach); to: root.wave(2, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(1, sineY.phase) }
-        YAnimator { target: sineY.item; from: root.wave(2, sineY.phase, 0, sineY.reach); to: root.wave(3, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(2, sineY.phase) }
-        YAnimator { target: sineY.item; from: root.wave(3, sineY.phase, 0, sineY.reach); to: root.wave(4, sineY.phase, 0, sineY.reach); duration: sineY.period / 4; easing.type: root.ease(3, sineY.phase) }
+        from: root.far(phase) * reach
+        to: -from
+        duration: period
+        easing.type: root.curve(phase)
     }
-    component SineR: SequentialAnimation {
-        id: sineR
+    component SineR: RotationAnimator {
         loops: Animation.Infinite
-        required property Item item
         property real reach: 1
         property int period: 1000
         property int phase: 0
-        RotationAnimator { target: sineR.item; from: root.wave(0, sineR.phase, 0, sineR.reach); to: root.wave(1, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(0, sineR.phase) }
-        RotationAnimator { target: sineR.item; from: root.wave(1, sineR.phase, 0, sineR.reach); to: root.wave(2, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(1, sineR.phase) }
-        RotationAnimator { target: sineR.item; from: root.wave(2, sineR.phase, 0, sineR.reach); to: root.wave(3, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(2, sineR.phase) }
-        RotationAnimator { target: sineR.item; from: root.wave(3, sineR.phase, 0, sineR.reach); to: root.wave(4, sineR.phase, 0, sineR.reach); duration: sineR.period / 4; easing.type: root.ease(3, sineR.phase) }
+        from: root.far(phase) * reach
+        to: -from
+        duration: period
+        easing.type: root.curve(phase)
     }
 
     // One exported layer, drawn once at the size it is shown and then only
@@ -357,29 +358,29 @@ Item {
             name: orbiter.art
         }
 
-        SequentialAnimation on x {
+        XAnimator on x {
             running: orbiter.running
             loops: Animation.Infinite
-            XAnimator { from: root.wave(0, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); to: root.wave(1, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); duration: orbiter.quarter; easing.type: root.ease(0, orbiter.index) }
-            XAnimator { from: root.wave(1, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); to: root.wave(2, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); duration: orbiter.quarter; easing.type: root.ease(1, orbiter.index) }
-            XAnimator { from: root.wave(2, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); to: root.wave(3, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); duration: orbiter.quarter; easing.type: root.ease(2, orbiter.index) }
-            XAnimator { from: root.wave(3, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); to: root.wave(4, orbiter.index, orbiter.orbit.cx, orbiter.orbit.rx); duration: orbiter.quarter; easing.type: root.ease(3, orbiter.index) }
+            from: orbiter.orbit.cx + root.far(orbiter.index) * orbiter.orbit.rx
+            to: orbiter.orbit.cx - root.far(orbiter.index) * orbiter.orbit.rx
+            duration: 4 * orbiter.quarter
+            easing.type: root.curve(orbiter.index)
         }
-        SequentialAnimation on y {
+        YAnimator on y {
             running: orbiter.running
             loops: Animation.Infinite
-            YAnimator { from: root.wave(0, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); to: root.wave(1, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); duration: orbiter.quarter; easing.type: root.ease(0, orbiter.lag) }
-            YAnimator { from: root.wave(1, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); to: root.wave(2, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); duration: orbiter.quarter; easing.type: root.ease(1, orbiter.lag) }
-            YAnimator { from: root.wave(2, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); to: root.wave(3, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); duration: orbiter.quarter; easing.type: root.ease(2, orbiter.lag) }
-            YAnimator { from: root.wave(3, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); to: root.wave(4, orbiter.lag, orbiter.orbit.cy, orbiter.orbit.ry); duration: orbiter.quarter; easing.type: root.ease(3, orbiter.lag) }
+            from: orbiter.orbit.cy + root.far(orbiter.lag) * orbiter.orbit.ry
+            to: orbiter.orbit.cy - root.far(orbiter.lag) * orbiter.orbit.ry
+            duration: 4 * orbiter.quarter
+            easing.type: root.curve(orbiter.lag)
         }
-        SequentialAnimation on scale {
+        ScaleAnimator on scale {
             running: orbiter.running
             loops: Animation.Infinite
-            ScaleAnimator { from: root.wave(0, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); to: root.wave(1, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); duration: orbiter.quarter; easing.type: root.ease(0, orbiter.lag) }
-            ScaleAnimator { from: root.wave(1, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); to: root.wave(2, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); duration: orbiter.quarter; easing.type: root.ease(1, orbiter.lag) }
-            ScaleAnimator { from: root.wave(2, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); to: root.wave(3, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); duration: orbiter.quarter; easing.type: root.ease(2, orbiter.lag) }
-            ScaleAnimator { from: root.wave(3, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); to: root.wave(4, orbiter.lag, 0.82 * orbiter.size, 0.22 * orbiter.size); duration: orbiter.quarter; easing.type: root.ease(3, orbiter.lag) }
+            from: (0.82 + root.far(orbiter.lag) * 0.22) * orbiter.size
+            to: (0.82 - root.far(orbiter.lag) * 0.22) * orbiter.size
+            duration: 4 * orbiter.quarter
+            easing.type: root.curve(orbiter.lag)
         }
         SequentialAnimation on opacity {
             running: orbiter.running && orbiter.front
@@ -758,6 +759,8 @@ Item {
                             rotation: root.reaction.feet
 
                             Item {
+                                id: kick
+
                                 Part {
                                     name: "leg"
                                     opacity: root.feet
@@ -773,14 +776,7 @@ Item {
                                     }
                                 }
 
-                                SequentialAnimation on rotation {
-                                    running: root.live && root.carried
-                                    loops: Animation.Infinite
-                                    RotationAnimator { from: root.wave(0, leg.phase, 0, 16); to: root.wave(1, leg.phase, 0, 16); duration: 120; easing.type: root.ease(0, leg.phase) }
-                                    RotationAnimator { from: root.wave(1, leg.phase, 0, 16); to: root.wave(2, leg.phase, 0, 16); duration: 120; easing.type: root.ease(1, leg.phase) }
-                                    RotationAnimator { from: root.wave(2, leg.phase, 0, 16); to: root.wave(3, leg.phase, 0, 16); duration: 120; easing.type: root.ease(2, leg.phase) }
-                                    RotationAnimator { from: root.wave(3, leg.phase, 0, 16); to: root.wave(4, leg.phase, 0, 16); duration: 120; easing.type: root.ease(3, leg.phase) }
-                                }
+                                SineR { target: kick; running: root.live && root.carried; reach: 16; period: 480; phase: leg.phase }
                             }
                         }
                     }
@@ -1619,10 +1615,10 @@ Item {
     }
 
     // Searching: his hands circle the orb, which bobs, and his eyes follow.
-    SineY { item: leftAct; running: root.act === "searching"; reach: 1.3; period: 2732; phase: 3 }
-    SineY { item: rightAct; running: root.act === "searching"; reach: 1.3; period: 2732; phase: 1 }
+    SineY { target: leftAct; running: root.act === "searching"; reach: 1.3; period: 2732; phase: 3 }
+    SineY { target: rightAct; running: root.act === "searching"; reach: 1.3; period: 2732; phase: 1 }
     SineY {
-        item: orbBob
+        target: orbBob
         running: root.act === "searching"
         reach: 0.8
         period: 3491
@@ -1632,7 +1628,7 @@ Item {
                 orbBob.y = 0;
         }
     }
-    SineX { item: scan; running: root.act === "searching"; reach: 1.2; period: 5712; phase: 3 }
+    SineX { target: scan; running: root.act === "searching"; reach: 1.2; period: 5712; phase: 3 }
 
     // Writing: his hand and its sleeve run along the line and jump back, a
     // line lower each time, and his eyes go with them.
@@ -1665,33 +1661,33 @@ Item {
     // Casting, and work of no particular kind: the wand hand circles, the
     // wand waves and the other hand bobs.
     readonly property bool casting: act === "casting" || act === "working"
-    SineX { item: rightAct; running: root.casting; reach: 1.5; period: 1208; phase: 0 }
-    SineY { item: rightAct; running: root.casting; reach: 1.5; period: 1208; phase: 3 }
-    SineR { item: wandSwing; running: root.casting; reach: 10; period: 1208; phase: 3 }
-    SineY { item: leftAct; running: root.casting; reach: 0.8; period: 2416; phase: 3 }
+    SineX { target: rightAct; running: root.casting; reach: 1.5; period: 1208; phase: 0 }
+    SineY { target: rightAct; running: root.casting; reach: 1.5; period: 1208; phase: 3 }
+    SineR { target: wandSwing; running: root.casting; reach: 10; period: 1208; phase: 3 }
+    SineY { target: leftAct; running: root.casting; reach: 0.8; period: 2416; phase: 3 }
 
     // Brewing: he stirs.
-    SineX { item: rightAct; running: root.act === "brewing"; reach: 3.4; period: 1963; phase: 0 }
-    SineY { item: rightAct; running: root.act === "brewing"; reach: 1.1; period: 1963; phase: 3 }
-    SineR { item: wandSwing; running: root.act === "brewing"; reach: 9; period: 1963; phase: 2 }
+    SineX { target: rightAct; running: root.act === "brewing"; reach: 3.4; period: 1963; phase: 0 }
+    SineY { target: rightAct; running: root.act === "brewing"; reach: 1.1; period: 1963; phase: 3 }
+    SineR { target: wandSwing; running: root.act === "brewing"; reach: 9; period: 1963; phase: 2 }
 
     // Delegating: an open hand towards the wisp, turning a little.
-    SineX { item: leftAct; running: root.act === "delegating"; reach: 1; period: 2992; phase: 3 }
-    SineY { item: leftAct; running: root.act === "delegating"; reach: 1.2; period: 2992; phase: 0 }
+    SineX { target: leftAct; running: root.act === "delegating"; reach: 1; period: 2992; phase: 3 }
+    SineY { target: leftAct; running: root.act === "delegating"; reach: 1.2; period: 2992; phase: 0 }
 
     // Recording: the hand at his ear.
-    SineX { item: rightAct; running: root.act === "listening" && root.recording; reach: 0.5; period: 2856; phase: 3 }
+    SineX { target: rightAct; running: root.act === "listening" && root.recording; reach: 0.5; period: 2856; phase: 3 }
 
     // Carried: his hands flail.
-    SineX { item: leftAct; running: root.act === "carried"; reach: 2.4; period: 370; phase: 3 }
-    SineY { item: leftAct; running: root.act === "carried"; reach: 2.4; period: 419; phase: 0 }
-    SineX { item: rightAct; running: root.act === "carried"; reach: 2.4; period: 393; phase: 1 }
-    SineY { item: rightAct; running: root.act === "carried"; reach: 2.4; period: 349; phase: 2 }
+    SineX { target: leftAct; running: root.act === "carried"; reach: 2.4; period: 370; phase: 3 }
+    SineY { target: leftAct; running: root.act === "carried"; reach: 2.4; period: 419; phase: 0 }
+    SineX { target: rightAct; running: root.act === "carried"; reach: 2.4; period: 393; phase: 1 }
+    SineY { target: rightAct; running: root.act === "carried"; reach: 2.4; period: 349; phase: 2 }
 
     // The wisp floats whenever it is there: a helper is at work.
-    SineX { item: wispBob; running: root.live && helperWisp.visible; reach: 2.4; period: 4833; phase: 3 }
-    SineY { item: wispBob; running: root.live && helperWisp.visible; reach: 2.2; period: 2856; phase: 3 }
-    SineR { item: wispFlicker; running: root.live && helperWisp.visible; reach: 5; period: 1047; phase: 3 }
+    SineX { target: wispBob; running: root.live && helperWisp.visible; reach: 2.4; period: 4833; phase: 3 }
+    SineY { target: wispBob; running: root.live && helperWisp.visible; reach: 2.2; period: 2856; phase: 3 }
+    SineR { target: wispFlicker; running: root.live && helperWisp.visible; reach: 5; period: 1047; phase: 3 }
 
     // An arm swinging out and back from its shoulder, hand and sleeve
     // together: a wave.
@@ -1776,22 +1772,8 @@ Item {
     property real breathDepth: 0
     property real swayReach: 0
 
-    SequentialAnimation {
-        id: breathing
-        loops: Animation.Infinite
-        YAnimator { target: breath; from: 0; to: root.breathDepth; duration: 748; easing.type: Easing.OutSine }
-        YAnimator { target: breath; from: root.breathDepth; to: -root.breathDepth; duration: 1496; easing.type: Easing.InOutSine }
-        YAnimator { target: breath; from: -root.breathDepth; to: 0; duration: 748; easing.type: Easing.InSine }
-    }
-
-    SequentialAnimation {
-        id: swaying
-        loops: Animation.Infinite
-        RotationAnimator { target: sway; from: root.wave(0, 3, 0, root.swayReach); to: root.wave(1, 3, 0, root.swayReach); duration: 1122; easing.type: root.ease(0, 3) }
-        RotationAnimator { target: sway; from: root.wave(1, 3, 0, root.swayReach); to: root.wave(2, 3, 0, root.swayReach); duration: 1122; easing.type: root.ease(1, 3) }
-        RotationAnimator { target: sway; from: root.wave(2, 3, 0, root.swayReach); to: root.wave(3, 3, 0, root.swayReach); duration: 1122; easing.type: root.ease(2, 3) }
-        RotationAnimator { target: sway; from: root.wave(3, 3, 0, root.swayReach); to: root.wave(4, 3, 0, root.swayReach); duration: 1122; easing.type: root.ease(3, 3) }
-    }
+    SineY { id: breathing; target: breath; reach: root.breathDepth; period: 2992; phase: 3 }
+    SineR { id: swaying; target: sway; reach: root.swayReach; period: 4488; phase: 3 }
 
     // Everything a loop or a gesture moves, eased back to where it rests.
     readonly property list<Item> shifted: [leftAct, rightAct, leftSleeveAct, rightSleeveAct, scan]
