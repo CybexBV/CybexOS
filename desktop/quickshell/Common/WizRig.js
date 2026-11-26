@@ -88,6 +88,53 @@ var WizRig = (function () {
     return d;
   }
 
+  // The cloak, the face that fills its hood, and the stretch of the cloak's
+  // outline the collar lies over. Each side of the cloak is two curves, the
+  // right side the left one mirrored. The face runs from under the brim to
+  // just below the collar's top edge, so the collar hides its lower edge.
+  var CLOAK_TOP = [[60, 60], [47, 60], [42, 70], [41, 80]];
+  var CLOAK_LOW = [[41, 80], [40, 90], [37, 100], [34, 106]];
+  function cloak() {
+    return [["M", 60, 60], ["C", 47, 60, 42, 70, 41, 80], ["C", 40, 90, 37, 100, 34, 106], ["Q", 60, 114, 86, 106],
+      ["C", 83, 100, 80, 90, 79, 80], ["C", 78, 70, 73, 60, 60, 60], ["Z"]];
+  }
+  function face() {
+    var s = subCubic(CLOAK_TOP, 0, tAtY(CLOAK_TOP, 72.5)), m = s.map(mirror);
+    return [["M", 60, 60], ["C"].concat(s[1], s[2], s[3]),
+      ["L", 43.5, 72.5], ["C", 50, 79, 70, 79, 76.5, 72.5],
+      ["L"].concat(m[3]), ["C"].concat(m[2], m[1], m[0]), ["Z"]];
+  }
+  // The outline from just above the collar to just below it, on both sides.
+  function collarEdge() {
+    var a = subCubic(CLOAK_TOP, tAtY(CLOAK_TOP, 71), 1), b = subCubic(CLOAK_LOW, 0, tAtY(CLOAK_LOW, 83)), d = [];
+    [a.concat(b.slice(1)), a.concat(b.slice(1)).map(mirror)].forEach(function (q) {
+      d.push(["M"].concat(q[0]), ["C"].concat(q[1], q[2], q[3]), ["C"].concat(q[4], q[5], q[6]));
+    });
+    return d;
+  }
+  function mirror(pt) { return [120 - pt[0], pt[1]]; }
+  // The cubic p (its four points) split at t, as two cubics.
+  function splitCubic(p, t) {
+    function mix(a, b) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+    var ab = mix(p[0], p[1]), bc = mix(p[1], p[2]), cd = mix(p[2], p[3]);
+    var abc = mix(ab, bc), bcd = mix(bc, cd), mid = mix(abc, bcd);
+    return [[p[0], ab, abc, mid], [mid, bcd, cd, p[3]]];
+  }
+  // The part of the cubic p from t0 to t1.
+  function subCubic(p, t0, t1) {
+    var head = splitCubic(p, t1)[0];
+    return t0 > 0 ? splitCubic(head, t0 / t1)[1] : head;
+  }
+  // Where the cubic p, whose y only grows, reaches y.
+  function tAtY(p, y) {
+    var lo = 0, hi = 1;
+    for (var i = 0; i < 40; i++) {
+      var t = (lo + hi) / 2;
+      if (splitCubic(p, t)[0][3][1] < y) lo = t; else hi = t;
+    }
+    return (lo + hi) / 2;
+  }
+
   // Pivots and paths the drawing and Wiz.qml share, in rig units.
   var LAYOUT = {
     ground: [60, 110],       // the body leans and scales about this point
@@ -312,10 +359,10 @@ var WizRig = (function () {
     }
 
     // body
-    O.push(P([["M", 60, 60], ["C", 47, 60, 42, 70, 41, 80], ["C", 40, 90, 37, 100, 34, 106], ["Q", 60, 114, 86, 106],
-      ["C", 83, 100, 80, 90, 79, 80], ["C", 78, 70, 73, 60, 60, 60], ["Z"]], { fill: C.cloak, stroke: C.edge, lw: 1.2, join: "round", layer: "body" }));
+    O.push(P(cloak(), { fill: C.cloak, layer: "body" }));
     O.push(P([["M", 60, 85], ["L", 60, 108.6]], { stroke: C.seam, lw: 1.1, cap: "round", layer: "body" }));
-    O.push(P(ell(60, Le[1], 15.5, 8.5), { fill: C.face, layer: "body" }));
+    O.push(P(face(), { fill: C.face, layer: "body" }));
+    O.push(P(cloak(), { stroke: C.edge, lw: 1.2, join: "round", layer: "body" }));
     if (c.spell > 0.01) O.push({ k: "radial", cx: 60, cy: 74, r: 16, sy: 0.5, color: C.magic, stops: [[0, 1], [0.55, 0.55], [1, 0]], a: 0.75 * c.spell, layer: "underlight" });
     if (fx.dizzy) for (var e = -1; e <= 1; e += 2) {
       O.push(G([["t", Le[0] + e * LAYOUT.eyeGap + c.eyeX, Le[1] + c.eyeY]]));
@@ -327,6 +374,7 @@ var WizRig = (function () {
     }
     O.push(P([["M", 43.5, 72], ["C", 50, 78.5, 70, 78.5, 76.5, 72], ["C", 78.2, 75.5, 79, 79, 79.2, 82], ["Q", 60, 88, 40.8, 82],
       ["C", 41, 79, 41.8, 75.5, 43.5, 72], ["Z"]], { fill: C.cloak, layer: "collar" }));
+    O.push(P(collarEdge(), { stroke: C.edge, lw: 1.2, layer: "collar" }));
     O.push(P([["M", 44, 72.5], ["C", 50.2, 78.9, 69.8, 78.9, 76, 72.5]], { stroke: C.collarHi, lw: 1.3, cap: "round", layer: "collar" }));
 
     // spell (working)
