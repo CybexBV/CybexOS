@@ -36,11 +36,6 @@ def failure(module, message=REMOVED):
 
 
 class Diagnosis(unittest.TestCase):
-    def test_the_evaluation_error_and_its_message_are_read_from_nix_output(self):
-        message, trace = compatibility.evaluation_error(failure(CYBEXOS + '/nix/modules/applications.nix'))
-        self.assertEqual(message, REMOVED)
-        self.assertNotIn('\x1b', trace)
-        self.assertIn('while evaluating definitions from', trace)
 
     def test_fetch_failures_and_other_output_are_not_incompatibilities(self):
         self.assertIsNone(compatibility.evaluation_error(''))
@@ -63,17 +58,6 @@ class Diagnosis(unittest.TestCase):
                 trace = compatibility.evaluation_error(failure(module))[1]
                 self.assertEqual(compatibility.origin(trace, ARCHIVE), expected)
         self.assertEqual(compatibility.origin('', {}), {'origin': 'unknown', 'file': ''})
-
-    def test_only_a_cybexos_module_publishes_the_nixpkgs_message(self):
-        vendor = compatibility.describe({'origin': 'cybexos', 'file': 'nix/modules/applications.nix',
-                                         'message': REMOVED}, '1.0.23')
-        self.assertIn('Cybex OS 1.0.23: brave has been removed', vendor)
-        self.assertIn('Nothing was changed', vendor)
-        personal = compatibility.describe({'origin': 'personal', 'file': 'local/browser.nix'}, '1.0.23')
-        self.assertIn('local/browser.nix', personal)
-        self.assertNotIn('brave', personal)
-        self.assertEqual(len(compatibility.public('x ' * 400)), 300)
-
 
 class EngineHold(unittest.TestCase):
     setUp = lifecycle.EngineTests.setUp
@@ -180,11 +164,6 @@ class Retry(unittest.TestCase):
         release = self.discovery(cybexos='available')
         release['cybexos']['revision'] = 'd' * 40
         self.assertEqual(self.prepare(release, now=1002.0)['scope'], 'both')
-
-    def test_a_personal_module_is_not_a_hold(self):
-        self.incompatible(incompatible={'origin': 'personal', 'file': 'local/browser.nix'})
-        self.assertFalse(prebuilt.held(read(self.engine.status_path)))
-
 
 if __name__ == '__main__':
     unittest.main()

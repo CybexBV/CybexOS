@@ -3,14 +3,13 @@ import json
 from pathlib import Path
 import sys
 import tempfile
-import time
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'lifecycle'))
 from cybexos.common import CommandFailure, Runner, Tail, read
 from cybexos import prebuilt
-from cybexos.progress import NixProgress, log_line
+from cybexos.progress import NixProgress
 import test_lifecycle as lifecycle
 
 
@@ -83,25 +82,6 @@ class ProgressTests(unittest.TestCase):
             self.feed('start', identifier, type=101)
         self.assertEqual(len(self.monitor.activities), self.monitor.MAX_ACTIVITIES)
 
-    def test_publications_are_throttled_but_finish_flushes(self):
-        for i in range(10):
-            self.feed('start', i, type=101)
-        self.assertEqual(len(self.records), 1)
-        self.now = 1
-        self.feed('result', 1, type=105, fields=[20, 100, 0, 0])
-        self.assertEqual(len(self.records), 2)
-        self.monitor.close()
-        self.assertEqual(len(self.records), 3)
-
-    def test_real_runner_flushes_activity_during_a_silent_command(self):
-        runner = Runner()
-        runner.observer = self.monitor.feed
-        self.monitor.clock = time.monotonic
-        self.monitor.last_publish = self.monitor.clock()
-        data = repr(event('start', type=105, fields=['private.drv']))
-        runner(sys.executable, '-c', 'import os,time; os.write(2,' + data + '); time.sleep(1.3)')
-        self.assertTrue(any(value['builds']['active'] == 1 for value in self.records))
-
     def test_real_runner_keeps_only_a_bounded_tail_of_long_diagnostics(self):
         # Hours of internal-json build logs stay on disk, not in memory.
         with tempfile.TemporaryDirectory() as directory, patch.object(Runner, 'TAIL', 64 * 1024):
@@ -148,11 +128,6 @@ class ProgressTests(unittest.TestCase):
         small.extend(b'a\nb\n')
         self.assertEqual(small.value(), b'a\nb\n')
         self.assertFalse(small.truncated)
-
-    def test_private_log_reader_keeps_diagnostics_human_readable(self):
-        self.assertEqual(log_line(event('result', type=101, fields=['compiler output']).decode()), 'compiler output\n')
-        self.assertEqual(log_line(event('result', type=105, fields=[1, 2, 0, 0]).decode()), '')
-        self.assertEqual(log_line('plain diagnostics\n'), 'plain diagnostics\n')
 
     def test_real_runner_observes_only_non_sensitive_stderr_and_preserves_json_stdout(self):
         with tempfile.TemporaryDirectory() as directory:

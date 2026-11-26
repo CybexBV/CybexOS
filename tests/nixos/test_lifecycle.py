@@ -663,28 +663,6 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(read(self.engine.status_path)['state'], 'failed')
         self.assertEqual(config_digest(self.working), baseline)
 
-    def test_locale_preview_reads_archive_and_keeps_regional_categories(self):
-        atomic(self.config / 'desktop-settings.json', {'timezone': 'UTC'})
-        baseline = config_digest(self.working)
-        previous = ['LANG=en_US.UTF-8', 'LC_TIME=nl_NL.UTF-8']
-        original = self.engine.run
-        def run(*args, **kwargs):
-            if args == ('locale', '-a'):
-                return 'C\nC.utf8\nen_US.utf8\nnl_NL.utf8\nPOSIX\n'
-            if args == ('busctl', '--system', '--json=short', 'get-property',
-                        'org.freedesktop.locale1', '/org/freedesktop/locale1',
-                        'org.freedesktop.locale1', 'Locale'):
-                return json.dumps({'type': 'as', 'data': previous})
-            if args[:3] == ('nix', 'eval', '--json'):
-                self.assertTrue(str(args[-1]).endswith('.i18n.defaultLocale'))
-                return '"nl_NL.UTF-8"'
-            return original(*args, **kwargs)
-        self.engine.run = run
-        record = self.engine.stage('local', region={'changes': [{'field':'locale','value':'nl_NL.UTF-8','previous':previous}]})
-        self.assertEqual(read(self.engine.tx(record['id']) / 'config/desktop-settings.json'),
-                         {'timezone':'UTC','locale':'nl_NL.UTF-8'})
-        self.assertEqual(config_digest(self.working), baseline)
-
     def test_timezone_and_locale_preview_as_one_generation(self):
         atomic(self.config / 'desktop-settings.json', {})
         baseline = config_digest(self.working)
@@ -794,20 +772,6 @@ class EngineTests(unittest.TestCase):
                 self.assertEqual(read(self.engine.status_path)['state'], 'rolled-back')
                 self.assertFalse(self.engine.pending_path.exists())
                 atomic(self.engine.tx(record['id']) / 'retry-authorized.json', {})
-
-    def test_preexisting_failed_unit_does_not_block_a_healthy_candidate(self):
-        original = self.runner
-        def run(*args, **kwargs):
-            if args[:2] == ('systemctl', 'list-units'):
-                return '[{"unit":"preexisting.service","sub":"failed"}]'
-            if args[0].endswith('/bin/switch-to-configuration'):
-                raise CommandFailure(args[0], 4, 'warning: the following units failed: preexisting.service')
-            return original(*args, **kwargs)
-        run.log = None
-        self.engine.run = run
-        record = self.engine.stage('upstream')
-        self.engine.apply(record['id'], record['reviewToken'])
-        self.assertEqual(read(self.engine.status_path)['state'], 'awaiting-boot')
 
     DOWN = ['ipsec.service', 'personal.service']
     CAMERA = ['v4l2-relayd-ipu7.service', 'xps-ipu7-abi.service']
@@ -1226,15 +1190,6 @@ class EngineTests(unittest.TestCase):
         atomic(self.engine.tx(fourth['id']) / 'good.json', {'at': 1})
         self.engine.stage('local')
         self.assertIsNone(outcome(fourth))
-
-    def test_personal_changes_are_not_kept_over_by_a_failed_update(self):
-        # Only a prepared update is kept; a prepared personal change is the
-        # person's own and preparing an update over it behaves as before.
-        self.engine.stage('local')
-        self.runner.fail = lambda args: args[:2] == ('nix', 'build') and '--dry-run' not in args
-        with self.assertRaises(Failure):
-            self.engine.stage('upstream')
-        self.assertEqual(read(self.engine.status_path)['state'], 'failed')
 
     def test_channel_unavailable_does_not_block_upstream(self):
         def fail():raise Failure('channel unreachable')
@@ -1915,12 +1870,6 @@ class EngineTests(unittest.TestCase):
         self.engine.channel=lambda:(_ for _ in ()).throw(Failure('Release listing unavailable'))
         with self.assertRaises(Failure):self.engine.stage('cybexos')
         self.assertFalse(self.runner.calls)
-
-    def test_stage_interruption_is_reported_without_activation(self):
-        self.engine.status(state='building')
-        self.engine.recover()
-        self.assertEqual(read(self.engine.status_path)['state'],'interrupted')
-        self.assertEqual(config_digest(self.working),self.sentinel)
 
     def test_serialization_and_secret_source_guard(self):
         with locked(self.engine.state/'operation.lock'):

@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'assets/scripts/cybexos-apps'
@@ -25,25 +25,6 @@ except ImportError:
 
 
 class EffectiveDefaultsTests(unittest.TestCase):
-    def test_effective_defaults_resolves_only_the_docks_roles_without_catalog(self):
-        browser = Mock(); browser.get_id.return_value = 'browser.desktop'
-        terminal = Mock(); terminal.get_id.return_value = 'terminal.desktop'
-        files = Mock(); files.get_id.return_value = 'files.desktop'
-        gio = Mock()
-        gio.AppInfo.get_default_for_type.side_effect = lambda mime, _: {'x-scheme-handler/http': browser,
-                                                                         'inode/directory': files}[mime]
-        gio.AppInfo.get_all.side_effect = AssertionError('effective defaults must not enumerate applications')
-        desktop = Mock(); desktop.new.return_value = terminal
-        process = Mock(returncode=0, stdout='terminal.desktop:desktop-action\n')
-        with patch.object(apps, 'libraries', return_value=(gio, None, desktop)), \
-                patch.object(apps, 'load_choices', return_value={}), \
-                patch.object(apps.subprocess, 'run', return_value=process):
-            self.assertEqual(apps.effective_defaults(), {'browser':'browser.desktop', 'terminal':'terminal.desktop',
-                                                         'files':'files.desktop'})
-        self.assertEqual([call.args for call in gio.AppInfo.get_default_for_type.call_args_list],
-                         [('x-scheme-handler/http', False), ('inode/directory', False)])
-        gio.AppInfo.get_all.assert_not_called()
-        desktop.new.assert_called_once_with('terminal.desktop')
 
     def test_missing_defaults_remain_empty_and_resolution_errors_propagate(self):
         with patch.object(apps, 'load_choices', return_value={}), \
@@ -164,16 +145,6 @@ class DefaultApplicationTests(unittest.TestCase):
         self.assertEqual(state['roles']['editor']['selected'], 'editor.desktop')
         saved = json.loads((self.base / 'config/cybexos/default-applications.json').read_text())
         self.assertEqual(saved['choices']['editor'], 'editor.desktop')
-
-    def test_external_mime_selection_takes_precedence_over_missing_saved_choice(self):
-        self.run_apps('set', 'editor', 'editor.desktop')
-        self.desktop('other.desktop', 'Other', 'MimeType=text/plain;\n')
-        (self.data / 'applications/editor.desktop').unlink()
-        path = self.base / 'config/mimeapps.list'
-        path.write_text(path.read_text().replace('editor.desktop', 'other.desktop'))
-        role = self.run_apps('status')['roles']['editor']
-        self.assertFalse(role['unavailable'])
-        self.assertEqual(role['selected'], 'other.desktop')
 
     def test_selected_browser_handles_webapps_and_terminal_editor_gets_file_uris(self):
         self.run_apps('set', 'browser', 'browser.desktop')

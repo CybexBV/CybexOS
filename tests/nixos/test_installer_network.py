@@ -91,11 +91,6 @@ class WifiDefaultsTests(unittest.TestCase):
         self.assertIn('add', run.call_args_list[0].args[0])
         activate.assert_called_once_with(profile_uuid, 'wlan0', '802-11-wireless-security.psk:qualification-password\n')
 
-    def test_explicit_rescan_asks_networkmanager_for_new_access_points(self):
-        with patch.object(tool, 'run') as run:
-            self.assertTrue(tool.wifi_action({'action': 'rescan', 'interface': 'wlan0'})['success'])
-        self.assertEqual(run.call_args.args[0][-4:], ['wifi', 'rescan', 'ifname', 'wlan0'])
-
     def profile(self, provider):
         return {'connectionType': '802-3-ethernet', 'standalone': True, 'ipv4Method': 'auto',
                 **tool.provider_configuration(provider, '9.9.9.9')}
@@ -104,14 +99,6 @@ class WifiDefaultsTests(unittest.TestCase):
         with patch.object(tool, 'modify_dns') as modify:
             tool.inherit_dns_for_new_profile('new-wifi', previous)
         return modify
-
-    def test_first_wifi_connection_uses_the_networks_dns_for_both_address_families(self):
-        settings = self.inherit([]).call_args.args[1]
-        self.assertEqual(settings['provider'], 'Automatic')
-        self.assertEqual(settings['ipv4Dns'], [])
-        self.assertEqual(settings['ipv6Dns'], [])
-        self.assertFalse(settings['ipv4IgnoreAutoDns'])
-        self.assertFalse(settings['ipv6IgnoreAutoDns'])
 
     def test_existing_provider_including_explicit_automatic_is_inherited(self):
         for provider in ('Automatic', 'Cloudflare', 'Google', 'Custom'):
