@@ -993,10 +993,11 @@ var WizRig = (function () {
     return toSVG([G([])].concat(ops, [END]), opts.scale ? box[2] * opts.scale : null, box) + "\n";
   }
 
-  // A whole pose at rest as one picture: what the boot splash, the lock
-  // screen, the terminal and the installer show (scripts/export-wiz). Every
-  // still shares one box, so poses swapped in place line up. `without` leaves
-  // out layers, which the installer moves on its own.
+  // A whole pose at rest as one picture: what the terminal and the
+  // assistant's notifications show (scripts/export-wiz, rendered with
+  // librsvg); the installer cuts its pictures from stillOps(). Every still
+  // shares one box, so poses swapped in place line up. `without` leaves out
+  // layers, which the installer moves on its own.
   var STILL_BOX = [-8, -12, 136, 132];
   function stillOps(state, opts) {
     opts = opts || {};
@@ -1009,7 +1010,47 @@ var WizRig = (function () {
   }
   function stillSVG(state, opts) {
     opts = opts || {};
-    return toSVG(stillOps(state, opts), opts.size || null, opts.box || STILL_BOX, opts.id) + "\n";
+    return toSVG(upright(stillOps(state, opts)), opts.size || null, opts.box || STILL_BOX, opts.id) + "\n";
+  }
+  // librsvg cuts off the glow of a turned shape, the more the further it is
+  // turned: at 45 degrees all but a strip of a sparkle's glow is gone (librsvg
+  // 2.63; Chromium and Qt draw it whole). So in a still each glowing shape
+  // under a turn is drawn unturned: its points carried through the groups
+  // around it, inside a group that undoes them, its line and blur scaled
+  // with them. It looks the same, and its filter works in the picture's own
+  // frame.
+  function affine(m, step) {
+    var n;
+    if (step[0] === "t") n = [1, 0, 0, 1, step[1], step[2]];
+    else if (step[0] === "s") n = [step[1], 0, 0, step[2], 0, 0];
+    else if (step[0] === "m") n = step.slice(1);
+    else {
+      var a = step[1] * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a), x = step[2], y = step[3];
+      n = [cos, sin, -sin, cos, x - cos * x + sin * y, y - sin * x - cos * y];
+    }
+    return [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3],
+      m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+  }
+  function upright(ops) {
+    var stack = [[1, 0, 0, 1, 0, 0]], out = [];
+    for (var i = 0; i < ops.length; i++) {
+      var o = ops[i], m = stack[stack.length - 1];
+      if (o.k === "g") stack.push(o.t.reduce(affine, m));
+      else if (o.k === "end") stack.pop();
+      if (o.k !== "path" || !o.glow || (Math.abs(m[1]) < 1e-9 && Math.abs(m[2]) < 1e-9)) { out.push(o); continue; }
+      var det = m[0] * m[3] - m[1] * m[2], k = Math.sqrt(Math.abs(det)), p = {};
+      var undo = ["m", m[3] / det, -m[1] / det, -m[2] / det, m[0] / det, (m[2] * m[5] - m[3] * m[4]) / det, (m[1] * m[4] - m[0] * m[5]) / det];
+      for (var key in o) p[key] = o[key];
+      p.d = o.d.map(function (seg) {
+        var s = [seg[0]];
+        for (var j = 1; j < seg.length; j += 2) s.push(m[0] * seg[j] + m[2] * seg[j + 1] + m[4], m[1] * seg[j] + m[3] * seg[j + 1] + m[5]);
+        return s;
+      });
+      if (o.stroke) p.lw = (o.lw || 1) * k;
+      p.glow = { c: o.glow.c, o: o.glow.o, s: o.glow.s * k };
+      out.push(G([undo]), p, END);
+    }
+    return out;
   }
 
   // ---- still SVG ----------------------------------------------------------
@@ -1023,6 +1064,8 @@ var WizRig = (function () {
     return t.map(function (o) {
       if (o[0] === "t") return "translate(" + num(o[1]) + " " + num(o[2]) + ")";
       if (o[0] === "s") return "scale(" + num(o[1]) + " " + num(o[2]) + ")";
+      // A whole matrix (upright()) keeps four decimals: it undoes others.
+      if (o[0] === "m") return "matrix(" + o.slice(1).map(function (v) { return Math.round(v * 10000) / 10000; }).join(" ") + ")";
       return "rotate(" + num(o[1]) + " " + num(o[2]) + " " + num(o[3]) + ")";
     }).join(" ");
   }
