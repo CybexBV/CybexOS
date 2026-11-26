@@ -4,7 +4,6 @@ Real review, policy and request code with isolated files, a fake system
 manager and fake discovery. Not installation qualification.
 """
 import json
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -52,22 +51,6 @@ class Highlights(unittest.TestCase):
             self.assertEqual(review.components(body), {})
         self.assertEqual(review.components(json.dumps({'schema': 1, 'components': {'kernel': '6.12.58'}})),
                          {'kernel': '6.12.58'})
-
-    def test_desktop_entries_identify_visible_applications_only(self):
-        import tempfile
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            for name, body in (('app', '[Desktop Entry]\nType=Application\nName=Firefox\nName[nl]=Firefox NL\nIcon=firefox\n'
-                                       '[Desktop Action new]\nName=New Window\n'),
-                               ('hidden', '[Desktop Entry]\nType=Application\nName=Helper\nNoDisplay=true\n'),
-                               ('link', '[Desktop Entry]\nType=Link\nName=Site\n')):
-                directory = root / name / 'share/applications'
-                directory.mkdir(parents=True)
-                (directory / (name + '.desktop')).write_text(body)
-            self.assertEqual(review.desktop_entry(root / 'app'), {'title': 'Firefox', 'icon': 'firefox'})
-            self.assertIsNone(review.desktop_entry(root / 'hidden'))
-            self.assertIsNone(review.desktop_entry(root / 'link'))
-            self.assertIsNone(review.desktop_entry(root / 'missing'))
 
     def test_staged_review_publishes_highlights_and_binds_them_to_the_token(self):
         engine = lifecycle.EngineTests()

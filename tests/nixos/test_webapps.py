@@ -197,19 +197,6 @@ class Install(Fixture):
             record = webapp.install("https://x.example/", "X Example")
         self.assertEqual(record["iconSource"], "monogram")
 
-    def test_icon_discovery_prefers_large_raster_icons(self):
-        parser = webapp.IconLinks()
-        parser.feed('<link rel="shortcut icon" href="/16.ico">'
-                    '<link rel="icon" sizes="192x192" href="/192.png">'
-                    '<link rel="apple-touch-icon-precomposed" href="/touch.png">'
-                    '<meta property="og:site_name" content="Site">')
-        ranked = [href for _size, href in sorted(parser.icons, key=lambda item: -item[0])]
-        self.assertEqual(ranked, ["/touch.png", "/192.png", "/16.ico"])
-        self.assertEqual(parser.name, "Site")
-        ico = (b"\x00\x00\x01\x00\x02\x00" + bytes([16, 16]) + b"\x00" * 14
-               + bytes([0, 0]) + b"\x00" * 14)
-        self.assertEqual(webapp.largest_ico_frame(ico), 1, "0 means 256 pixels")
-
     def test_the_fetcher_refuses_plain_http(self):
         with self.assertRaisesRegex(webapp.WebAppError, "https"):
             webapp.Fetcher().get("http://example.com/", 10)

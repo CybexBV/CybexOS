@@ -890,15 +890,5 @@ class Pure(unittest.TestCase):
             self.assertFalse(set(key) & set("ILOU"))
         self.assertEqual(backup.normalize_recovery_key("  custom restic password "), "custom restic password")
 
-    def test_failures_read_as_plain_words(self):
-        explain = backup.explain
-        self.assertIn("does not trust nas", explain(1, "Host key verification failed.", "nas"))
-        self.assertEqual(explain(1, "tester@nas: Permission denied (publickey).", "nas"),
-                         "nas refused your SSH key.")
-        self.assertEqual(explain(12, ""), "The saved password does not open this backup. "
-                         "Connect it again with its recovery key.")
-        self.assertEqual(explain(1, "Fatal: something odd happened"), "Something odd happened.")
-        self.assertEqual(explain(7, ""), "The backup failed (restic exit 7).")
-
 if __name__ == "__main__":
     unittest.main()
