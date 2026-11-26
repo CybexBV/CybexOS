@@ -423,22 +423,25 @@ of date.
 
 The same character shows the state of the system's other long or uncertain
 moments, and each pose means the same thing everywhere: thinking is checking,
-working is changing something, the amber pip is your move, listening is a
-question to you, sorry is a failure and asleep is nothing available. He speaks
+working is changing something (casting a command or a setting, brewing an
+install), the amber star is your move, listening is a question to you, sorry
+(with the red star) is a failure and asleep is nothing available. He speaks
 only once, in the welcome guide's hello; everywhere else he only shows.
 
 | Where | What he shows |
 | --- | --- |
-| Installer ([installation](installation.md)) | the system check (thinking, happy, or the amber pip), the installation (working), done (finished), stopped or failed |
+| Installer ([installation](installation.md)) | the system check (thinking, then happy, or the amber star), the Software step (the amber star), the installation (brewing), done (finished), stopped (the amber star) or failed (sorry) |
 | Welcome guide ([welcome](welcome.md)) | a greeting on Hello, asleep on Connect until an agent is signed in, the system check on Ready, then the hop to his corner |
 | Software Update ([updates](updates.md)) | every status page, and What's New once a new Cybex OS version is kept |
 | Launcher | **Ask Wiz** when nothing matches |
 | Notifications | the empty notification centre; asleep under Focus |
-| Disk unlock at boot, lock screen, kitty's fastfetch ([branding](branding.md)) | still pictures: asleep, listening as you type, sorry or happy at unlock |
+| The assistant's own notifications | a still picture of the news: finished, needs input or sorry |
+| Kitty's fastfetch ([branding](branding.md)) | a still picture: idle, the star dim |
 
 He stays out of permission prompts, the installer's disk choice and erase
-review, Settings pages, the update review, the menubar, notification toasts,
-the boot menu and the recovery desktop. While the welcome guide fills the
+review, Settings pages, the update review, the menubar, other notification
+toasts, the boot menu, the boot splash and its disk unlock, the lock screen
+and the recovery desktop. While the welcome guide fills the
 screen, its Wiz is the only one: the corner Wiz waits and takes over when the
 guide closes.
 
