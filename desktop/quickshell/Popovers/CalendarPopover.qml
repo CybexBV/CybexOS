@@ -273,10 +273,10 @@ Surface {
                 : agenda.showFailure ? "event_busy"
                 : agenda.needsAccount ? "account_circle"
                 : agenda.calendarOff ? "sync_disabled" : "event_available"
-            title: agenda.showFirstLoad ? "Checking calendars"
-                : agenda.showFailure ? "Calendar unavailable"
+            title: agenda.showFirstLoad ? I18n.tr("Checking calendars")
+                : agenda.showFailure ? I18n.tr("Calendar unavailable")
                 : agenda.needsAccount ? I18n.tr("Connect a calendar")
-                : agenda.calendarOff ? "Calendar sync is off"
+                : agenda.calendarOff ? I18n.tr("Calendar sync is off")
                 : root.upcomingMode ? "No upcoming events" : "Nothing on this date"
             detail: agenda.showFirstLoad
                 ? "Reading the Evolution Data Server cache"
