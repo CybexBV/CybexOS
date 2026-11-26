@@ -262,7 +262,10 @@ requests and releases don't start it, and there is no nightly run. Start it with
 `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; a newer
 run on the same branch replaces one still going.
 
-It has three jobs that run side by side. The checks job runs the source tests
+It has three jobs. The checks job, the longest, runs beside the image job;
+the upgrade job follows the image job, whatever its result, because The
+Beast's memory usually fits two of these runners at once and the checks job
+must not wait for a slot. The checks job runs the source tests
 (`tests/run`, which includes the linters in `tests/lint`: Ruff, ShellCheck
 and actionlint), the shell tests (`tests/shell-checks`: QML lint and every
 headless Quickshell test) and then builds **every** flake check

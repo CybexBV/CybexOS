@@ -22,8 +22,11 @@ concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # Three jobs side by side, one per runner slot on The Beast. Each job
-  # starts on a fresh disposable runner; only the slot's Nix cache at /cache
+  # Three jobs, each on its own runner slot on The Beast. The Beast's memory
+  # budget usually fits two of these runners at once, so the checks job, the
+  # longest, starts at once beside the image job, and the upgrade job follows
+  # the image job instead of racing the checks job for the second slot.
+  # Each job starts on a fresh disposable runner; only the slot's Nix cache at /cache
   # outlives it (scripts/ci-nix-cache, owner's decision 2026-11-26), so what
   # an earlier run built, including checks that passed with the same inputs,
   # is substituted rather than built again.
@@ -191,6 +194,9 @@ jobs:
   # api.github.com for the newest release; a stand-in on the runner answers
   # with this commit and passes everything else on to GitHub.
   upgrade:
+    # After the image job, whatever its result: see the jobs' comment above.
+    needs: image
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, linux, x64, cybexos-isolated]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
