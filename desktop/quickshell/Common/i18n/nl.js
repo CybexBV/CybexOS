@@ -1335,6 +1335,7 @@ var MESSAGES = {
     "Make yourself at home. Continue where you left off.": "Voel je thuis. Ga verder waar je gebleven was.",
     "Manage": "Beheren",
     "Manage Omarchy plugins…": "Omarchy-plug-ins beheren…",
+    "Manage account": "Account beheren",
     "Manage this plugin": "Deze plug-in beheren",
     "Managed account": "Beheerd account",
     "Managed by your administrator": "Beheerd door je beheerder",

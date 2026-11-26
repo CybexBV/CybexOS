@@ -298,8 +298,8 @@ Surface {
 
             ActionButton {
                 // A failure answers first: Try again, whatever the accounts.
-                label: agenda.showFailure ? "Try again"
-                    : agenda.needsAccount ? I18n.tr("Add account") : "Manage account"
+                label: agenda.showFailure ? I18n.tr("Try again")
+                    : agenda.needsAccount ? I18n.tr("Add account") : I18n.tr("Manage account")
                 tint: agenda.showFailure ? Theme.redText : Theme.accent
                 fill: agenda.showFailure ? Theme.redBgSoft : Theme.accentBgSoft
                 onTriggered: {
