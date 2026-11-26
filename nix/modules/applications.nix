@@ -107,7 +107,12 @@ in {
       ++ lib.optionals cfg.features.developer [ git-lfs gcc cmake gnumake mold sccache rustup nodejs bun jdk25 tree-sitter python3 ruff shellcheck lazygit lazydocker android-tools balena-cli (pkgs.callPackage ../packages/mdview.nix {}) (pkgs.callPackage ../packages/t3-code.nix {}) ]
       ++ lib.optionals cfg.features.podman [ distrobox podman-compose ]
       ++ lib.optionals cfg.features.steam [ mangohud protonup-qt ]
-      ++ lib.optionals cfg.features.connectedWidgets [ gnome-calendar gnome-online-accounts-gtk ];
+      ++ lib.optionals cfg.features.connectedWidgets [ gnome-calendar ]
+      # Settings adds and reconnects online accounts through its own helper,
+      # which opens GNOME Online Accounts' dialog for one provider: wherever
+      # the accounts service runs, however it was enabled.
+      ++ lib.optionals config.services.gnome.gnome-online-accounts.enable
+        [ (pkgs.callPackage ../packages/goa-account.nix { source = ../..; }) ];
     fonts.packages = with pkgs; [
       (pkgs.callPackage ../packages/fonts.nix {}) (pkgs.callPackage ../packages/space-grotesk.nix {}) figtree geist-font
       (pkgs.callPackage ../packages/symbols-font.nix { source = ../..; })

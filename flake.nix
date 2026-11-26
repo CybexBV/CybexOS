@@ -70,6 +70,7 @@
             (pkgs.callPackage ./nix/packages/mdview.nix {})
             (pkgs.callPackage ./nix/packages/assistant.nix {})
             (pkgs.callPackage ./nix/packages/encryption-check.nix { source = self; })
+            (pkgs.callPackage ./nix/packages/goa-account.nix { source = self; })
             (pkgs.callPackage ./nix/packages/lid-guard.nix {})
             (pkgs.callPackage ./nix/packages/networkmanager-libreswan.nix {})
             (pkgs.callPackage ./nix/packages/fonts.nix {})
