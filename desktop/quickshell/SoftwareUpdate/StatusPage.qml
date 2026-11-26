@@ -10,7 +10,7 @@ import "../Assistant" as AssistantUi
 Flickable {
     id: root
 
-    // Wiz's pose (UpdatesHelpers.statusPose) and his unread pip.
+    // Wiz's pose (UpdatesHelpers.statusPose), and whether his star stays lit for news.
     property string pose: "idle"
     property bool unread: false
     property string title: ""

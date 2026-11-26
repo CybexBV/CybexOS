@@ -460,12 +460,13 @@ test("Wiz shows each status page in the pose language every surface shares", () 
         H.statusPose(page, problem, confirmFailed, kept).pose;
     assert.equal(pose("checking"), "thinking");
     assert.equal(pose("current"), "happy");
-    assert.equal(pose("current", "check", false, true), "finished", "a kept release celebrates");
-    assert.equal(pose("whats-new"), "finished");
+    assert.equal(pose("current", "check", false, true), "proud", "a kept release gets a thumbs-up");
+    assert.equal(pose("whats-new"), "proud");
     assert.deepEqual(H.statusPose("available", "check", false, false), { pose: "idle", unread: true },
         "something new is idle with the star lit, as for a reply not yet seen");
+    // Installing, in the shared language, is brewing.
     for (const page of ["preparing", "installing", "recovering"])
-        assert.equal(pose(page), "working", page);
+        assert.equal(pose(page), "brewing", page);
     assert.equal(pose("restart"), "needs-input", "restart and shut down are the person's move");
     assert.equal(pose("waiting"), "needs-input", "an unavailable package waits rather than signalling failure");
     assert.equal(pose("finishing"), "thinking");

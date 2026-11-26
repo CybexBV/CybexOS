@@ -219,10 +219,10 @@ function problem(m) {
 }
 
 // Wiz on a status page, in the pose language every surface shares
-// (docs/assistant.md): checking thinks, changing things works, your move
-// waits with the amber pip, a question listens, good news is happy, a
-// failure is sorry and nothing to do sleeps; something new is idle with the
-// unread pip. A kept release is finished. The review of a prepared update
+// (docs/assistant.md): checking thinks, installing brews, your move waits
+// with the amber star, a question listens, good news is happy, a failure is
+// sorry and nothing to do sleeps; something new is idle with his star lit. A
+// kept release gets a thumbs-up (proud). The review of a prepared update
 // ("ready") has no character, so it gets none here either.
 function statusPose(page, problem, confirmFailed, kept) {
     const still = pose => ({ pose: pose, unread: false });
@@ -231,15 +231,15 @@ function statusPose(page, problem, confirmFailed, kept) {
     case "finishing":
         return still("thinking");
     case "current":
-        return still(kept ? "finished" : "happy");
+        return still(kept ? "proud" : "happy");
     case "whats-new":
-        return still("finished");
+        return still("proud");
     case "available":
         return { pose: "idle", unread: true };
     case "preparing":
     case "installing":
     case "recovering":
-        return still("working");
+        return still("brewing");
     case "restart":
     case "waiting":
         return still("needs-input");
