@@ -492,8 +492,9 @@ impl App {
         store.set_tip_text(s(text));
         // The worker waits for a lost connection with this message
         // (lifecycle/cybexos/installer_network.py); Wiz checks meanwhile.
+        // Otherwise he brews: an installation is an install.
         let waiting = state.phase == "installing" && state.message.starts_with("Connection interrupted");
-        store.set_install_pose(s(if waiting { "thinking" } else { "working" }));
+        store.set_install_pose(s(if waiting { "thinking" } else { "brewing" }));
         self.elapsed_base = (state.elapsed, Instant::now());
         store.set_elapsed(s(format_elapsed(state.elapsed)));
         if let Some(result) = &state.result {
