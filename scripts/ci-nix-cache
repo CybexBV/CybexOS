@@ -8,8 +8,8 @@ switched off again on 2026-11-27, see docs/releasing.md). This keeps a
 file:// Nix binary cache on the shared volume when it is mounted, else on the
 slot's own, so a job substitutes what an earlier job built instead of building
 it again: Cybex OS's own packages, kernel modules, the previous release's ISO
-(built by the previous release's image job, needed by this one's upgrade
-job), and checks that passed with the same inputs.
+(built by the previous release's image job, needed again by this one's
+upgrade), and checks that passed with the same inputs.
 
   ci-nix-cache prepare   before Nix is installed: create the cache, or start
                          it again empty when its volume is nearly full, and

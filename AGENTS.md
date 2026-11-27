@@ -32,12 +32,12 @@
 - `tests/run` includes the linters (`tests/lint`: Ruff, ShellCheck and actionlint, with the settings in
   `pyproject.toml`, `.shellcheckrc` and `.github/actionlint.yaml`). `tests/shell-checks` runs the QML lint and every
   headless shell test (Settings, Software, Software Update, Welcome, shortcuts, wallpapers and more).
-- **The full check** is the `nixos.yml` workflow on The Beast's runners: three jobs, about 55 minutes cold and
+- **The full check** is the `nixos.yml` workflow on The Beast's runners: two jobs, about 52 minutes cold and
   less once the runners' Nix cache holds earlier builds. A failing check runs once more before it counts.
   The checks job runs the source tests, the linters and the shell tests and builds every flake check
-  (`checks.x86_64-linux.*`, VM tests included). The image job installs this commit's ISO, plain and encrypted. The
-  upgrade job moves a VM on the previous release to this commit with that release's own updater
-  ([docs/releasing.md](docs/releasing.md#the-upgrade-job)). It runs only for a release: on the release commit before
+  (`checks.x86_64-linux.*`, VM tests included). The image job installs this commit's ISO, plain and encrypted,
+  then moves a VM on the previous release to this commit with that release's own updater
+  ([docs/releasing.md](docs/releasing.md#the-upgrade)). It runs only for a release: on the release commit before
   every beta (see Releases), which also covers everything merged since the last one. Ordinary fixes and changes land
   on `main` without it, whatever paths they touch (owner's decision, 2026-11-26); pushes to `main` don't start it and
   there is no nightly run. Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow

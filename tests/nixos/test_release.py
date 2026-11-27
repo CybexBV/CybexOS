@@ -227,17 +227,32 @@ class PublishTests(unittest.TestCase):
             '--notes-file release/notes.md --prerelease --latest=false'])
         self.assertEqual(self.git('tag', '--list', 'v1.0.1').strip(), '', 'no new local tag is made')
 
-    def test_after_1_0_32_the_full_check_must_include_the_upgrade_job(self):
+    def test_after_1_0_32_the_full_check_must_run_the_upgrade(self):
         (self.work / 'VERSION').write_text('1.0.33\n')
         (self.work / 'release/notes.md').write_text('# Cybex OS 1.0.33\n')
         self.git('commit', '--quiet', '-am', 'Cybex OS 1.0.33')
         self.git('push', '--quiet', 'origin', 'main')
-        self.assert_refused('has no upgrade job; a release after 1.0.32 needs one', '1.0.33', '--dry-run')
+        self.assert_refused('does not run the upgrade; a release after 1.0.32 needs it', '1.0.33', '--dry-run')
         workflow = self.work / '.github/workflows/nixos.yml'
         workflow.parent.mkdir(parents=True)
-        workflow.write_text('jobs:\n  checks:\n    runs-on: x\n  upgrade:\n    runs-on: x\n')
+        # The image job's script runs it (since 1.0.38) ...
+        workflow.write_text('jobs:\n  image:\n    steps:\n      - run: scripts/full-check-image\n')
+        image = self.work / 'scripts/full-check-image'
+        image.parent.mkdir(exist_ok=True)
+        image.write_text('nix build .#iso\n')
         self.git('add', '.')
-        self.git('commit', '--quiet', '-m', 'The upgrade job')
+        self.git('commit', '--quiet', '-m', 'An image job without the upgrade')
+        self.git('push', '--quiet', 'origin', 'main')
+        self.assert_refused('does not run the upgrade', '1.0.33', '--dry-run')
+        image.write_text('nix build .#iso\nscripts/qualify-upgrade run "$previous" --from "$from"\n')
+        self.git('commit', '--quiet', '-am', 'The upgrade in the image job')
+        self.git('push', '--quiet', 'origin', 'main')
+        result = self.publish('1.0.33', '--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # ... or, until 1.0.37, a job of its own in the workflow.
+        image.unlink()
+        workflow.write_text('jobs:\n  upgrade:\n    steps:\n      - run: scripts/qualify-upgrade run iso\n')
+        self.git('commit', '--quiet', '-am', 'The upgrade job')
         self.git('push', '--quiet', 'origin', 'main')
         result = self.publish('1.0.33', '--dry-run')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -498,14 +513,26 @@ class PromoteTests(unittest.TestCase):
         self.release('1.0.5', branch='nixos-unstable')
         self.assert_refused('v1.0.4 has no valid Nixpkgs branch in its flake.lock', '1.0.5', '--yes')
 
-    def test_after_1_0_32_its_full_check_must_include_the_upgrade_job(self):
+    def test_after_1_0_32_its_full_check_must_run_the_upgrade(self):
         self.release('1.0.33', hours=200)
-        self.assert_refused('the full check of v1.0.33 has no upgrade job', '1.0.33', '--yes')
+        self.assert_refused('the full check of v1.0.33 does not run the upgrade', '1.0.33', '--yes')
         workflow = self.work / '.github/workflows/nixos.yml'
         workflow.parent.mkdir(parents=True)
-        workflow.write_text('jobs:\n  checks:\n    runs-on: x\n  upgrade:\n    runs-on: x\n')
+        # Until 1.0.37 in a job of its own.
+        workflow.write_text('jobs:\n  upgrade:\n    steps:\n      - run: scripts/qualify-upgrade run iso\n')
         self.release('1.0.34', hours=199)
         result = self.promote('1.0.34', '--yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Since then in the image job's script.
+        workflow.write_text('jobs:\n  image:\n    steps:\n      - run: scripts/full-check-image\n')
+        image = self.work / 'scripts/full-check-image'
+        image.parent.mkdir(exist_ok=True)
+        image.write_text('nix build .#iso\n')
+        self.release('1.0.35', hours=198)
+        self.assert_refused('the full check of v1.0.35 does not run the upgrade', '1.0.35', '--yes')
+        image.write_text('nix build .#iso\nscripts/qualify-upgrade run "$previous" --from "$from"\n')
+        self.release('1.0.36', hours=197)
+        result = self.promote('1.0.36', '--yes')
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_github_must_confirm_the_promotion(self):
@@ -520,7 +547,7 @@ class FullCheckRunTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('jq'), 'jq is not installed')
     def test_dispatched_and_push_runs_count_and_pull_requests_do_not(self):
         title = 'NixOS qualification'
-        # A dispatch whose upgrade job started from another release doesn't count.
+        # A dispatch whose upgrade started from another release doesn't count.
         runs = [{'event': 'pull_request', 'displayTitle': title}, {'event': 'schedule', 'displayTitle': title},
                 {'event': 'workflow_dispatch', 'displayTitle': title + ' (upgrade from v1.0.25)'}]
         for name in ('release/publish', 'release/promote'):

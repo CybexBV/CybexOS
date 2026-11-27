@@ -1,6 +1,6 @@
 name: NixOS qualification
-# A run whose upgrade job starts from another release than the default says
-# so in its title; release/publish and release/promote count only runs with
+# A run whose upgrade starts from another release than the default says so
+# in its title; release/publish and release/promote count only runs with
 # the plain title, which upgraded from the release just before VERSION.
 run-name: ${{ inputs.from && format('NixOS qualification (upgrade from {0})', inputs.from) || 'NixOS qualification' }}
 # Only by hand, for a release (gh workflow run nixos.yml --ref release-X.Y.Z):
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       from:
-        description: 'Upgrade job: the installed release (a tag such as v1.0.25). Default: the release before VERSION'
+        description: 'Upgrade: the installed release (a tag such as v1.0.25). Default: the release before VERSION'
         required: false
         default: ''
 permissions:
@@ -22,10 +22,11 @@ concurrency:
   group: nixos-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # Three jobs, each on its own runner slot on The Beast. The Beast's memory
-  # budget usually fits two of these runners at once, so the checks job, the
-  # longest, starts at once beside the image job, and the upgrade job follows
-  # the image job instead of racing the checks job for the second slot.
+  # Two jobs, each on its own runner slot on The Beast, started at once (The
+  # Beast's memory budget usually fits two of these runners): the checks and
+  # the image job, which also runs the upgrade from the previous release.
+  # Until 2026-11-27 the upgrade was a third job after the image job; one job
+  # builds both ISOs side by side instead of one after the other.
   # Each job starts on a fresh disposable runner; only the slot's Nix cache at
   # /cache outlives it (scripts/ci-nix-cache, owner's decision 2026-11-26), so
   # what an earlier job on that slot built, including checks that passed with
@@ -150,77 +151,13 @@ jobs:
             cores = 0
             extra-substituters = ${{ env.CI_NIX_SUBSTITUTER }}
             fallback = true
-      # Two installation VMs of 12 GiB run side by side below.
+      # Two installation VMs of 12 GiB side by side, then the upgrade's of 16.
       - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 28
-      - name: Build and qualify the exact source image in isolated VMs
-        run: |
-          set -euo pipefail
-          staging=$(mktemp -d "$RUNNER_TEMP/cybexos-image-XXXXXX")
-          trap 'rm -rf "$staging"' EXIT
-          nix build .#iso -L --out-link "$staging/result"
-          # The ISO stays in the job's own staging directory: the disposable
-          # runner serves nothing, and testing ISOs reach PXE only by hand.
-          image=$(echo "$staging"/result/iso/*.iso)
-          test -f "$image"
-          nix develop -c scripts/check-image-parity "$image" . --output "$staging/image-parity.json"
-          # The plain and the encrypted installation are separate VMs with
-          # their own disks and sockets (4 vCPUs each): run them side by side.
-          # Each line of output names its installation. A failed installation
-          # runs once more, in fresh VMs, before it counts (as with
-          # scripts/build-checks); a warning on the run names it.
-          pids=()
-          for case in plain encrypted; do
-            (set -o pipefail
-             for attempt in 1 2; do
-               nix develop -c scripts/qualify-installations "$image" --case "$case" \
-                 --output "$staging/installations-$case.json" 2>&1 | sed -u "s/^/[$case] /" && exit 0
-               if [ "$attempt" = 1 ]; then
-                 echo "::warning title=Installation retried::The $case installation failed and runs once more"
-               fi
-             done
-             exit 1) &
-            pids+=($!)
-          done
-          failed=0
-          for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
-          exit "$failed"
-      # Kept for the next jobs, also after a failure: passed checks and built
-      # packages are substituted when their inputs are the same.
-      - name: Keep what this runner built
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        timeout-minutes: 20
-        run: python3 -B scripts/ci-nix-cache save
-  # The path people take: a machine on the previous published release, whose
-  # own updater discovers, prepares, applies, trial-boots and confirms this
-  # commit as the next release (scripts/qualify-upgrade). That updater asks
-  # api.github.com for the newest release; a stand-in on the runner answers
-  # with this commit and passes everything else on to GitHub.
-  upgrade:
-    # After the image job, whatever its result: see the jobs' comment above.
-    needs: image
-    if: ${{ !cancelled() }}
-    runs-on: [self-hosted, linux, x64, cybexos-isolated]
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: ${{ github.sha }}
-      # Every job checks the commit the run was started for, not whatever its
-      # branch points to by the time the job gets the runner: release/publish
-      # trusts this run for exactly that commit.
-      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
-      # What earlier jobs built (scripts/ci-nix-cache); it sets CI_NIX_SUBSTITUTER.
-      - run: python3 -B scripts/ci-nix-cache prepare
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b
-        with:
-          extra_nix_config: |
-            max-jobs = 4
-            cores = 0
-            extra-substituters = ${{ env.CI_NIX_SUBSTITUTER }}
-            fallback = true
-      # One installation VM of 16 GiB, built once the ISO is.
-      - run: python3 -B scripts/check-ci-capacity --vm --memory-gib 24
-      - name: Upgrade the previous release to this commit with its own updater
+      # This commit's ISO and the previous release's, built together; this
+      # ISO checked against the source and installed plain and encrypted; then
+      # a machine on the previous release moves to this commit with its own
+      # updater (docs/releasing.md#the-upgrade). See the script.
+      - name: Build, install and upgrade to the exact source image in isolated VMs
         env:
           # Raises the API rate limit for the runner's own GitHub requests,
           # and for the guest's reads of this repository through the stand-in
@@ -228,22 +165,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CYBEXOS_UPGRADE_PROXY_TOKEN: ${{ github.token }}
           FROM: ${{ inputs.from }}
-        run: |
-          set -euo pipefail
-          staging=$(mktemp -d "$RUNNER_TEMP/cybexos-upgrade-XXXXXX")
-          trap 'rm -rf "$staging"' EXIT
-          from=${FROM:-$(python3 -I -B scripts/qualify-upgrade previous)}
-          [[ $from =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$ ]] || { echo "Not a release tag: $from" >&2; exit 1; }
-          echo "Upgrading $from to $(cat VERSION) ($(git rev-parse HEAD))"
-          # That release's own ISO, built from its tag (substituted when this
-          # runner's cache has it from that release's image job).
-          NIX_CONFIG="access-tokens = github.com=$GITHUB_TOKEN" \
-            nix build "github:CybexBV/CybexOS/$from#iso" -L --out-link "$staging/from"
-          # Minimal applications: the proprietary ones download from their
-          # vendors (Chrome's .deb, gone once superseded), which would tie the
-          # gate to their servers; the updater path is the same.
-          nix develop -c scripts/qualify-upgrade run "$staging"/from/iso/*.iso --from "$from" \
-            --applications minimal --work-dir "$staging" --output "$staging/upgrade.json"
+        run: scripts/full-check-image
       # Kept for the next jobs, also after a failure: passed checks and built
       # packages are substituted when their inputs are the same.
       - name: Keep what this runner built
