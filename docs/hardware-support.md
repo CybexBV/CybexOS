@@ -87,7 +87,8 @@ Stage 1 carries the AMD, Intel and virtual GPU drivers on every machine, so
 the splash and the disk unlock prompt use the native driver. Nouveau is
 different: it names every NVIDIA GSP firmware image, about 1.3 GB, and the
 boot loader reads the whole initrd before the unlock prompt appears. On an
-all-AMD HP ZBook Ultra G1a that took about 41 s.
+all-AMD HP ZBook Ultra G1a that took about 41 s; without nouveau its initrd
+is about 100 MB instead of 1.4 GB.
 
 An installed machine carries nouveau in its initrd only when it may have an
 NVIDIA GPU without the proprietary driver (`cybexos.hardware.earlyNouveau`):

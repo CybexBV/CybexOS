@@ -104,7 +104,7 @@
             (builtins.fromJSON (builtins.readFile ./lifecycle/cybexos/hardware-profiles.json)).profiles);
         };
         hardware-profiles = import ./nix/tests/hardware-profiles.nix { inherit nixpkgs system; };
-        # An all-AMD laptop's initrd: no NVIDIA firmware, tens of MB.
+        # An all-AMD laptop's initrd: no NVIDIA firmware, about 100 MB.
         initrd-firmware = import ./nix/tests/initrd-firmware.nix { inherit nixpkgs pkgs module system; };
         xps-power-ordering = import ./nix/tests/xps-power-ordering.nix {
           inherit nixpkgs pkgs module system;

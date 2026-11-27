@@ -1,7 +1,8 @@
 # The initrd an all-AMD laptop's boot loader reads before the disk unlock
-# prompt: amdgpu's firmware, none of nouveau's NVIDIA GSP images, and tens of
-# MB rather than about 1.4 GB (nix/modules/hardware.nix). Parity checks the
-# module lists; this builds the actual module tree and initrd.
+# prompt: amdgpu's firmware, none of nouveau's NVIDIA GSP images, and about
+# 100 MB rather than 1.4 GB (nix/modules/hardware.nix; 98 MiB on 2026-11-27,
+# 16 MiB of it Intel microcode). Parity checks the module lists; this builds
+# the actual module tree and initrd.
 { nixpkgs, pkgs, module, system }:
 let
   amd = (nixpkgs.lib.nixosSystem {
