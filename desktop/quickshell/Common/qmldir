@@ -76,7 +76,6 @@ NotifCard NotifCard.qml
 NotifIcon NotifIcon.qml
 Revealer Revealer.qml
 ScrollChrome ScrollChrome.qml
-SocketContract SocketContract.qml
 StatusPlaceholder StatusPlaceholder.qml
 Toggle Toggle.qml
 StateLayer StateLayer.qml

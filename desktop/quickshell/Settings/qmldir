@@ -45,7 +45,6 @@ WallpaperOnlineView WallpaperOnlineView.qml
 PluginsPage PluginsPage.qml
 SettingsSubsection SettingsSubsection.qml
 SettingsField SettingsField.qml
-WidgetEditorRow WidgetEditorRow.qml
 WidgetPill WidgetPill.qml
 PluginWidgetSettings PluginWidgetSettings.qml
 PluginAppearance PluginAppearance.qml
