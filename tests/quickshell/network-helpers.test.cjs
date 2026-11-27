@@ -117,16 +117,3 @@ test("DNS state ignores non-physical and attached profiles and reports Mixed", (
         "Google");
     assert.equal(H.dnsState([{ ...google, controller: "bridge0" }]).provider, "Automatic");
 });
-
-test("band availability is derived only from the active SSID", () => {
-    const scans = [
-        { ssid: "Home", frequency: 2412 },
-        { ssid: "Home", frequency: 5500 },
-        { ssid: "Home", frequency: 6375 },
-        { ssid: "Other", frequency: 2412 }
-    ];
-    assert.deepEqual(H.availableBands(scans, "Home"), ["2.4", "5", "6"]);
-    assert.deepEqual(H.bandState({ selectedBand: "auto" }, scans, "Home", 6375), {
-        selected: "auto", current: "6", available: ["2.4", "5", "6"], automatic: true
-    });
-});

@@ -411,39 +411,6 @@ function networkBySsid(networks, ssid) {
     };
 }
 
-function availableBands(networks, activeSsid) {
-    var found = {};
-    ((Array.isArray(networks) || networks instanceof Array) ? networks : []).forEach(function (network) {
-        if (ssidOf(network) !== text(activeSsid))
-            return;
-        networkFrequencies(network).forEach(function (frequency) {
-            var band = bandForFrequency(frequency);
-            if (band !== "")
-                found[band] = true;
-        });
-    });
-    return ["2.4", "5", "6"].filter(function (band) { return found[band]; });
-}
-
-function bandState(profile, networks, activeSsid, currentFrequency) {
-    var selected = text(profile && (profile.selectedBand || profile.bandChoice));
-    var rawBand = text(profile && profile.band).toLowerCase();
-    if (selected === "") {
-        if (rawBand === "bg")
-            selected = "2.4";
-        else if (rawBand === "a")
-            selected = Number(profile && profile.channel) > 180 ? "6" : "5";
-        else
-            selected = "auto";
-    }
-    return {
-        selected: selected,
-        current: bandForFrequency(currentFrequency),
-        available: availableBands(networks, activeSsid),
-        automatic: selected === "auto"
-    };
-}
-
 function isIpv4(value) {
     var parts = text(value).split(".");
     if (parts.length !== 4)
@@ -689,8 +656,6 @@ var exported = {
     networkListKey: networkListKey,
     networkListIds: networkListIds,
     networkBySsid: networkBySsid,
-    availableBands: availableBands,
-    bandState: bandState,
     isIpv4: isIpv4,
     isIpv6: isIpv6,
     validateDnsServers: validateDnsServers,

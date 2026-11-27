@@ -556,8 +556,8 @@ def selected_band(record: dict[str, str]) -> str:
     if band == "bg":
         return "2.4"
     if band == "a":
-        # NetworkManager exposes only a/bg.  The helper represents a 6 GHz
-        # pin as band=a plus a 6 GHz-only channel (>180); see band_action.
+        # NetworkManager exposes only a/bg; a 6 GHz pin is band=a plus a
+        # 6 GHz-only channel (>180).
         return "6" if channel > 180 else "5"
     return "auto"
 
@@ -964,69 +964,6 @@ def wifi_action(request: dict[str, Any]) -> dict[str, Any]:
                 label="Remove failed Wi-Fi profile")
         raise
     return {"success": True, "action": action, "uuid": profile_uuid, "created": created}
-
-
-def frequency_to_6ghz_channel(frequency: Any) -> int:
-    try:
-        value = int(round(float(frequency)))
-    except (TypeError, ValueError) as error:
-        raise ToolError("invalid_band", "A scanned 6 GHz frequency is required") from error
-    if value == 5935:
-        return 2
-    channel = round((value - 5950) / 5)
-    if value < 5955 or value > 7115 or channel < 1 or channel > 233:
-        raise ToolError("invalid_band", "The selected access point is not in the 6 GHz band")
-    return channel
-
-
-def modify_band(profile_uuid: str, band: str, channel: int, *, rollback: bool = False) -> None:
-    run([
-        "nmcli", "connection", "modify", "uuid", require_uuid(profile_uuid),
-        "802-11-wireless.band", band,
-        "802-11-wireless.channel", str(channel),
-    ], code="band_rollback_failed" if rollback else "band_modify_failed",
-        label="Band rollback" if rollback else "Band profile update")
-
-
-def band_action(request: dict[str, Any]) -> dict[str, Any]:
-    profile_uuid = require_uuid(request.get("uuid"))
-    summary = next((profile for profile in profile_summaries() if profile["uuid"] == profile_uuid), None)
-    if not summary or summary.get("connectionType") != "802-11-wireless":
-        raise ToolError("invalid_band", "The active Wi-Fi profile no longer exists")
-    profile = get_profile_detail(summary)
-    if (profile.get("band") == "a" and profile.get("channel", 0)
-            and (profile.get("device") or profile.get("interface"))):
-        active_link = link_info(profile.get("device") or profile.get("interface"))
-        frequency = active_link.get("frequency")
-        if frequency is not None and frequency >= 5925:
-            profile["selectedBand"] = "6"
-    selected = str(request.get("band", "status"))
-    if selected in ("", "status", "get"):
-        return {"success": True, "selected": profile["selectedBand"],
-                "band": profile["band"], "channel": profile["channel"], "profile": profile}
-    if selected not in ("auto", "2.4", "5", "6"):
-        raise ToolError("invalid_band", "Choose Automatic, 2.4, 5, or 6 GHz")
-    interface = require_interface(request.get("interface") or profile.get("device") or profile.get("interface"))
-    old_band = profile["band"]
-    old_channel = profile["channel"]
-    new_band = "" if selected == "auto" else "bg" if selected == "2.4" else "a"
-    new_channel = frequency_to_6ghz_channel(request.get("frequency")) if selected == "6" else 0
-    modify_band(profile_uuid, new_band, new_channel)
-    try:
-        run(["nmcli", "--wait", "25", "connection", "up", "uuid", profile_uuid,
-             "ifname", interface], seconds=timeout("NETWORK_TOOL_ACTIVATE_TIMEOUT", 30),
-            code="band_activation_failed", label="Band reconnect")
-    except ToolError as original:
-        try:
-            modify_band(profile_uuid, old_band, old_channel, rollback=True)
-            run(["nmcli", "--wait", "25", "connection", "up", "uuid", profile_uuid,
-                 "ifname", interface], seconds=timeout("NETWORK_TOOL_ACTIVATE_TIMEOUT", 30),
-                code="band_rollback_failed", label="Band rollback reconnect")
-        except ToolError as rollback_error:
-            raise ToolError("band_rollback_failed",
-                            "Band reconnect failed and the previous profile could not be restored") from rollback_error
-        raise original
-    return {"success": True, "selected": selected, "uuid": profile_uuid}
 
 
 def password_action(request: dict[str, Any]) -> dict[str, Any]:
@@ -1570,7 +1507,7 @@ def parse_metered(output: str) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Quickshell network helper")
-    parser.add_argument("command", choices=("snapshot", "wifi", "dns", "band", "password", "qr",
+    parser.add_argument("command", choices=("snapshot", "wifi", "dns", "password", "qr",
                                             "vpn", "hotspot", "metered"))
     arguments = parser.parse_args()
     if arguments.command == "metered":
@@ -1581,7 +1518,6 @@ def main() -> None:
     handlers = {
         "wifi": wifi_action,
         "dns": dns_action,
-        "band": band_action,
         "password": password_action,
         "qr": qr_action,
         "vpn": vpn_action,

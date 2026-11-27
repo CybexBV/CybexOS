@@ -195,51 +195,6 @@ sys.exit(0)
     }
 });
 
-test("a failed band activation restores the previous profile and reconnects it", () => {
-    const base = fixture();
-    try {
-        const log = path.join(base.directory, "band.log");
-        const count = path.join(base.directory, "up-count");
-        base.env.STUB_LOG = log;
-        base.env.STUB_COUNT = count;
-        executable(base, "nmcli", `#!/usr/bin/env python3
-import json, os, pathlib, sys
-a=sys.argv[1:]; U="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-if "modify" in a:
-    with open(os.environ["STUB_LOG"], "a") as stream: stream.write(json.dumps(a)+"\\n")
-    sys.exit(0)
-if "up" in a:
-    p=pathlib.Path(os.environ["STUB_COUNT"]); n=int(p.read_text()) if p.exists() else 0; p.write_text(str(n+1))
-    with open(os.environ["STUB_LOG"], "a") as stream: stream.write(json.dumps(a)+"\\n")
-    if n==0: print("activation failed", file=sys.stderr); sys.exit(4)
-    sys.exit(0)
-if "show" in a and "uuid" not in a:
-    print(f"NAME:Home\\nUUID:{U}\\nTYPE:802-11-wireless\\nDEVICE:wlan0"); sys.exit(0)
-if "show" in a:
-    print(f"connection.id:Home\\nconnection.uuid:{U}\\nconnection.type:802-11-wireless")
-    print("connection.interface-name:wlan0\\nconnection.master:\\nconnection.slave-type:")
-    print("connection.controller:\\nconnection.port-type:\\n802-11-wireless.ssid:Home")
-    print("802-11-wireless.band:bg\\n802-11-wireless.channel:0"); sys.exit(0)
-sys.exit(0)
-`);
-        const result = invoke(helper, "band", {
-            uuid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-            interface: "wlan0",
-            band: "5"
-        }, base.env);
-        assert.notEqual(result.status, 0);
-        assert.equal(JSON.parse(result.stdout).code, "band_activation_failed");
-        const calls = fs.readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
-        const modifications = calls.filter(call => call.includes("modify"));
-        assert.equal(modifications.length, 2);
-        assert.equal(modifications[0][modifications[0].indexOf("802-11-wireless.band") + 1], "a");
-        assert.equal(modifications[1][modifications[1].indexOf("802-11-wireless.band") + 1], "bg");
-        assert.equal(calls.filter(call => call.includes("up")).length, 2);
-    } finally {
-        base.cleanup();
-    }
-});
-
 test("snapshot subprocess failures are bounded", () => {
     const base = fixture();
     try {
