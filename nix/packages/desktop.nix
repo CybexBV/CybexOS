@@ -20,6 +20,9 @@ let
   omasnap = callPackage ./omasnap.nix {};
   # QML helpers inherit this interpreter from the managed desktop. A plain
   # python3 earlier in PATH would shadow the system's withPackages environment.
+  # websockets, like QtWebSockets and Qt5Compat on the QML path below, is for
+  # plugins: no core shell file imports them, but widgets moved out to plugins
+  # (the T3 Code and Hermes ones, Model Usage) and Omarchy plugins do.
   python = python3.withPackages (p: [ p.pygobject3 p.pillow p.dbus-python p.websockets ]);
   # QML and shell helpers run these commands directly. Bind them into the
   # desktop environment so optional developer tools or ambient host PATH cannot
