@@ -179,6 +179,7 @@ function formatNumber(value, digits) {
     return number.toFixed(digits).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
+// Decimal units, as for storage (docs/shell-states.md#formats): 1 KB is 1000 bytes.
 function formatBytes(value) {
     if (value === null || value === undefined || value === "")
         return "--";
@@ -187,8 +188,8 @@ function formatBytes(value) {
         return "--";
     var units = ["B", "KB", "MB", "GB", "TB", "PB"];
     var unit = 0;
-    while (number >= 1024 && unit < units.length - 1) {
-        number /= 1024;
+    while (number >= 1000 && unit < units.length - 1) {
+        number /= 1000;
         unit++;
     }
     var digits = unit === 0 || number >= 100 ? 0 : number >= 10 ? 1 : 2;

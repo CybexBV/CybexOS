@@ -193,7 +193,7 @@ test("the Updates tab lists installed apps a prepared system update changes", ()
 test("presentation helpers: sizes, colours, descriptions, licences and screenshots", () => {
     assert.equal(H.size(412e6), "412 MB");
     assert.equal(H.size(1.6e9), "1.6 GB");
-    assert.equal(H.size(850e3), "850 kB");
+    assert.equal(H.size(850e3), "850 KB");
     assert.equal(H.size(0), "");
     assert.equal(H.size(null), "");
     assert.equal(H.darkInk("#f4e4cb"), true);

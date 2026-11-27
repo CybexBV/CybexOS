@@ -60,8 +60,8 @@ test("ping windows retain losses and average recent successful probes", () => {
 
 test("network quantities format compactly", () => {
     assert.equal(H.formatBytes(0), "0 B");
-    assert.equal(H.formatBytes(1536), "1.5 KB");
-    assert.equal(H.formatRate(1024 * 1024), "1 MB/s");
+    assert.equal(H.formatBytes(1500), "1.5 KB");
+    assert.equal(H.formatRate(1000 * 1000), "1 MB/s");
     assert.equal(H.formatLatency(4.25), "4.3 ms");
     assert.equal(H.formatLatency(null), "--");
 });

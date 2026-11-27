@@ -557,7 +557,7 @@ function size(bytes) {
     if (!isFinite(value) || value <= 0)
         return "";
     return value >= 1e9 ? (value / 1e9).toFixed(1) + " GB"
-        : value >= 1e6 ? Math.max(1, Math.round(value / 1e6)) + " MB" : Math.max(1, Math.round(value / 1e3)) + " kB";
+        : value >= 1e6 ? Math.max(1, Math.round(value / 1e6)) + " MB" : Math.max(1, Math.round(value / 1e3)) + " KB";
 }
 
 function parseHex(value) {
