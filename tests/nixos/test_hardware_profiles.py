@@ -186,6 +186,9 @@ class CataloguePolicyTests(unittest.TestCase):
                 self.assertIn('maximumExclusive', p['kernel'])
                 self.assertTrue(p['sources'])
                 self.assertTrue(p['limitations'])
+                # Decides nouveau's 1.3 GB in the initrd (nix/modules/hardware.nix).
+                self.assertTrue(p['gpuVendors'])
+                self.assertLessEqual(set(p['gpuVendors']), {'amd', 'intel', 'nvidia'})
                 for source in p['sources']:
                     self.assertTrue(source['url'].startswith(('https://', 'docs/')))
                     if source['project'] in ('nixos-hardware', 'Nixpkgs', 'Omarchy'):

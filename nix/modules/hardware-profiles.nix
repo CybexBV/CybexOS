@@ -10,6 +10,12 @@ let
   ids = map (profile: profile.id) approved;
   selected = lib.findFirst (profile: profile.id == hardware.profile) null approved;
   active = cfg.enable && selected != null;
+  # The model whose facts describe this machine. Machines installed before
+  # profiles were recorded name it only through their existing xps/zbook
+  # options (the catalogue's configuration.existingOptions).
+  described = if selected != null then selected else lib.findFirst (profile:
+    profile.configuration ? existingOptions && lib.matchAttrs profile.configuration.existingOptions hardware)
+    null approved;
   framework = hardware.profile == "framework-13-amd-7040";
   thinkpad = hardware.profile == "lenovo-thinkpad-t14-gen5-amd";
   kernel = config.boot.kernelPackages.kernel.version;
@@ -23,6 +29,19 @@ in {
         read-only DMI matcher. Inclusion means experimental configuration
         support, never physical qualification. Existing xps/zbook settings
         remain independent; selecting their metadata does not enable them.
+      '';
+    };
+    gpuVendors = lib.mkOption {
+      type = lib.types.nullOr (lib.types.listOf (lib.types.enum [ "amd" "intel" "nvidia" ]));
+      default = if cfg.enable && described != null then described.gpuVendors or null else null;
+      defaultText = lib.literalMD "the matched profile's `gpuVendors`, else `null`";
+      example = [ "amd" ];
+      description = ''
+        The AMD, Intel and NVIDIA graphics in this computer; null when unknown.
+        The fresh installer records what it detects. Otherwise a matched model
+        profile supplies its catalogue fact: the selected profile, or the one
+        named by the existing xps/zbook options. Decides whether nouveau
+        belongs in the initrd (cybexos.hardware.earlyNouveau).
       '';
     };
     framework13Amd7040 = {
