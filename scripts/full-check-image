@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# The full check's image job (.github/workflows/nixos.yml), run from the
+# checkout's root:
+#
+# 1. Build this commit's ISO and the previous release's ISO (from its tag) in
+#    one `nix build`, so they build side by side. Until 2026-11-27 they built
+#    in two jobs, one after the other, about 10 minutes each.
+# 2. Check this ISO against the source.
+# 3. Install it twice, plain and encrypted, in two VMs of 12 GiB at once
+#    (scripts/qualify-installations). A failed installation runs once more,
+#    in fresh VMs, before it counts; a warning on the run names it.
+# 4. The path people take: install the previous release in a VM of 16 GiB and
+#    let its own updater discover, prepare, apply, trial-boot and confirm this
+#    commit as the next release (scripts/qualify-upgrade; that updater asks
+#    api.github.com for the newest release, and a stand-in on the runner
+#    answers with this commit). It waits for the installations, so the
+#    runner's 32 GiB never hold more than 24 GiB of VMs, and runs whatever
+#    their result, so one run reports every failure.
+#
+# FROM names the installed release (a tag such as v1.0.25); by default it is
+# the release before VERSION. GITHUB_TOKEN, when set, raises the API rate
+# limit for the tag's build and the stand-in (CYBEXOS_UPGRADE_PROXY_TOKEN).
+# Everything happens in a temporary directory under RUNNER_TEMP (or TMPDIR),
+# removed at the end; the disposable runner serves nothing, and testing ISOs
+# reach PXE only by hand.
+set -euo pipefail
+
+staging=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/cybexos-image-XXXXXX")
+trap 'rm -rf "$staging"' EXIT
+
+from=${FROM:-$(python3 -I -B scripts/qualify-upgrade previous)}
+[[ $from =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$ ]] || { echo "Not a release tag: $from" >&2; exit 1; }
+echo "Qualifying $(cat VERSION) ($(git rev-parse HEAD)) and the upgrade from $from"
+
+# One build for both, so what they share builds once. --out-link names the
+# first result and adds -1 for the second.
+nix_config=${NIX_CONFIG:-}
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  nix_config+=$'\n'"access-tokens = github.com=$GITHUB_TOKEN"
+fi
+NIX_CONFIG=$nix_config nix build .#iso "github:CybexBV/CybexOS/$from#iso" -L --out-link "$staging/result"
+image=$(echo "$staging"/result/iso/*.iso)
+previous=$(echo "$staging"/result-1/iso/*.iso)
+test -f "$image"
+test -f "$previous"
+
+failed=0
+nix develop -c scripts/check-image-parity "$image" . --output "$staging/image-parity.json" || failed=1
+
+# Each line of output names its installation or the upgrade.
+qualify_installation() { # plain|encrypted
+  local attempt
+  for attempt in 1 2; do
+    nix develop -c scripts/qualify-installations "$image" --case "$1" \
+      --output "$staging/installations-$1.json" 2>&1 | sed -u "s/^/[$1] /" && return 0
+    if [ "$attempt" = 1 ]; then
+      echo "::warning title=Installation retried::The $1 installation failed and runs once more"
+    fi
+  done
+  return 1
+}
+pids=()
+for case in plain encrypted; do
+  qualify_installation "$case" &
+  pids+=($!)
+done
+for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
+
+# Minimal applications: the proprietary ones download from their vendors
+# (Chrome's .deb, gone once superseded), which would tie the gate to their
+# servers; the updater path is the same.
+nix develop -c scripts/qualify-upgrade run "$previous" --from "$from" \
+  --applications minimal --work-dir "$staging" --output "$staging/upgrade.json" 2>&1 \
+  | sed -u 's/^/[upgrade] /' || failed=1
+exit "$failed"

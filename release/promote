@@ -100,6 +100,18 @@ def source(tag, path):
     return result.stdout
 
 
+def runs_upgrade(tag):
+    """Whether the full check at tag runs scripts/qualify-upgrade, in the
+    workflow itself or in the image job's script it runs."""
+    def text(path):
+        return run('git', 'show', f'{tag}:{path}', check=False).stdout
+    workflow = text('.github/workflows/nixos.yml')
+    scripts = [workflow]
+    if 'scripts/full-check-image' in workflow:
+        scripts.append(text('scripts/full-check-image'))
+    return any('scripts/qualify-upgrade run' in script for script in scripts)
+
+
 def declared(tag, name):
     """A constant the release's updater declares in lifecycle/cybexos/trust.py."""
     match = re.search(rf'^{name} = (.+)$', source(tag, 'lifecycle/cybexos/trust.py'), re.M)
@@ -219,10 +231,10 @@ def main():
         fail(f'the full check (nixos.yml) has not passed for {tag} ({revision[:12]}); '
              'stable gets only releases that passed it')
     # A run passes only when every job of the commit's own workflow passed.
-    # After 1.0.32 that workflow must include the upgrade job.
-    workflow = run('git', 'show', f'{tag}:.github/workflows/nixos.yml', check=False).stdout
-    if version(args.version) > version('1.0.32') and not re.search(r'^  upgrade:', workflow, re.M):
-        fail(f'the full check of {tag} has no upgrade job; a release after 1.0.32 needs one')
+    # After 1.0.32 that workflow must run the upgrade: in its own job until
+    # 1.0.37, in the image job's script since.
+    if version(args.version) > version('1.0.32') and not runs_upgrade(tag):
+        fail(f'the full check of {tag} does not run the upgrade; a release after 1.0.32 needs it')
 
     published = datetime.datetime.fromisoformat(target['published_at'].replace('Z', '+00:00'))
     hours = (datetime.datetime.now(datetime.UTC) - published).total_seconds() / 3600

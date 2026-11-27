@@ -257,7 +257,7 @@ full check. It gates every release: `release/publish` and `release/promote`
 refuse a commit without a successful dispatched run for exactly that commit
 (runs that pushes to `main` started before 2026-11-26 count too). A run
 checks out the commit it was started for (each job verifies it); a pull
-request's run would check a merge commit, so it never counts. Nor does a run whose upgrade job
+request's run would check a merge commit, so it never counts. Nor does a run whose upgrade
 started from another release (`-f from=`, below): its title says so, and
 the gate needs the upgrade from the release just before `VERSION`.
 
@@ -269,10 +269,9 @@ requests and releases don't start it, and there is no nightly run. Start it with
 `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; a newer
 run on the same branch replaces one still going.
 
-It has three jobs. The checks job, the longest, runs beside the image job;
-the upgrade job follows the image job, whatever its result, because The
-Beast's memory usually fits two of these runners at once and the checks job
-must not wait for a slot. The checks job runs the source tests
+It has two jobs, which start at once on two runner slots (The Beast's memory
+usually fits two of these runners at once): the checks job and the image
+job. The checks job runs the source tests
 (`tests/run`, which includes the linters in `tests/lint`: Ruff, ShellCheck
 and actionlint), the shell tests (`tests/shell-checks`: QML lint and every
 headless Quickshell test) and then builds **every** flake check
@@ -288,15 +287,18 @@ so one run reports every failing check. A failing check runs once more before
 it counts, as with `fast-test` (`scripts/build-checks`): the checks that passed
 are in the store by then, so only the failed ones run again, and a warning on
 the run names them so a flaky test stays visible. The job also checks what machines would
-compile. The image job builds the ISO, checks it against the source and
-installs it twice, plain and encrypted, in two VMs at once; a failed
-installation runs once more in fresh VMs before it counts. The upgrade job
-takes the path people take ([below](#the-upgrade-job)).
+compile. The image job (`scripts/full-check-image`) builds this commit's ISO and the
+previous release's together, checks this one against the source and installs
+it twice, plain and encrypted, in two VMs at once; a failed installation runs
+once more in fresh VMs before it counts. Then, whatever their result, it
+takes the path people take ([below](#the-upgrade)). Until 2026-11-27 the
+upgrade was a third job after the image job: the two ISOs built one after
+the other, and that chain took as long as the checks job.
 
-### The upgrade job
+### The upgrade
 
-The upgrade job installs the previous published release from its own ISO and
-lets that release's own updater move the machine to this commit, as if it
+The image job's last step installs the previous published release from its
+own ISO and lets that release's own updater move the machine to this commit, as if it
 were published as the next release (`scripts/qualify-upgrade`). The previous
 release is the newest published one older than `VERSION`: on a release
 branch the newest release, on any other branch the one before it. The
@@ -329,14 +331,14 @@ ISO's checksum, each step and every request the stand-in answered.
 outside the workflow, for example with `--to` a published release. A plain
 installation in one VM of 16 GiB and 12 cores.
 
-All three jobs require a `cybexos-isolated` self-hosted runner;
+Both jobs require a `cybexos-isolated` self-hosted runner;
 standard hosted runners do not provide enough space for the complete desktop,
 build dependencies, ISO copies and installation VMs. Provision a fresh,
 single-job disposable x86_64 Linux VM with at least 256 GiB of disk, 32 GiB
 RAM, four CPU cores and accessible nested KVM. The preflight requires 160 GiB
 free for the Nix store plus 32 GiB for work (192 GiB when they share a
 filesystem), at least 24 GiB available memory (28 GiB for the image job's two
-installation VMs of 12 GiB), and KVM.
+installation VMs of 12 GiB, followed by the upgrade's of 16 GiB), and KVM.
 Nix runs up to four builds at once and lets each use every core of the
 runner (16 on The Beast's).
 Discard the runner, workspace and attached disks after each job, except the
@@ -345,14 +347,15 @@ full check keeps a Nix binary cache there (`scripts/ci-nix-cache`): each job
 saves what it built, also after a failure, and the next job on that slot
 substitutes it instead of building it again. That covers Cybex OS's own
 packages, kernel modules, the previous release's ISO (the previous release's
-image job built it; this one's upgrade job installs it) and checks that
+image job built it; this one builds it again for the upgrade) and checks that
 passed: a check whose inputs did not change since a passing run is not run
 again. The installations and the upgrade always run. When the volume is 70%
 full the cache starts again empty, and a cache never fails the job.
 
 A cache per slot misses often: a job lands on any of three slots, and in
 release 1.0.37's run the image and upgrade jobs both started empty (the
-upgrade job spent 10 of its 16 minutes rebuilding 1.0.36's ISO). When the
+upgrade job spent 10 of its 16 minutes rebuilding 1.0.36's ISO; that build
+now runs beside this ISO's in the image job). When the
 runners mount a volume all slots share at `/shared-cache` (ci-platform's
 github-runners `shared_cache_gib`), the script keeps the cache there instead,
 and falls back to the slot's own when it can't prepare it. The lane had one
