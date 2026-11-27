@@ -37,6 +37,11 @@ Rectangle {
     // Wiz's light around the tail; transparent draws none.
     property color glow: "transparent"
     property bool shadow: true
+    // Room a popup floating inside the card needs below its content (the
+    // model picker opening downwards, the conversation's menu): the card
+    // grows to hold it, so the layer's input region, which follows the
+    // card, covers the popup too.
+    property real minimumHeight: 0
 
     readonly property real tailWidth: Theme.scaled(18)
     readonly property real tailHeight: Theme.scaled(8)
@@ -49,7 +54,7 @@ Rectangle {
         Qt.rgba(glow.r, glow.g, glow.b, glow.a * glowStrength))
     readonly property color shadowInk: Theme.dark ? Qt.rgba(0, 0, 0, 1) : Qt.rgba(0.08, 0.12, 0.3, 1)
 
-    implicitHeight: column.implicitHeight + padding * 2
+    implicitHeight: Math.max(minimumHeight, column.implicitHeight + padding * 2)
     radius: Theme.panelRadius
     color: fill
     gradient: Gradient {
