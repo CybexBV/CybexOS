@@ -340,19 +340,27 @@ installation VMs of 12 GiB), and KVM.
 Nix runs up to four builds at once and lets each use every core of the
 runner (16 on The Beast's).
 Discard the runner, workspace and attached disks after each job, except the
-cache volumes: one that every runner slot shares at `/shared-cache` and the
-slot's own at `/cache`. Since 2026-11-26 (owner's decision) the full check
-keeps a Nix binary cache (`scripts/ci-nix-cache`): each job saves what it
-built, also after a failure, and later jobs substitute it instead of building
-it again. That covers Cybex OS's own packages, kernel modules, the previous
-release's ISO (the previous release's image job built it; this one's upgrade
-job installs it) and checks that passed: a check whose inputs did not change
-since a passing run is not run again. The installations and the upgrade always
-run. Since 2026-11-27 the cache is on the shared volume, so it doesn't matter
-which slot a job lands on; with a cache per slot, release 1.0.37's image and
-upgrade jobs both started empty. When the volume is 70% full the cache starts
-again empty. A shared cache that can't be prepared falls back to the slot's
-own, and a cache never fails the job. The runner must have
+runner slot's cache volume at `/cache`. Since 2026-11-26 (owner's decision) the
+full check keeps a Nix binary cache there (`scripts/ci-nix-cache`): each job
+saves what it built, also after a failure, and the next job on that slot
+substitutes it instead of building it again. That covers Cybex OS's own
+packages, kernel modules, the previous release's ISO (the previous release's
+image job built it; this one's upgrade job installs it) and checks that
+passed: a check whose inputs did not change since a passing run is not run
+again. The installations and the upgrade always run. When the volume is 70%
+full the cache starts again empty, and a cache never fails the job.
+
+A cache per slot misses often: a job lands on any of three slots, and in
+release 1.0.37's run the image and upgrade jobs both started empty (the
+upgrade job spent 10 of its 16 minutes rebuilding 1.0.36's ISO). When the
+runners mount a volume all slots share at `/shared-cache` (ci-platform's
+github-runners `shared_cache_gib`), the script keeps the cache there instead,
+and falls back to the slot's own when it can't prepare it. The lane had one
+for an hour on 2026-11-27: sharing worked, but while VMs with it booted, other
+VMs' disks stayed busy after they stopped and their deletes failed (Portal's
+too), so it was switched off again until that is understood.
+
+The runner must have
 no workstation data, persistent credentials, production network access or
 production PXE mount. Runner provisioning and isolation are owner-managed, not
 an instruction to enroll the running workstation as a runner.

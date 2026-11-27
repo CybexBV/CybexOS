@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """The full check's Nix cache on the runners' persistent volumes (.github/workflows/nixos.yml).
 
-The CybexOS runner lane on The Beast (github-runners lane `cybexos`) gives
-every slot one volume that all slots share, mounted at /shared-cache
-(shared_cache_gib), and one volume of its own at /cache (cache_gib). This
-keeps a file:// Nix binary cache on the shared volume, so a job substitutes
-what any earlier job built instead of building it again, whichever slot it
-lands on: Cybex OS's own packages, kernel modules, the previous release's ISO
+Each slot of the CybexOS runner lane on The Beast (github-runners lane
+`cybexos`) has a volume of its own at /cache (cache_gib), and the lane can give
+every slot one volume they all share at /shared-cache (shared_cache_gib;
+switched off again on 2026-11-27, see docs/releasing.md). This keeps a
+file:// Nix binary cache on the shared volume when it is mounted, else on the
+slot's own, so a job substitutes what an earlier job built instead of building
+it again: Cybex OS's own packages, kernel modules, the previous release's ISO
 (built by the previous release's image job, needed by this one's upgrade
-job), and checks that passed with the same inputs. Without the shared volume
-the cache is on the slot's own volume, as before 2026-11-27.
+job), and checks that passed with the same inputs.
 
   ci-nix-cache prepare   before Nix is installed: create the cache, or start
                          it again empty when its volume is nearly full, and
