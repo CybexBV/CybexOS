@@ -32,11 +32,12 @@ import theme_ghostty
 import theme_alacritty
 import theme_foot
 import theme_omasnap
+import theme_folio
 
 # The terminals render files whether or not they are installed, so one chosen
 # later in Software starts in the current theme.
 TARGETS = (theme_kitty, theme_hyprland, theme_gtk, theme_hyprlock, theme_ghostty, theme_alacritty, theme_foot,
-           theme_omasnap)
+           theme_omasnap, theme_folio)
 TOKENS_FILE = 'tokens.json'
 MAX_INPUT = 65536
 
