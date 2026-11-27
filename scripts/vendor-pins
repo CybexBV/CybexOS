@@ -279,6 +279,8 @@ PINS = [
                   'review its connected-widget bar API with the release'),
     GitHubRelease('omawrite', 'Omawrite', 'omacom/omawrite', 'nix/packages/omawrite.nix',
                   'check its Qt build with the machine Nixpkgs'),
+    GitHubRelease('folio', 'Folio', 'omacom/folio', 'nix/packages/folio.nix',
+                  'check its Cybex OS patches, Open and Save dialogs and Qt build with the machine Nixpkgs'),
 ]
 
 

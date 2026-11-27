@@ -53,6 +53,7 @@
         titlebars = pkgs.callPackage ./nix/packages/titlebars.nix {};
         omasnap = pkgs.callPackage ./nix/packages/omasnap.nix {};
         omawrite = pkgs.callPackage ./nix/packages/omawrite.nix {};
+        folio = pkgs.callPackage ./nix/packages/folio.nix {};
         # Curated set of Cybex OS's own free local builds for publishing to a
         # binary cache (docs/releasing.md). Asserts no item declares an unfree
         # or non-redistributable license and none appears in prebuilt.nix's
@@ -66,7 +67,7 @@
             && !(nixpkgs.lib.elem (builtins.unsafeDiscardStringContext pkg.drvPath) vendorDrvs);
           items = [
             desktop desktop.images updater installer-ui installer-ui.passthru.screen
-            plymouth symbols-font titlebars omasnap omawrite
+            plymouth symbols-font titlebars omasnap omawrite folio
             (pkgs.callPackage ./nix/packages/mdview.nix {})
             (pkgs.callPackage ./nix/packages/assistant.nix {})
             (pkgs.callPackage ./nix/packages/encryption-check.nix { source = self; })
@@ -164,9 +165,10 @@
         hyprland-pointer = import ./nix/tests/hyprland-pointer.nix { inherit pkgs module; };
         # Print, Shift+Print and Alt+Print through Omasnap in a real Hyprland session.
         screenshots = import ./nix/tests/screenshots.nix { inherit pkgs module; };
-        # Omasnap's and Omawrite's own headless suites, which machines skip when they build them.
+        # Omasnap's, Omawrite's and Folio's own headless suites, which machines skip when they build them.
         omasnap = (pkgs.callPackage ./nix/packages/omasnap.nix {}).tests.smoke;
         omawrite = (pkgs.callPackage ./nix/packages/omawrite.nix {}).tests.suite;
+        folio = (pkgs.callPackage ./nix/packages/folio.nix {}).tests.suite;
         # Voxtype's test suite, with Cybex OS's dictation patch, which machines
         # skip when they build it too.
         voxtype = (nixpkgs.lib.nixosSystem {
