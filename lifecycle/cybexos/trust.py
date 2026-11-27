@@ -229,6 +229,9 @@ def discover(fetch, channel, installed):
             if channel == 'stable' and (item['prerelease'] or '-' in tag):
                 continue
             notes = item.get('body') if isinstance(item.get('body'), str) else ''
+            if channel == 'beta':
+                # Beta lists every release itself; what promotion added for stable would repeat them.
+                notes = without_promotion(notes)
             eligible.append((key, tag, notes[:100000]))
         reached = reached and versioned
     if not eligible:
@@ -248,6 +251,14 @@ def discover(fetch, channel, installed):
 
 
 NOTES_LIMIT = 100000
+
+
+def without_promotion(notes):
+    """A promoted release's own notes, without what release/promote added for
+    stable: the "This stable release also includes" line and the "## From
+    Cybex OS" sections of the betas it covers."""
+    own = re.split(r'\n[ \t]*## From Cybex OS ', notes, maxsplit=1)[0]
+    return re.sub(r'^(#[^\n]*\n+)?This stable release also includes [^\n]*\n*', r'\1', own, count=1)
 
 
 def release_body(release, notes):
