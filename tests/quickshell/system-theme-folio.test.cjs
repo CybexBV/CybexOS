@@ -9,6 +9,7 @@ const { darkTokens, lightTokens, renderTarget, runDriver, scratch } = require(".
 
 const repoRoot = path.resolve(__dirname, "../..");
 const FILE = "folio/theme/colors.toml";
+const TEXT_FILE = "folio/theme/shell.toml";
 
 // Folio's own reading of the file (src/theme.cpp readPalette): `key = "#rrggbb"`
 // lines, and `mode = "light"` for a light palette.
@@ -43,7 +44,7 @@ function secondary(background, foreground) {
 test("Folio takes the shell's ground, text, accent and warning colours", () => {
     for (const tokens of [darkTokens(), lightTokens()]) {
         const files = renderTarget("folio", tokens);
-        assert.deepEqual(Object.keys(files), [FILE]);
+        assert.deepEqual(Object.keys(files), [FILE, TEXT_FILE]);
         const { colors, light } = palette(files[FILE]);
         assert.equal(light, tokens.mode === "light");
         assert.deepEqual(Object.keys(colors), ["accent", "background", "dark_background", "lighter_background",
@@ -75,6 +76,20 @@ test("Folio's text, sizes and dates and kinds of file read on its background", (
     assert.equal(palette(renderTarget("folio", tokens)[FILE]).colors.foreground, "#c8c4ba");
 });
 
+// Folio's reading of the text size (src/theme.cpp shellTextScale): `base-size`
+// under [font], in pixels, where 12 is its own size.
+function baseSize(text) {
+    const match = text.match(/^\[font\]\s*\nbase-size\s*=\s*(\d+)\s*$/m);
+    return match ? Number(match[1]) : null;
+}
+
+test("Folio's text follows the shell's text size", () => {
+    const tokens = darkTokens();
+    assert.equal(baseSize(renderTarget("folio", tokens)[TEXT_FILE]), 14, "the default shell text is 14 px");
+    tokens.font.size = 17;
+    assert.equal(baseSize(renderTarget("folio", tokens)[TEXT_FILE]), 17);
+});
+
 test("the theme is written where the Folio package looks for it", t => {
     const state = scratch(t);
     const result = runDriver(state, ["apply"], JSON.stringify(darkTokens()) + "\n");
@@ -83,7 +98,8 @@ test("the theme is written where the Folio package looks for it", t => {
     const file = path.join(state, FILE);
     assert.equal(palette(fs.readFileSync(file, "utf8")).colors.accent, darkTokens().colors.accent);
     assert.equal(fs.statSync(file).mode & 0o777, 0o644);
-    assert.deepEqual(fs.readdirSync(path.dirname(file)), ["colors.toml"], "no temporary file is left beside it");
+    assert.deepEqual(fs.readdirSync(path.dirname(file)).sort(), ["colors.toml", "shell.toml"],
+        "no temporary file is left beside them");
     assert.equal(runDriver(state, ["apply"], JSON.stringify(darkTokens()) + "\n").report.targets.folio.changed, false);
 
     // Folio reads <folder>/theme/colors.toml, the folder its package names.
