@@ -77,8 +77,9 @@ sub-agent in a worktree):
 - Cybex OS releases have a beta and a stable channel
   ([docs/releasing.md](docs/releasing.md#channels)). Each release pins its
   Nixpkgs revision, so NixOS package updates reach machines with releases.
-- Release only when John asks for one. Bundle what landed: at most two beta
-  releases a week. Never one release per change.
+- Release only when John asks for one, as often as he asks (owner's
+  decision, 2026-11-27, dropping the cap of two beta releases a week while
+  the project is under active development).
 - To publish a beta:
   - Set `VERSION` to the next patch version, past the highest of `VERSION`,
     the repository's `v*` tags and `/data/pxe/iso`.
