@@ -117,8 +117,8 @@ asd_percent() {
 # names the active runtime. Every step is pinged, never rate-limited: a skipped
 # last step would leave the pill showing the level before it.
 ping_osd() {
-  local runtime=${HOME:-}/.local/bin/cybexos-runtime
-  [[ -x $runtime ]] && "$runtime" ipc osd brightness >/dev/null 2>&1 || true
+  command -v cybexos-runtime >/dev/null 2>&1 || return 0
+  cybexos-runtime ipc osd brightness >/dev/null 2>&1 || true
 }
 
 if apple_display; then
