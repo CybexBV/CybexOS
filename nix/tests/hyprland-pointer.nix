@@ -18,7 +18,10 @@
 #
 # Default apps in the same session: the jobs cybexos-apps reports with
 # Cybex OS's picks, a web mail handler chosen and reset, the Files command
-# opening Nautilus, and the terminals seeded to follow the shell's theme.
+# opening Folio, and the terminals and Folio seeded to follow the shell's
+# theme. "Show in folder" starts Folio over D-Bus, and Folio's own floating
+# dialog answers an Open dialog asked of the portal directly (as Chromium,
+# Electron and Flatpak apps ask), by a GTK 4 app and by a Qt app.
 #
 # Software beyond NixOS packages, in the same session: the account's Flathub
 # remote (added once, and a removal stays), exported Flatpak apps on the
@@ -77,6 +80,34 @@ let
     cp ${pkgs.pigz}/bin/pigz $out
     chmod u+w $out
     patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath $out
+  '';
+  # Apps asking for an Open dialog, each the way its toolkit does, started
+  # through Hyprland so they have the session's environment.
+  portalOpen = pkgs.writeShellScript "cybexos-portal-open" ''
+    exec ${pkgs.glib.bin}/bin/gdbus call --session --timeout 300 --dest org.freedesktop.portal.Desktop \
+      --object-path /org/freedesktop/portal/desktop --method org.freedesktop.portal.FileChooser.OpenFile \
+      "" "Portal test" "{}"
+  '';
+  gtkOpen = pkgs.writeShellScript "cybexos-gtk4-open" ''
+    exec ${pkgs.zenity}/bin/zenity --file-selection --title "GTK 4 test"
+  '';
+  qtDialog = pkgs.writeText "cybexos-qt-dialog.qml" ''
+    import QtQuick
+    import QtQuick.Dialogs
+    Window {
+        width: 240; height: 120; visible: true; title: "Qt dialog test"
+        FileDialog { id: dialog; title: "Qt test"; onAccepted: Qt.quit(); onRejected: Qt.quit() }
+        Component.onCompleted: dialog.open()
+    }
+  '';
+  qtOpen = pkgs.runCommand "cybexos-qt-open" {
+    nativeBuildInputs = [ pkgs.qt6.wrapQtAppsHook pkgs.makeWrapper ];
+    buildInputs = [ pkgs.qt6.qtbase pkgs.qt6.qtdeclarative pkgs.qt6.qtwayland ];
+  } ''
+    makeQtWrapper ${pkgs.qt6.qtdeclarative}/bin/qml $out --add-flags ${qtDialog}
+  '';
+  launch = name: program: pkgs.writeShellScript "cybexos-launch-${name}" ''
+    exec hyprctl -i 0 dispatch 'hl.dsp.exec_cmd("${program}")'
   '';
   workspace = number: pkgs.writeShellScript "cybexos-pointer-workspace-${number}" ''
     exec hyprctl -i 0 dispatch 'hl.dsp.focus({ workspace = "${number}" })'
@@ -511,23 +542,53 @@ in pkgs.testers.runNixOSTest {
     picks = {role: (roles[role]["system"], roles[role]["effective"], roles[role]["personal"])
              for role in ("terminal", "files", "music", "mail")}
     assert picks == {"terminal": ("kitty.desktop", "kitty.desktop", False),
-                     "files": ("org.gnome.Nautilus.desktop", "org.gnome.Nautilus.desktop", False),
+                     "files": ("folio.desktop", "folio.desktop", False),
                      "music": ("mpv.desktop", "mpv.desktop", False), "mail": ("", "", False)}, picks
     assert {"cybexos-mail-gmail.desktop", "cybexos-mail-outlook.desktop"} <= {c["value"] for c in roles["mail"]["choices"]}
     mail = json.loads(user("cybexos-apps set mail cybexos-mail-outlook.desktop"))["roles"]["mail"]
     assert (mail["effective"], mail["personal"]) == ("cybexos-mail-outlook.desktop", True), mail
     mail = json.loads(user("cybexos-apps reset mail"))["roles"]["mail"]
     assert (mail["effective"], mail["personal"]) == ("", False), mail
+    def windows(name):
+        return [client for client in hypr("clients") if client.get("class") == name]
+
+    def close(name):
+        user(f"hyprctl -i 0 dispatch 'hl.dsp.window.close({{ window = \"class:{name}\" }})'")
+        assert wait(lambda: not windows(name), 30), f"{name} stayed open"
+
     user("cybexos-apps files")
-    assert wait(lambda: any(client.get("class") == "org.gnome.Nautilus" for client in hypr("clients")), 60), hypr("clients")
+    assert wait(lambda: windows("folio"), 60), hypr("clients")
     machine.screenshot("default-apps-files")
-    user("hyprctl -i 0 dispatch 'hl.dsp.window.close({ window = \"class:org.gnome.Nautilus\" })'")
-    assert wait(lambda: not any(client.get("class") == "org.gnome.Nautilus" for client in hypr("clients")), 30)
+    close("folio")
+    # "Show in folder", as browsers ask for a download: Folio starts over D-Bus.
+    user("gdbus call --session --dest org.freedesktop.FileManager1 --object-path /org/freedesktop/FileManager1"
+         " --method org.freedesktop.FileManager1.ShowItems \"['file:///home/tester/.config/cybexos/shell.json']\" \"\"")
+    assert wait(lambda: windows("folio"), 60), hypr("clients")
+    close("folio")
+    machine.succeed("grep -q '^accent = ' /home/tester/.local/state/cybexos/theme/folio/theme/colors.toml")
     for path in (".config/ghostty/config", ".config/alacritty/alacritty.toml", ".config/foot/foot.ini"):
         machine.succeed(f"test -s /home/tester/{path}")
     for name in ("kitty.conf", "ghostty.conf", "alacritty.toml", "foot.ini"):
         machine.succeed(f"grep -q background /home/tester/.local/state/cybexos/theme/{name}")
     machine.log("default-apps: passed")
+
+    # ---- Open and Save dialogs ------------------------------------------------
+    # Each asks for an Open dialog; Folio's own dialog answers, floating and
+    # centred at its size, and closing it cancels. Firefox is told to ask the
+    # portal too (Firefox itself is not run here).
+    for name, script in (("portal", "${launch "portal" portalOpen}"), ("gtk4", "${launch "gtk4" gtkOpen}"),
+                         ("qt", "${launch "qt" qtOpen}")):
+        user(script)
+        found = wait(lambda: windows("folio-chooser"), 60)
+        assert found, f"{name}: no Folio dialog: " + json.dumps([client.get("class") for client in hypr("clients")])
+        dialog = found[0]
+        size = dialog.get("size") or [0, 0]
+        assert dialog.get("floating") and abs(size[0] - 875) <= 2 and abs(size[1] - 600) <= 2, (name, dialog)
+        machine.screenshot(f"open-dialog-{name}")
+        close("folio-chooser")
+    policies = json.loads(machine.succeed("cat /etc/firefox/policies/policies.json"))["policies"]
+    assert policies["Preferences"]["widget.use-xdg-desktop-portal.file-picker"] == {"Value": 1, "Status": "default"}, policies
+    machine.log("open-dialogs: passed")
 
     log = shell_journal()
     # The whole log is kept; the Assistant's own files must be clean.
