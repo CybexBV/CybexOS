@@ -273,8 +273,9 @@ in {
       install -Dm444 ${../../hardware/xps/camera/71-xps-ipu7-hide-isys.rules} $out/lib/udev/rules.d/71-xps-ipu7-hide-isys.rules
       install -Dm444 ${../../hardware/xps/camera/90-xps-ipu7-psys.rules} $out/lib/udev/rules.d/90-xps-ipu7-psys.rules
     '') ];
-    # The relay's GStreamer source is part of this camera's own stack.
-    cybexos.updates.expectedBuilds = [ camera.sensor ];
+    # The relay's GStreamer source and the HAL and binaries below it are this
+    # camera's own stack; what they need must come prebuilt.
+    cybexos.updates.ownBuilds = [ camera.sensor camera.hal camera.bins ];
     services.v4l2-relayd.instances.ipu7 = {
       enable = true; cardLabel = "Hardware ISP Camera";
       extraPackages = [ camera.sensor ];
