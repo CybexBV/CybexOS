@@ -48,17 +48,13 @@ function keysSupplied(rel) {
 
 test("web notification icons resolve locally without sender-triggered lookup processes or network fetches", () => {
     const icon = read(path.join("Common", "NotifIcon.qml"));
-    const resolver = read(path.join("Common", "WebIcons.qml"));
     const notifs = read(path.join("Common", "Notifs.qml"));
 
-    assert.doesNotMatch(icon, /WebIcons\.(?:request|sourceFor)\(/);
+    assert.doesNotMatch(icon, /Process|execDetached|XMLHttpRequest|https?:/);
     assert.match(notifs, /Smart\.localImageUrl\(value\)/);
-    assert.match(icon, /readonly property string siteSource: ""/);
     assert.match(icon, /status === Image\.Error[\s\S]*?root\.primaryFailed = true/,
-        "an expired Chromium image-path must fall through to the cached favicon");
-    assert.match(resolver, /scripts\/notification-icon\.py/);
-    assert.match(resolver, /property var requested:\s*\(\{\}\)/,
-        "toast and history instances must deduplicate origin lookups");
+        "an expired Chromium image-path must fall through to the monogram");
+    assert.match(icon, /source: brand\.available \|\| root\.primaryFailed \? "" : root\.primarySource/);
     const webBranch = notifs.match(/if \(entry\.webOrigin\) \{([\s\S]*?)\n        \}/);
     assert.ok(webBranch, "Notifs.iconSource must have an explicit web-origin branch");
     assert.match(webBranch[1], /entry\.image/);

@@ -2,10 +2,10 @@ import QtQuick
 import "Monogram.js" as Monogram
 import "NotifHelpers.js" as Helpers
 
-// A notification's source icon: the desktop entry's icon where one resolves,
-// otherwise a browser-cached site favicon and finally the source's monogram —
-// its first letter, so two icon-less senders still look different — or a
-// warning for critical. Callers opt into a compact well so icons with very
+// A notification's source icon: a bundled brand mark, else the icon
+// Notifs.iconSource resolves (the desktop entry's, or a web sender's own
+// local image), and finally the source's monogram — its first letter, so two
+// icon-less senders still look different — or a warning for critical. Callers opt into a compact well so icons with very
 // different silhouettes keep the same visual weight: the shell's resting chip
 // rather than an accent tint, which made every card look like an alert. The
 // monogram always sits in a well of its own, the same tile the launcher and
@@ -25,23 +25,15 @@ Item {
     property bool primaryFailed: false
     readonly property string primarySource: brand.available
         ? "" : Notifs.iconSource(entry)
-    // Never turn untrusted sender metadata into a network fetch or subprocess.
-    readonly property string siteSource: ""
     readonly property string monogram: Helpers.monogram(entry.displayAppName || entry.appName || "")
     readonly property bool showsMark: !brand.visible && !image.visible
     readonly property bool showsMonogram: showsMark && !urgent && monogram !== ""
     readonly property var monogramTile: Monogram.tile(entry.displayAppName || entry.appName || "", Theme.dark)
 
-    function requestSiteIcon() {
-        // Site brand icons and safe sender images are resolved in process.
-    }
-
-    onEntryChanged: {
-        primaryFailed = false;
-        requestSiteIcon();
-    }
+    // Never turn untrusted sender metadata into a network fetch or subprocess:
+    // every source here is resolved in process.
+    onEntryChanged: primaryFailed = false
     onPrimarySourceChanged: primaryFailed = false
-    Component.onCompleted: requestSiteIcon()
 
     Rectangle {
         anchors.fill: parent
@@ -67,9 +59,7 @@ Item {
             anchors.centerIn: parent
             width: root.iconSize
             height: root.iconSize
-            source: brand.available ? ""
-                : root.primarySource !== "" && !root.primaryFailed
-                    ? root.primarySource : root.siteSource
+            source: brand.available || root.primaryFailed ? "" : root.primarySource
             sourceSize: Qt.size(root.iconSize, root.iconSize)
             fillMode: Image.PreserveAspectFit
             asynchronous: true
