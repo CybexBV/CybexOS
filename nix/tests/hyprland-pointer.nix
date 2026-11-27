@@ -83,10 +83,12 @@ let
   '';
   # Apps asking for an Open dialog, each the way its toolkit does, started
   # through Hyprland so they have the session's environment.
+  # The portal closes a request whose caller has gone, so this one waits for
+  # the answer, as an app does, and writes it down (portal-open.py).
   portalOpen = pkgs.writeShellScript "cybexos-portal-open" ''
-    exec ${pkgs.glib.bin}/bin/gdbus call --session --timeout 300 --dest org.freedesktop.portal.Desktop \
-      --object-path /org/freedesktop/portal/desktop --method org.freedesktop.portal.FileChooser.OpenFile \
-      "" "Portal test" "{}"
+    export GI_TYPELIB_PATH=${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.glib.out pkgs.gobject-introspection ]}
+    exec ${pkgs.python3.withPackages (p: [ p.pygobject3 ])}/bin/python3 -I ${./portal-open.py} "Portal test" \
+      > /home/tester/portal-answer
   '';
   gtkOpen = pkgs.writeShellScript "cybexos-gtk4-open" ''
     exec ${pkgs.zenity}/bin/zenity --file-selection --title "GTK 4 test"
@@ -97,7 +99,9 @@ let
     Window {
         width: 240; height: 120; visible: true; title: "Qt dialog test"
         FileDialog { id: dialog; title: "Qt test"; onAccepted: Qt.quit(); onRejected: Qt.quit() }
-        Component.onCompleted: dialog.open()
+        // A Qt app asks the portal for its version as it starts; a dialog
+        // opened before the answer is Qt's own.
+        Timer { interval: 2000; running: true; onTriggered: dialog.open() }
     }
   '';
   qtOpen = pkgs.runCommand "cybexos-qt-open" {
@@ -586,6 +590,10 @@ in pkgs.testers.runNixOSTest {
         assert dialog.get("floating") and abs(size[0] - 875) <= 2 and abs(size[1] - 600) <= 2, (name, dialog)
         machine.screenshot(f"open-dialog-{name}")
         close("folio-chooser")
+        if name == "portal":
+            # Closing the dialog answers the app: cancelled.
+            assert wait(lambda: machine.succeed("cat /home/tester/portal-answer").strip() == "1", 15), \
+                machine.succeed("cat /home/tester/portal-answer")
     policies = json.loads(machine.succeed("cat /etc/firefox/policies/policies.json"))["policies"]
     assert policies["Preferences"]["widget.use-xdg-desktop-portal.file-picker"] == {"Value": 1, "Status": "default"}, policies
     machine.log("open-dialogs: passed")
