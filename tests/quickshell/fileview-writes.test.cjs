@@ -136,7 +136,7 @@ function notesHarness(disk, blockWrites) {
         Qt: { callLater: fn => later.push(fn) },
         records: [], ready: false, dirty: false, writeInFlight: false,
         flushRequested: false, writeSnapshot: "", persistedText: "", storeText: "",
-        error: "", errorKind: "", lastSavedAt: 0, deletedRecord: null, idCounter: 0,
+        error: "", errorKind: "", deletedRecord: null, idCounter: 0,
         initialLoadHandled: false, titleStates: {}, titleQueue: [],
         store,
         undoTimer: { restart() {}, stop() {} }

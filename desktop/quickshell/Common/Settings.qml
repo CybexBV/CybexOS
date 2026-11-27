@@ -157,7 +157,6 @@ Singleton {
     property bool loadError: false
     property string loadErrorText: ""
     readonly property bool persistenceError: loadError || saveError
-    property double lastSavedAt: 0
     property var resetSnapshot: null
     property string resetLabel: ""
     property string announcement: ""
@@ -200,8 +199,6 @@ Singleton {
     readonly property string effectiveAccent: accent
     readonly property string effectiveBarColor: SettingsHelpers.resolveBarColor(
         barColorMode, themeMode, barCustomHue, barCustomSaturation, barCustomLightness)
-    readonly property bool modsModified:
-        JSON.stringify(mods) !== JSON.stringify(defaults.mods)
 
     // The Settings sidebar, in order: Home, then one entry per page grouped
     // by what the person is doing rather than by where the value is stored
@@ -1070,7 +1067,6 @@ Singleton {
         ready = true;
         releaseWriteGuard();
         saveError = false;
-        lastSavedAt = Date.now();
         savePending = state.pending;
         if (wasRetry)
             announcement = "Settings saved.";

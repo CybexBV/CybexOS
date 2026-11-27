@@ -52,10 +52,6 @@ var PANELS = [
     { name: "battery", island: "right", moduleId: "batt", source: DRAWER_SOURCE, attached: true, edge: "right", tab: "power" },
     { name: "notifications", island: "right", moduleId: "notifications", source: DRAWER_SOURCE, attached: true, edge: "right", tab: "notifications" },
 
-    // Updates keeps its purpose-built state machine and transaction transcript
-    // in a dedicated drawer. It uses the redesign's attached right-edge
-    // geometry, but is deliberately not a Control Dashboard tab.
-
     // The Day sheet: one view shared by the clock and the weather pill.
     // centerAnchored so it opens in the same centred spot no matter which of
     // the two triggers it — hovering between them must not move the surface.

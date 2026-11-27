@@ -714,12 +714,6 @@ test("FileView failures cannot become empty settings or false save success", () 
     assert.match(settings, /root\.handleSaveSucceeded\(result\.text\)/);
     assert.match(settings, /root\.handleSaveFailure\(FileViewError\.Unknown\)/);
     assert.match(settings, /CommandRequest \{\s*id: settingsWriter/);
-    const saveNow = settings.slice(settings.indexOf("function saveNow()"),
-        settings.indexOf("function scheduleSave()"));
-    assert.doesNotMatch(saveNow, /lastSavedAt\s*=/,
-        "starting a write is not evidence that it succeeded");
-    assert.match(settings,
-        /function handleSaveSucceeded\(committed\)[\s\S]*lastSavedAt = Date\.now\(\)/);
 });
 
 test("settings use the verified atomic writer and production document queue", () => {
