@@ -138,6 +138,14 @@ test("reminders poll only while records exist and settle with one read", () => {
         /onRunningChanged: \{[\s\S]{0,160}?root\.loading = false;[\s\S]{0,120}?ProcHelpers\.NOT_STARTED[\s\S]{0,200}?Qt\.callLater\(root\.refresh\)/);
 });
 
+test("the Storage page's maintenance status refreshes fast only while an operation runs", () => {
+    const maintenance = read("Common/Maintenance.qml");
+    assert.match(maintenance,
+        /Timer \{\s*interval: root\.busy \? 1500 : 15000\s*repeat: true\s*running: root\.watched \|\| root\.pending\s*onTriggered: root\.refresh\(\)/);
+    assert.match(maintenance, /onWatchedChanged: \{ if \(watched\) refresh\(\); \}/,
+        "opening the page refreshes at once rather than after the first slow tick");
+});
+
 test("the calendar polls only for an open Day sheet, and never while idle", () => {
     const calendar = read("Common/Calendar.qml");
     const sheet = read("Popovers/DaySheetPopover.qml");

@@ -41,5 +41,13 @@ Singleton {
         }
     }
     Timer { interval: 1500; repeat: true; running: root.pending; onTriggered: requestStatus.run(["cybex", "maintenance", "request", root.requestId]) }
-    Timer { interval: 1500; repeat: true; running: root.watched || root.pending; onTriggered: root.refresh() }
+    // `cybex maintenance status` is a process per tick. While an operation
+    // runs the Storage page follows it closely; while it is merely open the
+    // figures change slowly, so a 15 s refresh (and one on opening) is enough.
+    Timer {
+        interval: root.busy ? 1500 : 15000
+        repeat: true
+        running: root.watched || root.pending
+        onTriggered: root.refresh()
+    }
 }
