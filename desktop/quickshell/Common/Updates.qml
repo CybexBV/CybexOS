@@ -62,8 +62,6 @@ Singleton {
     readonly property bool busy: checker.busy
     readonly property bool requestPending: requester.busy || Helpers.pending(deployment.request)
     readonly property bool runActive: Helpers.active(deployment.state) || requestPending
-    readonly property string runState: runActive ? "running" : deployment.state === "done" ? "done"
-        : ["failed", "interrupted", "rolled-back", "recovery-failed"].includes(deployment.state) ? "failed" : "idle"
     // Packages NixOS hasn't built yet are no update to offer (nixosPending).
     readonly property bool hasUpdates: sourcesLoaded && !nixosPending
         && [sources.upstream, sources.cybexos, sources.firmware || {}].some(source => source.state === "available")
@@ -120,8 +118,6 @@ Singleton {
         nixosPending ? "" : deployment.error || "",
         sources.error || "", sources.upstream.error || "", sources.cybexos.error || "",
         (sources.firmware || {}).error || "", (deployment.firmware || {}).error || ""].filter(value => value))].join("\n\n")
-    readonly property string projectNotes: ready || rebootRecommended ? deployment.notes || "" : sources.cybexos.notes || ""
-    readonly property string installedVersion: ready ? deployment.installedVersion || "" : sources.cybexos.installed || ""
     // An "ahead" source names its channel's older newest release, never an update.
     readonly property string projectVersion: ready ? deployment.availableVersion || ""
         : sources.cybexos.state !== "ahead" ? sources.cybexos.available || "" : ""
@@ -193,7 +189,7 @@ Singleton {
     }
     function request(args) {
         if (runActive || !statusLoaded || statusError !== "") {
-            requestError = "Another operation is pending, or its status is unavailable. Review the current status before retrying.";
+            requestError = I18n.tr("Another operation is pending, or its status is unavailable. Review the current status before retrying.");
             return;
         }
         requestError = "";

@@ -60,7 +60,7 @@ Singleton {
         if (busy)
             return false;
         if (preview && value.action !== "confirm" && value.action !== "rollback") {
-            error = "Keep or revert the current display change first.";
+            error = I18n.tr("Keep or revert the current display change first.");
             return false;
         }
         revision++;

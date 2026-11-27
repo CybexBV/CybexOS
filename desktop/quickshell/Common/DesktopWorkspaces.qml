@@ -108,12 +108,6 @@ Singleton {
     function minimize(address) {
         return canMinimize(address) && dispatch(WindowCommands.desktopMinimize(address), address);
     }
-    function newWorkspace(name) {
-        return ready && dispatch(WindowCommands.desktopNew(name));
-    }
-    function newWorkspaceAndMove(address, name) {
-        return ready && isLive(address) && dispatch(WindowCommands.desktopNewAndMove(address, name), address);
-    }
     function next(direction, name) {
         return ready && dispatch(WindowCommands.desktopNext(direction, name));
     }

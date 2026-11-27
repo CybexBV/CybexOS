@@ -136,7 +136,7 @@ Singleton {
 
     function finishList(code, body) {
         if (code !== 0) {
-            error = "Process list unavailable";
+            error = I18n.tr("Process list unavailable");
             return;
         }
         const current = ProcessListHelpers.parseSnapshot(body);

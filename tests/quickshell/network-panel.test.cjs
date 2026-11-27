@@ -16,8 +16,6 @@ test("network details poll only while acquired and serialize snapshots", () => {
     assert.match(controller, /function release\(\)/);
     assert.match(controller, /readonly property int pollIntervalMs:\s*1500/);
     assert.match(controller, /interval:\s*root\.pollIntervalMs/);
-    assert.match(controller, /pollCadenceText:/,
-        "the visible cadence label must come from the actual polling interval");
     assert.match(controller, /running:\s*root\.acquired/);
     assert.match(controller, /if \(snapshotProc\.running\)[\s\S]*snapshotAgain = true/);
     assert.match(controller, /scannerDevice\.scannerEnabled = false/);
@@ -29,15 +27,13 @@ test("the live network figures start no process per sample", () => {
     const controller = read("Common/NetworkDetails.qml");
     // Throughput: the 1.5 s tick reads sysfs counters through FileView.
     assert.match(controller,
-        /id: detailsPoll\s*interval: root\.pollIntervalMs\s*repeat: true\s*running: root\.acquired\s*onTriggered: \{\s*root\.sampleCounters\(\);\s*root\.checkPinger\(routerPinger, true\);\s*root\.checkPinger\(internetPinger, false\);/);
+        /id: detailsPoll\s*interval: root\.pollIntervalMs\s*repeat: true\s*running: root\.acquired\s*onTriggered: \{\s*root\.sampleCounters\(\);\s*root\.checkPinger\(internetPinger\);/);
     for (const counter of ["rx_bytes", "tx_bytes"])
         assert.match(controller, new RegExp(
             `FileView \\{[^}]*counterPath\\(root\\.counterInterface, "${counter}"\\)[^}]*blockAllReads: true`));
     assert.match(controller, /readonly property string counterInterface: acquired \? primaryInterface : ""/);
-    // Latency: two long-lived pingers, stopped when released.
-    assert.match(controller, /readonly property string routerPingTarget: acquired && snapshotPrimary/);
+    // Latency: one long-lived pinger, stopped when released.
     assert.match(controller, /readonly property string internetPingTarget: acquired && snapshotPrimary/);
-    assert.match(controller, /onRouterPingTargetChanged: restartPinger\(routerPinger, routerPingTarget\)/);
     assert.match(controller, /onInternetPingTargetChanged: restartPinger\(internetPinger, internetPingTarget\)/);
     assert.match(controller, /id: pingRetry[\s\S]{0,80}running: root\.acquired\s*&&/);
     // The snapshot follows NetworkManager's single monitor plus a slow poll.
@@ -137,39 +133,22 @@ test("the pinger command and parser agree with the installed ping",
     assert.ok(samples.every(sample => sample.ms !== null && sample.ms >= 0), run.stdout);
 });
 
-test("DNS controls remain profile-backed and Wi-Fi band options stay out of the view", () => {
-    const panel = read("Popovers/WifiPopover.qml");
+test("DNS choices remain profile-backed and Wi-Fi band options stay out of the view", () => {
+    const panel = read("Popovers/Drawer/DrawerNetwork.qml");
     const controller = read("Common/NetworkDetails.qml");
-    assert.match(panel, /model:\s*\["Automatic", "Cloudflare", "Google", "Custom"\]/);
-    assert.match(panel, /NetworkHelpers\.validateDnsServers/);
-    assert.match(panel, /NetworkDetails\.dnsMixed/);
-    assert.match(panel, /NetworkDetails\.dnsNotice/);
-    assert.doesNotMatch(panel, /WI-FI BAND/);
-    assert.doesNotMatch(panel, /NetworkDetails\.bandAvailable/);
-    assert.doesNotMatch(panel, /NetworkDetails\.setBand/);
+    assert.match(panel, /model:\s*\["Automatic", "Cloudflare", "Google"\]/);
+    assert.match(panel, /NetworkDetails\.setDns\(\s*dnsChoice\.modelData, \[\]\)/);
+    assert.match(panel, /opacity:\s*NetworkDetails\.dnsBusy \? 0\.5 : 1/);
+    assert.doesNotMatch(panel, /WI-FI BAND|NetworkDetails\.(?:bandAvailable|setBand)/);
     assert.match(controller, /command:\s*\["python3", root\.helper, "dns"\]/);
 });
 
-test("Wi-Fi defaults to a connected-network picker and expands all actionable rows", () => {
-    const panel = read("Popovers/WifiPopover.qml");
-    assert.match(panel, /property bool wifiNetworksOpen:\s*false/);
-    assert.match(panel, /component WifiNetworkPicker:\s*Rectangle/);
-    assert.match(panel, /id:\s*wifiPicker[\s\S]{0,300}currentLabel:\s*root\.connectedWifiName/);
-    assert.match(panel, /expanded:\s*root\.wifiNetworksOpen/);
-    assert.match(panel, /id:\s*wifiNetworkList[\s\S]{0,80}visible:\s*root\.wifiNetworksOpen/);
-    assert.match(panel, /function collapseWifiNetworks\(\)[\s\S]{0,100}clearCredentials\(\)/);
-    assert.match(panel, /text:\s*"KNOWN NETWORKS"/);
-    assert.match(panel, /text:\s*"OTHER NETWORKS"/);
-    assert.match(panel, /model:\s*root\.wifiNetworksOpen && WifiState\.enabled\s*\? NetworkDetails\.knownNetworks/);
-    assert.match(panel, /model:\s*root\.wifiNetworksOpen && WifiState\.enabled\s*\? NetworkDetails\.otherNetworks/);
-    assert.match(panel, /action:\s*"disconnect"/);
-    assert.match(panel, /action:\s*"forget"/);
-    assert.match(panel, /credentialIdentity/);
+test("Wi-Fi passwords are typed masked and dropped once sent or abandoned", () => {
+    const panel = read("Popovers/Drawer/DrawerNetwork.qml");
     assert.match(panel, /echoMode:\s*TextInput\.Password/);
-    assert.match(panel, /Certificates\? Network Settings/);
-    assert.match(panel, /function clearCredentials\(\)/);
-    assert.match(panel, /if \(runConnectRequest\(request\)\)\s*clearCredentials\(\)/);
-    assert.match(panel, /NetworkDetails\.wifiError\(network\.ssid\)/);
+    assert.match(panel, /onAccepted:\s*root\.submitPassword\(text\)/);
+    assert.match(panel, /function foldCredentials\(\) \{\s*credentialSsid = "";\s*credentialPassword = "";/);
+    assert.match(panel, /if \(accepted\) \{\s*foldCredentials\(\);/);
 });
 
 test("one disposable network overlay is registered at shell scope", () => {

@@ -283,7 +283,7 @@ SettingsPage {
                 selectionColor: Theme.accent
                 selectedTextColor: Theme.textOnAccent
                 Accessible.role: Accessible.StaticText
-                Accessible.name: "Recovery key " + Backup.pendingKey
+                Accessible.name: I18n.format("Recovery key %1", [Backup.pendingKey])
             }
             SettingsHint {
                 width: parent.width

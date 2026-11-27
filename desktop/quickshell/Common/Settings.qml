@@ -157,7 +157,6 @@ Singleton {
     property bool loadError: false
     property string loadErrorText: ""
     readonly property bool persistenceError: loadError || saveError
-    property double lastSavedAt: 0
     property var resetSnapshot: null
     property string resetLabel: ""
     property string announcement: ""
@@ -200,8 +199,6 @@ Singleton {
     readonly property string effectiveAccent: accent
     readonly property string effectiveBarColor: SettingsHelpers.resolveBarColor(
         barColorMode, themeMode, barCustomHue, barCustomSaturation, barCustomLightness)
-    readonly property bool modsModified:
-        JSON.stringify(mods) !== JSON.stringify(defaults.mods)
 
     // The Settings sidebar, in order: Home, then one entry per page grouped
     // by what the person is doing rather than by where the value is stored
@@ -815,7 +812,7 @@ Singleton {
 
     function retrySave() {
         if (loadError) {
-            announcement = "Retrying the settings file…";
+            announcement = I18n.tr("Retrying the settings file…");
             store.reload();
             return;
         }
@@ -1070,7 +1067,6 @@ Singleton {
         ready = true;
         releaseWriteGuard();
         saveError = false;
-        lastSavedAt = Date.now();
         savePending = state.pending;
         if (wasRetry)
             announcement = "Settings saved.";
@@ -1085,7 +1081,7 @@ Singleton {
         releaseWriteGuard();
         savePending = false;
         saveError = true;
-        announcement = "Could not save settings. Retry is available.";
+        announcement = I18n.tr("Could not save settings. Retry is available.");
         console.warn("settings save failed:", FileViewError.toString(error));
     }
 
@@ -1130,7 +1126,7 @@ Singleton {
                 }
             }
             root.handleSaveFailure(FileViewError.Unknown);
-            root.announcement = result.error || error || "Could not save settings. Retry is available.";
+            root.announcement = result.error || error || I18n.tr("Could not save settings. Retry is available.");
             if (result.error && result.error.indexOf("Your pending edit is saved at ") !== -1) {
                 // The rejected edit is retained byte-for-byte in its sidecar;
                 // refresh the form so Retry cannot repeat the same conflict.
@@ -1516,15 +1512,15 @@ Singleton {
         onExited: exitCode => {
             if (exitCode === 0) {
                 root.corruptBackupPending = false;
-                root.announcement = "The settings file could not be read. It was kept as "
-                    + corruptBackupProc.backupPath + " and the defaults were restored.";
+                root.announcement = I18n.format("The settings file could not be read. It was kept as %1 and the defaults were restored.",
+                    [corruptBackupProc.backupPath]);
                 root.notifyCorruption(root.announcement);
                 return;
             }
             // Deliberately leaves corruptBackupPending set: saving now would
             // overwrite the file we just failed to copy.
-            root.announcement = "The settings file could not be read or backed up. "
-                + "Settings will not be saved until " + root.filePath + " is moved aside.";
+            root.announcement = I18n.format("The settings file could not be read or backed up. Settings will not be saved until %1 is moved aside.",
+                [root.filePath]);
             root.notifyCorruption(root.announcement);
             console.warn("settings: backing up", root.filePath, "failed with exit", exitCode);
         }

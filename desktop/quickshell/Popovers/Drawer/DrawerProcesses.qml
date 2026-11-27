@@ -119,7 +119,7 @@ Column {
                     border.color: Theme.focusRing
                     activeFocusOnTab: true
                     Accessible.role: Accessible.RadioButton
-                    Accessible.name: "Sort by " + modelData.label
+                    Accessible.name: I18n.format("Sort by %1", [modelData.label])
                     Accessible.checked: taken
                     Accessible.onPressAction: ProcessList.setMode(segment.modelData.id)
 

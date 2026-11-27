@@ -442,12 +442,6 @@ Singleton {
         return Helpers.senderActions(entry.actions)[0] || null;
     }
 
-    function invokeDefault(entry) {
-        const action = defaultAction(entry);
-        if (action)
-            invoke(entry, action);
-    }
-
     // Critical toasts never reach this: they persist until dismissed
     // (design t4), so only normal urgencies deplete.
     function timeoutFor(entry) {

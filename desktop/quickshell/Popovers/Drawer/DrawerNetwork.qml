@@ -111,7 +111,7 @@ Column {
 
     function submitPassword(password) {
         if (password === "") {
-            credentialError = "Enter the network password.";
+            credentialError = I18n.tr("Enter the network password.");
             return;
         }
         const iface = NetworkDetails.snapshot && NetworkDetails.snapshot.wifi

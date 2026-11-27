@@ -355,18 +355,16 @@ test("the deadline keeps the calendars that answered and names the one that did 
     assert.equal(normalized.sourceErrors.length, 1);
 });
 
-test("both event views say when a calendar could not be read", () => {
+test("the Day sheet says when a calendar could not be read", () => {
     // A timed-out calendar leaves the others' events on screen; without a
     // note the Day sheet's week and next events look complete.
     const warning = /Text \{\s*visible: Calendar\.partialWarning !== "" && Calendar\.ready[\s\S]{0,120}?text: Calendar\.partialWarning/;
-    assert.match(read("Popovers/CalendarPopover.qml"), warning);
     assert.match(read("Popovers/DaySheetPopover.qml"), warning);
 });
 
-test("the Day sheet and the calendar panel share one month grid", () => {
+test("the Day sheet draws the shared month grid", () => {
     const grid = read("Popovers/MonthGrid.qml");
     const sheet = read("Popovers/DaySheetPopover.qml");
-    const panel = read("Popovers/CalendarPopover.qml");
 
     assert.match(read("Popovers/qmldir"), /^MonthGrid MonthGrid\.qml$/m);
     // Six Monday-first weeks; three marks at most; today is the accent pill
@@ -381,11 +379,8 @@ test("the Day sheet and the calendar panel share one month grid", () => {
     assert.match(grid, /: day\.inMonth \|\| day\.isSelected \? Theme\.textHi : Theme\.textFaint/);
     assert.match(grid, /property real cellHeight: Math\.max\(32, Theme\.scaled\(32\)\)/);
     assert.match(grid, /signal chosen\(var date\)/);
-    // The sheet's grid opens the calendar app on the date, as its week did;
-    // the panel's selects the date for its agenda.
+    // The sheet's grid opens the calendar app on the date, as its week did.
     assert.match(sheet, /MonthGrid \{[\s\S]*?month: root\.shownMonth[\s\S]*?onChosen: date => \{\s*Popouts\.close\(\);\s*Calendar\.openCalendar\(date\);/);
-    assert.match(panel, /MonthGrid \{[\s\S]*?onChosen: date => root\.selectDay\(date\)/);
-    assert.doesNotMatch(panel, /model: 42/, "the panel no longer draws its own copy");
     // Browsing another month fetches its events; each open starts on today's.
     assert.match(sheet, /onVisibleChanged: \{\s*if \(visible\)\s*monthOffset = 0;/);
     assert.match(sheet, /Calendar\.ensureMonth\(shownMonth, false\)/);

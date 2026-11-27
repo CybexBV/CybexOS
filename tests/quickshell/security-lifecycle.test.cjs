@@ -40,26 +40,6 @@ test("desktop-open boundaries accept only HTTP(S) URLs", () => {
 
 
 
-test("control-center process toggles expose desired, pending, effective, and error state", () => {
-    const control = readShell("Popovers/ControlCenterPopover.qml");
-    assert.match(control, /property bool effective: on/);
-    assert.match(control, /property bool pending: false/);
-    assert.match(control, /property string error: ""/);
-    assert.match(control, /Accessible\.checked: tile\.effective/);
-    assert.match(control, /Accessible\.description: tile\.statusDescription/);
-    for (const binding of [
-        "effective: SysInfo.nightLightEffective",
-        "pending: SysInfo.nightLightPending",
-        "error: SysInfo.nightLightError",
-        "effective: SysInfo.idleInhibitEffective",
-        "pending: SysInfo.idleInhibitPending",
-        "error: SysInfo.idleInhibitError",
-    ])
-        assert.ok(control.includes(binding), binding);
-    assert.match(control,
-        /visible: SysInfo\.nightLightError !== ""[\s\S]*SysInfo\.idleInhibitError !== ""[\s\S]*Accessible\.role: Accessible\.StaticText/);
-});
-
 test("settings rail reports and retries both load and save failures", () => {
     const view = readShell("Settings/SettingsView.qml");
     const settings = readShell("Common/Settings.qml");

@@ -629,7 +629,7 @@ test("notification settings drive the toasts and the notification center", () =>
         (_, i) => Number(clamp[1]) + i));
     assert.doesNotMatch(body.slice(0, body.indexOf("]")), /SliderRow \{/, "four line counts are choices, not a slider");
     // DND writers must go through the persisted setting, never the singleton.
-    for (const name of ["Popovers/NotifsPopover.qml", "Popovers/ControlCenterPopover.qml"])
+    for (const name of ["Popovers/Drawer/DrawerNotifications.qml", "Popovers/Drawer/DrawerOverview.qml"])
         assert.doesNotMatch(read(name), /Notifs\.dnd\s*=/,
             `${name} must use Notifs.setDnd`);
 });
@@ -697,7 +697,7 @@ test("an unreadable settings file is preserved before anything saves over it", (
     assert.equal(clears.length, 1,
         "corruptBackupPending clears only on a successful move");
 
-    assert.match(settings, /root\.announcement = "The settings file could not be read\./,
+    assert.match(settings, /root\.announcement = I18n\.format\("The settings file could not be read\. It was kept as %1/,
         "the user is told the file was kept rather than lost");
 });
 
@@ -714,12 +714,6 @@ test("FileView failures cannot become empty settings or false save success", () 
     assert.match(settings, /root\.handleSaveSucceeded\(result\.text\)/);
     assert.match(settings, /root\.handleSaveFailure\(FileViewError\.Unknown\)/);
     assert.match(settings, /CommandRequest \{\s*id: settingsWriter/);
-    const saveNow = settings.slice(settings.indexOf("function saveNow()"),
-        settings.indexOf("function scheduleSave()"));
-    assert.doesNotMatch(saveNow, /lastSavedAt\s*=/,
-        "starting a write is not evidence that it succeeded");
-    assert.match(settings,
-        /function handleSaveSucceeded\(committed\)[\s\S]*lastSavedAt = Date\.now\(\)/);
 });
 
 test("settings use the verified atomic writer and production document queue", () => {

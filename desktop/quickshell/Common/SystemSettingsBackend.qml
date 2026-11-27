@@ -73,7 +73,7 @@ Item {
         if (busy)
             return false;
         if (preview && value.action !== "confirm" && value.action !== "rollback") {
-            error = "Keep or revert the current network trial first.";
+            error = I18n.tr("Keep or revert the current network trial first.");
             return false;
         }
         revision++;

@@ -117,11 +117,6 @@ Singleton {
             sourceAudio.muted = muted;
     }
 
-    function setAllMuted(muted) {
-        setMuted(muted);
-        setSourceMuted(muted);
-    }
-
     PwObjectTracker {
         objects: [root.outputSink, root.sink, root.source]
     }

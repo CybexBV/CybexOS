@@ -12,7 +12,7 @@ import "ProcHelpers.js" as ProcHelpers
 //
 // The live figures cost no process per sample: throughput reads the kernel's
 // byte counters every 1.5 seconds through FileView, and latency comes from
-// two long-lived `ping -O` processes that report once per probe. The
+// one long-lived `ping -O` to the internet that reports once per probe. The
 // device/route/profile/scan snapshot (network-tool.py, six processes) runs
 // on NetworkManager events from NetworkStatus's monitor, after an action,
 // and on a slow safety poll for what no event announces (scan results,
@@ -25,8 +25,6 @@ Singleton {
     readonly property int pingAverageWindow: 5
     readonly property int pollIntervalMs: 1500
     readonly property int snapshotIntervalMs: 10000
-    readonly property string pollCadenceText:
-        "Updated live every " + (pollIntervalMs / 1000).toFixed(1) + " seconds"
 
     property int watchers: 0
     readonly property bool acquired: watchers > 0
@@ -39,8 +37,6 @@ Singleton {
     readonly property var routes: (Array.isArray(snapshot.routes) || snapshot.routes instanceof Array) ? snapshot.routes : []
     readonly property var physicalDevices: devices.filter(device =>
         NetworkHelpers.physicalType(device) !== "")
-    readonly property var ethernetDevices: physicalDevices.filter(device =>
-        NetworkHelpers.physicalType(device) === "ethernet")
     readonly property var snapshotPrimary:
         NetworkHelpers.selectPrimaryInterface(devices, routes)
     // Views read the primary device's rxBytes/txBytes as running totals, so
@@ -49,8 +45,6 @@ Singleton {
         snapshotPrimary, primaryInterface, liveCounters)
     readonly property string primaryInterface: snapshotPrimary
         ? NetworkHelpers.interfaceName(snapshotPrimary) : ""
-    readonly property string primaryType: snapshotPrimary
-        ? NetworkHelpers.physicalType(snapshotPrimary) : ""
     readonly property var activeWifi: physicalDevices.find(device =>
         NetworkHelpers.physicalType(device) === "wifi" && device.connected) ?? null
     readonly property string activeWifiInterface: activeWifi
@@ -100,8 +94,6 @@ Singleton {
     }
     readonly property var groupedNetworks: NetworkHelpers.groupWifiNetworks(
         scanNetworks, savedProfiles.length > 0 ? savedProfiles : snapshot.profiles)
-    readonly property var knownNetworks: groupedNetworks.known
-    readonly property var otherNetworks: groupedNetworks.other
     readonly property var activeWifiNetwork: groupedNetworks.all.find(network =>
         network.connected) ?? null
 
@@ -109,17 +101,12 @@ Singleton {
     property var liveCounters: null
     property real downloadRate: 0
     property real uploadRate: 0
-    // Counters and pings follow the snapshot's primary device, and only
+    // Counters and the ping follow the snapshot's primary device, and only
     // while a view holds the controller.
     readonly property string counterInterface: acquired ? primaryInterface : ""
-    readonly property string routerPingTarget: acquired && snapshotPrimary
-        ? NetworkDetailsHelpers.pingTarget(snapshotPrimary.gateway) : ""
     readonly property string internetPingTarget: acquired && snapshotPrimary
         ? "1.1.1.1" : ""
-    property var routerPingHistory: []
     property var internetPingHistory: []
-    readonly property var routerPing: NetworkHelpers.pingStats(
-        routerPingHistory, pingAverageWindow)
     readonly property var internetPing: NetworkHelpers.pingStats(
         internetPingHistory, pingAverageWindow)
 
@@ -132,24 +119,10 @@ Singleton {
     property bool dnsRefreshAgain: false
     property var pendingDnsRequest: ({ provider: "status" })
 
-    property string bandUuid: ""
-    property string bandSelected: "auto"
-    property bool bandBusy: false
-    property string bandError: ""
-    property bool bandRefreshAgain: false
-    property var pendingBandRequest: ({ band: "status" })
-    readonly property var activeBandState: NetworkHelpers.bandState(
-        { selectedBand: bandSelected }, scanNetworks,
-        activeWifi ? activeWifi.ssid : "",
-        activeWifi ? activeWifi.frequency : null)
-    readonly property var bandAvailable: activeBandState.available
-    readonly property string bandCurrent: activeBandState.current
-
     property string actionKind: ""
     property string actionKey: ""
     property var wifiErrors: ({})
     property var pendingWifiRequest: ({})
-    readonly property bool wifiBusy: actionKind !== ""
 
     // NetworkManager VPN and WireGuard profiles from the same snapshot, for
     // the drawer's VPN switch. One request at a time; its failure is kept
@@ -162,7 +135,6 @@ Singleton {
 
     signal wifiActionFinished(string key, bool success, string reason)
     signal dnsActionFinished(bool success, string reason)
-    signal bandActionFinished(bool success, string reason)
 
     property var scannerDevice: null
 
@@ -203,7 +175,6 @@ Singleton {
         liveCounters = null;
         downloadRate = 0;
         uploadRate = 0;
-        routerPingHistory = [];
         internetPingHistory = [];
     }
 
@@ -241,20 +212,20 @@ Singleton {
         pinger.running = true;
     }
 
-    function pingLine(pinger, router, line) {
+    function pingLine(pinger, line) {
         const sample = NetworkDetailsHelpers.pingSample(pinger.lastSeq, line);
         if (!sample)
             return;
         pinger.lastSeq = sample.seq;
         pinger.lastSampleAt = Date.now();
-        recordPing(router, sample.ms);
+        recordPing(sample.ms);
     }
 
     // `ping -O` reports every probe it sends, but one that cannot send at
     // all (no route) only prints errors. Each interval of silence beyond one
     // counts as a lost probe, so a stale latency cannot outlive the path it
     // measured. A long gap (a suspend) adds at most one window of losses.
-    function checkPinger(pinger, router) {
+    function checkPinger(pinger) {
         if (!pinger.running)
             return;
         const missed = NetworkDetailsHelpers.missedProbes(pinger.lastSampleAt,
@@ -263,16 +234,12 @@ Singleton {
             return;
         pinger.lastSampleAt += missed * pollIntervalMs;
         for (let i = 0; i < Math.min(missed, pingHistoryWindow); i++)
-            recordPing(router, null);
+            recordPing(null);
     }
 
-    function recordPing(router, ms) {
-        if (router)
-            routerPingHistory = NetworkHelpers.updatePingHistory(routerPingHistory,
-                ms, pingHistoryWindow);
-        else
-            internetPingHistory = NetworkHelpers.updatePingHistory(internetPingHistory,
-                ms, pingHistoryWindow);
+    function recordPing(ms) {
+        internetPingHistory = NetworkHelpers.updatePingHistory(internetPingHistory,
+            ms, pingHistoryWindow);
     }
 
     // A pinger that ended on its own (no route yet, the network went away)
@@ -281,17 +248,12 @@ Singleton {
     function retryPingers() {
         if (!acquired)
             return;
-        if (routerPingTarget !== "" && !routerPinger.running) {
-            recordPing(true, null);
-            restartPinger(routerPinger, routerPingTarget);
-        }
         if (internetPingTarget !== "" && !internetPinger.running) {
-            recordPing(false, null);
+            recordPing(null);
             restartPinger(internetPinger, internetPingTarget);
         }
     }
 
-    onRouterPingTargetChanged: restartPinger(routerPinger, routerPingTarget)
     onInternetPingTargetChanged: restartPinger(internetPinger, internetPingTarget)
 
     property bool snapshotAgain: false
@@ -336,16 +298,6 @@ Singleton {
         if (oldInterface !== nextInterface) {
             resetSamples();
             sampleCounters();
-        }
-
-        const wifi = result.devices.find(device =>
-            NetworkHelpers.physicalType(device) === "wifi" && device.connected) ?? null;
-        const nextUuid = wifi ? wifi.uuid : "";
-        if (nextUuid !== bandUuid) {
-            bandUuid = nextUuid;
-            bandSelected = "auto";
-            if (nextUuid !== "")
-                refreshBand();
         }
     }
 
@@ -416,42 +368,6 @@ Singleton {
         return true;
     }
 
-    function frequencyForBand(band) {
-        if (!activeWifi)
-            return null;
-        const candidates = scanNetworks.filter(network => network.ssid === activeWifi.ssid
-            && NetworkHelpers.bandForFrequency(network.frequency) === band);
-        candidates.sort((a, b) => Number(b.signal) - Number(a.signal));
-        return candidates.length > 0 ? candidates[0].frequency : null;
-    }
-
-    function refreshBand() {
-        if (!acquired || bandUuid === "")
-            return;
-        if (bandProc.running) {
-            bandRefreshAgain = true;
-            return;
-        }
-        bandBusy = true;
-        pendingBandRequest = { uuid: bandUuid, band: "status" };
-        bandProc.running = true;
-    }
-
-    function setBand(band) {
-        if (bandProc.running || !activeWifi || activeWifi.uuid === "")
-            return false;
-        bandBusy = true;
-        bandError = "";
-        pendingBandRequest = {
-            uuid: activeWifi.uuid,
-            interface: activeWifiInterface,
-            band: band,
-            frequency: band === "6" ? frequencyForBand("6") : null
-        };
-        bandProc.running = true;
-        return true;
-    }
-
     Timer {
         id: detailsPoll
         interval: root.pollIntervalMs
@@ -459,8 +375,7 @@ Singleton {
         running: root.acquired
         onTriggered: {
             root.sampleCounters();
-            root.checkPinger(routerPinger, true);
-            root.checkPinger(internetPinger, false);
+            root.checkPinger(internetPinger);
         }
     }
 
@@ -484,8 +399,7 @@ Singleton {
         interval: root.pollIntervalMs
         repeat: true
         running: root.acquired
-            && ((root.routerPingTarget !== "" && !routerPinger.running)
-                || (root.internetPingTarget !== "" && !internetPinger.running))
+            && root.internetPingTarget !== "" && !internetPinger.running
         onTriggered: root.retryPingers()
     }
 
@@ -527,24 +441,15 @@ Singleton {
         blockAllReads: true
     }
 
-    // Stopping or ending on their own needs no handler: pingRetry watches
-    // their falling edge. stderr is split and dropped rather than collected,
-    // since a long-lived ping may repeat "Network is unreachable" for hours.
-    Process {
-        id: routerPinger
-        property int lastSeq: -1
-        property real lastSampleAt: 0
-
-        stdout: SplitParser { onRead: line => root.pingLine(routerPinger, true, line) }
-        stderr: SplitParser {}
-    }
-
+    // Stopping or ending on its own needs no handler: pingRetry watches its
+    // falling edge. stderr is split and dropped rather than collected, since
+    // a long-lived ping may repeat "Network is unreachable" for hours.
     Process {
         id: internetPinger
         property int lastSeq: -1
         property real lastSampleAt: 0
 
-        stdout: SplitParser { onRead: line => root.pingLine(internetPinger, false, line) }
+        stdout: SplitParser { onRead: line => root.pingLine(internetPinger, line) }
         stderr: SplitParser {}
     }
 
@@ -698,48 +603,6 @@ Singleton {
                 Qt.callLater(root.refreshDns);
             } else if (success && !requestWasStatus && root.acquired) {
                 Qt.callLater(root.refreshDns);
-            }
-        }
-    }
-
-    Process {
-        id: bandProc
-        property string body: ""
-        property bool exitSeen: false
-        property int lastExit: 0
-
-        command: ["python3", root.helper, "band"]
-        stdinEnabled: true
-        stdout: StdioCollector { onStreamFinished: bandProc.body = text }
-        stderr: StdioCollector {}
-        onStarted: write(JSON.stringify(root.pendingBandRequest) + "\n")
-        onExited: (exitCode, exitStatus) => {
-            bandProc.exitSeen = true;
-            bandProc.lastExit = exitCode;
-        }
-        onRunningChanged: {
-            if (running) {
-                body = "";
-                exitSeen = false;
-                lastExit = 0;
-                return;
-            }
-            const result = root.parseResult(body, "network-tool band");
-            const success = exitSeen && lastExit === 0 && result.success;
-            root.bandBusy = false;
-            if (success) {
-                root.bandSelected = result.selected || "auto";
-                root.bandError = "";
-            } else {
-                root.bandError = result.error || "The band change failed";
-            }
-            root.bandActionFinished(success, root.bandError);
-            root.pendingBandRequest = { band: "status" };
-            if (root.bandRefreshAgain && root.acquired) {
-                root.bandRefreshAgain = false;
-                Qt.callLater(root.refreshBand);
-            } else if (root.acquired) {
-                root.refresh();
             }
         }
     }

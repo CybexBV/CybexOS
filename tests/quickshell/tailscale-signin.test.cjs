@@ -21,6 +21,7 @@ function service() {
         TailscaleHelpers: H, ProcHelpers: P,
         NetworkOverlayState: { openTailscale() { calls.setup++; }, close() { calls.closed++; } },
         Popouts: { close() {} },
+        I18n: { tr: text => text },
         Quickshell: { execDetached(args) { calls.notifications.push(Array.from(args)); } },
         Qt: { callLater(fn) { later.push(fn); }, openUrlExternally(link) { calls.browser.push(link); return true; } },
         console: { warn() {} }

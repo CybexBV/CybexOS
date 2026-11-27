@@ -68,7 +68,7 @@ Singleton {
                     root.records = (Array.isArray(parsed) || parsed instanceof Array) ? parsed : [];
                     root.error = "";
                 } catch (e) {
-                    root.error = "Could not read reminders";
+                    root.error = I18n.tr("Could not read reminders");
                 }
             }
         }
@@ -87,7 +87,7 @@ Singleton {
             }
             root.loading = false;
             if ((exitSeen ? lastExit : ProcHelpers.NOT_STARTED) !== 0)
-                root.error = "Could not read reminders";
+                root.error = I18n.tr("Could not read reminders");
             if (root.refreshPending) {
                 root.refreshPending = false;
                 Qt.callLater(root.refresh);
