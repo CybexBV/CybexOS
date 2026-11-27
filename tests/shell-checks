@@ -22,6 +22,10 @@ fi
 check tests/qml-lint tests/qml-lint
 check tests/user-plugins.py python3 -B tests/user-plugins.py
 check tests/media-player.py python3 -B tests/media-player.py
+# Production components (Polkit prompt, command requests, Settings drafts
+# through the real page Loader, themes, overview, process list) driven
+# through their lifecycles by tests/qml-lifecycle/shell.qml, offscreen.
+check tests/qml-lifecycle.py python3 -B tests/qml-lifecycle.py
 # The real Settings, Software, Software Update and Welcome windows, the
 # shortcut editor, the wallpaper picker (two live Wallhaven API requests) and
 # their models, each in a private headless Sway with scripted helpers.
