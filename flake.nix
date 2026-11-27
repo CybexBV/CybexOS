@@ -206,6 +206,13 @@
           packages = with pkgs; [ openssl nixfmt git nodejs quickshell matugen grim wtype imagemagick qt6.qtdeclarative restic systemd
             qt6.qttools cmake ninja pkg-config qt6.qtbase sway qemu OVMF dbus util-linux lua5_5 luajit fish jq procps hyprland xorriso mtools squashfsTools xdg-terminal-exec desktop-file-utils hostapd dnsmasq iw
             ruff shellcheck actionlint deadnix
+            # visudo parses the passwordless-sudo rule; ping checks the network
+            # panel's pinger against the real tool (tests skip without them).
+            # Only these two: Nix's sudo isn't setuid, so it must not shadow the host's.
+            (pkgs.runCommand "cybexos-test-tools" { } ''
+              mkdir -p $out/bin
+              ln -s ${pkgs.sudo}/bin/visudo ${pkgs.iputils}/bin/ping $out/bin/
+            '')
             # tests/nixos/test_boot.py checks grubenv and the boot menu with GRUB's own tools.
             grub2_efi
             (python3.withPackages (p: [ p.pexpect p.pillow p.pygobject3 p.dbus-python p.websockets p.pyside6 ])) ];
