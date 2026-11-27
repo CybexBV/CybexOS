@@ -621,8 +621,32 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
                                                {'name': 'Escape', 'icon': ''}])
         self.assertTrue(profile['onMedium'])
         self.assertEqual(profile['vendor'], 2, 'the vendor app and Steam')
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(daemon.Failure, 'software catalogue'):
+            daemon.software_catalogue(directory)
+
+    async def test_no_plan_is_made_from_a_catalogue_the_installer_cannot_trust(self):
+        await self.setup_phase()
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(daemon.software_catalogue(directory), {'profiles': [], 'apps': {}})
+            root = Path(directory)
+            # A malformed entry: the rest is shown, but nothing is planned.
+            (root / 'catalogue.json').write_text(json.dumps({'apps': [
+                {'id': 'good', 'attribute': 'good'}, {'id': 'evil', 'attribute': 'pkgs.${x}'}],
+                'profiles': [{'id': 'mine', 'apps': ['good', 'evil']}]}))
+            with patch.object(daemon, 'SOFTWARE', root):
+                partial = daemon.Daemon([], network_helper='')
+            self.assertEqual(sorted(partial.catalogue['apps']), ['good'])
+            self.assertEqual([p['id'] for p in partial.catalogue['profiles']], ['mine'])
+            # Missing: the service still runs and says why it cannot install.
+            (root / 'catalogue.json').unlink()
+            with patch.object(daemon, 'SOFTWARE', root):
+                missing = daemon.Daemon([], network_helper='')
+            self.assertEqual(missing.catalogue, {'profiles': [], 'apps': {}})
+        for service in (partial, missing):
+            with self.subTest(service=service), self.assertRaisesRegex(daemon.Failure, 'software catalogue'):
+                service.plan()
+            service.handle_event({'event': 'ready', 'disks': [], 'hardware': {'nvidia': False}})
+            self.assertIn('software catalogue', service.state['error'])
+        self.assertEqual(self.service.catalogue_problem, '', 'the release catalogue is well formed')
 
     async def test_password_confirmation_and_reserved_names_stop_before_review(self):
         await self.setup_phase()

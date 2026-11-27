@@ -250,6 +250,14 @@ class InteractiveTests(unittest.TestCase):
             self.run_flow([], [])
         disks.assert_not_called()
 
+    def test_a_catalogue_entry_the_installer_cannot_offer_stops_before_disk_selection(self):
+        (self.etc / 'catalogue.json').write_text(json.dumps({'apps': [{'id': 'evil', 'attribute': 'pkgs.${x}'}],
+                                                             'profiles': [{'id': 'mine', 'apps': ['evil']}]}))
+        with patch.dict(os.environ, {'CYBEXOS_INSTALLER_SOFTWARE': str(self.etc)}), \
+                patch.object(installer, 'disks') as disks, self.assertRaisesRegex(installer.Failure, 'software catalogue'):
+            self.run_flow([], [])
+        disks.assert_not_called()
+
     def test_review_cancellation_does_not_request_secrets(self):
         with self.assertRaises(installer.Cancelled):
             self.run_flow(['1', 'cybexqa', '', '', '', '', '', '', *[''] * 7, 'n', 'n', 'cancel'], [])
