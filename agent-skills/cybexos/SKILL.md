@@ -61,9 +61,10 @@ first and read [System check](references/system-check.md). Propose fixes;
 change nothing until the person agrees.
 
 For updates, select `upstream`, `cybexos` or `both` explicitly. Personal inputs
-are updated only on a separate explicit request. A combined failure offers an
-explicit upstream-only retry retaining installed Cybex OS; never remove modules
-or widgets to make a build pass. Keep `system.stateVersion` unchanged. Read
+are updated only on a separate explicit request. When a combined update fails,
+for example on a package NixOS hasn't built yet, it falls back to the release
+alone (`stage cybexos`) on the packages the machine already has; never remove
+modules or widgets to make a build pass. Keep `system.stateVersion` unchanged. Read
 [Commands and recovery](references/commands.md) when applying or recovering.
 
 All live Quickshell tests must source the installed

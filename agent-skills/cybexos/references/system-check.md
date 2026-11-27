@@ -87,8 +87,8 @@ Always `info`. `facts.missing` lists `{driver, file, error}` from this boot's
 kernel log. Drivers probe several versions (iwlwifi, amdgpu) and
 `regulatory.db` is optional, so explain it only when that device misbehaves.
 `hardware.enableRedistributableFirmware` is already on; a missing file the
-device needs means newer `linux-firmware`, which arrives with
-`cybex update stage upstream`. `unknown` means the journal is not readable.
+device needs means newer `linux-firmware`, which arrives with a later Cybex OS
+release's NixOS packages (`cybex update`). `unknown` means the journal is not readable.
 
 ## services
 

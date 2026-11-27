@@ -16,7 +16,7 @@ repository called CybexOS, until no machine runs one of them.
 The owner-supplied `cybex_white.svg` is preserved byte-for-byte under
 `assets/brand/source/`. Deployment variants use its outlined wordmark with
 the original red `#DC1E37`; small icons use the two X paths from that same
-drawing. The installer, desktop, assistant, fastfetch, browser demo,
+drawing. The installer, desktop, assistant, fastfetch,
 application icons and favicons share these assets. `scripts/export-brand.py`
 regenerates them and their SHA-256 manifest using Pillow and librsvg from the
 locked Nixpkgs.

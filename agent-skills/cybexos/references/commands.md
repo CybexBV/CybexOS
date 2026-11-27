@@ -6,7 +6,8 @@ machine-readable JSON (and structured `{"error": ...}` errors on stderr).
 - `cybex status [--json]`: quick read-only overview of Cybex OS, updates,
   storage, backup, desktop shell and region.
 - `cybex update`: guided check, prepare, review and apply.
-- `cybex update check [--json]`: independent upstream and Cybex OS release status.
+- `cybex update check [--json]`: Cybex OS release status and the NixOS packages
+  (Nixpkgs revision) that release was checked with.
 - `cybex update stage upstream|cybexos|both|local [--json]`: build and validate a
   staged complete configuration, preserving the working configuration.
 - `cybex update status [--json]`: durable progress, actual closure changes, the
@@ -23,7 +24,7 @@ machine-readable JSON (and structured `{"error": ...}` errors on stderr).
   both default on).
 - `cybex update channel [stable|beta] [--json]`: show or choose the Cybex OS release
   channel (machine policy; changing it asks for authorization). Beta gets new
-  Cybex OS releases first; NixOS package updates do not follow a channel. A
+  Cybex OS releases first, and NixOS packages come with the release. A
   `cybexos` source in state `ahead` runs a newer version than its channel's
   newest release and waits for the next one; it is not an error.
 - `cybex update discard [ID] [--json]`: discard an unapplied preview or dismiss a
