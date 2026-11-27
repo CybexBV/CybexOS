@@ -145,14 +145,6 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "94ae8837fefc9f99f686382059eed0546d241ccef150c45cbfa9a9c6dc10eebd"
     },
-    "desktop/fastfetch/cybexos-compact.fastfetch.txt": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "2ba522720bdf1875a67ba1c7d526ca492a19fb61c32058b6962fcb047e236a01"
-    },
-    "desktop/fastfetch/cybexos-compact.txt": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "94ae8837fefc9f99f686382059eed0546d241ccef150c45cbfa9a9c6dc10eebd"
-    },
     "assets/brand/ascii/cybexos-large.fastfetch.txt": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "49a01230ee6739854ac2b6c963acf078a22a51ef8c82ec323568ac2c78c2cc14"
@@ -161,27 +153,11 @@
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "9fbec702847e766db0f0c9dfb5777ca4c393d7e0bfe0c1520a641ff520590f7c"
     },
-    "desktop/fastfetch/cybexos-large.fastfetch.txt": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "49a01230ee6739854ac2b6c963acf078a22a51ef8c82ec323568ac2c78c2cc14"
-    },
-    "desktop/fastfetch/cybexos-large.txt": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "9fbec702847e766db0f0c9dfb5777ca4c393d7e0bfe0c1520a641ff520590f7c"
-    },
     "assets/brand/ascii/cybexos-banner.fastfetch.txt": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "25068ab4046fbaf6291d75b8ba3ad3b2bd47d8c735288341890d33271eeb93f9"
     },
     "assets/brand/ascii/cybexos-banner.txt": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "ef9ea86529480d95de841a50740ae6171b5a31aa5db6c218574521bda10a76e2"
-    },
-    "desktop/fastfetch/cybexos-banner.fastfetch.txt": {
-      "source": "assets/brand/source/cybex_white.svg",
-      "sha256": "25068ab4046fbaf6291d75b8ba3ad3b2bd47d8c735288341890d33271eeb93f9"
-    },
-    "desktop/fastfetch/cybexos-banner.txt": {
       "source": "assets/brand/source/cybex_white.svg",
       "sha256": "ef9ea86529480d95de841a50740ae6171b5a31aa5db6c218574521bda10a76e2"
     }
