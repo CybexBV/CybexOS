@@ -114,12 +114,16 @@ test("long-lived ping output becomes one latency or loss sample per probe", () =
 });
 
 test("the pinger command and parser agree with the installed ping",
-    { skip: spawnSync("ping", ["-V"]).status !== 0 && "ping is not installed" }, () => {
+    { skip: spawnSync("ping", ["-V"]).status !== 0 && "ping is not installed" }, t => {
     const D = load("NetworkDetailsHelpers.js");
     const argv = D.pingCommand("127.0.0.1", 200);
     const run = spawnSync("timeout", ["0.7", ...argv], { encoding: "utf8" });
-    if (!/icmp_seq=/.test(run.stdout))
-        return; // No ICMP socket permission here (e.g. a restricted container).
+    if (!/icmp_seq=/.test(run.stdout)) {
+        // A restricted container may deny ICMP sockets; anything else is a failure.
+        assert.match(run.stderr, /permi|not permitted|socket/i, run.stdout + run.stderr);
+        t.skip("ICMP sockets are not permitted here");
+        return;
+    }
     let lastSeq = -1;
     const samples = [];
     for (const line of run.stdout.split("\n")) {
