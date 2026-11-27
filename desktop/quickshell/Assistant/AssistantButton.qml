@@ -31,7 +31,7 @@ Rectangle {
     implicitHeight: controlHeight
     implicitWidth: round ? controlHeight
         : content.implicitWidth + Theme.scaled(label !== "" && glyph !== "" ? 20 : 22)
-    radius: round ? height / 2 : Theme.chipRadius
+    radius: round ? height / 2 : Theme.assistantRowRadius
     color: primary ? Theme.accent : danger ? Theme.redBgSoft : Theme.chip
     opacity: enabled ? 1 : 0.45
     activeFocusOnTab: enabled && visible

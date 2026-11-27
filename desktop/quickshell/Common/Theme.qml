@@ -631,6 +631,16 @@ Singleton {
     readonly property int cardRadius: chipRadius
     readonly property int rowRadius: chipRadius
     readonly property int tileRadius: chipRadius
+    // Wiz's box keeps its approved mockup's rounder corners instead of the
+    // concentric rule (John, 2026-11-27): popups and question bubbles 14,
+    // blocks across the box 12, segment tracks 10, rows and buttons 8, a
+    // bubble's corner towards its speaker 4. They follow Panel corners (these
+    // are for its default, 16), so square panels square the box throughout.
+    readonly property int assistantPopupRadius: Math.round(panelRadius * 0.875)
+    readonly property int assistantBlockRadius: Math.round(panelRadius * 0.75)
+    readonly property int assistantTrackRadius: Math.round(panelRadius * 0.625)
+    readonly property int assistantRowRadius: Math.round(panelRadius * 0.5)
+    readonly property int assistantPointRadius: Math.round(panelRadius * 0.25)
     // Gap between the bar's inner edge and the top of a panel hanging from it.
     readonly property int popGap: 6
 

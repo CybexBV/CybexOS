@@ -22,7 +22,7 @@ Rectangle {
     height: visible ? column.implicitHeight : 0
     // AssistantReply gives it the box's inner corner; a raised block, as the
     // reply's other blocks are.
-    radius: Theme.cardRadius
+    radius: Theme.assistantBlockRadius
     color: Theme.cardFill
     border.width: 1
     border.color: Theme.hairline
