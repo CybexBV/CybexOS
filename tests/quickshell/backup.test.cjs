@@ -1,6 +1,6 @@
 // Settings → Backup & recovery: the helper contract the page relies on, and
 // the page's place in the settings workspace. The helper itself is covered
-// by tests/backup.py against stubbed restic and secret-tool.
+// by tests/nixos/test_backup.py against stubbed restic and secret-tool.
 const test = require("node:test");
 const { untranslated } = require("./shell.cjs");
 const assert = require("node:assert/strict");

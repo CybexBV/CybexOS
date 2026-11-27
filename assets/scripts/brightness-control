@@ -34,7 +34,7 @@ asd_max=60000
 
 cache=${XDG_RUNTIME_DIR:-/tmp}/brightness-control.hiddev
 
-# The HID nodes detection walks. Overridable so tests/brightness-routing can
+# The HID nodes detection walks. Overridable so a test can
 # point it at fixtures rather than at whatever is plugged into the machine
 # running the suite.
 hid_nodes=${BRIGHTNESS_HID_NODES:-"/dev/usb/hiddev* /dev/hiddev*"}

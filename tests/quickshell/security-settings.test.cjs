@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { shellDir, load } = require("./shell.cjs");
 
-// Settings > Security (docs/security.md): fingerprints and security keys as
+// Settings > Security: fingerprints and security keys as
 // alternatives to the password. The Python side is covered by
 // tests/nixos/test_security_settings.py; this holds the copy, the page's structure and
 // its place in Settings.
