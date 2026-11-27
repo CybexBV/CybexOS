@@ -49,6 +49,9 @@
           }
         }
       ],
+      "gpuVendors": [
+        "intel"
+      ],
       "kernel": {
         "minimum": "7.3",
         "maximumExclusive": null,
@@ -130,6 +133,9 @@
             ]
           }
         }
+      ],
+      "gpuVendors": [
+        "intel"
       ],
       "kernel": {
         "minimum": "7.3",
@@ -230,6 +236,9 @@
           }
         }
       ],
+      "gpuVendors": [
+        "intel"
+      ],
       "kernel": {
         "minimum": "7.3",
         "maximumExclusive": null,
@@ -322,6 +331,9 @@
           }
         }
       ],
+      "gpuVendors": [
+        "intel"
+      ],
       "kernel": {
         "minimum": "7.3",
         "maximumExclusive": null,
@@ -404,6 +416,9 @@
           }
         }
       ],
+      "gpuVendors": [
+        "amd"
+      ],
       "kernel": {
         "minimum": "7.3",
         "maximumExclusive": null,
@@ -474,6 +489,9 @@
             ]
           }
         }
+      ],
+      "gpuVendors": [
+        "amd"
       ],
       "kernel": {
         "minimum": "6.8",
@@ -570,6 +588,9 @@
             "21MD"
           ]
         }
+      ],
+      "gpuVendors": [
+        "amd"
       ],
       "kernel": {
         "minimum": "6.8",

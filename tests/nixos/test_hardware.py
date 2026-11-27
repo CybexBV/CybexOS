@@ -74,6 +74,21 @@ class HardwareAssessmentTests(unittest.TestCase):
         found = self.detect()
         self.assertFalse(found['nvidia'])
         self.assertEqual(found['blockers'], [])
+        # No display device at all: the graphics stay unknown, never "none".
+        self.assertIsNone(found['gpuVendors'])
+
+    def test_gpu_vendors_come_from_display_devices_only(self):
+        self.pci(address='0000:c1:00.0', vendor='1002', device='1586')
+        self.pci(address='0000:c1:00.1', vendor='10de', cls='040300')
+        self.assertEqual(self.detect()['gpuVendors'], ['amd'])
+        self.pci(address='0000:00:02.0', vendor='8086', device='b080', cls='038000')
+        self.pci(address='0000:01:00.0', vendor='10de', device='2684', cls='030200')
+        self.pci(address='0000:00:01.0', vendor='1af4', device='1050')
+        self.assertEqual(self.detect()['gpuVendors'], ['amd', 'intel', 'nvidia'])
+
+    def test_virtual_graphics_alone_record_no_gpu_vendor(self):
+        self.pci(address='0000:00:01.0', vendor='1af4', device='1050')
+        self.assertEqual(self.detect()['gpuVendors'], [])
 
     def test_mixed_generation_requires_one_branch_supporting_every_gpu(self):
         self.pci(device='1b80')

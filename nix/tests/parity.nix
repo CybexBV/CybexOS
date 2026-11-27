@@ -118,6 +118,9 @@ let
   xps13Wcl = laptop { xps = { enable = true; sku = "0E53"; }; };
   zbook = laptop { zbookUltraG1a.enable = true; };
   zbookSmartPc = laptop { zbookUltraG1a = { enable = true; smartPc = true; }; };
+  zbookProfile = laptop { profile = "hp-zbook-ultra-g1a"; };
+  # What the initrd's module and firmware tree is built from.
+  stage1Nouveau = c: lib.elem "nouveau" c.system.build.modulesClosure.rootModules;
   secureBoot = (nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [ module ./machine.nix { cybexos.secureBoot = true; } ];
@@ -301,7 +304,19 @@ assert !(lib.elem "plymouth.use-simpledrm" installer.boot.kernelParams);
 assert lib.all (c: lib.all (name: builtins.elem name c.boot.initrd.availableKernelModules)
   [ "amdgpu" "radeon" "i915" "xe" "virtio_gpu" ]) [ installer payload generic ];
 assert !(builtins.elem "nouveau" installer.boot.initrd.availableKernelModules);
-assert builtins.elem "nouveau" payload.boot.initrd.availableKernelModules;
+# Installed machines carry nouveau, with about 1.3 GB of NVIDIA firmware, only
+# when an NVIDIA GPU may be present. Unknown graphics keep it. An all-AMD or
+# all-Intel model (a selected profile, or one named by the existing xps/zbook
+# options) and the installer's detected vendors drop it. earlyNouveau
+# overrides both ways; the NVIDIA driver never has it.
+assert generic.cybexos.hardware.gpuVendors == null && payload.cybexos.hardware.gpuVendors == null;
+assert lib.all stage1Nouveau [ payload generic (laptop { gpuVendors = [ "amd" "nvidia" ]; }) ];
+assert zbookProfile.cybexos.hardware.gpuVendors == [ "amd" ] && zbook.cybexos.hardware.gpuVendors == [ "amd" ];
+assert xps13.cybexos.hardware.gpuVendors == [ "intel" ];
+assert !lib.any stage1Nouveau [ zbookProfile zbook xps13 (laptop { gpuVendors = [ "amd" ]; }) (laptop { nvidia = true; }) ];
+assert stage1Nouveau (laptop { profile = "hp-zbook-ultra-g1a"; gpuVendors = [ "amd" "nvidia" ]; });
+assert stage1Nouveau (laptop { profile = "hp-zbook-ultra-g1a"; earlyNouveau = true; });
+assert !stage1Nouveau (laptop { earlyNouveau = false; });
 assert lib.all (rules: lib.hasInfix "trigger --action=change --subsystem-match=drm" rules)
   [ installer.services.udev.extraRules installer.boot.initrd.services.udev.rules ];
 # The installed menu has the medium's own theme and is selected by exact system.

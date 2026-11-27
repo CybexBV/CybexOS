@@ -695,6 +695,10 @@ def install(plan, secrets, source, revision, nar_hash, run=None, *, channel):
             # release must not silently move a beta machine to stable.
             machine += f'    updates.channel = {nix(channel)};\n'
             machine += f'    hardware.nvidia = {str(hardware["nvidia"]).lower()}; hardware.nvidiaOpen = {str(plan["nvidiaOpen"]).lower()};\n'
+            # Without an NVIDIA GPU the initrd leaves out nouveau's 1.3 GB of
+            # firmware (hardware.nix). Unknown graphics keep it.
+            if isinstance(hardware.get('gpuVendors'), list):
+                machine += f'    hardware.gpuVendors = [ {"".join(nix(v) + " " for v in hardware["gpuVendors"])}];\n'
             support = hardware.get('support', {})
             if support.get('profileId') and support.get('status') in ('experimental', 'qualified'):
                 machine += f'    hardware.profile = {nix(support["profileId"])};\n'

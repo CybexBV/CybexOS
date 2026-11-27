@@ -20,6 +20,20 @@ in {
   options.cybexos.hardware = {
     nvidia = lib.mkOption { type = lib.types.bool; default = false; };
     nvidiaOpen = lib.mkOption { type = lib.types.bool; default = true; description = "Use open kernel modules on supported Turing or newer GPUs; choose false for supported older devices"; };
+    earlyNouveau = lib.mkOption {
+      type = lib.types.bool;
+      default = !cfg.hardware.nvidia
+        && (cfg.hardware.gpuVendors == null || lib.elem "nvidia" cfg.hardware.gpuVendors);
+      defaultText = lib.literalExpression ''!nvidia && (gpuVendors == null || lib.elem "nvidia" gpuVendors)'';
+      description = ''
+        Carry nouveau in the initrd, so an NVIDIA GPU without the proprietary
+        driver draws the splash and disk unlock prompt natively. Its firmware
+        adds about 1.3 GB to every initrd, which the boot loader reads before
+        the unlock prompt. On by default unless the machine has the NVIDIA
+        driver or its known graphics (gpuVendors) include no NVIDIA GPU.
+        Without it, nouveau still loads after the root file system is mounted.
+      '';
+    };
     nvidiaPrime = {
       enable = lib.mkEnableOption "hybrid graphics with explicit PRIME render offload";
       intelBusId = lib.mkOption { type = lib.types.str; default = ""; };
@@ -75,9 +89,15 @@ in {
       serviceConfig = { ExecStart = "${micmuteLed}/bin/cybexos-micmute-led"; Restart = "on-failure"; RestartSec = 2; };
     };
     # The other native KMS drivers start in stage 1 on the medium too
-    # (default.nix). Nouveau's firmware would make the medium's initrd 1.4 GB
-    # instead of about 110 MB, so only installed machines carry it there.
-    boot.initrd.availableKernelModules = lib.optional (!cfg.hardware.nvidia) "nouveau";
+    # (default.nix). Nouveau references every NVIDIA GSP firmware image: about
+    # 1.3 GB that the boot loader reads before the disk unlock prompt (41 s on
+    # an all-AMD HP ZBook Ultra G1a). Only installed machines that may have an
+    # NVIDIA GPU without the proprietary driver carry it; the medium never does.
+    assertions = [ {
+      assertion = !(cfg.hardware.nvidia && cfg.hardware.earlyNouveau);
+      message = "cybexos.hardware.earlyNouveau needs cybexos.hardware.nvidia = false: the NVIDIA driver blacklists nouveau.";
+    } ];
+    boot.initrd.availableKernelModules = lib.optional cfg.hardware.earlyNouveau "nouveau";
     boot.initrd.kernelModules = lib.optionals cfg.hardware.nvidia [
       "nvidia" "nvidia_modeset" "nvidia_drm"
     ];

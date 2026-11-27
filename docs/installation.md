@@ -382,7 +382,9 @@ boot generations, including room to copy the next generation before cleanup.
 Its layout and minimum disk size come from the shared Nix module contract.
 
 `nixos-generate-config` records actual hardware and filesystems. DMI/PCI/ACPI/
-EDID detection selects narrowly scoped XPS/NVIDIA declarations. The machine
+EDID detection selects narrowly scoped XPS/NVIDIA declarations and records the
+graphics vendors, which decide whether the initrd carries nouveau
+([early graphics drivers](hardware-support.md#early-graphics-drivers)). The machine
 flake follows the medium's NixOS branch and pins the medium's exact Cybex OS
 revision/NAR identity. The complete target is built and installed through the
 shared modules. First login installs missing vendor-skill discovery symlinks
