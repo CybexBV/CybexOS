@@ -84,11 +84,15 @@ def copy_config(source, target):
 def boot_path(system):
     """What starting the computer and logging in use beyond activation and health.
 
-    The kernel, early-boot image and boot options, the login screen, and the
-    session script it starts, compared by content: its desktop-environment
-    wrapper names each release's packages, the script itself does not.
+    The kernel, its modules, early-boot image and boot options, the login
+    screen, and the session script it starts, compared by content: its
+    desktop-environment wrapper names each release's packages, the script
+    itself does not. Modules count because the running kernel keeps the ones
+    it loaded: a new NVIDIA driver's libraries need its new module, which only
+    a boot loads.
     """
     system = Path(system)
+    modules = system / 'kernel-modules'
 
     def content(path):
         if path.is_dir():
@@ -100,6 +104,7 @@ def boot_path(system):
     return [
         os.path.realpath(system / 'kernel'),
         os.path.realpath(system / 'initrd'),
+        os.path.realpath(modules) if modules.exists() else None,
         content(system / 'kernel-params'),
         *(content(system / name) for name in LOGIN_SCREEN),
         content(script if script.exists() else session),

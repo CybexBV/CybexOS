@@ -123,6 +123,7 @@ Item {
                 title: kept ? I18n.format("You're on Cybex OS %1", [kept.version]) : I18n.tr("Your system is up to date"),
                 body: (deployment.state === "done" && deployment.changeKind === "update"
                     ? I18n.tr("The last update was installed and passed its checks.") + "\n" : "")
+                    + (service.restartSuggested ? I18n.tr("Restart when convenient so open apps use the new version.") + "\n" : "")
                     + (aheadNote() !== "" ? aheadNote() + "\n" : "")
                     // Nothing to install yet, but say plainly that a newer
                     // update exists, what it waits for and what happens next.
@@ -791,6 +792,14 @@ Item {
                     root.service.close();
                     Assistant.askAboutUpdate();
                 }
+            }
+            // Suggested after an update that needed no restart; never the
+            // primary, since nothing waits for it.
+            UpdateButton {
+                objectName: "updateRestartSuggested"
+                visible: root.page === "current" && root.service.restartSuggested
+                text: I18n.tr("Restart now")
+                onTriggered: Session.reboot()
             }
             UpdateButton {
                 objectName: "updatePrimary"

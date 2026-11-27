@@ -469,13 +469,23 @@ health checks pass, without a trial boot or restart:
   nothing starting the computer and logging in use.
 
 Both also require an unchanged boot path, compared by content between the two
-generations: the kernel, early-boot image (initrd) and boot options, and the
-login screen. The login screen check covers SDDM's unit and configuration, the
+generations: the kernel and its modules, early-boot image (initrd) and boot
+options, and the login screen. Modules count because the running kernel keeps
+the ones it loaded: a new NVIDIA driver's libraries need its new module. The login screen check covers SDDM's unit and configuration, the
 PAM files for password login, the greeter and the encryption-gated automatic
 login, and the `cybexos-session` script it starts (not that script's
 desktop-environment wrapper, which names each release's packages). Activation
 does not restart the login screen, so only a boot shows that a changed one still
 works. Every other change keeps the trial boot.
+
+Such an update still **recommends** a restart: apps that stayed open keep the
+libraries they started with, and new firmware files load only at boot. The
+status carries `restart: "Recommended"` and `restartRecommended` with the boot
+it finished on; `cybex update status` drops it once the computer has started
+again. Software Update says so on its up-to-date page with a **Restart now**
+button, the completion toast and What's New toast say so, and Settings' Home
+shows **Restart recommended**. Unlike a required restart it blocks no other
+change. A Software change that only alters packages recommends nothing.
 
 ### Desktop services during activation
 

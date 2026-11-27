@@ -363,6 +363,8 @@ def format_update_status(data, *, style=None):
         lines.extend(['', style.dim("Run 'cybex update' to review and apply, or 'cybex update discard' to cancel.")])
     elif state == 'awaiting-boot':
         lines.extend(['', style.warn('Restart when ready to finish the update.')])
+    elif state == 'done' and data.get('restartRecommended'):
+        lines.extend(['', style.warn('Restart when convenient so open apps use the new version.')])
     elif state == 'awaiting-login':
         lines.extend(['', style.dim("Run 'cybex update confirm' to keep this boot, or 'cybex update rollback' to undo.")])
     elif state in ('failed', 'interrupted') and data.get('transaction'):
