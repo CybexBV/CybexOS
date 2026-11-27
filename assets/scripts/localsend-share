@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Share clipboard text, files, or folders through LocalSend.
+# Share files or folders through LocalSend.
 
 set -euo pipefail
 umask 077
@@ -8,7 +8,7 @@ mode="${1:-}"
 shift || true
 
 if [ -z "$mode" ]; then
-  echo "Usage: localsend-share <clipboard|file|folder> [path...]" >&2
+  echo "Usage: localsend-share <file|folder> [path...]" >&2
   exit 1
 fi
 
@@ -24,13 +24,6 @@ candidates() {
 }
 
 case "$mode" in
-  clipboard)
-    text=$(wl-paste --no-newline)
-    [[ -n $text ]] || exit 0
-    # systemd's default description includes argv; never retain clipboard
-    # contents in the service-start journal entry.
-    systemd-run --user --quiet --collect --description='Share clipboard via LocalSend' localsend --text "$text"
-    ;;
   file|folder)
     if [ "$#" -gt 0 ]; then
       systemd-run --user --quiet --collect localsend "$@"
