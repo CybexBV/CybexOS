@@ -1,60 +1,129 @@
 #!/usr/bin/env python3
-"""The full check's Nix cache on the runner's own disk (.github/workflows/nixos.yml).
+"""The full check's Nix cache on the runners' persistent volumes (.github/workflows/nixos.yml).
 
-Each CybexOS runner slot on The Beast keeps a persistent volume at /cache
-(github-runners lane `cybexos`, cache_gib). This keeps a file:// Nix binary
-cache there, so a run substitutes what an earlier run on that slot built
-instead of building it again: Cybex OS's own packages, kernel modules, the
-previous release's ISO, and checks that passed with the same inputs.
+The CybexOS runner lane on The Beast (github-runners lane `cybexos`) gives
+every slot one volume that all slots share, mounted at /shared-cache
+(shared_cache_gib), and one volume of its own at /cache (cache_gib). This
+keeps a file:// Nix binary cache on the shared volume, so a job substitutes
+what any earlier job built instead of building it again, whichever slot it
+lands on: Cybex OS's own packages, kernel modules, the previous release's ISO
+(built by the previous release's image job, needed by this one's upgrade
+job), and checks that passed with the same inputs. Without the shared volume
+the cache is on the slot's own volume, as before 2026-11-27.
 
-  ci-nix-cache prepare   before Nix is installed: create the cache, or clear
-                         it when the volume is nearly full
+  ci-nix-cache prepare   before Nix is installed: create the cache, or start
+                         it again empty when its volume is nearly full, and
+                         tell later steps where it is (CI_NIX_CACHE and
+                         CI_NIX_SUBSTITUTER in $GITHUB_ENV)
   ci-nix-cache save      after the builds: copy every path this runner built
                          (and what it references) into the cache
 
-Nix reads the cache through `extra-substituters` in the workflow. Without a
-persistent volume (/cache not a mount point) both are no-ops apart from an
-empty directory, so the workflow also runs on a runner without one.
+Several jobs use the shared cache at once. A file:// cache writes each file
+under a temporary name and renames it into place, so they can add to it side
+by side; a full cache is renamed away before it is deleted, so a job that
+starts meanwhile finds an empty cache, not a half-deleted one. Without a
+persistent volume (neither is a mount point) both actions are no-ops apart
+from an empty directory, so the workflow also runs on a runner without one.
+A cache that can't be prepared never fails the job: it runs without it.
 """
 import argparse
 import json
 import os
 from pathlib import Path
+import secrets
 import shutil
 import subprocess
 import sys
 
-VOLUME = Path('/cache')
-CACHE = VOLUME / 'nix'
-URL = f'file://{CACHE}?compression=zstd&parallel-compression=true'
+SHARED = Path('/shared-cache')  # the lane's volume, on every slot
+SLOT = Path('/cache')           # this slot's own volume
 # Above this share of the volume in use, the cache starts again empty. A
 # file:// cache has no garbage collector; a cold run refills it.
 FULL_PERCENT = 70
 
 
-def persistent(volume=VOLUME):
+def persistent(volume):
     return os.path.ismount(volume)
 
 
-def sudo(*command):
+def sudo(*command, check=True):
     prefix = [] if os.geteuid() == 0 else ['sudo', '-n']
-    subprocess.run([*prefix, *command], check=True)
+    return subprocess.run([*prefix, *command], check=check)
 
 
-def prepare(volume=VOLUME, cache=CACHE, full_percent=FULL_PERCENT):
-    """Create the cache owned by root (the Nix daemon reads it as root), and
-    clear it when the volume is nearly full."""
-    if persistent(volume):
-        usage = shutil.disk_usage(volume)
-        percent = usage.used * 100 // max(usage.total, 1)
-        if percent >= full_percent and cache.exists():
-            print(f'{volume} is {percent}% full: clearing the Nix cache; this run starts cold.')
-            sudo('rm', '-rf', '--one-file-system', str(cache))
-        else:
-            print(f'{volume} is {percent}% full.')
-    else:
-        print(f'{volume} is not a persistent volume: nothing is kept after this job.')
+def percent_used(volume):
+    usage = shutil.disk_usage(volume)
+    return usage.used * 100 // max(usage.total, 1)
+
+
+def location(shared=SHARED, slot=SLOT):
+    """The volume and the cache directory: the shared volume when it is
+    mounted, else the slot's own (which may be just a directory)."""
+    return (shared, shared / 'nix') if persistent(shared) else (slot, slot / 'nix')
+
+
+def copy_url(cache):
+    return f'file://{cache}?compression=zstd&parallel-compression=true'
+
+
+def substituter(cache):
+    return f'file://{cache}?trusted=true&priority=10'
+
+
+def create(cache):
+    # Owned by root: the Nix daemon reads it as root.
     sudo('install', '-d', '-m', '755', str(cache), str(cache / 'nar'), str(cache / 'realisations'))
+
+
+def start_again_if_full(volume, cache, full_percent):
+    percent = percent_used(volume)
+    if percent < full_percent or not cache.exists():
+        print(f'{volume} is {percent}% full.')
+        return
+    print(f'{volume} is {percent}% full: clearing the Nix cache; this run starts cold.')
+    retired = volume / f'{cache.name}.old-{secrets.token_hex(4)}'
+    # Another job may have renamed it a moment ago; either way it is gone.
+    sudo('mv', '-T', str(cache), str(retired), check=False)
+
+
+def remove_retired(volume, cache):
+    """Delete caches an earlier wipe renamed away (this one's, or one a job
+    was stopped in the middle of deleting)."""
+    for old in sorted(volume.glob(f'{cache.name}.old-*')):
+        sudo('rm', '-rf', '--one-file-system', str(old), check=False)
+
+
+def announce(cache, env_file):
+    lines = f'CI_NIX_CACHE={cache}\nCI_NIX_SUBSTITUTER={substituter(cache)}\n'
+    if env_file:
+        with open(env_file, 'a') as handle:
+            handle.write(lines)
+    print(lines, end='')
+
+
+def prepare(shared=SHARED, slot=SLOT, full_percent=FULL_PERCENT, env_file=None):
+    if persistent(shared):
+        cache = shared / 'nix'
+        try:
+            start_again_if_full(shared, cache, full_percent)
+            create(cache)
+            remove_retired(shared, cache)
+        except (OSError, subprocess.CalledProcessError) as error:
+            print(f'::warning title=Shared Nix cache unavailable::{shared}: {error}; using this slot\'s own cache.')
+        else:
+            # The slot's own cache is no longer read: give its space back.
+            if persistent(slot) and (slot / 'nix').exists():
+                sudo('rm', '-rf', '--one-file-system', str(slot / 'nix'), check=False)
+            announce(cache, env_file)
+            return 0
+    cache = slot / 'nix'
+    if persistent(slot):
+        start_again_if_full(slot, cache, full_percent)
+        remove_retired(slot, cache)
+    else:
+        print(f'{slot} is not a persistent volume: nothing is kept after this job.')
+    create(cache)
+    announce(cache, env_file)
     return 0
 
 
@@ -68,7 +137,10 @@ def built_paths(listing):
                   if path and isinstance(info, dict) and info.get('ultimate') and not path.endswith('.drv'))
 
 
-def save(volume=VOLUME, url=URL):
+def save(cache=None, shared=SHARED, slot=SLOT):
+    """Copy what this runner built into the cache prepare chose (CI_NIX_CACHE)."""
+    cache = Path(cache) if cache else location(shared, slot)[1]
+    volume = cache.parent
     if not persistent(volume):
         print(f'{volume} is not a persistent volume: nothing to keep.')
         return 0
@@ -79,16 +151,15 @@ def save(volume=VOLUME, url=URL):
     if not paths:
         print('Nothing was built on this runner.')
         return 0
-    print(f'Keeping {len(paths)} built paths and what they reference in {CACHE}.')
+    print(f'Keeping {len(paths)} built paths and what they reference in {cache}.')
     # As root: the cache is root's, like the daemon that reads it. Paths
     # already in the cache are skipped.
     prefix = [] if os.geteuid() == 0 else ['sudo', '-n']
-    result = subprocess.run([*prefix, nix, 'copy', '--to', url, '--stdin'], input='\n'.join(paths) + '\n',
-                            text=True)
+    result = subprocess.run([*prefix, nix, 'copy', '--to', copy_url(cache), '--stdin'],
+                            input='\n'.join(paths) + '\n', text=True)
     if result.returncode:
         print('Could not keep everything; the next run builds the rest again.', file=sys.stderr)
-    usage = shutil.disk_usage(volume)
-    print(f'{volume}: {usage.used * 100 // max(usage.total, 1)}% in use.')
+    print(f'{volume}: {percent_used(volume)}% in use.')
     return 0
 
 
@@ -96,7 +167,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('action', choices=('prepare', 'save'))
     args = parser.parse_args(argv)
-    return prepare() if args.action == 'prepare' else save()
+    if args.action == 'prepare':
+        return prepare(env_file=os.environ.get('GITHUB_ENV'))
+    return save(os.environ.get('CI_NIX_CACHE'))
 
 
 if __name__ == '__main__':
