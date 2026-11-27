@@ -1,4 +1,6 @@
 """The feature lists and catalogue rules both installer front ends share."""
+import importlib.machinery
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -11,11 +13,30 @@ from cybexos import install_features
 from cybexos.common import Failure
 
 
+def load(name, path):
+    loader = importlib.machinery.SourceFileLoader(name, str(ROOT / path))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+installer = load('cybexos_installer_features_install', 'installer/cybexos-install')
+daemon = load('cybexos_installer_features_daemon', 'installer/cybexos-installerd')
+
 GOOD_APP = {'id': 'good', 'attribute': 'kdePackages.good'}
 GOOD_PROFILE = {'id': 'mine', 'apps': ['good'], 'features': {'developer': True}}
 
 
 class FeatureListTests(unittest.TestCase):
+    def test_both_front_ends_use_the_shared_lists(self):
+        for front_end in (installer, daemon):
+            self.assertIs(front_end.FEATURES, install_features.FEATURES)
+            self.assertIs(front_end.UNFREE_FEATURES, install_features.UNFREE_FEATURES)
+        self.assertIs(daemon.SYSTEM_FEATURES, install_features.SYSTEM_FEATURES)
+        # The terminal asks about proprietary applications on its own question.
+        self.assertEqual([key for key, _ in installer.SYSTEM_FEATURES],
+                         [key for key, _, _ in install_features.SYSTEM_FEATURES if key != 'proprietary'])
+
     def test_lists_name_only_plan_features(self):
         features = set(install_features.FEATURES)
         self.assertEqual(len(features), len(install_features.FEATURES))
