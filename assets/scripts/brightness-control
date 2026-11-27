@@ -27,8 +27,8 @@ verb=${1:-}
 [[ -n $verb ]] || usage
 
 # Apple's HID brightness range, from the device table asdcontrol is built
-# with — see nix/packages/asdcontrol.nix, where every supported
-# display maps 0%..100% onto these bounds.
+# with: every supported display maps 0%..100% onto these bounds. Cybex OS
+# doesn't package asdcontrol; this path works where a person installed it.
 asd_min=400
 asd_max=60000
 

@@ -56,7 +56,8 @@ in {
       type = types.attrsOf types.ints.positive;
       internal = true;
       readOnly = true;
-      # Native GPU firmware makes an initrd about 1.5 GB. Leave room for
+      # On NVIDIA machines early nouveau firmware makes an initrd about
+      # 1.5 GB (others need about 100 MB; hardware.nix). Leave room for
       # ten retained boot generations plus one being installed, and the
       # complete standard desktop on the remaining root filesystem.
       default = { minimumDiskGiB = 64; espGiB = 16; };

@@ -262,9 +262,10 @@ request's run would check a merge commit, so it never counts. Nor does a run who
 started from another release (`-f from=`, below): its title says so, and
 the gate needs the upgrade from the release just before `VERSION`.
 
-It runs only when started by hand, for a release: on the release commit
-before a beta, which covers everything merged since the last release
-(owner's decision, 2026-11-26). Ordinary fixes land on `main` after
+It runs by hand for a release: on the release commit before a beta, which
+covers everything merged since the last release (owner's decision,
+2026-11-26). The weekly Nixpkgs and daily vendor workflows also start it on
+their own `nixpkgs-update` and `vendor-update` branches (above). Ordinary fixes land on `main` after
 `fast-test` without it, whichever paths they touch; pushes to `main`, pull
 requests and releases don't start it, and there is no nightly run. Start it with
 `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>`; a newer

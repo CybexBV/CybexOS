@@ -40,7 +40,7 @@
   ([docs/releasing.md](docs/releasing.md#the-upgrade)). It runs only for a release: on the release commit before
   every beta (see Releases), which also covers everything merged since the last one. Ordinary fixes and changes land
   on `main` without it, whatever paths they touch (owner's decision, 2026-11-26); pushes to `main` don't start it and
-  there is no nightly run. Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow
+  there is no nightly run. The Nixpkgs and vendor update workflows start it on their own branches (see Releases). Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow
   it with `gh run watch`. Never run it on The Dragon.
 
 ## Git workflow
