@@ -56,7 +56,7 @@ class ChannelChoice(unittest.TestCase):
         self.assertEqual(found, ['stable', 'beta', 'beta'])
 
     def test_ahead_of_the_channel_is_a_neutral_state(self):
-        self.engine.channel = lambda: (_ for _ in ()).throw(trust.AheadOfChannel('stable', '1.0.0', '0.9.0'))
+        self.engine.channel = lambda max_age=0: (_ for _ in ()).throw(trust.AheadOfChannel('stable', '1.0.0', '0.9.0'))
         result = self.engine.check()
         self.assertEqual(result['cybexos'], {'state': 'ahead', 'installed': '1.0.0', 'available': '0.9.0',
                                              'channel': 'stable'})
@@ -69,7 +69,7 @@ class ChannelChoice(unittest.TestCase):
             self.engine.stage('cybexos')
 
     def stage_beta(self):
-        self.engine.channel = lambda: lifecycle.release() | {'channel': 'beta'}
+        self.engine.channel = lambda max_age=0: lifecycle.release() | {'channel': 'beta'}
         record = self.engine.stage('cybexos')
         self.assertEqual(record['channel'], 'beta')
         self.assertEqual(read(self.engine.tx(record['id']) / 'release.json')['channel'], 'beta')
@@ -87,7 +87,7 @@ class ChannelChoice(unittest.TestCase):
             self.engine.apply(record['id'], record['reviewToken'])
 
     def test_moving_to_beta_keeps_a_prepared_release(self):
-        self.engine.channel = lambda: lifecycle.release() | {'channel': 'stable'}
+        self.engine.channel = lambda max_age=0: lifecycle.release() | {'channel': 'stable'}
         self.engine.stage('cybexos')
         self.choose('beta')
         self.assertEqual(read(self.engine.status_path)['state'], 'ready')

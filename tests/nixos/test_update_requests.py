@@ -107,11 +107,11 @@ class UpdateRequests(unittest.TestCase):
         # A newer release is required: none, or an unreadable listing, is no reason.
         self.assertTrue(cli.release_alone(self.engine, 'both'))
         self.assertFalse(cli.release_alone(self.engine, 'upstream'))
-        self.engine.channel = lambda: lifecycle.release() | {'version': '1.0.0'}
+        self.engine.channel = lambda max_age=0: lifecycle.release() | {'version': '1.0.0'}
         self.assertFalse(cli.release_alone(self.engine, 'both'))
         result, guard = self.run_stage('both', [waiting()])
         self.assertEqual((result['state'], result['request']['state']), ('failed', 'failed'))
-        self.engine.channel = lambda: (_ for _ in ()).throw(Failure('Release listing unavailable'))
+        self.engine.channel = lambda max_age=0: (_ for _ in ()).throw(Failure('Release listing unavailable'))
         self.assertFalse(cli.release_alone(self.engine, 'both'))
 
     def enqueue_discard(self, transaction):

@@ -297,6 +297,10 @@ unreachable or rate limited, or a `flake.lock` that names no valid revision),
 `upstream.state` is `unreachable` and says the NixOS package status is unknown;
 the release itself is still offered. Discovery creates no deployment or
 transaction log, does not retry automatically and needs no account or token.
+The desktop's own checks reuse GitHub's answers from the last 3 hours, because
+every computer on the same internet connection shares GitHub's 60 requests an
+hour; a check you ask for asks again
+([what a machine checks](releasing.md#what-an-installed-machine-checks)).
 
 Device firmware is included in the regular **Software Update** flow. Checks
 refresh fwupd's signed metadata; a firmware-only update uses the same

@@ -156,7 +156,7 @@ class FallbackWithNix(unittest.TestCase):
         copy_config(config, base / 'deployed')
         (self.engine.state / 'deployed').symlink_to(base / 'deployed')
         candidate = lifecycle.release() | {'revision': self.released, 'channel': 'beta'}
-        self.engine.channel = lambda: candidate
+        self.engine.channel = lambda max_age=0: candidate
         self.engine.release_source = lambda found: found | {'narHash': release, 'nixpkgs': pinned}
 
     def test_the_release_comes_alone_and_the_packages_wait_without_building_again(self):

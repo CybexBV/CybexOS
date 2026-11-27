@@ -173,11 +173,14 @@ Singleton {
         refreshStatus();
         if (!checkedAt || Date.now() - checkedAt.getTime() > 60000) check();
     }
+    // A check someone asked for asks GitHub again; the desktop's own checks
+    // reuse its answers from the last few hours, because every computer on
+    // the same internet connection shares GitHub's 60 requests an hour.
     function check(explicit) {
         if (explicit === true) preparationAllowed = true;
         if (checker.busy) return;
         checkError = "";
-        checker.run(["cybex", "update", "check", "--json"]);
+        checker.run(["cybex", "update", "check", "--json"].concat(explicit === true ? [] : ["--cached"]));
     }
     function refreshStatus() {
         if (poll.busy) return;

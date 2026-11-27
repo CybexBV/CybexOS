@@ -27,7 +27,7 @@ from .staging import (
     NotPrebuilt,
     StagingMixin,
 )
-from .trust import GITHUB_API, REPO, AheadOfChannel, Fetcher, NoPublishedRelease, discover, validate_source, version
+from .trust import FOREVER, GITHUB_API, REPO, AheadOfChannel, Fetcher, NoPublishedRelease, discover, validate_source, version
 
 __all__ = [
     'BUSY',
@@ -136,9 +136,11 @@ class Engine(ConfigTreeMixin, StagingMixin, ActivationMixin):
     def selected_channel(self):
         return channels.selected(self.channel_state, self.policy)['selected']
 
-    def channel(self):
+    def channel(self, max_age=0):
+        """The newest release on the selected channel; `max_age` lets a check
+        the desktop makes on its own reuse GitHub's recent answers."""
         installed, selected = read(self.release), self.selected_channel()
-        candidate = discover(Fetcher(self.state / 'cache'), selected, installed['version'])
+        candidate = discover(Fetcher(self.state / 'cache', max_age), selected, installed['version'])
         if self.replaced(candidate, installed, candidate['revision'] != installed.get('revision')):
             raise Failure('Published version was replaced with different source content. Update rejected.')
         return candidate | {'channel': selected}
@@ -204,10 +206,11 @@ class Engine(ConfigTreeMixin, StagingMixin, ActivationMixin):
 
     def release_pin(self, revision):
         """The Nixpkgs revision a published release was checked with: its
-        flake.lock at that commit, read through the trusted GitHub API."""
+        flake.lock at that commit, read through the trusted GitHub API. A
+        commit's file never changes, so it is asked for once."""
         return inputs.pin(parse(Fetcher(self.state / 'cache').get(
             f'{GITHUB_API}/contents/flake.lock?ref={revision}', limit=1024 * 1024,
-            accept='application/vnd.github.raw+json')))
+            accept='application/vnd.github.raw+json', max_age=FOREVER)))
 
     def release_brings_nixpkgs(self, lock):
         """The newer release whose Nixpkgs revision is newer than the lock's, or None.
@@ -250,7 +253,7 @@ class Engine(ConfigTreeMixin, StagingMixin, ActivationMixin):
             cls.nixpkgs_branch(config, pinned['ref'])
         atomic(config / 'flake.lock', inputs.take(read(config / 'flake.lock'), pinned))
 
-    def check(self):
+    def check(self, max_age=0):
         result = {'upstream': {}, 'cybexos': {}, 'firmware': firmware.discover(self.run, refresh=True),
                   'checkedAt': int(time.time())}
         try:
@@ -267,7 +270,7 @@ class Engine(ConfigTreeMixin, StagingMixin, ActivationMixin):
         except (Failure, KeyError, TypeError, ValueError):
             selected = ''
         try:
-            candidate = self.channel()
+            candidate = self.channel(max_age)
             result['cybexos'] = {'state': 'available' if version(candidate['version']) > version(read(self.release)['version']) else 'current',
                                  'installed': read(self.release)['version'], 'available': candidate['version'],
                                  'revision': candidate['revision'], 'notes': candidate['notes'],

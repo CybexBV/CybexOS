@@ -108,6 +108,11 @@ class ReadableOutputAndJsonParityTests(unittest.TestCase):
 
             code, out_json2, _ = run_cli('--json', 'update', 'check')
             self.assertEqual(code, 0)
+            # The desktop's own checks reuse GitHub's recent answers; a person's ask again.
+            with patch.object(cli, 'run_check', return_value=discovery) as checked:
+                self.assertEqual(run_cli('update', 'check', '--json', '--cached')[0], 0)
+                self.assertEqual(run_cli('update', 'check', '--json')[0], 0)
+            self.assertEqual([call.args for call in checked.call_args_list], [(True,), (False,)])
             self.assertEqual(json.loads(out_json2), discovery)
 
         records = [
