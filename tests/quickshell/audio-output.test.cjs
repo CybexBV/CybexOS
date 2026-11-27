@@ -334,12 +334,33 @@ printf '%s #43\\n\\tProperties:\\n\\t\\tapplication.name = "mpv"\\n' "$header"
     }
 });
 
-test("the input routing helper updates the default and existing recorders", () => {
-    const route = untranslated(fs.readFileSync(path.join(shellDir,
-        "scripts/audio-source-route"), "utf8"));
-    assert.match(route, /pactl set-default-source "\$target"/);
-    assert.match(route, /pactl list short source-outputs/);
-    assert.match(route, /pactl move-source-output "\$output" "\$target"/);
+test("the input routing helper moves named recorders but leaves filter internals", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "audio-source-route-"));
+    try {
+        const bin = path.join(tmp, "bin");
+        const calls = path.join(tmp, "calls.log");
+        fs.mkdirSync(bin);
+        fs.writeFileSync(path.join(bin, "pactl"), `#!/usr/bin/env bash
+printf '%s\\n' "LC_ALL=\${LC_ALL:-} $*" >>"$AUDIO_ROUTE_CALLS"
+[[ \${1:-} == list ]] || exit 0
+if [[ \${LC_ALL:-} == C ]]; then header='Source Output'; else header='Bronuitvoer'; fi
+printf '%s #51\\n\\tProperties:\\n\\t\\tapplication.name = "OBS"\\n' "$header"
+printf '%s #52\\n\\tProperties:\\n\\t\\tnode.name = "echo-cancel-capture"\\n' "$header"
+`, { mode: 0o755 });
+        const run = spawnSync("bash", [path.join(shellDir, "scripts/audio-source-route"), "usb-mic"], {
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LC_ALL: "nl_NL.UTF-8",
+                AUDIO_ROUTE_CALLS: calls },
+        });
+        assert.equal(run.status, 0, run.stderr);
+        const lines = untranslated(fs.readFileSync(calls, "utf8")).split("\n")
+            .map(line => line.replace(/^LC_ALL=\S* /, ""));
+        assert.ok(lines.includes("set-default-source usb-mic"), lines.join("\n"));
+        assert.deepEqual(lines.filter(line => line.includes("move-source-output")),
+            ["move-source-output 51 usb-mic"], "the recorder moves; the echo-cancel capture stays put");
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
 });
 
 test("a player's own streams: by process id when it publishes one, else by name", () => {
