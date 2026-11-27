@@ -12,7 +12,8 @@ test("the shared dock polls effective defaults and preserves full catalog refres
     const source = readFileSync(join(shellDir, "Common/Dock.qml"), "utf8");
     assert.match(source, /pragma Singleton/);
     assert.match(source, /defaultsRequest\.run\(\["cybexos-apps", "effective-defaults"\]\)/);
-    assert.match(source, /interval: 30000; repeat: true; running: true; onTriggered: root\.refreshDefaults\(\)/);
+    assert.match(source, /interval: 30000; repeat: true; running: !Activity\.idle; onTriggered: root\.refreshDefaults\(\)/);
+    assert.match(source, /target: Activity\s+function onResumed\(\) \{ root\.refreshDefaults\(\); \}/);
     assert.match(source, /onDesktopAppsChanged: \{ webAppRefresh\.restart\(\); DefaultApplications\.refresh\(\); \}/);
 });
 

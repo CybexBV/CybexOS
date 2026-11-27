@@ -244,5 +244,11 @@ Singleton {
                 root.effectiveDefaults = value;
         }
     }
-    Timer { interval: 30000; repeat: true; running: true; onTriggered: root.refreshDefaults() }
+    // Like every background poller, it rests while nobody is at the machine
+    // (Activity.qml) and catches up when someone is back.
+    Timer { interval: 30000; repeat: true; running: !Activity.idle; onTriggered: root.refreshDefaults() }
+    Connections {
+        target: Activity
+        function onResumed() { root.refreshDefaults(); }
+    }
 }

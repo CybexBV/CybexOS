@@ -450,12 +450,18 @@ Singleton {
             root.startUnit("cybexos-update-confirm.service");
         }
     }
+    // Status rests while nobody is at the machine (Activity.qml), except while
+    // work runs or the login confirmation above waits on it.
     Timer {
         interval: Helpers.statusPollInterval(root.appOpen, root.runActive, root.deployment.state)
         repeat: true
-        running: true
+        running: !Activity.idle || root.runActive || root.deployment.state === "awaiting-login"
         triggeredOnStart: true
         onTriggered: root.refreshStatus()
+    }
+    Connections {
+        target: Activity
+        function onResumed() { root.refreshStatus(); }
     }
     Timer {
         interval: Math.max(10, Number((Settings.modOpts.updates || {}).pollMins) || 60) * 60000
