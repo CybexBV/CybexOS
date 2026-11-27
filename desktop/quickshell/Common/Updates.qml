@@ -189,7 +189,7 @@ Singleton {
     }
     function request(args) {
         if (runActive || !statusLoaded || statusError !== "") {
-            requestError = "Another operation is pending, or its status is unavailable. Review the current status before retrying.";
+            requestError = I18n.tr("Another operation is pending, or its status is unavailable. Review the current status before retrying.");
             return;
         }
         requestError = "";

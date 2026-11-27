@@ -81,7 +81,7 @@ RowCluster {
                 anchors.verticalCenter: parent.verticalCenter
                 compact: true
                 glyph: "more_horiz"
-                text: "More actions for " + root.plugin.name
+                text: I18n.format("More actions for %1", [root.plugin.name])
                 tooltip: I18n.tr("More actions")
                 onTriggered: menu.popup(more.width - menu.width, more.height + Theme.scaled(4))
 

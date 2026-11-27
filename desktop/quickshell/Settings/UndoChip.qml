@@ -48,7 +48,7 @@ Item {
     Accessible.name: I18n.tr("Reset to default")
     Accessible.onPressAction: root.trigger()
     Controls.ToolTip.visible: mouse.containsMouse
-    Controls.ToolTip.text: "Reset to default"
+    Controls.ToolTip.text: I18n.tr("Reset to default")
 
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter

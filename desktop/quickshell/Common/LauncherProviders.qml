@@ -192,7 +192,7 @@ Singleton {
             return root.term === "" ? [] : [{
                 providerId: "web",
                 kind: "web",
-                title: "Search DuckDuckGo for “" + root.term + "”",
+                title: I18n.format("Search DuckDuckGo for “%1”", [root.term]),
                 subtitle: "duckduckgo.com",
                 glyph: root.activeProvider.glyph,
                 value: root.term

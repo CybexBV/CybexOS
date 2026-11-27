@@ -697,7 +697,7 @@ test("an unreadable settings file is preserved before anything saves over it", (
     assert.equal(clears.length, 1,
         "corruptBackupPending clears only on a successful move");
 
-    assert.match(settings, /root\.announcement = "The settings file could not be read\./,
+    assert.match(settings, /root\.announcement = I18n\.format\("The settings file could not be read\. It was kept as %1/,
         "the user is told the file was kept rather than lost");
 });
 

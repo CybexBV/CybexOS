@@ -193,7 +193,7 @@ Singleton {
         const url = authUrl;
         Qt.callLater(() => {
             if (!Qt.openUrlExternally(url)) {
-                actionError = "The browser could not be opened. Copy the sign-in link and open it in your browser.";
+                actionError = I18n.tr("The browser could not be opened. Copy the sign-in link and open it in your browser.");
                 showSetup();
             }
         });

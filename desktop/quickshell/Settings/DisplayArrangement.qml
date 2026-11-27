@@ -177,7 +177,7 @@ Item {
                     width: parent.width
                     visible: tile.mirrors.length > 0 && tile.height > Theme.scaled(60)
                     horizontalAlignment: Text.AlignHCenter
-                    text: "Mirrored on " + tile.mirrors.map(item => item.name).join(", ")
+                    text: I18n.format("Mirrored on %1", [tile.mirrors.map(item => item.name).join(", ")])
                     font.family: Theme.fontMenu
                     font.pixelSize: Theme.typography.metadata
                     color: Theme.textFaint

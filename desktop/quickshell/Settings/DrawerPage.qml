@@ -11,25 +11,25 @@ SettingsPage {
     id: page
 
     readonly property var tabMeta: ({
-        overview: { glyph: "dashboard", label: I18n.tr("Overview"), from: "the Cybex OS button" },
-        sound: { glyph: "volume_down", label: I18n.tr("Sound"), from: "the volume glyph" },
-        network: { glyph: "wifi", label: I18n.tr("Network"), from: "the network glyphs" },
-        bluetooth: { glyph: "bluetooth", label: I18n.tr("Bluetooth"), from: "the Bluetooth glyph" },
-        power: { glyph: "battery_5_bar", label: I18n.tr("Power"), from: "the battery glyph" },
-        notifications: { glyph: "notifications", label: I18n.tr("Notifications"), from: "the bell" }
+        overview: { glyph: "dashboard", label: I18n.tr("Overview"), from: I18n.tr("the Cybex OS button") },
+        sound: { glyph: "volume_down", label: I18n.tr("Sound"), from: I18n.tr("the volume glyph") },
+        network: { glyph: "wifi", label: I18n.tr("Network"), from: I18n.tr("the network glyphs") },
+        bluetooth: { glyph: "bluetooth", label: I18n.tr("Bluetooth"), from: I18n.tr("the Bluetooth glyph") },
+        power: { glyph: "battery_5_bar", label: I18n.tr("Power"), from: I18n.tr("the battery glyph") },
+        notifications: { glyph: "notifications", label: I18n.tr("Notifications"), from: I18n.tr("the bell") }
     })
 
     readonly property var overviewRows: [
         { key: "media", label: I18n.tr("Now playing"),
-            description: "Current track and controls at the top of Overview" },
+            description: I18n.tr("Current track and controls at the top of Overview") },
         { key: "sliders", label: I18n.tr("Sliders"),
-            description: "Brightness and volume, always in reach" },
+            description: I18n.tr("Brightness and volume, always in reach") },
         { key: "tiles", label: I18n.tr("Quick toggles"),
-            description: "The Dark, Focus, Night and Awake tiles" },
+            description: I18n.tr("The Dark, Focus, Night and Awake tiles") },
         { key: "updates", label: I18n.tr("Updates"),
-            description: "Pending system updates with the install action" },
+            description: I18n.tr("Pending system updates with the install action") },
         { key: "processes", label: I18n.tr("Top processes"),
-            description: "The busiest processes, read only while Overview is open" }
+            description: I18n.tr("The busiest processes, read only while Overview is open") }
     ]
 
     // ---- tab reorder state ------------------------------------------------
@@ -240,8 +240,8 @@ SettingsPage {
                                 anchors.rightMargin: 10
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: tabRow.locked
-                                    ? "opens from " + tabRow.meta.from + " · always on"
-                                    : "opens from " + tabRow.meta.from
+                                    ? I18n.format("opens from %1 · always on", [tabRow.meta.from])
+                                    : I18n.format("opens from %1", [tabRow.meta.from])
                                 font.family: Theme.fontMenu
                                 font.pixelSize: Theme.typography.secondary
                                 color: Theme.textDim

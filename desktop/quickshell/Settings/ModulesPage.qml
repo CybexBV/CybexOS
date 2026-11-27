@@ -906,7 +906,7 @@ Item {
                 }
                 SettingsHint {
                     width: parent.width
-                    text: "Turns on " + Settings.modulePresetIds(page.preset).map(id => WidgetCatalog.widgetName(id)).join(", ") + "."
+                    text: I18n.format("Turns on %1.", [Settings.modulePresetIds(page.preset).map(id => WidgetCatalog.widgetName(id)).join(", ")])
                 }
                 Item {
                     width: parent.width

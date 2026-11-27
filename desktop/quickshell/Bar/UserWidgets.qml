@@ -74,8 +74,8 @@ Row {
         font.pixelSize: Theme.typography.bar
         height: Theme.chipHeight
         verticalAlignment: Text.AlignVCenter
-        readonly property string description: "Widgets hidden for space: "
-            + root.hiddenWidgets.map(plugin => plugin.name).join(", ")
+        readonly property string description: I18n.format("Widgets hidden for space: %1",
+            [root.hiddenWidgets.map(plugin => plugin.name).join(", ")])
         Accessible.name: description
         HoverHandler { id: overflowHover }
         ToolTip.visible: overflowHover.hovered

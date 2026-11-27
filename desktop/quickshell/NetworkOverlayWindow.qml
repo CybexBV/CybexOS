@@ -348,9 +348,9 @@ PanelWindow {
 
             Component.onCompleted: {
                 if (!info.ssid) {
-                    error = "The Wi-Fi connection is no longer active.";
+                    error = I18n.tr("The Wi-Fi connection is no longer active.");
                 } else if (!securityInfo.supported || !securityInfo.shareable) {
-                    error = "Enterprise and certificate-based networks cannot be shared here.";
+                    error = I18n.tr("Enterprise and certificate-based networks cannot be shared here.");
                 } else
                     startQr();
             }
@@ -413,7 +413,7 @@ PanelWindow {
                             color: Theme.textHi
                             selectionColor: Theme.accent
                             selectedTextColor: Theme.accentFg
-                            Accessible.name: "Hotspot password " + qr.password
+                            Accessible.name: I18n.format("Hotspot password %1", [qr.password])
                         }
                     }
 
@@ -698,7 +698,7 @@ PanelWindow {
                 try {
                     record = JSON.parse(line);
                 } catch (exception) {
-                    error = "The speed test returned invalid progress.";
+                    error = I18n.tr("The speed test returned invalid progress.");
                     return;
                 }
                 if (record.type === "phase") {
@@ -718,14 +718,14 @@ PanelWindow {
                 } else if (record.type === "error" && !canceled && !switching) {
                     forceActiveFocus();
                     phase = record.phase || "error";
-                    error = record.error || "The speed test failed.";
+                    error = record.error || I18n.tr("The speed test failed.");
                 }
             }
 
             Component.onCompleted: {
                 selectedInterface = NetworkOverlayState.interfaceName;
                 if (!selectedInterface)
-                    error = "There is no physical interface to test.";
+                    error = I18n.tr("There is no physical interface to test.");
                 else
                     start();
             }

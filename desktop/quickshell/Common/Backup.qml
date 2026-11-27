@@ -231,7 +231,7 @@ Singleton {
         onCompleted: code => {
             root.copied = code === 0;
             if (code !== 0)
-                root.error = "Could not copy the key. Select it and copy it instead.";
+                root.error = I18n.tr("Could not copy the key. Select it and copy it instead.");
         }
     }
 
