@@ -106,7 +106,9 @@ class Maintenance:
     def guard(self):
         status = read(self.engine.status_path, {})
         if self.engine.pending_path.exists() or status.get('state') in (
-                'discovering', 'building', 'validating', 'ready', 'activating', 'recovering', 'firmware',
+                # A prepared update waiting for review ('ready') doesn't stop
+                # cleanup: its transaction is the live one, kept whole below.
+                'discovering', 'building', 'validating', 'activating', 'recovering', 'firmware',
                 'awaiting-boot', 'awaiting-login', 'recovery-failed'):
             raise Failure('Finish or recover the current deployment before storage cleanup.')
         if self.pending.exists():
