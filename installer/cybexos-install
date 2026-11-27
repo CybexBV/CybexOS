@@ -21,6 +21,8 @@ from urllib.parse import urlencode
 
 from cybexos.common import CommandFailure, Failure, Runner, atomic, parse, read
 from cybexos.engine import Engine, copy_config
+from cybexos import install_features
+from cybexos.install_features import FEATURES, UNFREE_FEATURES
 from cybexos.inputs import supported_branch
 from cybexos.credentials import validate_password
 from cybexos.hardware import detect, support_lines, validate_hardware
@@ -408,32 +410,19 @@ def disk_guard(plan):
         raise Failure('Selected disk contains active swap. Nothing has been erased.')
 
 
-FEATURES = ('developer', 'proprietary', 'steam', 'docker', 'podman', 'tailscale', 'connectedWidgets',
-            'assistant', 'localNetworkServices')
 # Software profiles switch on developer and steam; the assistant is always
-# included. These are asked individually, as on the screen's Customize sheet.
-SYSTEM_FEATURES = (
-    ('docker', 'Docker'), ('podman', 'Podman'), ('tailscale', 'Tailscale'),
-    ('localNetworkServices', 'Local network discovery services'),
-    ('connectedWidgets', 'Calendar and online accounts'),
-)
-UNFREE_FEATURES = ('steam',)
+# included. The system features are asked individually, as on the screen's
+# Customize sheet, and proprietary applications on their own question.
+TERMINAL_LABELS = {'localNetworkServices': 'Local network discovery services'}
+SYSTEM_FEATURES = tuple((key, TERMINAL_LABELS.get(key, label)) for key, label, _ in install_features.SYSTEM_FEATURES
+                        if key != 'proprietary')
 
 
 def software_catalogue():
     """The release's software profiles and apps (desktop/software/catalogue.json)."""
     directory = os.environ.get('CYBEXOS_INSTALLER_SOFTWARE')
     path = Path(directory) if directory else Path(os.environ['CYBEXOS_UPDATER_SHARE']) / 'source/desktop/software'
-    catalogue = read(path / 'catalogue.json')
-    if (not isinstance(catalogue, dict) or not isinstance(catalogue.get('profiles'), list)
-            or not isinstance(catalogue.get('apps'), list)
-            or any(not isinstance(app, dict) or not isinstance(app.get('id'), str) or not isinstance(app.get('attribute'), str)
-                   for app in catalogue['apps'])
-            or any(not isinstance(profile, dict) or not isinstance(profile.get('id'), str)
-                   or not isinstance(profile.get('apps', []), list) or not isinstance(profile.get('features', {}), dict)
-                   for profile in catalogue['profiles'])):
-        raise Failure('Installation medium is missing its software catalogue. Nothing has been erased')
-    return catalogue
+    return install_features.software_catalogue(path, strict=True)
 
 
 def software_choice(catalogue, profiles, features, defaults):
