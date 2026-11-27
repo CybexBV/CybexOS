@@ -14,7 +14,8 @@ import "../Common/AssistantHelpers.js" as AssistantHelpers
 // use on this side of the character, their cut edge fading with More to
 // read on. Quiet actions follow, then a field to answer
 // in right here: Enter continues this conversation without the composer, and
-// the agent's logo there picks who answers and how (AssistantModelPicker).
+// the agent's logo there picks who answers and how (AssistantModelPicker),
+// in a popup over the answer, as in the mockup.
 AssistantSurface {
     id: root
 
@@ -28,8 +29,6 @@ AssistantSurface {
     readonly property var plugins: turn && turn.plugins ? turn.plugins : []
     readonly property var changes: turn && turn.changes ? turn.changes.filter(change => change.kind !== "system") : []
     readonly property var routinesMade: turn && turn.routines ? turn.routines : []
-    // A failure names its one fix.
-    readonly property var fixAction: failed ? AssistantHelpers.errorAction(turn.errorKind, turn.agent) : null
     // The answer is longer than the box shows: its edge fades and More reads on.
     readonly property bool overflowing: bodyFlick.contentHeight > bodyFlick.height + 1
     readonly property bool atEnd: bodyFlick.contentY + bodyFlick.height >= bodyFlick.contentHeight - 1
@@ -53,8 +52,20 @@ AssistantSurface {
         + (body.visible ? spacing : 0)
         + (actions.visible ? actions.height + spacing : 0)
         + (speechBar.visible ? speechBar.height + spacing : 0)
-        + (picker.visible ? picker.height + spacing : 0)
         + field.height + spacing
+    // Everything above the field but the open picker's room, and where the
+    // picker's top may reach: under the header, which keeps its Close, unless
+    // the box's room is too short for that; then over the header too.
+    readonly property real aboveField: header.height + spacing
+        + (question.visible ? question.height + spacing : 0)
+        + (body.visible ? body.height + spacing : 0)
+        + (actions.visible ? actions.height + spacing : 0)
+        + (speechBar.visible ? speechBar.height + spacing : 0)
+    readonly property real pickerGap: Theme.scaled(8)
+    readonly property real pickerTop: room - padding * 2 - header.height - spacing - pickerGap - field.height
+        >= picker.naturalHeight ? header.height + spacing : 0
+    // What a short answer lacks to hold the open picker above the field.
+    readonly property real pickerRoom: pickerOpen ? Math.max(0, pickerTop + picker.height + pickerGap - aboveField) : 0
 
     onTurnIdChanged: bodyFlick.contentY = 0
     onVisibleChanged: {
@@ -163,7 +174,7 @@ AssistantSurface {
     Item {
         id: question
         width: parent.width
-        visible: root.prompt !== "" && !root.pickerOpen
+        visible: root.prompt !== ""
         height: visible ? bubble.height : 0
 
         Rectangle {
@@ -173,7 +184,9 @@ AssistantSurface {
             height: questionText.height + Theme.scaled(14)
             radius: root.innerRadius
             bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
-            color: Theme.chipHover
+            color: Theme.accentBgSoft
+            border.width: 1
+            border.color: Theme.accentAlpha(0.24)
 
             Text {
                 id: questionText
@@ -196,7 +209,7 @@ AssistantSurface {
     Item {
         id: body
         width: parent.width
-        visible: (root.answerText !== "" || root.hasExtras) && !root.pickerOpen
+        visible: root.answerText !== "" || root.hasExtras
         height: visible ? bodyFlick.height : 0
 
         Flickable {
@@ -233,53 +246,12 @@ AssistantSurface {
                     spacing: Theme.scaled(8)
 
                     // Why it failed, and its one fix.
-                    Rectangle {
+                    AssistantFailure {
                         width: parent.width
                         visible: root.failed
-                        height: visible ? failureColumn.implicitHeight + Theme.scaled(22) : 0
+                        height: visible ? implicitHeight : 0
                         radius: root.innerRadius
-                        color: Theme.redBgSoft
-                        border.width: 1
-                        border.color: Qt.rgba(Theme.red.r, Theme.red.g, Theme.red.b, 0.3)
-
-                        Sym {
-                            id: failureGlyph
-                            x: Theme.scaled(11)
-                            y: Theme.scaled(12)
-                            name: "error"
-                            size: Theme.iconMedium
-                            color: Theme.redText
-                        }
-
-                        Column {
-                            id: failureColumn
-                            anchors.left: failureGlyph.right
-                            anchors.leftMargin: Theme.scaled(9)
-                            anchors.right: parent.right
-                            anchors.rightMargin: Theme.scaled(11)
-                            y: Theme.scaled(11)
-                            spacing: Theme.scaled(10)
-
-                            Text {
-                                width: parent.width
-                                text: root.failed ? root.turn.error || I18n.tr("Something went wrong.") : ""
-                                textFormat: Text.PlainText
-                                wrapMode: Text.Wrap
-                                color: Theme.textHi
-                                font.family: Theme.fontMenu
-                                font.pixelSize: Theme.typography.secondary
-                            }
-
-                            AssistantButton {
-                                visible: root.fixAction !== null
-                                label: !root.fixAction ? ""
-                                    : root.turn.errorKind === "auth" ? I18n.tr("Sign in")
-                                    : root.turn.errorKind === "missing" ? I18n.tr("Assistant settings")
-                                    : I18n.tr("Start the assistant")
-                                primary: true
-                                onTriggered: Assistant.fix(root.turn.errorKind)
-                            }
-                        }
+                        answer: root.turn
                     }
 
                     // A system change built and checked by the updater, waiting for review.
@@ -585,7 +557,7 @@ AssistantSurface {
     Row {
         id: actions
         x: -Theme.scaled(6)
-        visible: (root.canSpeak || root.canCopy || root.canHandoff) && !root.pickerOpen
+        visible: root.canSpeak || root.canCopy || root.canHandoff
         spacing: Theme.scaled(2)
 
         AssistantButton {
@@ -636,7 +608,7 @@ AssistantSurface {
         width: parent.width
         height: 2
         radius: 1
-        visible: Assistant.speaking && Assistant.speechCount > 0 && !root.pickerOpen
+        visible: Assistant.speaking && Assistant.speechCount > 0
         color: Theme.hairline
 
         Rectangle {
@@ -652,16 +624,27 @@ AssistantSurface {
     }
 
     // ---- who answers, and how ----------------------------------------------------------
-    // Open, it stands in for the answer above the field, as a sheet over it
-    // would, and the box stays within its room however little there is.
+    // Open, it floats over the answer, its tail on the logo, and a short
+    // answer leaves it room above the field (pickerRoom); past what the box
+    // may use, its choices scroll.
+    Item {
+        width: parent.width
+        visible: root.pickerRoom > 0
+        height: Math.max(0, root.pickerRoom - root.spacing)
+    }
+
     AssistantModelPicker {
         id: picker
-        width: parent.width
+        parent: root
+        width: Math.min(Theme.scaled(296), root.width - root.padding * 2)
+        x: root.width - root.padding - width
+        y: root.padding + field.y - root.pickerGap - height
         visible: root.pickerOpen
         radius: root.innerRadius
         continuing: true
+        maximumHeight: root.room - root.padding * 2 - root.pickerTop - root.pickerGap - field.height
         tailSide: "bottom"
-        tailX: fieldButtons.x + agentButton.x + agentButton.width / 2
+        tailX: root.padding + fieldButtons.x + agentButton.x + agentButton.width / 2 - x
         onCloseRequested: root.pickerOpen = false
     }
 
@@ -669,7 +652,7 @@ AssistantSurface {
     Rectangle {
         id: field
         width: parent.width
-        height: Math.max(Theme.scaled(42), replyFlick.height + Theme.scaled(16))
+        height: Math.max(Theme.scaled(40), replyFlick.height + Theme.scaled(16))
         radius: root.innerRadius
         color: Theme.well
         border.width: 1
@@ -747,7 +730,7 @@ AssistantSurface {
             anchors.right: parent.right
             anchors.rightMargin: Theme.scaled(6)
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: Theme.scaled(6)
+            anchors.bottomMargin: Theme.scaled(5)
             spacing: Theme.scaled(2)
 
             AssistantAgentButton {
@@ -764,13 +747,13 @@ AssistantSurface {
                 onTriggered: root.talk()
             }
 
+            // Always there, as in the mockup; it sends once there is something to send.
             AssistantButton {
                 objectName: "assistantReplySend"
-                visible: replyInput.text.trim() !== ""
-                glyph: "send"
+                glyph: "arrow_upward"
                 primary: true
                 accessibleName: I18n.tr("Send")
-                enabled: Assistant.connected && !Assistant.busy
+                enabled: replyInput.text.trim() !== "" && Assistant.connected && !Assistant.busy
                 onTriggered: root.sendReply()
             }
         }

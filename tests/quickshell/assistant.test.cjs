@@ -497,7 +497,8 @@ test("the box keeps one family of corners and keyboard-only focus rings", () => 
     assert.match(surface, /radius: Theme\.panelRadius/);
     assert.match(surface, /readonly property int innerRadius: Theme\.concentricRadius\(radius, padding\)/);
     for (const name of ["AssistantComposer", "AssistantHistory", "AssistantReply", "AssistantWorking", "AssistantApproval",
-        "AssistantChanges", "AssistantConversationRow", "AssistantModelPicker", "AssistantAgentButton", "AssistantMarkdown"]) {
+        "AssistantChanges", "AssistantConversationRow", "AssistantModelPicker", "AssistantAgentButton", "AssistantMarkdown",
+        "AssistantFailure"]) {
         const source = read(`Assistant/${name}.qml`);
         assert.doesNotMatch(source, /radius: Theme\.scaled\(/, `${name} takes its corner from Theme`);
         assert.doesNotMatch(source, /radius: height \/ 2/, `${name} has no pills`);

@@ -500,6 +500,17 @@ Singleton {
         send(text);
     }
 
+    // A failed answer's heading in its red block; the agent's own message
+    // follows it.
+    function failureTitle(kind, agentId) {
+        const name = AssistantHelpers.AGENT_LABELS[agentId] || agentId || I18n.tr("The assistant");
+        switch (kind) {
+        case "auth": return I18n.format("%1 isn't signed in", [name]);
+        case "missing": return I18n.format("%1 isn't installed", [name]);
+        default: return I18n.format("%1 couldn't answer", [name]);
+        }
+    }
+
     // An effort as the picker and the logo button's name say it; `short` for
     // the picker's narrow segments.
     function effortLabel(value, short) {
@@ -954,8 +965,9 @@ Singleton {
         });
     }
 
-    function copyReply() {
-        Quickshell.clipboardText = AssistantHelpers.copyText(turn);
+    // The reply's answer, or another one of the conversation on screen.
+    function copyReply(answer) {
+        Quickshell.clipboardText = AssistantHelpers.copyText(answer || turn);
         notice = I18n.tr("Copied.");
     }
 
@@ -966,16 +978,20 @@ Singleton {
         notice = I18n.tr("Added to the bar.");
     }
 
-    function fix(kind) {
-        const action = AssistantHelpers.errorAction(kind, turn ? turn.agent : agent);
+    // `agentId` is the failed answer's agent when it is not the reply's (an
+    // answer in the conversation on screen).
+    function fix(kind, agentId) {
+        const failedAgent = agentId || (turn ? turn.agent : agent);
+        const action = AssistantHelpers.errorAction(kind, failedAgent);
         if (!action)
             return;
         if (action.auth) {
-            // The failed question's conversation continues once signed in.
-            if (turn && turn.conversation)
+            // The failed question's conversation continues once signed in:
+            // the reply's, unless a conversation is already on screen.
+            if (!composing && turn && turn.conversation)
                 continueConversation(turn.conversation);
             openComposer(true);
-            signIn(turn ? turn.agent : agent);
+            signIn(failedAgent);
         } else if (action.command)
             Quickshell.execDetached(["cybexos-apps", "terminal", "--hold", "--"].concat(action.command));
         else if (action.unit)
@@ -1299,10 +1315,12 @@ Singleton {
     }
 
     // ---- speech --------------------------------------------------------------
-    function speak() {
-        if (!turn || !turn.text || !connected)
+    // The reply's answer, or another one of the conversation on screen.
+    function speak(answer) {
+        const said = answer || turn;
+        if (!said || !said.text || !connected)
             return;
-        request("speech.say", { text: turn.text, language: I18n.language }, (result, error) => {
+        request("speech.say", { text: said.text, language: I18n.language }, (result, error) => {
             if (error || !result) {
                 root.notice = error ? error.message : "";
                 return;

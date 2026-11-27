@@ -11,9 +11,15 @@ import "../Common/AssistantHelpers.js" as AssistantHelpers
 //
 // A new conversation offers History, suggestions and the three most recent
 // conversations. A continued one (Reply, or a row in History) shows its
-// questions and answers above the field; `room` is the height the box may
-// use, which that transcript scrolls within. The agent's logo in the field
-// picks who answers and how (AssistantModelPicker), for this conversation.
+// questions and answers above the field, each answer as the reply box shows
+// one (the 2026-11-27 mockup): the question in its bubble, the answer led by
+// its headline, a failure in its red block, and under it who answered and
+// how long, with Speak, Copy and Terminal under the latest. `room` is the
+// height the box may use, which that transcript scrolls within. The agent's
+// logo in the field picks who answers and how (AssistantModelPicker), for
+// this conversation, in a popup next to it: above a conversation's field,
+// over the transcript, and below a new conversation's, over the suggestions.
+// ••• opens the conversation's menu, a popup of its own.
 AssistantSurface {
     id: root
 
@@ -23,8 +29,30 @@ AssistantSurface {
     // As many of the three as fit in the room on this side of the character.
     readonly property real recentRowHeight: Theme.scaled(38)
     readonly property real baseHeight: header.height + field.height + suggestionFlow.height
-        + (agentLine.visible ? agentLine.height : 0) + (picker.visible ? picker.height + root.spacing : 0)
+        + (agentLine.visible ? agentLine.height : 0)
         + root.spacing * 5 + root.padding * 2 + Theme.scaled(64)
+    // The picker opens towards the room: up over a conversation, down in a
+    // new one, whose field is near the top.
+    readonly property bool pickerAbove: root.continuing
+    readonly property real popupGap: Theme.scaled(8)
+    // Everything above the field but the open picker's room, and where the
+    // picker's top may reach: under the header, which keeps Back and Close,
+    // unless the box's room is too short for that; then over the header too.
+    readonly property real aboveField: (setup.visible ? setup.height + root.spacing : 0)
+        + (header.visible ? header.height + root.spacing : 0)
+        + (transcriptFlick.visible ? transcriptFlick.height + root.spacing : 0)
+        + (screenChip.visible ? screenChip.height + root.spacing : 0)
+        + (attachmentFlow.visible ? attachmentFlow.height + root.spacing : 0)
+    readonly property real pickerTop: header.visible && root.room - root.padding * 2 - header.height
+        - root.spacing - root.popupGap - field.height >= picker.naturalHeight ? header.height + root.spacing : 0
+    readonly property real pickerRoom: root.pickerOpen && root.pickerAbove && picker.visible
+        ? Math.max(0, root.pickerTop + picker.height + root.popupGap - root.aboveField) : 0
+    // The menu and a downward picker float below their buttons; the box
+    // grows to hold them.
+    minimumHeight: Math.max(
+        menu.visible ? root.padding + header.height + Theme.scaled(4) + menu.height + root.padding : 0,
+        picker.visible && !root.pickerAbove
+            ? root.padding + field.y + field.height + root.popupGap + picker.height + root.padding : 0)
     readonly property var recent: Assistant.conversations.slice(0, Math.max(0, Math.min(
         AssistantHelpers.RECENT_LIMIT, Math.floor((root.room - root.baseHeight) / root.recentRowHeight))))
     property bool menuOpen: false
@@ -83,6 +111,7 @@ AssistantSurface {
     }
 
     AssistantSetup {
+        id: setup
         width: parent.width
         visible: Assistant.connected && Assistant.setupRequired
     }
@@ -120,24 +149,24 @@ AssistantSurface {
     Item {
         id: header
         width: parent.width
-        height: Theme.scaled(26)
+        height: Theme.scaled(28)
         visible: !root.listening
 
         AssistantButton {
             id: backButton
-            anchors.left: parent.left
+            x: -Theme.scaled(6)
             anchors.verticalCenter: parent.verticalCenter
             visible: root.continuing
             glyph: "arrow_back"
             accessibleName: I18n.tr("Back to History")
-            controlHeight: Theme.scaled(26)
+            controlHeight: Theme.scaled(28)
             color: "transparent"
             onTriggered: Assistant.openHistory()
         }
 
         Text {
             anchors.left: root.continuing ? backButton.right : parent.left
-            anchors.leftMargin: root.continuing ? Theme.scaled(6) : 0
+            anchors.leftMargin: root.continuing ? Theme.scaled(4) : 0
             anchors.right: headerActions.left
             anchors.rightMargin: Theme.scaled(8)
             anchors.verticalCenter: parent.verticalCenter
@@ -148,7 +177,7 @@ AssistantSurface {
             elide: Text.ElideRight
             color: Theme.textHi
             font.family: Theme.fontMenu
-            font.pixelSize: Theme.typography.secondary
+            font.pixelSize: Theme.typography.control
             font.weight: Theme.weightSemibold
         }
 
@@ -163,75 +192,106 @@ AssistantSurface {
                 objectName: "assistantHistoryButton"
                 glyph: "history"
                 label: I18n.tr("History")
-                controlHeight: Theme.scaled(26)
+                controlHeight: Theme.scaled(28)
                 color: "transparent"
                 onTriggered: Assistant.openHistory()
             }
 
             AssistantButton {
+                id: moreButton
+                objectName: "assistantConversationMore"
                 visible: root.continuing
                 glyph: "more_horiz"
                 accessibleName: I18n.tr("More for this conversation")
-                controlHeight: Theme.scaled(26)
+                // The open menu says it all; its name would sit on top of it.
+                tip: root.menuOpen ? "" : accessibleName
+                controlHeight: Theme.scaled(28)
                 color: root.menuOpen ? Theme.chipHover : "transparent"
-                onTriggered: root.menuOpen = !root.menuOpen
+                onTriggered: {
+                    root.pickerOpen = false;
+                    root.menuOpen = !root.menuOpen;
+                }
             }
 
             AssistantButton {
                 visible: root.continuing
                 glyph: "close"
                 accessibleName: I18n.tr("Close")
-                controlHeight: Theme.scaled(26)
+                controlHeight: Theme.scaled(28)
                 color: "transparent"
                 onTriggered: Assistant.closeComposer()
             }
         }
     }
 
-    // What can be done with the whole conversation.
-    Flow {
-        width: parent.width
-        spacing: Theme.scaled(4)
+    // What can be done with the whole conversation: a small menu under •••.
+    AssistantSurface {
+        id: menu
+        objectName: "assistantConversationMenu"
+        parent: root
+        z: 10
+        width: Math.min(Theme.scaled(232), root.width - root.padding * 2)
+        x: root.padding + headerActions.x + moreButton.x + moreButton.width - width
+        y: root.padding + header.height + Theme.scaled(4)
         visible: root.continuing && root.menuOpen && !root.listening
+        fill: Theme.menuBg
+        radius: root.innerRadius
+        padding: Theme.scaled(5)
+        spacing: 0
+        readonly property int rowRadius: Theme.concentricRadius(radius, padding)
 
-        AssistantButton {
+        MenuRow {
             visible: root.thread !== null && root.thread.resumable === true
+            radius: menu.rowRadius
             glyph: "terminal"
             label: I18n.tr("Continue in a terminal")
-            controlHeight: Theme.scaled(28)
-            onTriggered: {
+            onChosen: {
                 root.menuOpen = false;
                 Assistant.handoff(Assistant.continuing);
             }
         }
 
-        AssistantButton {
+        MenuRow {
             visible: root.thread !== null
+            radius: menu.rowRadius
             glyph: "content_copy"
             label: I18n.tr("Copy conversation")
-            controlHeight: Theme.scaled(28)
-            onTriggered: {
+            onChosen: {
                 root.menuOpen = false;
                 Assistant.copyConversation();
             }
         }
 
-        AssistantButton {
+        MenuRow {
+            radius: menu.rowRadius
             glyph: "add"
             label: I18n.tr("New conversation")
-            controlHeight: Theme.scaled(28)
-            onTriggered: {
+            onChosen: {
                 root.menuOpen = false;
                 Assistant.newConversation();
             }
         }
 
-        AssistantButton {
+        Rectangle {
+            x: Theme.scaled(6)
+            width: parent.width - Theme.scaled(12)
+            height: Theme.scaled(9)
+            color: "transparent"
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                height: 1
+                color: Theme.hairline
+            }
+        }
+
+        MenuRow {
+            radius: menu.rowRadius
             glyph: "delete"
             label: I18n.tr("Delete conversation")
             danger: true
-            controlHeight: Theme.scaled(28)
-            onTriggered: {
+            onChosen: {
                 root.menuOpen = false;
                 const id = Assistant.continuing;
                 Assistant.openHistory();
@@ -240,12 +300,69 @@ AssistantSurface {
         }
     }
 
+    // One of the menu's actions.
+    component MenuRow: Rectangle {
+        id: menuRow
+        property string glyph: ""
+        property string label: ""
+        property bool danger: false
+        signal chosen()
+
+        width: parent ? parent.width : 0
+        height: visible ? Theme.scaled(32) : 0
+        color: menuRowMouse.containsMouse || activeFocus && FocusModality.keyboard ? Theme.chipHover : "transparent"
+        border.width: Theme.focusWidth(activeFocus)
+        border.color: Theme.focusRing
+        activeFocusOnTab: visible
+        Accessible.role: Accessible.MenuItem
+        Accessible.name: menuRow.label
+        Accessible.onPressAction: menuRow.chosen()
+
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                menuRow.chosen();
+                event.accepted = true;
+            }
+        }
+
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.scaled(9)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.scaled(10)
+
+            Sym {
+                anchors.verticalCenter: parent.verticalCenter
+                name: menuRow.glyph
+                size: Theme.iconMedium
+                color: menuRow.danger ? Theme.redText : Theme.textLow
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: menuRow.label
+                color: menuRow.danger ? Theme.redText : Theme.textHi
+                font.family: Theme.fontMenu
+                font.pixelSize: Theme.typography.secondary
+            }
+        }
+
+        MouseArea {
+            id: menuRowMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: menuRow.chosen()
+        }
+    }
+
     // ---- the conversation so far -----------------------------------------------------
     Flickable {
         id: transcriptFlick
         readonly property real chrome: header.height + field.height + (agentLine.visible ? agentLine.height : 0)
-            + (picker.visible ? picker.height + root.spacing : 0)
             + root.spacing * 4 + root.padding * 2 + Theme.scaled(24)
+        readonly property var turns: root.thread ? root.thread.turns || [] : []
+        readonly property string agent: root.thread ? root.thread.agent || "" : ""
         width: parent.width
         visible: root.continuing && root.thread !== null && !root.listening && !Assistant.setupRequired
         height: visible ? Math.max(Theme.scaled(60), Math.min(transcript.implicitHeight, root.room - chrome)) : 0
@@ -261,72 +378,220 @@ AssistantSurface {
         Column {
             id: transcript
             width: transcriptFlick.width
-            spacing: Theme.scaled(10)
+            spacing: Theme.scaled(14)
 
             Repeater {
-                model: root.thread ? root.thread.turns || [] : []
+                model: transcriptFlick.turns
 
                 delegate: Column {
                     id: exchange
                     required property var modelData
+                    required property int index
                     readonly property bool failed: modelData.status === "failed"
                     readonly property bool active: modelData.status === "running" || modelData.status === "waiting"
+                    readonly property bool latest: index === transcriptFlick.turns.length - 1
+                    readonly property string answer: modelData.text || ""
                     width: transcript.width
-                    spacing: Theme.scaled(6)
+                    spacing: Theme.scaled(8)
 
                     // The question, on the right, in the reply's bubble.
-                    Rectangle {
-                        anchors.right: parent.right
-                        width: Math.min(parent.width * 0.85, question.implicitWidth + Theme.scaled(20))
-                        height: question.implicitHeight + Theme.scaled(12)
+                    Item {
+                        width: parent.width
+                        height: bubble.height
+
+                        Rectangle {
+                            id: bubble
+                            anchors.right: parent.right
+                            width: question.width + Theme.scaled(22)
+                            height: question.height + Theme.scaled(14)
+                            radius: root.innerRadius
+                            bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
+                            color: Theme.accentBgSoft
+                            border.width: 1
+                            border.color: Theme.accentAlpha(0.24)
+
+                            Text {
+                                id: question
+                                x: Theme.scaled(11)
+                                y: Theme.scaled(7)
+                                width: Math.min(implicitWidth, exchange.width * 0.86 - Theme.scaled(22))
+                                text: exchange.modelData.prompt || ""
+                                textFormat: Text.PlainText
+                                wrapMode: Text.Wrap
+                                color: Theme.textHi
+                                font.family: Theme.fontMenu
+                                font.pixelSize: Theme.typography.secondary
+                            }
+                        }
+                    }
+
+                    // The answer as the reply box shows it, led by its headline.
+                    AssistantMarkdown {
+                        width: parent.width
+                        blockRadius: root.innerRadius
+                        visible: !exchange.failed && !exchange.active && text !== ""
+                        lead: true
+                        text: exchange.modelData.status === "stopped" && exchange.answer === ""
+                            ? I18n.tr("Stopped.") : exchange.answer
+                        color: Theme.textHi
+                    }
+
+                    AssistantFailure {
+                        width: parent.width
+                        visible: exchange.failed
+                        height: visible ? implicitHeight : 0
                         radius: root.innerRadius
-                        bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
-                        color: Theme.chipHover
+                        answer: exchange.modelData
+                        agent: transcriptFlick.agent
+                        offersFix: exchange.latest
+                    }
+
+                    // Still running: quiet words and Wiz's three dots.
+                    Row {
+                        visible: exchange.active
+                        spacing: Theme.scaled(8)
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.scaled(3)
+
+                            Repeater {
+                                model: 3
+
+                                delegate: Rectangle {
+                                    id: dot
+                                    required property int index
+                                    width: Theme.scaled(5)
+                                    height: width
+                                    radius: width / 2
+                                    color: Theme.accentText
+                                    opacity: 0.35
+
+                                    SequentialAnimation on opacity {
+                                        running: exchange.active && root.visible && !Theme.reducedMotion
+                                        loops: Animation.Infinite
+                                        PauseAnimation { duration: dot.index * 200 }
+                                        NumberAnimation { to: 1; duration: 300 }
+                                        NumberAnimation { to: 0.35; duration: 500 }
+                                        PauseAnimation { duration: (2 - dot.index) * 200 }
+                                    }
+                                }
+                            }
+                        }
 
                         Text {
-                            id: question
-                            x: Theme.scaled(10)
-                            y: Theme.scaled(6)
-                            width: Math.min(implicitWidth, exchange.width * 0.85 - Theme.scaled(20))
-                            text: exchange.modelData.prompt || ""
-                            textFormat: Text.PlainText
-                            wrapMode: Text.Wrap
-                            color: Theme.textHi
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: I18n.tr("Wiz is working on this…")
+                            color: Theme.textLow
                             font.family: Theme.fontMenu
                             font.pixelSize: Theme.typography.secondary
                         }
                     }
 
-                    AssistantMarkdown {
+                    // Under the answer: the latest one's quiet actions, and
+                    // who answered and how long.
+                    Item {
                         width: parent.width
-                        blockRadius: root.innerRadius
-                        visible: text !== ""
-                        plain: exchange.failed || exchange.active
-                        text: exchange.failed ? (exchange.modelData.error || I18n.tr("Something went wrong."))
-                            : exchange.active ? I18n.tr("Wiz is still working on this.")
-                            : exchange.modelData.status === "stopped" && (exchange.modelData.text || "") === ""
-                                ? I18n.tr("Stopped.")
-                            : exchange.modelData.text || ""
-                        color: exchange.failed ? Theme.redText : exchange.active ? Theme.textLow : Theme.textHi
-                    }
+                        visible: !exchange.active && exchange.modelData.finishedAt > 0
+                        height: !visible ? 0 : quietActions.visible ? Theme.scaled(28) : Theme.scaled(18)
 
-                    Text {
-                        visible: exchange.modelData.finishedAt > 0
-                        text: (AssistantHelpers.AGENT_LABELS[root.thread ? root.thread.agent : ""] || "")
-                            + " · " + AssistantHelpers.elapsedLabel(exchange.modelData.finishedAt
-                                - exchange.modelData.startedAt)
-                        color: Theme.textFaint
-                        font.family: Theme.fontNumeric
-                        font.pixelSize: Theme.typography.metadata
-                        font.features: Theme.tabularNumberFeatures
+                        Row {
+                            id: quietActions
+                            x: -Theme.scaled(6)
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: exchange.latest && !exchange.failed && exchange.answer !== ""
+                            spacing: Theme.scaled(2)
+
+                            AssistantButton {
+                                visible: Assistant.speechAvailable
+                                label: Assistant.speaking ? I18n.tr("Stop") : I18n.tr("Speak")
+                                glyph: Assistant.speaking ? "stop" : "volume_up"
+                                controlHeight: Theme.scaled(28)
+                                color: "transparent"
+                                onTriggered: {
+                                    if (Assistant.speaking)
+                                        Assistant.stopSpeaking();
+                                    else
+                                        Assistant.speak(exchange.modelData);
+                                }
+                            }
+
+                            AssistantButton {
+                                objectName: "assistantCopyAnswer"
+                                glyph: "content_copy"
+                                label: I18n.tr("Copy")
+                                accessibleName: I18n.tr("Copy the reply")
+                                tip: I18n.tr("Copy the reply")
+                                controlHeight: Theme.scaled(28)
+                                color: "transparent"
+                                onTriggered: Assistant.copyReply(exchange.modelData)
+                            }
+
+                            AssistantButton {
+                                visible: root.thread !== null && root.thread.resumable === true
+                                glyph: "terminal"
+                                label: I18n.tr("Terminal")
+                                accessibleName: I18n.tr("Continue in a terminal")
+                                tip: I18n.tr("Continue in a terminal")
+                                controlHeight: Theme.scaled(28)
+                                color: "transparent"
+                                onTriggered: Assistant.handoff(Assistant.continuing)
+                            }
+                        }
+
+                        Row {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.scaled(5)
+
+                            BrandIcon {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: name !== ""
+                                width: Theme.iconSmall
+                                height: Theme.iconSmall
+                                name: AssistantHelpers.AGENT_ICONS[transcriptFlick.agent] || ""
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: (AssistantHelpers.AGENT_LABELS[transcriptFlick.agent] || "")
+                                    + " · " + AssistantHelpers.elapsedLabel(exchange.modelData.finishedAt
+                                        - exchange.modelData.startedAt)
+                                color: Theme.textFaint
+                                font.family: Theme.fontMenu
+                                font.pixelSize: Theme.typography.metadata
+                                font.features: Theme.tabularNumberFeatures
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
+    // Earlier answers fade out under the header as they scroll away, into
+    // the card's own colour there (it fades from topFill to fill).
+    Rectangle {
+        id: transcriptFade
+        readonly property real along: Math.min(1, (root.padding + transcriptFlick.y) / Theme.scaled(140))
+        readonly property color ink: Qt.rgba(root.topFill.r + (root.fill.r - root.topFill.r) * along,
+            root.topFill.g + (root.fill.g - root.topFill.g) * along,
+            root.topFill.b + (root.fill.b - root.topFill.b) * along, 1)
+        parent: root
+        x: root.padding
+        y: root.padding + transcriptFlick.y
+        width: transcriptFlick.width
+        height: Theme.scaled(24)
+        visible: transcriptFlick.visible && transcriptFlick.contentY > 1
+        gradient: Gradient {
+            GradientStop { position: 0; color: transcriptFade.ink }
+            GradientStop { position: 1; color: Qt.rgba(transcriptFade.ink.r, transcriptFade.ink.g, transcriptFade.ink.b, 0) }
+        }
+    }
+
     // ---- the attached screenshot ------------------------------------------------
     Rectangle {
+        id: screenChip
         width: parent.width
         height: visible ? Theme.scaled(46) : 0
         visible: Assistant.screenAttached && !Assistant.setupRequired
@@ -400,11 +665,12 @@ AssistantSurface {
                 id: attachmentChip
                 required property var modelData
                 height: Theme.scaled(26)
-                width: Math.min(attachmentFlow.width, chipRow.implicitWidth + Theme.scaled(8))
+                width: Math.min(attachmentFlow.width * 0.8, chipRow.implicitWidth + Theme.scaled(6))
                 radius: Theme.chipRadius
                 color: Theme.chip
                 border.width: 1
                 border.color: Theme.hairline
+                clip: true
                 Accessible.role: Accessible.StaticText
                 Accessible.name: attachmentChip.modelData.label
 
@@ -419,15 +685,15 @@ AssistantSurface {
                         anchors.verticalCenter: parent.verticalCenter
                         name: AssistantHelpers.attachmentGlyph(attachmentChip.modelData.kind)
                         size: Theme.iconSmall
-                        color: Theme.textMid
+                        color: Theme.textLow
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.min(implicitWidth, attachmentFlow.width - Theme.scaled(110))
+                        width: Math.min(implicitWidth, attachmentFlow.width * 0.8 - Theme.scaled(80))
                         text: attachmentChip.modelData.label
                         elide: Text.ElideMiddle
                         textFormat: Text.PlainText
-                        color: Theme.textHi
+                        color: Theme.textMid
                         font.family: Theme.fontMenu
                         font.pixelSize: Theme.typography.metadata
                     }
@@ -452,12 +718,19 @@ AssistantSurface {
         }
     }
 
+    // What a short conversation lacks to hold the open picker above the field.
+    Item {
+        width: parent.width
+        visible: root.pickerRoom > 0
+        height: Math.max(0, root.pickerRoom - root.spacing)
+    }
+
     // ---- the field ---------------------------------------------------------------
     Rectangle {
         id: field
         visible: !Assistant.setupRequired
         width: parent.width
-        height: Math.max(Theme.scaled(44), inputArea.height + Theme.scaled(14))
+        height: Math.max(Theme.scaled(40), inputArea.height + Theme.scaled(16))
         radius: root.innerRadius
         color: Theme.well
         border.width: 1
@@ -540,7 +813,7 @@ AssistantSurface {
                         visible: input.text === ""
                         width: parent.width
                         text: !Assistant.connected ? I18n.tr("The assistant service is not running.")
-                            : root.continuing ? I18n.tr("Reply…")
+                            : root.continuing ? I18n.tr("Reply to Wiz…")
                             : I18n.tr("Ask Cybex OS anything…")
                         elide: Text.ElideRight
                         color: Theme.textFaint
@@ -625,7 +898,7 @@ AssistantSurface {
             anchors.right: parent.right
             anchors.rightMargin: Theme.scaled(6)
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: Theme.scaled(7)
+            anchors.bottomMargin: Theme.scaled(5)
             spacing: Theme.scaled(2)
 
             AssistantAgentButton {
@@ -633,6 +906,7 @@ AssistantSurface {
                 visible: !root.listening && !root.transcribing
                 open: root.pickerOpen
                 onTriggered: {
+                    root.menuOpen = false;
                     if (!AssistantHelpers.anyAgent(Assistant.agents))
                         Settings.showPanel("assistant", Assistant.screenName);
                     else
@@ -668,26 +942,37 @@ AssistantSurface {
                 onTriggered: Assistant.cancelListening()
             }
 
+            // Always there, as in the reply's field; it sends once there is
+            // something to send.
             AssistantButton {
-                visible: Assistant.draft.trim() !== "" && !root.listening && !root.transcribing
-                glyph: "send"
+                objectName: "assistantComposerSend"
+                visible: !root.listening && !root.transcribing
+                glyph: "arrow_upward"
                 primary: true
                 accessibleName: I18n.tr("Send")
-                enabled: Assistant.connected && !Assistant.busy
+                enabled: Assistant.draft.trim() !== "" && Assistant.connected && !Assistant.busy
                 onTriggered: Assistant.send()
             }
         }
     }
 
     // ---- who answers, and how ----------------------------------------------------------
+    // A popup next to the logo, floating over what is under or above it.
     AssistantModelPicker {
         id: picker
-        width: parent.width
+        parent: root
+        width: Math.min(Theme.scaled(296), root.width - root.padding * 2)
+        x: root.width - root.padding - width
+        y: root.pickerAbove ? root.padding + field.y - root.popupGap - height
+            : root.padding + field.y + field.height + root.popupGap
         visible: root.pickerOpen && !Assistant.setupRequired && !root.listening
         radius: root.innerRadius
         continuing: root.continuing
-        tailSide: "top"
-        tailX: buttons.x + agentButton.x + agentButton.width / 2
+        maximumHeight: root.pickerAbove
+            ? root.room - root.padding * 2 - root.pickerTop - root.popupGap - field.height
+            : root.room - root.padding * 2 - field.y - field.height - root.popupGap
+        tailSide: root.pickerAbove ? "bottom" : "top"
+        tailX: root.padding + buttons.x + agentButton.x + agentButton.width / 2 - x
         onCloseRequested: root.pickerOpen = false
     }
 
@@ -696,7 +981,7 @@ AssistantSurface {
         id: suggestionFlow
         width: parent.width
         spacing: Theme.scaled(6)
-        visible: Assistant.draft === "" && !root.continuing && !root.pickerOpen
+        visible: Assistant.draft === "" && !root.continuing
             && !root.listening && !root.transcribing && Assistant.connected && !Assistant.setupRequired
 
         Repeater {
@@ -785,7 +1070,7 @@ AssistantSurface {
     // ---- the last three conversations ---------------------------------------------------
     Column {
         width: parent.width
-        visible: !root.continuing && !root.pickerOpen && root.recent.length > 0 && !root.listening
+        visible: !root.continuing && root.recent.length > 0 && !root.listening
             && !root.transcribing && Assistant.connected && !Assistant.setupRequired
         spacing: 0
 
@@ -800,12 +1085,11 @@ AssistantSurface {
             width: parent.width
             topPadding: Theme.scaled(8)
             bottomPadding: Theme.scaled(2)
-            text: I18n.tr("Recent").toUpperCase()
-            color: Theme.textFaint
+            text: I18n.tr("Recent")
+            color: Theme.textLow
             font.family: Theme.fontMenu
             font.pixelSize: Theme.typography.metadata
             font.weight: Theme.weightSemibold
-            font.letterSpacing: 0.6
         }
 
         Repeater {
@@ -846,8 +1130,8 @@ AssistantSurface {
         id: agentLine
         width: parent.width
         height: Theme.scaled(22)
-        // Nothing to say takes no room, and the open picker speaks for itself.
-        visible: !Assistant.setupRequired && !root.pickerOpen && hint.text !== ""
+        // Nothing to say takes no room.
+        visible: !Assistant.setupRequired && hint.text !== ""
 
         Text {
             id: hint

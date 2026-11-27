@@ -60,15 +60,19 @@ or set up themselves.
     deleted with the answer, like screenshots.
 - **Agent, model and effort.** The logo at the end of the field (in a new
   box and in a reply's own field) shows who answers; resting on it names the
-  agent, model and effort. A click opens a small picker: the agent (Claude
-  Code or Codex), its model (Default leaves it to the agent's own setting),
-  its effort (Auto, then Low to Max; Codex also has None) and, for Codex
-  signed in with ChatGPT, **Fast**, which answers sooner and uses the plan's
-  limits faster. A bolt on the logo says Fast is on. The choice is for this
-  conversation only; Settings → Assistant keeps the defaults. A continued
-  conversation keeps its agent (the other is greyed: "Started with …"), so
-  only its model, effort and Fast can change. An agent that is not signed in
-  offers sign-in. Esc closes the picker before the box.
+  agent, model and effort. A click opens a small picker that floats over the
+  box, its tail on the logo: above a reply's field, below a new box's. It
+  holds the agent (Claude Code or Codex), a ticked list of its models
+  (Default leaves it to the agent's own setting), its effort (Auto, then Low
+  to Max; Codex also has None) and, for Codex signed in with ChatGPT,
+  **Fast**, which answers sooner and uses the plan's limits faster. A bolt on
+  the logo says Fast is on. The answer and the field stay where they are
+  under it. The choice is for this conversation only; Settings → Assistant
+  keeps the defaults. A continued conversation keeps its agent (the other is
+  greyed: "Started with …"), so only its model, effort and Fast can change.
+  An agent that is not signed in offers sign-in. In a short box the picker
+  may cover the header, its closing note gives way and only the model list
+  scrolls, so effort stays in reach. Esc closes the picker before the box.
 - **A suggestion that fits the moment.** The new box's first suggestion can
   follow what just happened: an update that failed ("Why did the update
   fail?", with what Software Update knows attached), a Cybex OS update that
@@ -91,10 +95,14 @@ or set up themselves.
   answers. A list longer than the box has room for scrolls, its cut edge
   fading into the box. A conversation still running says **Working**, one waiting for
   you **Your move**. Picking one shows its questions and answers above the
-  field; what you type continues it with the agent it started with, even if
-  Settings now prefers the other. Its **⋯** button offers **Continue in a
-  terminal**, **Copy conversation**, **New conversation** and **Delete
-  conversation**. History can be read while Wiz works on another question
+  field, laid out like a reply: each question in a bubble on the right, each
+  answer under it with its headline, and a quiet line under the answer with
+  Speak, Copy, Terminal and who answered in how long. A failed answer shows
+  as the reply's red block; only the latest offers its fix. What you type
+  continues it with the agent it started with, even if Settings now prefers
+  the other. Its **⋯** button opens a small menu over the conversation:
+  **Continue in a terminal**, **Copy conversation**, **New conversation** and
+  **Delete conversation**. History can be read while Wiz works on another question
   (the clock button on the working pill); a new question waits until he is
   free.
 - **Corners and focus.** The box takes the panels' corner (Settings →
@@ -186,8 +194,9 @@ or set up themselves.
   compact indent; `code` sits on a faint chip; paragraphs keep their space.
   Tables still use Qt's own Markdown, and raw HTML shows as written.
   A long answer scrolls inside the box, with its bottom edge fading and a
-  **More** chip; what the answer left behind (a failure's fix in a soft red
-  tile, a staged change, routines, what changed, widgets) scrolls with it.
+  **More** chip; what the answer left behind (a failure in a soft red tile
+  that says whose answer failed, the agent's message and its fix, a staged
+  change, routines, what changed, widgets) scrolls with it.
   Under it, quiet buttons: Speak, Copy, and Terminal (Continue in a terminal:
   opens the same Claude Code or Codex session in Kitty, for longer coding
   work). At the bottom is the reply's own field: type and press Enter to

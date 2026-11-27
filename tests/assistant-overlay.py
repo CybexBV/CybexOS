@@ -165,6 +165,10 @@ while True:
     elif "alongside" in text:
         hold("go-side")
         reply("Nothing needs changing.")
+    elif "what's new" in text:
+        # Refused the way an exhausted plan is: Claude Code's own words.
+        emit({"type": "result", "subtype": "success", "is_error": True, "session_id": session,
+              "result": "You've hit your weekly limit · resets Nov 27, 4pm (Europe/Amsterdam) · out of usage credits"})
     else:
         reply("I can help with Cybex OS.")
 '''
@@ -739,6 +743,9 @@ def main():
             session.click_item("assistantModelButton")
             session.wait(lambda: session.item("assistantModelPicker").get("visible"), "the model picker")
             session.screenshot("assistant-picker.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-picker-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
             session.click_item("assistantEffort_high")
             session.click_item("assistantReplyField")
             session.wait(lambda: session.item("assistantReplyField").get("focus"), "the reply field's keyboard again")
@@ -909,6 +916,12 @@ def main():
             session.ipc("toggle")
             session.wait(lambda: session.shell_state().get("shown"), "the character to come back")
             session.wait(lambda: session.shell_state().get("conversations") == len(rows), "the shell's list")
+            # The boxes' own pictures from here on are taken with Wiz up in
+            # his usual top corner, with the room a box normally has under him.
+            session.ipc('setting', 'assistantX', '1000')
+            session.ipc('setting', 'assistantY', '60')
+            session.wait(lambda: (lambda s: s.get("x") == 1000 and s.get("y", 900) < 200)(session.shell_state()),
+                         "Wiz in his top corner")
             session.ipc("compose")
             session.wait(lambda: (lambda s: s.get("composing") and s.get("continuing") == ""
                                   and not s.get("historyOpen"))(session.shell_state()), "a new conversation")
@@ -917,6 +930,9 @@ def main():
             session.click_item("assistantModelButton")
             session.wait(lambda: session.item("assistantModelPicker").get("visible"), "the composer's picker")
             session.screenshot("assistant-composer-picker.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-composer-picker-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
             session.press("-k", "Escape")
             session.wait(lambda: not session.item("assistantModelPicker").get("visible"), "the composer's picker to close")
             assert session.shell_state().get("composing"), "Esc closed the picker, not the box"
@@ -941,6 +957,59 @@ def main():
             argv = [json.loads(line) for line in (session.base / "claude-argv.jsonl").read_text().splitlines()][-1]
             assert "--resume" in argv and argv[argv.index("--resume") + 1] == stored["session"], (argv, stored)
             session.wait(lambda: session.shell_state().get("turn") == "completed", "the continued answer")
+            # A refused answer, asked from the reply's field: the reply's red
+            # block and its picker, then the conversation with it as the
+            # latest answer, the conversation's ••• menu and the picker over
+            # its answers.
+            session.click_item("assistantReplyField")
+            session.wait(lambda: session.item("assistantReplyField").get("focus"), "the reply field's keyboard")
+            session.press("What's new in 1.0.35?")
+            session.press("-k", "Return")
+            refused = session.finished("What's new in 1.0.35?")
+            assert refused["status"] == "failed" and refused["conversation"] == older["id"], refused
+            assert refused["error"].startswith("You've hit your weekly limit"), refused
+            session.wait(lambda: session.shell_state().get("turn") == "failed", "the refused answer")
+            session.screenshot("assistant-reply-failed.png")
+            session.click_item("assistantModelButton")
+            session.wait(lambda: session.item("assistantModelPicker").get("visible"), "the reply's picker")
+            session.screenshot("assistant-reply-picker.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-reply-picker-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
+            session.click_item("assistantModelButton")
+            session.wait(lambda: not session.item("assistantModelPicker").get("visible"), "the reply's picker to close")
+            session.ipc("open", older["id"])
+            session.wait(lambda: (lambda s: s.get("composing") and s.get("continuing") == older["id"]
+                                  and not s.get("historyOpen"))(session.shell_state()), "the conversation again")
+            session.wait(lambda: session.item("assistantCopyAnswer").get("visible") is not True,
+                         "no Copy under a refused latest answer")
+            session.screenshot("assistant-conversation-failed.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-conversation-failed-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
+            session.click_item("assistantConversationMore")
+            session.wait(lambda: session.item("assistantConversationMenu").get("visible"), "the conversation's menu")
+            session.screenshot("assistant-conversation-menu.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-conversation-menu-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
+            session.press("-k", "Escape")
+            session.wait(lambda: not session.item("assistantConversationMenu").get("visible"), "the menu to close")
+            assert session.shell_state().get("composing"), "Esc closed the menu, not the box"
+            session.click_item("assistantModelButton")
+            session.wait(lambda: session.item("assistantModelPicker").get("visible"), "the conversation's picker")
+            session.screenshot("assistant-conversation-picker.png")
+            session.ipc('setting', 'themeMode', '"light"')
+            session.screenshot("assistant-conversation-picker-light.png")
+            session.ipc('setting', 'themeMode', '"dark"')
+            session.press("-k", "Escape")
+            session.wait(lambda: not session.item("assistantModelPicker").get("visible"), "the picker to close")
+            # Answered once more, so the conversation no longer waits on the
+            # person and a click on Wiz below starts a new one.
+            session.press("Thanks")
+            session.press("-k", "Return")
+            assert session.finished("Thanks")["status"] == "completed"
+            session.wait(lambda: session.shell_state().get("turn") == "completed", "the thanks answered")
             # Clicked again, with a real pointer click on Wiz, after the box
             # closed: a new conversation, not the last one.
             state = session.wait(lambda: (lambda s: s if s.get("composing") is False else None)(
