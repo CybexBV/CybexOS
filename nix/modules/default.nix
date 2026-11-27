@@ -146,7 +146,8 @@ in {
     # Native KMS must also work before root/media mounting and disk unlock, and
     # before the splash and console draw. Available modules are selected by
     # udev for the actual hardware, rather than forcing every GPU driver to
-    # probe on every machine. Installed systems add nouveau (hardware.nix).
+    # probe on every machine. Installed systems that may have an NVIDIA GPU
+    # add nouveau (hardware.nix).
     boot.initrd.availableKernelModules = [ "amdgpu" "radeon" "i915" "xe" "virtio_gpu" ];
     environment.etc."cybexos/hardware-drivers.json".source = pkgs.callPackage ../packages/hardware-catalogue.nix {
       inherit (config.boot.kernelPackages) nvidiaPackages;
