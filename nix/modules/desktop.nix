@@ -151,7 +151,10 @@ in {
     xdg.portal = {
       enable = true;
       extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-      config.Hyprland.default = [ "hyprland" "gtk" ];
+      # xdg-desktop-portal reads <desktop>-portals.conf with the desktop's
+      # name in lower case (1.22: "hyprland-portals.conf" for Hyprland), so
+      # the attribute is lower case too. "Hyprland" wrote a file it never read.
+      config.hyprland.default = [ "hyprland" "gtk" ];
     };
     systemd.user.targets.hyprland-session = {
       description = "Cybex OS Hyprland session";

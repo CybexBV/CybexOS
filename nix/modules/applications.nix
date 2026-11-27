@@ -216,7 +216,7 @@ in {
     # GTK 3 apps keep GTK's own dialog: GTK_USE_PORTAL would also send their
     # links and files through the portal's Open With chooser.
     xdg.portal.extraPortals = [ folio ];
-    xdg.portal.config.Hyprland."org.freedesktop.impl.portal.FileChooser" = [ "folio" "gtk" ];
+    xdg.portal.config.hyprland."org.freedesktop.impl.portal.FileChooser" = [ "folio" "gtk" ];
     programs.firefox = {
       enable = lib.mkDefault true;
       # 1 always uses the portal's file chooser; Firefox's default does so
