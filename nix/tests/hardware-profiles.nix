@@ -94,6 +94,10 @@ assert (metadata medium).selectedProfile == null;
 assert (metadata framework).selected.id == "framework-13-amd-7040";
 assert (metadata generic).profiles == catalogue.profiles;
 assert !(generic.environment.etc ? "cybexos/hardware-profile.json");
+# Every profile's graphics fact passes the option's type; unknown stays null.
+assert lib.all (c: builtins.isList c.cybexos.hardware.gpuVendors) cases;
+assert framework.cybexos.hardware.gpuVendors == [ "amd" ];
+assert generic.cybexos.hardware.gpuVendors == null && disabled.cybexos.hardware.gpuVendors == null;
 pkgs.writeText "cybexos-hardware-profiles-evaluation" (builtins.toJSON {
   schema = 1;
   profiles = map (p: p.id) catalogue.profiles;
