@@ -778,6 +778,16 @@ class MatchedLaptopMachineTests(DiskSafetyTests):
         # Older detection results without the field install no profile.
         self.assertNotIn('zbookUltraG1a', self.machine(base))
 
+    def test_detected_graphics_vendors_are_recorded_only_when_known(self):
+        base = {'camera':False, 'nvidia':False, 'nvidiaPrime':{'enable':False}, 'xps':False, 'panel':''}
+        self.assertIn('    hardware.gpuVendors = [ "amd" ];\n', self.machine(dict(base, gpuVendors=['amd'])))
+        self.assertIn('    hardware.gpuVendors = [ "intel" "nvidia" ];\n',
+                      self.machine(dict(base, gpuVendors=['intel', 'nvidia'])))
+        self.assertIn('    hardware.gpuVendors = [ ];\n', self.machine(dict(base, gpuVendors=[])))
+        # Unknown graphics, or an older detection result, keep nouveau's default.
+        for hardware in (dict(base, gpuVendors=None), base):
+            self.assertNotIn('gpuVendors', self.machine(hardware))
+
     def test_approved_profile_is_a_fresh_machine_choice_and_camera_stays_off(self):
         base = {'camera': True, 'nvidia': False, 'nvidiaPrime': {'enable': False},
                 'xps': True, 'sku': '0DB9', 'panel': '',

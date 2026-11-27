@@ -9,6 +9,7 @@ from .common import Failure
 
 CATALOGUE = Path('/etc/cybexos/hardware-drivers.json')
 PCI_ADDRESS = re.compile(r'([0-9a-fA-F]{4}):([0-9a-fA-F]{2}):([0-9a-fA-F]{2})\.([0-7])')
+GPU_VENDORS = {'1002': 'amd', '8086': 'intel', '10de': 'nvidia'}
 CAMERA_LIMIT = 'Built-in IPU7 camera is unsupported pending standard upstream support. Use a USB webcam.'
 
 
@@ -218,7 +219,11 @@ def detect(sysroot=Path('/sys'), cpuinfo=Path('/proc/cpuinfo'), *, catalogue=Non
             # Fresh installs use stock Nixpkgs kernels. Detection is not consent
             # to build the experimental camera stack on this machine.
             'camera': False, 'cameraDetected': camera_detected,
-            'graphicsDevices': displays, 'networkDevices': network, 'networkIssues': issues,
+            'graphicsDevices': displays,
+            # cybexos.hardware.gpuVendors: no display device found means unknown.
+            'gpuVendors': sorted({GPU_VENDORS[d['vendor']] for d in displays if d['vendor'] in GPU_VENDORS})
+                          if displays else None,
+            'networkDevices': network, 'networkIssues': issues,
             'firmwareRequests': firmware, 'firmwareLogAvailable': log_available,
             'blockers': selection['blockers'], 'graphicsDetail': graphics_detail}
 
