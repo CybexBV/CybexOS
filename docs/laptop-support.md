@@ -169,7 +169,7 @@ here. On Linux 7.3 with linux-firmware 20261019:
 
 | Area | Status |
 | --- | --- |
-| Display and GPU | `amdgpu` (DCN 3.5.1, GC 11.5.1) loads in the initrd with its firmware. The panel is either a 2880×1800 120 Hz OLED (touch, PSR-SU) or a 1920×1200 IPS. |
+| Display and GPU | `amdgpu` (DCN 3.5.1, GC 11.5.1) loads in the initrd with its firmware. Nouveau's NVIDIA firmware stays out of it ([early graphics drivers](hardware-support.md#early-graphics-drivers)): with it, GRUB spent about 41 s reading a 1.4 GB initrd before the unlock prompt. The panel is either a 2880×1800 120 Hz OLED (touch, PSR-SU) or a 1920×1200 IPS. |
 | Speakers | Realtek ALC245 with four CS35L54 amplifiers. The kernel finds them through ACPI, and linux-firmware has the `cs35l54-b0-dsp1-misc-103c8d01` tuning. |
 | Microphones | ACP 7.0 PDM array; alsa-ucm-conf adds it as the digital microphone. |
 | Camera | OV05C10 through the in-tree AMD ISP4 driver (since Linux 7.2), using `amdgpu/isp_4_1_1.bin`. PipeWire uses it directly through V4L2. It must be enabled in the BIOS. |

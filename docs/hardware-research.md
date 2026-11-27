@@ -85,6 +85,14 @@ booleans: the fresh installer must retain its existing exact SKU, panel and
 camera decisions alongside the new profile ID. Existing personal settings
 and machine locks are not rewritten or refreshed.
 
+Each profile also lists its `gpuVendors` (`amd`, `intel`, `nvidia`). Every
+approved model has integrated AMD or Intel graphics only. The module makes it
+the default of `cybexos.hardware.gpuVendors`: from the selected profile or, on
+machines installed before profiles were recorded, from the profile whose
+`configuration.existingOptions` match the machine's XPS/ZBook settings. Its
+one use is to leave nouveau and its NVIDIA firmware out of the initrd
+([early graphics drivers](hardware-support.md#early-graphics-drivers)).
+
 Manual `hardware.profile` selection is an explicit owner assertion of the
 model identity, as with existing hardware options; Nix evaluation cannot read
 the future target's DMI. Automatic selection must go through `support_for()`.

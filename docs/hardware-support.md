@@ -81,6 +81,34 @@ testing a fix or retaining a personal setting. Keep the existing power manager
 and stock kernel. See the [upstream audit](hardware-research.md) for evidence,
 exact model identities, tradeoffs and removal conditions.
 
+## Early graphics drivers
+
+Stage 1 carries the AMD, Intel and virtual GPU drivers on every machine, so
+the splash and the disk unlock prompt use the native driver. Nouveau is
+different: it names every NVIDIA GSP firmware image, about 1.3 GB, and the
+boot loader reads the whole initrd before the unlock prompt appears. On an
+all-AMD HP ZBook Ultra G1a that took about 41 s.
+
+An installed machine carries nouveau in its initrd only when it may have an
+NVIDIA GPU without the proprietary driver (`cybexos.hardware.earlyNouveau`):
+
+- Fresh installations record the detected graphics in `machine.nix`, for
+  example `cybexos.hardware.gpuVendors = [ "amd" ];`.
+- A matched model profile supplies the same fact from the catalogue. Existing
+  XPS and ZBook installations get it through their `cybexos.hardware.xps` or
+  `zbookUltraG1a` settings, without any change to `/etc/nixos`, and leave
+  nouveau out from their next staged update.
+- Other machines installed earlier have unknown graphics and keep nouveau.
+  Without an NVIDIA GPU, set `cybexos.hardware.gpuVendors` (for example
+  `[ "amd" ]`) or `cybexos.hardware.earlyNouveau = false;` in your personal
+  NixOS module and prepare the change with `cybex update local`.
+- `earlyNouveau = true` brings it back, for example for an NVIDIA graphics
+  card or eGPU added later. Without it nouveau still loads after disk unlock;
+  until then the splash and the unlock prompt use the firmware framebuffer.
+
+The installation medium never carries nouveau in stage 1, and neither does a
+machine with the proprietary NVIDIA driver.
+
 ## Current support levels
 
 | Area | Status and limits |
