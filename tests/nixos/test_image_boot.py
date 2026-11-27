@@ -1,7 +1,16 @@
 import importlib.machinery
 import importlib.util
+import json
+import os
 from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
 import unittest
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 loader = importlib.machinery.SourceFileLoader('image_parity', str(Path(__file__).resolve().parents[2] / 'scripts/check-image-parity'))
@@ -167,6 +176,155 @@ class BootMenuIdentityTests(unittest.TestCase):
     def test_requires_all_profiles(self):
         with self.assertRaises(parity.ParityFailure):
             parity.check_boot_menu(self.grub(self.profiles[0]), self.profiles, 'grub')
+
+
+def ipc_limit(command):
+    return int(re.search(r'CYBEXOS_IPC_TIMEOUT=([0-9]+) ', command).group(1))
+
+
+class ShellIpcTests(unittest.TestCase):
+    def test_reads_the_session_shell_with_the_vm_limit(self):
+        command = qualification.shell_ipc('welcome status')
+        self.assertTrue(command.startswith('runuser -u cybexqa -- env HOME=/home/cybexqa XDG_RUNTIME_DIR=/run/user/1000 '
+                                           'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus '))
+        self.assertTrue(command.endswith(' cybexos-runtime ipc welcome status'))
+        # Longer than the interactive 2 s a full-screen view can take to open.
+        self.assertEqual(ipc_limit(command), qualification.SHELL_IPC_TIMEOUT)
+        self.assertGreater(qualification.SHELL_IPC_TIMEOUT, 2)
+
+    def test_limit_stays_within_what_cybexos_runtime_accepts(self):
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', 0.4)), 1)
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', -5)), 1)
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', 89.7)), 89)
+        self.assertEqual(ipc_limit(qualification.shell_ipc('polkit status', 900)), 120)
+
+
+class PromptStatusTests(unittest.TestCase):
+    """The Polkit prompt check reads the shell while it opens the prompt."""
+
+    NOT_YET = {'registered': True, 'active': True, 'responseRequired': False}
+    READY = {'registered': True, 'active': True, 'responseRequired': True}
+
+    class Guest(qualification.VM):
+        def __init__(self, statuses):  # no QEMU; only the serial command transport is faked
+            self.statuses, self.status_commands, self.keys = list(statuses), [], []
+            self.slowest_prompt_status = 0
+
+        def python(self, source, timeout=300):
+            return ''
+
+        def command(self, script, timeout=1800):
+            if 'cybexos-runtime ipc polkit status' in script:
+                self.status_commands.append(script)
+                return json.dumps(self.statuses.pop(0) if len(self.statuses) > 1 else self.statuses[0]) + '\n'
+            if script.startswith('cat ') and script.endswith('/code'):
+                return '0\n'
+            if script.startswith('cat ') and script.endswith('/stdout'):
+                return '{"success": true}\n'
+            return ''
+
+        def type_text(self, text):
+            self.keys.append('password')
+
+        def press(self, *keys):
+            self.keys.extend(keys)
+
+    def test_waits_for_the_prompt_with_reads_bounded_by_its_deadline(self):
+        guest = self.Guest([self.NOT_YET] * 3 + [self.READY])
+        with mock.patch.object(qualification.time, 'sleep'):
+            self.assertEqual(guest.authorize(['true']), (0, '{"success": true}'))
+        self.assertEqual(len(guest.status_commands), 4)
+        for command in guest.status_commands:
+            self.assertTrue(2 < ipc_limit(command) <= 90, command)
+        self.assertEqual(guest.keys, ['password', 'ret'])
+
+    def test_a_prompt_that_never_asks_still_fails(self):
+        guest = self.Guest([self.NOT_YET])
+        clock = iter(range(0, 10000, 7))
+        with mock.patch.object(qualification.time, 'sleep'), \
+                mock.patch.object(qualification.time, 'monotonic', lambda: next(clock)):
+            with self.assertRaisesRegex(RuntimeError, 'did not become ready'):
+                guest.authorize(['true'])
+        # No read may outlast the loop's own deadline: each may wait only for
+        # what remains of it.
+        limits = [ipc_limit(command) for command in guest.status_commands]
+        self.assertGreater(len(limits), 2)
+        self.assertLess(limits[0], 90)
+        self.assertEqual(limits, sorted(set(limits), reverse=True))
+        self.assertEqual(limits[-1], 1)
+        self.assertEqual(guest.keys, [])
+
+
+class FailureDiagnosticsTests(unittest.TestCase):
+    guard = (ROOT / 'tests/lib/quickshell-live').read_text()
+    PLUGIN_WARNING = ('[   49.218] cybexos-qa cybexos-runtime[1301]:   WARN scene: '
+                      '@/home/cybexqa/.local/share/cybexos/plugins/personal.qualification/Widget.qml[1:34]: '
+                      'Unable to assign [undefined] to QString')
+
+    def test_shell_errors_are_the_ones_desktop_health_rejects(self):
+        errors = qualification.shell_error_pattern(self.guard)
+        self.assertTrue(errors.search(self.PLUGIN_WARNING))
+        self.assertTrue(errors.search('qml: Bar.qml:3: TypeError: Cannot read property'))
+        self.assertFalse(errors.search('  WARN qt.qpa.wayland.textinput: Trying to disable 0x1 but 0x0 is focused'))
+        with self.assertRaises(ValueError):
+            qualification.shell_error_pattern('#!/usr/bin/env bash\n')
+
+    def test_findings_name_the_rejecting_check_ahead_of_the_restoration(self):
+        rejected = ['quickshell live check: service invocation b1aa381ac5dc4ddab093c82d39432505 contains QML/runtime errors:',
+                    self.PLUGIN_WARNING]
+        log = '\n'.join(['copying path /nix/store/x-hello-2.12.3', *rejected,
+                         'restarting the following units: polkit.service', 'Installing for x86_64-efi platform.',
+                         *['setting up /etc...'] * 400])
+        self.assertEqual(qualification.health_findings(log, qualification.shell_error_pattern(self.guard)), rejected)
+
+    def test_findings_name_an_inactive_unit(self):
+        line = ('hypridle.service is not active in the desktop session; inspect systemctl --user status '
+                'hypridle.service and its journal before retrying')
+        self.assertEqual(qualification.health_findings('a\n' + line + '\nb', re.compile('^$never')), [line])
+
+    def test_guest_script_compiles_with_its_helpers(self):
+        source = qualification.diagnostic_script()
+        compile(source, 'qa-diagnostic.py', 'exec')
+        self.assertIn('def health_findings', source)
+        # A rolled-back activation's log is read as well.
+        self.assertIn("'rolled-back'", source)
+        self.assertNotIn('\nQA_DIAGNOSTIC\n', source)
+
+
+class PersonalWidgetFixtureTests(unittest.TestCase):
+    """The lifecycle's personal widget is never live without its setting."""
+
+    def test_label_is_set_before_the_widget_is_enabled(self):
+        state = qualification.PERSONAL_STATE
+        self.assertLess(state.index('cybex plugin set personal.qualification label'),
+                        state.index('cybex plugin enable personal.qualification'))
+
+    def test_the_helper_keeps_a_setting_made_before_enabling(self):
+        helper = ROOT / 'desktop/quickshell/scripts/user-plugins.py'
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            package = base / 'data/cybexos/plugins/personal.qualification'
+            package.mkdir(parents=True)
+            (package / 'manifest.json').write_text(json.dumps({
+                'id': 'personal.qualification', 'name': 'Qualification', 'version': '1.0.0',
+                'apiVersion': 1, 'entrypoint': 'Widget.qml'}))
+            (package / 'Widget.qml').write_text('import QtQuick\nItem {}\n')
+            environment = {key: value for key, value in os.environ.items()
+                           if key not in ('CYBEXOS_USER_CONFIG_ROOT', 'CYBEXOS_PLUGIN_ROOT')}
+            environment.update(HOME=str(base), XDG_CONFIG_HOME=str(base / 'config'), XDG_DATA_HOME=str(base / 'data'))
+
+            def widget(*arguments):
+                if arguments:
+                    subprocess.run([sys.executable, str(helper), *arguments], env=environment, check=True)
+                listed = subprocess.run([sys.executable, str(helper), 'list'], env=environment, check=True,
+                                        capture_output=True, text=True).stdout
+                return next(row for row in json.loads(listed)['widgets'] if row['id'] == 'personal.qualification')
+
+            row = widget('set', 'personal.qualification', 'label', '"persistent-widget"')
+            self.assertFalse(row['enabled'])
+            row = widget('enable', 'personal.qualification', '--width', '120', '--order', '2')
+            self.assertTrue(row['enabled'])
+            self.assertEqual(row['settings'], {'label': 'persistent-widget'})
 
 
 if __name__ == '__main__':
