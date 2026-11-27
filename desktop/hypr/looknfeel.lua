@@ -329,9 +329,10 @@ hl.window_rule({ match = { class = [[xdg-desktop-portal-gtk]] }, float = true })
 -- (cybexos-goa-account): small and floating in the top-right corner, so it
 -- neither fills an empty workspace nor covers the browser page it opens.
 hl.window_rule({ match = { class = [[^cybexos-online-accounts$]] }, float = true, move = "monitor_w-window_w-24 72" })
-hl.window_rule({ match = { class = [[org\.gnome\.Nautilus]], title = [[Properties]] }, float = true })
-hl.window_rule({ match = { class = [[org\.gnome\.Nautilus]], title = [[Open.*]] }, float = true })
-hl.window_rule({ match = { class = [[org\.gnome\.Nautilus]], title = [[Save.*]] }, float = true })
+-- Folio's Open and Save dialogs, for every app that asks the portal: a
+-- window of their own (not attached to the app), so float and centre them
+-- at the size Folio opens them, over whatever asked.
+hl.window_rule({ match = { class = [[^folio-chooser$]] }, float = true, center = true, size = { 875, 600 } })
 -- A lone tiled window uses 70% of an external display's logical width.
 -- Laptop displays and workspaces with multiple tiled windows keep normal gaps.
 local previous = rawget(_G, "__cybexos_single_window_width")
@@ -462,7 +463,8 @@ end
 hl.window_rule({ match = { class = [[.*]] }, suppress_event = "maximize" })
 hl.window_rule({ match = { class = [[.*]] }, opacity = "1.0 1.0" })
 hl.window_rule({ match = { class = [[1[pP]assword]] }, float = true, center = true, size = { 875, 600 }, no_screen_share = true })
-hl.window_rule({ match = { class = [[org\.gnome\.NautilusPreviewer]] }, float = true, center = true, size = "monitor_w*0.6 monitor_h*0.7" })
+-- Folio's Space preview.
+hl.window_rule({ match = { class = [[^folio-preview$]] }, float = true, center = true, size = "monitor_w*0.6 monitor_h*0.7" })
 hl.window_rule({ match = { class = [[localsend_app]] }, float = true, center = true, size = { 875, 600 } })
 hl.window_rule({ match = { class = [[org\.gnome\.Calculator]] }, float = true })
 hl.window_rule({ match = { class = [[(imv|mpv)]] }, float = true, center = true })

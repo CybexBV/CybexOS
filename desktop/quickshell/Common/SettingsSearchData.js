@@ -23,7 +23,7 @@ var ROWS = [
     { page: "applications", pageLabel: "Applications", group: "Default applications", label: "Image viewer", key: "", anchor: "applications-image", terms: "default image photo png jpeg" },
     { page: "applications", pageLabel: "Applications", group: "Default applications", label: "Video player", key: "", anchor: "applications-video", terms: "default video media mp4" },
     { page: "applications", pageLabel: "Applications", group: "Default applications", label: "Music player", key: "", anchor: "applications-music", terms: "default music audio mp3 flac songs" },
-    { page: "applications", pageLabel: "Applications", group: "Default applications", label: "File manager", key: "", anchor: "applications-files", terms: "default files folders nautilus thunar dolphin super e" },
+    { page: "applications", pageLabel: "Applications", group: "Default applications", label: "File manager", key: "", anchor: "applications-files", terms: "default files folders folio nautilus thunar dolphin super e" },
     { page: "applications", pageLabel: "Applications", group: "Default applications", label: "Email", key: "", anchor: "applications-mail", terms: "default email mail mailto thunderbird gmail outlook" },
     { page: "applications", pageLabel: "Applications", group: "Software", label: "Open Software", key: "", terms: "install remove packages applications software" },
     { page: "applications", pageLabel: "Applications", group: "Default applications", label: "Install other apps for these in Software", key: "", anchor: "applications-software-defaults", terms: "default apps change install firefox ghostty thunderbird" },

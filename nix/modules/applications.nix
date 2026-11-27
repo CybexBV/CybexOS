@@ -44,6 +44,9 @@ let
   # nix/packages, kept current by the vendor-updates workflow), so an update
   # never waits for NixOS to build them.
   codexCli = pkgs.callPackage ../packages/codex {};
+  # The file manager, every app's Open and Save dialog through
+  # xdg-desktop-portal, and "Show in folder" (nix/packages/folio.nix).
+  folio = pkgs.callPackage ../packages/folio.nix {};
   claudeCode = pkgs.callPackage ../packages/claude-code {};
   # Claude in Chrome reaches Claude Code through a native messaging host.
   # Claude Code writes its own entry into each browser profile it knows on
@@ -88,7 +91,7 @@ in {
       wl-clipboard cliphist grim slurp wayfreeze wf-recorder tesseract zbar qrencode
       imagemagick libnotify wtype pulseaudio
       wlr-randr brightnessctl playerctl pavucontrol networkmanagerapplet bluez polkit
-      kitty fish firefox nautilus sushi pinta evince file-roller unicode-emoji
+      kitty fish firefox folio pinta evince file-roller unicode-emoji
       system-config-printer libqalculate libva-utils v4l-utils ffmpegthumbnailer orca
       gnome-calculator gnome-text-editor simple-scan solaar mpv imv yt-dlp ffmpeg
       localsend neovim nano git gh openssh curl wget jq ripgrep fd fzf zoxide direnv eza xdg-terminal-exec
@@ -190,7 +193,7 @@ in {
         "video/x-matroska" = lib.mkDefault "mpv.desktop";
         # Software's Files, Music and Email defaults. Nothing handles email
         # links until someone chooses an app or a web mail service.
-        "inode/directory" = lib.mkDefault "org.gnome.Nautilus.desktop";
+        "inode/directory" = lib.mkDefault "folio.desktop";
       } // lib.genAttrs [ "audio/mpeg" "audio/flac" "audio/ogg" "audio/x-vorbis+ogg" "audio/x-opus+ogg" "audio/mp4" "audio/x-wav" ]
         (_: lib.mkDefault "mpv.desktop")
         // goaOAuth;
@@ -207,8 +210,18 @@ in {
     services.gnome.evolution-data-server.plugins =
       lib.mkIf config.services.gnome.evolution-data-server.enable [ pkgs.evolution-ews ];
     programs.gnupg.agent = { enable = true; pinentryPackage = pkgs.pinentry-gnome3; };
+    # Folio answers every app's Open and Save dialog through the portal:
+    # GTK 4, Qt (QT_QPA_PLATFORMTHEME, desktop.nix), Chromium and Electron
+    # ask the portal when one is running, and Firefox once told to (below).
+    # GTK 3 apps keep GTK's own dialog: GTK_USE_PORTAL would also send their
+    # links and files through the portal's Open With chooser.
+    xdg.portal.extraPortals = [ folio ];
+    xdg.portal.config.hyprland."org.freedesktop.impl.portal.FileChooser" = [ "folio" "gtk" ];
     programs.firefox = {
       enable = lib.mkDefault true;
+      # 1 always uses the portal's file chooser; Firefox's default does so
+      # only inside Flatpak and Snap.
+      policies.Preferences."widget.use-xdg-desktop-portal.file-picker" = lib.mkDefault { Value = 1; Status = "default"; };
       policies.ExtensionSettings = lib.mkIf cfg.features.proprietary {
         "{d634138d-c276-4fc8-924b-40a0ea21d284}" = {
           installation_mode = lib.mkDefault "force_installed";

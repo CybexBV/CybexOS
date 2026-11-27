@@ -17,7 +17,7 @@ var SHELL_APP_IDS = ["org.quickshell", "quickshell"];
 // browser, file manager and terminal — the apps the Super+B, Super+E and
 // Super+Return bindings open. These are Cybex OS's own, before the defaults
 // are known.
-var SUGGESTED_PINS = ["org.gnome.Nautilus", "kitty"];
+var SUGGESTED_PINS = ["folio", "kitty"];
 
 // Use the live workspace identity with the compositor's layout snapshot.
 // A stale numbered row must not enable the dock after a workspace is renamed.

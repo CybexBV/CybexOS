@@ -786,7 +786,7 @@ check(world.plugin_config_writes == config_writes and world.plugin_button_adds =
   and world.plugin_clears == button_clears, "unchanged Tiled events churned native setup/buttons")
 local csd_rule
 for _, handle in ipairs(world.rules) do if handle.enabled and handle.spec["hyprbars:no_bar"] then csd_rule = handle end end
-check(csd_rule and csd_rule.spec.match.class == "^(org[.]gnome[.]Nautilus|org[.]gnome[.]TextEditor)$",
+check(csd_rule and csd_rule.spec.match.class == "^(org[.]gnome[.]TextEditor)$",
   "known CSD exclusion was missing or matched arbitrary clients")
 ws.set_titlebars_enabled(false); ws.set_default_layout("floating")
 check(ws.snapshot.capabilities.titlebars and not world.plugin_rendering and world.plugin_buttons == 3,

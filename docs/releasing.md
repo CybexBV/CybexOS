@@ -207,8 +207,9 @@ daily on a GitHub-hosted runner:
   runners lost api.snapcraft.io for days from 2026-11-11). A cached file
   enters the Nix store only through its pinned hash. The cache keeps one set,
   the newest.
-- **T3 Code and Omawrite** are reported, not updated: each needs a
-  review beyond its checksum (a new T3 Code nightly needs a desktop run, for
+- **T3 Code, Omawrite and Folio** are reported, not updated: each needs a
+  review beyond its checksum (a new T3 Code nightly needs a desktop run, and a
+  new Folio a look at its Cybex OS patches and Open and Save dialogs, for
   example). While one is behind upstream, a `vendor-pins-behind` issue lists it.
 - The XPS IPU7 camera recipe is never compared or updated automatically.
 
@@ -278,7 +279,8 @@ headless Quickshell test) and then builds **every** flake check
 (`checks.x86_64-linux.*`). It lists the flake's checks itself, so a new check
 is part of the gate the moment it is added. Omasnap's smoke suite, whose
 steps wait at most 5 s each, builds first and on its own: under the load of
-the other builds it once missed one. Then two `nix build`s share the
+the other builds it once missed one. Folio's suite, which times folder reads
+against each other, builds on its own too. Then two `nix build`s share the
 packages: first the systems, the matched XPS and NVIDIA stacks, the source
 checks and the smaller VM tests; then the desktop VM tests of up to 8 GiB,
 three at a time (their names are in the workflow; put a new one of that size
@@ -425,7 +427,7 @@ updates, provision a public Nix cache (for example an object-store-backed Nix
 cache or Cachix), publish its independent Nix cache signing public key and
 substituter URL, and prebuild each release/architecture. `packages.<system>.cache-closure`
 is a curated set of Cybex OS's own free local builds (including Voxtype,
-Omasnap, Omawrite, `mdview`, titlebars, desktop, updater and installer,
+Omasnap, Omawrite, Folio, `mdview`, titlebars, desktop, updater and installer,
 leaving out unfree vendor downloads) so a cache upload is a single
 `nix build .#cache-closure` and `nix copy --to <cache-url> .#cache-closure`.
 Add cache trust through the shared module after reviewing that key. GitHub

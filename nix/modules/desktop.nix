@@ -105,6 +105,10 @@ in {
       # (cursor-shape-v1), so it follows Settings -> Appearance -> Pointer at
       # once, and they render at the display's own scale, not stretched from 1x.
       NIXOS_OZONE_WL = lib.mkDefault "1";
+      # Qt applications ask xdg-desktop-portal for their Open and Save
+      # dialogs, which Folio answers (applications.nix). The theme leaves
+      # everything else to Qt's own platform theme for the desktop.
+      QT_QPA_PLATFORMTHEME = lib.mkDefault "xdgdesktopportal";
       CYBEXOS_ASSISTANT = if cfg.features.assistant then "1" else "0";
       CYBEXOS_DEVELOPER_TOOLS = if cfg.features.developer then "1" else "0";
       CYBEXOS_PROPRIETARY_APPS = if cfg.features.proprietary then "1" else "0";
@@ -147,7 +151,10 @@ in {
     xdg.portal = {
       enable = true;
       extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-      config.Hyprland.default = [ "hyprland" "gtk" ];
+      # xdg-desktop-portal reads <desktop>-portals.conf with the desktop's
+      # name in lower case (1.22: "hyprland-portals.conf" for Hyprland), so
+      # the attribute is lower case too. "Hyprland" wrote a file it never read.
+      config.hyprland.default = [ "hyprland" "gtk" ];
     };
     systemd.user.targets.hyprland-session = {
       description = "Cybex OS Hyprland session";
@@ -173,7 +180,13 @@ in {
         ExecStopPost = "${cfg.desktopPackage}/bin/cybexos-runtime shell record-stop";
         Restart = "on-failure"; RestartSec = 2;
       };
-      environment.PYTHONDONTWRITEBYTECODE = "1";
+      environment = {
+        PYTHONDONTWRITEBYTECODE = "1";
+        # The shell picks folders and files inside its own surfaces
+        # (Settings/FolderDialog.qml) and draws its own colours, so it keeps
+        # Qt's default platform theme rather than the portal's.
+        QT_QPA_PLATFORMTHEME = "";
+      };
     };
     # X11 applications under XWayland draw their own pointer. GTK (and
     # Chromium through it) reads the theme from XSETTINGS; Settings rewrites

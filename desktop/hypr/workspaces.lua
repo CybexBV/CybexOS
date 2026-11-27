@@ -243,7 +243,7 @@ local function titlebars()
   -- known GTK application classes are a policy, not generic CSD detection.
   if plugin and not state.titlebar_csd_rule then
     state.titlebar_csd_rule = hl.window_rule({ name = "cybexos-titlebars-known-csd",
-      match = { class = "^(org[.]gnome[.]Nautilus|org[.]gnome[.]TextEditor)$" }, ["hyprbars:no_bar"] = true })
+      match = { class = "^(org[.]gnome[.]TextEditor)$" }, ["hyprbars:no_bar"] = true })
   elseif not plugin and state.titlebar_csd_rule then
     state.titlebar_csd_rule:set_enabled(false)
     state.titlebar_csd_rule = nil

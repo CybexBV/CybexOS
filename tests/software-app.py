@@ -49,7 +49,7 @@ VERSIONS = {'gimp': '3.0.6', 'krita': '5.2.13', 'blender': '4.5.3', 'inkscape': 
 # Nixpkgs' own descriptions, as the inventory reports them for packages
 # that are not catalogue apps.
 DESCRIPTIONS = {'kitty': 'A modern, hackable, featureful, OpenGL based terminal emulator',
-                'nautilus': 'The file manager for GNOME', 'coreutils': 'The GNU Core Utilities',
+                'folio': 'Keyboard-first file manager and file chooser that follows the desktop theme', 'coreutils': 'The GNU Core Utilities',
                 'git': 'Distributed version control system', 'ripgrep': 'A utility that searches the current directory',
                 'htop': 'An interactive process viewer', 'hello': 'A program that produces a familiar, friendly greeting'}
 
@@ -68,7 +68,7 @@ BASE = [
     ('mpv', 'cybexos', [('mpv.desktop', 'mpv Media Player', 'mpv')], 'f'),
     ('localsend', 'cybexos', [('LocalSend.desktop', 'LocalSend', 'localsend')], 'g'),
     ('kitty', 'cybexos', [('kitty.desktop', 'kitty', 'kitty')], 'h'),
-    ('nautilus', 'cybexos', [('org.gnome.Nautilus.desktop', 'Files', 'org.gnome.Nautilus')], 'i'),
+    ('folio', 'cybexos', [('folio.desktop', 'Files', 'folio')], 'i'),
     ('obs-studio', 'personal', [('com.obsproject.Studio.desktop', 'OBS Studio', 'com.obsproject.Studio')], 'j'),
     ('coreutils', 'nixos', [], 'k'), ('git', 'cybexos', [], 'l'), ('ripgrep', 'cybexos', [], 'm'),
     ('htop', 'personal', [], 'n')]
@@ -329,7 +329,7 @@ elif action in ('reset', 'cancel'):
 '''
 
 CYBEX_PICKS = {'browser': 'google-chrome.desktop', 'terminal': 'kitty.desktop', 'editor': 'org.gnome.TextEditor.desktop',
-               'files': 'org.gnome.Nautilus.desktop', 'mail': '', 'music': 'mpv.desktop', 'video': 'mpv.desktop',
+               'files': 'folio.desktop', 'mail': '', 'music': 'mpv.desktop', 'video': 'mpv.desktop',
                'pdf': 'org.gnome.Evince.desktop', 'image': 'imv.desktop'}
 ACCOUNT = {
     'roles': {role: {'effective': pick, 'system': pick, 'personal': False, 'pending': ''} for role, pick in CYBEX_PICKS.items()},
@@ -337,12 +337,12 @@ ACCOUNT = {
                   'cybexos-mail-gmail.desktop', 'cybexos-mail-outlook.desktop', 'org.gnome.Epiphany.desktop'],
     'compatible': {'browser': ['google-chrome.desktop', 'firefox.desktop', 'org.gnome.Epiphany.desktop'],
                    'terminal': ['kitty.desktop', 'com.mitchellh.ghostty.desktop'],
-                   'editor': ['org.gnome.TextEditor.desktop', 'nvim.desktop'], 'files': ['org.gnome.Nautilus.desktop'],
+                   'editor': ['org.gnome.TextEditor.desktop', 'nvim.desktop'], 'files': ['folio.desktop'],
                    'mail': ['cybexos-mail-gmail.desktop', 'cybexos-mail-outlook.desktop', 'org.mozilla.Thunderbird.desktop'],
                    'music': ['mpv.desktop'], 'video': ['mpv.desktop'], 'pdf': ['org.gnome.Evince.desktop'], 'image': []},
     'labels': {'google-chrome.desktop': 'Google Chrome', 'firefox.desktop': 'Firefox', 'org.gnome.Epiphany.desktop': 'Web',
                'kitty.desktop': 'kitty', 'com.mitchellh.ghostty.desktop': 'Ghostty', 'org.gnome.TextEditor.desktop': 'Text Editor',
-               'nvim.desktop': 'Neovim', 'org.gnome.Nautilus.desktop': 'Files', 'cybexos-mail-gmail.desktop': 'Gmail',
+               'nvim.desktop': 'Neovim', 'folio.desktop': 'Files', 'cybexos-mail-gmail.desktop': 'Gmail',
                'cybexos-mail-outlook.desktop': 'Outlook', 'org.mozilla.Thunderbird.desktop': 'Thunderbird',
                'mpv.desktop': 'mpv Media Player', 'org.gnome.Evince.desktop': 'Document Viewer'}}
 

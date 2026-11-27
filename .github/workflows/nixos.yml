@@ -74,7 +74,8 @@ jobs:
           set -euo pipefail
           # Omasnap's smoke suite waits at most 5 s for each step; under the
           # first build's load it once missed one, so it builds on its own.
-          alone=(omasnap)
+          # Folio's suite times folder reads against each other, so it does too.
+          alone=(omasnap folio)
           desktop=(hyprland-pointer screenshots session-restarts passwordless-sudo dictation pointer
                    lock-terminal wayland-scale browser-1password settings-audit)
           nix eval --json .#checks.x86_64-linux --apply builtins.attrNames > "$RUNNER_TEMP/checks.json"
