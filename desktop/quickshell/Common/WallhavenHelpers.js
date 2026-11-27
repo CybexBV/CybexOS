@@ -203,7 +203,7 @@ function formatBytes(bytes) {
     if (!(bytes > 0))
         return "";
     if (bytes < 1000 * 1000)
-        return Math.max(1, Math.round(bytes / 1000)) + " kB";
+        return Math.max(1, Math.round(bytes / 1000)) + " KB";
     return (bytes / (1000 * 1000)).toFixed(1) + " MB";
 }
 

@@ -1,7 +1,7 @@
 // Game mode trades the compositor's polish for frame time while a game runs:
 // looknfeel.lua turns animations, blur, shadows, rounding and gaps off and
 // puts back exactly what it replaced, the game-mode helper records the state
-// (tests/game-mode.py), and the menubar shows an indicator only while it is on.
+// (tests/nixos/test_game_mode.py), and the menubar shows an indicator only while it is on.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const childProcess = require("node:child_process");

@@ -62,9 +62,6 @@ class ClaudeAgent:
     def resumable(self):
         return bool(self.conversation_id)
 
-    def handoff(self):
-        return [self.executable, "--resume", self.conversation_id] if self.conversation_id else None
-
     async def use(self, session):
         """Continue `session` (None starts a new one). A running process
         belongs to the session it was started with, so another one ends it."""

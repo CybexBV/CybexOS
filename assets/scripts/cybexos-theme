@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `cybex theme`: list, apply, install, export and remove named appearance
-# themes (docs/shell-appearance.md#themes). The work happens in the active
+# themes (docs/customization.md). The work happens in the active
 # shell runtime's scripts/theme-packs.py, which Settings → Appearance uses as
 # well, so both read the same theme schema; this wrapper only finds that
 # runtime, a development checkout included, and the IPC helper beside it.

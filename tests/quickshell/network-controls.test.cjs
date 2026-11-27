@@ -21,79 +21,32 @@ function objectBlock(source, start) {
     assert.fail("unterminated QML object block");
 }
 
-test("the Internet row always opens Network details and never toggles Wi-Fi", () => {
-    const source = read("Popovers/ControlCenterPopover.qml");
-    const title = source.indexOf('title: "Internet"');
-    assert.ok(title >= 0);
-    const start = source.lastIndexOf("RadioRow {", title);
-    const row = objectBlock(source, start);
-
-    assert.match(row, /onActivated:\s*Popouts\.openPanel\("wifi", "right"\)/);
-    assert.doesNotMatch(row, /WifiState\.setEnabled/);
-    for (const label of ["Ethernet + Wi-Fi", "Ethernet", "No connection", "Offline"])
-        assert.match(row, new RegExp(label.replace(/[+]/g, "\\+")));
-    assert.match(row, /on:\s*EthernetState\.connected \|\| WifiState\.connected/);
-
-    // One activation, not three. Left-click, right-click and the chevron's own
-    // hit area all used to call openPanel() with the same arguments — three
-    // targets for one outcome, and a chevron that looked like it did something
-    // the row did not.
-    const radioRow = objectBlock(source, source.indexOf("component RadioRow:"));
-    assert.match(radioRow,
-        /onClicked:\s*\{[\s\S]*?radio\.forceActiveFocus\(\);[\s\S]*?radio\.activated\(\);[\s\S]*?\}/,
-        "pointer activation must leave keyboard focus on the action it invoked");
-    assert.doesNotMatch(radioRow, /RightButton/,
-        "a radio row has one outcome, so it must not split the mouse buttons");
-    assert.equal(radioRow.match(/MouseArea\s*\{/g).length, 1,
-        "the whole row is the hit target — no separate chevron MouseArea");
+test("a machine without Wi-Fi tells a missing cable from missing hardware", () => {
+    const drawer = read("Popovers/Drawer/DrawerNetwork.qml");
+    // Until EthernetState has answered, or while a port exists, the cable is
+    // what is missing; only a machine with no port at all lacks hardware.
+    assert.match(drawer,
+        /!wifiPresent \? \(!EthernetState\.known \|\| EthernetState\.devices\.length > 0\s*\? "cable" : "hardware"\)/);
 });
 
-test("the Bluetooth row always opens details and never toggles the radio", () => {
-    const source = read("Popovers/ControlCenterPopover.qml");
-    const title = source.indexOf('title: "Bluetooth"');
-    assert.ok(title >= 0);
-    const start = source.lastIndexOf("RadioRow {", title);
-    const row = objectBlock(source, start);
-
-    assert.match(row,
-        /onActivated:\s*Popouts\.openPanel\("bluetooth", "right"\)/);
-    assert.doesNotMatch(row, /BluetoothState\.toggle/);
-});
-
-test("Ethernet loading, absence and read failures are separate UI states", () => {
-    const source = read("Popovers/WifiPopover.qml");
-    assert.match(source, /!EthernetState\.known/);
-    assert.match(source, /Checking Ethernet…/);
-    assert.match(source, /EthernetState\.error !== ""/);
-    assert.match(source, /Ethernet status unavailable/);
-    assert.match(source, /EthernetState\.devices\.length === 0/);
-    assert.match(source, /No Ethernet ports/);
-});
-
-test("Tailscale is an overlay with a persistent drill-in, not the physical route", () => {
+test("Tailscale is an overlay row with its own setup path, not the physical route", () => {
     const singleton = read("Common/Tailscale.qml");
-    const panel = read("Popovers/WifiPopover.qml");
+    const drawer = read("Popovers/Drawer/DrawerNetwork.qml");
 
     assert.match(singleton,
         /readonly property bool connected:\s*running && ip !== "" && statusError === ""/);
-    assert.match(panel, /component TailscaleSummary:\s*Rectangle/);
-    assert.match(panel, /TailscaleSummary\s*\{\}/);
-    assert.match(panel, /Tailscale\.statusText \+ " · open details"/);
-    assert.match(panel, /exit node active/);
-    // A drill-in of the same drawer, which stays on its side of the screen.
-    assert.match(panel, /Popouts\.openPanel\("tailscale", Popouts\.island\)/);
-
-    // Tailscale augments the view; the hero and diagnostics remain bound to
+    assert.match(drawer, /visible:\s*!Tailscale\.missing/);
+    assert.match(drawer, /: Tailscale\.statusText/);
+    assert.match(drawer, /onClicked:\s*Tailscale\.showSetup\(\)/);
+    // Tailscale augments the view; the diagnostics remain bound to
     // NetworkDetails' selected Ethernet/Wi-Fi interface.
-    assert.match(panel, /readonly property var primary:\s*NetworkDetails\.primary/);
-    assert.match(panel, /NetworkDetails\.primaryInterface/);
-    assert.doesNotMatch(panel, /primary:\s*Tailscale/);
+    assert.match(drawer, /NetworkDetails\.primaryInterface/);
+    assert.doesNotMatch(drawer, /primary:\s*Tailscale/);
 });
 
 test("Tailscale polling follows Network consumers and refreshes new views", () => {
     const singleton = read("Common/Tailscale.qml");
     const module = read("Bar/Modules/Wifi.qml");
-    const panel = read("Popovers/WifiPopover.qml");
 
     assert.match(singleton,
         /function acquire\(\)[\s\S]{0,120}watchers\+\+;[\s\S]{0,80}if \(!statusProc\.running\)\s*refresh\(\)/);
@@ -116,15 +69,13 @@ test("Tailscale polling follows Network consumers and refreshes new views", () =
     const drawer = read("Popovers/Drawer/DrawerNetwork.qml");
     assert.match(drawer, /onClaimed:[\s\S]{0,200}Tailscale\.acquireLive\(\)/);
     assert.match(drawer, /onReleased:[\s\S]{0,200}Tailscale\.releaseLive\(\)/);
-    for (const source of [module, panel]) {
-        assert.match(source, /Tailscale\.acquire\(\)/);
-        assert.match(source, /Tailscale\.release\(\)/);
-    }
+    assert.match(module, /Tailscale\.acquire\(\)/);
+    assert.match(module, /Tailscale\.release\(\)/);
 });
 
 test("the Tailscale switch issues exactly one requested state change", () => {
     const singleton = read("Common/Tailscale.qml");
-    const panel = read("Popovers/TailscalePopover.qml");
+    const panel = read("Popovers/Drawer/DrawerNetwork.qml");
     const checked = panel.indexOf("checked: Tailscale.running");
     assert.ok(checked >= 0);
     const start = panel.lastIndexOf("Toggle {", checked);
@@ -140,8 +91,7 @@ test("the Tailscale switch issues exactly one requested state change", () => {
 test("wired monitoring is ref-counted by each visible Network consumer", () => {
     const singleton = read("Common/EthernetState.qml");
     const module = read("Bar/Modules/Wifi.qml");
-    const popover = read("Popovers/WifiPopover.qml");
-    const control = read("Popovers/ControlCenterPopover.qml");
+    const drawer = read("Popovers/Drawer/DrawerNetwork.qml");
 
     assert.match(singleton, /function acquire\(\)/);
     assert.match(singleton, /function release\(\)/);
@@ -157,7 +107,7 @@ test("wired monitoring is ref-counted by each visible Network consumer", () => {
     assert.match(singleton, /property bool known:/);
     assert.match(singleton, /property string error:/);
     assert.match(singleton, /readonly property var connectedDevices:/);
-    for (const source of [module, popover, control]) {
+    for (const source of [module, drawer]) {
         assert.match(source, /EthernetState\.acquire\(\)/);
         assert.match(source, /EthernetState\.release\(\)/);
     }

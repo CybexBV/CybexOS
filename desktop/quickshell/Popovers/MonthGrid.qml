@@ -10,8 +10,8 @@ import "../Common/CalendarHelpers.js" as CalendarHelpers
 // (docs/shell-states.md). The month shown is drawn in textHi and the dates
 // either side in textFaint: clearly quieter, but they can still be chosen,
 // so they keep the 4.5:1 text floor (2026-11-24 review; textMid against
-// textFaint read as undimmed, and textDisabled's 3:1 as unavailable). The Day sheet and CalendarPopover share it, and each
-// decides what choosing a date does.
+// textFaint read as undimmed, and textDisabled's 3:1 as unavailable). The Day sheet draws it
+// and decides what choosing a date does.
 Grid {
     id: root
 

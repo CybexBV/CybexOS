@@ -51,7 +51,6 @@ class Turn:
         self.error_kind = ""
         self.started_at = now_ms()
         self.finished_at = 0
-        self.undo = []
         self.plugins = []
         self.staged = ""
         self.screenshot = screenshot

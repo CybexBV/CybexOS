@@ -563,7 +563,7 @@ Surface {
                             border.color: Theme.focusRing
                             activeFocusOnTab: true
                             Accessible.role: Accessible.Button
-                            Accessible.name: "Edit note: " + modelData.title
+                            Accessible.name: I18n.format("Edit note: %1", [modelData.title])
                             Accessible.description: exactModified
                                 + (titleBusy ? ". Generating title"
                                     : titleFailure !== ""

@@ -60,8 +60,8 @@ test("ping windows retain losses and average recent successful probes", () => {
 
 test("network quantities format compactly", () => {
     assert.equal(H.formatBytes(0), "0 B");
-    assert.equal(H.formatBytes(1536), "1.5 KB");
-    assert.equal(H.formatRate(1024 * 1024), "1 MB/s");
+    assert.equal(H.formatBytes(1500), "1.5 KB");
+    assert.equal(H.formatRate(1000 * 1000), "1 MB/s");
     assert.equal(H.formatLatency(4.25), "4.3 ms");
     assert.equal(H.formatLatency(null), "--");
 });
@@ -116,17 +116,4 @@ test("DNS state ignores non-physical and attached profiles and reports Mixed", (
     assert.equal(H.dnsState([google, { type: "tun", ipv4Dns: ["9.9.9.9"] }]).provider,
         "Google");
     assert.equal(H.dnsState([{ ...google, controller: "bridge0" }]).provider, "Automatic");
-});
-
-test("band availability is derived only from the active SSID", () => {
-    const scans = [
-        { ssid: "Home", frequency: 2412 },
-        { ssid: "Home", frequency: 5500 },
-        { ssid: "Home", frequency: 6375 },
-        { ssid: "Other", frequency: 2412 }
-    ];
-    assert.deepEqual(H.availableBands(scans, "Home"), ["2.4", "5", "6"]);
-    assert.deepEqual(H.bandState({ selectedBand: "auto" }, scans, "Home", 6375), {
-        selected: "auto", current: "6", available: ["2.4", "5", "6"], automatic: true
-    });
 });

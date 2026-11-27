@@ -226,7 +226,7 @@ SettingsPage {
                             glyph: "delete"
                             danger: true
                             enabled: !page.service.busy && page.enrolState !== "scanning"
-                            Accessible.name: "Remove the " + finger.label.toLowerCase() + " fingerprint"
+                            Accessible.name: I18n.format("Remove the %1 fingerprint", [finger.label.toLowerCase()])
                             onTriggered: page.removingFinger = finger.modelData
                         }
                     }

@@ -215,69 +215,22 @@ test("global mute state only counts channels that exist", () => {
     assert.equal(H.outputGlyph(0.8, true, true), "volume_off");
 });
 
-test("the audio panel has routing, mixer, peak, snapshot, and scroll structure", () => {
-    const control = untranslated(fs.readFileSync(path.join(shellDir,
-        "Popovers/ControlCenterPopover.qml"), "utf8"));
-    const picker = untranslated(fs.readFileSync(path.join(shellDir,
-        "Popovers/AudioPopover.qml"), "utf8"));
+test("the Sound tab routes outputs, meters the microphone, and shares the blocked meter", () => {
+    const sound = untranslated(fs.readFileSync(path.join(shellDir,
+        "Popovers/Drawer/DrawerSound.qml"), "utf8"));
     const blockMeter = untranslated(fs.readFileSync(path.join(shellDir,
         "Popovers/BlockMeter.qml"), "utf8"));
     const audio = untranslated(fs.readFileSync(path.join(shellDir, "Common/Audio.qml"), "utf8"));
 
-    assert.match(control, /Accessible\.name:\s*"Choose audio output"/);
-    assert.match(control, /Popouts\.openPanel\("audio",\s*"right"\)/);
-    assert.doesNotMatch(picker, /\.slice\(0,\s*6\)/);
-    assert.match(picker, /preferredHeightCap:\s*620/);
-    assert.match(picker, /Math\.min\(root\.availableHeight,\s*root\.preferredHeightCap\)/);
-    assert.match(picker, /Flickable\s*\{/);
-    assert.match(picker, /ScrollChrome\s*\{/);
-
-    assert.match(picker, /property var displaySinks:\s*\[\]/);
-    assert.match(picker, /property var displaySources:\s*\[\]/);
-    assert.match(picker, /property var displayStreams:\s*\[\]/);
-    assert.match(picker, /property bool outputDevicesOpen:\s*false/);
-    assert.match(picker, /property bool inputDevicesOpen:\s*false/);
-    assert.match(picker, /id:\s*snapshotRefresh[\s\S]{0,80}interval:\s*75/);
-    assert.match(picker, /onSinkCandidatesChanged:\s*scheduleSnapshotRefresh/);
-    assert.match(picker, /AudioHelpers\.sameNodeList\(displaySources,\s*nextSources\)/);
-    assert.match(picker, /model:\s*root\.displaySinks/);
-    assert.match(picker, /model:\s*root\.displaySources/);
-    assert.match(picker, /model:\s*root\.displayStreams/);
-
-    assert.match(picker, /PwNodePeakMonitor\s*\{/);
-    assert.match(picker, /node:\s*Audio\.source/);
-    assert.match(picker, /function selectInput\(node\)[\s\S]{0,100}inputDevicesOpen\s*=\s*false[\s\S]{0,100}Audio\.setDefaultSource\(node\)/);
-    assert.match(picker, /function selectOutput\(node\)[\s\S]{0,100}outputDevicesOpen\s*=\s*false[\s\S]{0,100}Audio\.setDefaultSink\(node\)/);
-    assert.match(picker, /component DevicePicker:\s*Rectangle/);
-    assert.match(picker, /currentLabel:\s*Audio\.ready[\s\S]{0,100}AudioHelpers\.sinkLabel\(Audio\.outputSink\)/);
-    assert.match(picker, /currentLabel:\s*Audio\.sourceReady[\s\S]{0,100}AudioHelpers\.sourceLabel\(Audio\.source\)/);
-    assert.match(picker, /id:\s*outputDeviceList[\s\S]{0,80}visible:\s*root\.outputDevicesOpen/);
-    assert.match(picker, /id:\s*inputDeviceList[\s\S]{0,80}visible:\s*root\.inputDevicesOpen/);
-    assert.match(picker, /text:\s*"OUTPUT"/);
-    assert.match(picker, /text:\s*"INPUT"/);
-    assert.match(picker, /text:\s*"APPLICATIONS"/);
-    assert.equal((picker.match(/SectionLabel\s*\{/g) || []).length, 3,
-        "output, input, and applications retain their labeled dividers");
-    assert.doesNotMatch(picker, /HDivider\s*\{/,
-        "the audio panel has no additional full-width divider rules");
-    assert.match(picker, /id:\s*applicationsSection[\s\S]{0,180}bottomPadding:\s*8/,
-        "application streams retain a small inset below the final volume row");
-    assert.match(picker, /visible:\s*root\.displayStreams\.length\s*>\s*0/);
-    assert.match(picker, /streamAudio\.volume\s*=\s*Format\.clamp01\(value\)/);
-    assert.doesNotMatch(picker, /max:\s*1\.5/);
-    assert.doesNotMatch(picker, /HSlider\s*\{/);
-    assert.ok((picker.match(/interactive:\s*true/g) || []).length >= 3,
-        "master, input, and application volumes are interactive block meters");
-    assert.ok((picker.match(/BlockMeter\s*\{/g) || []).length >= 4,
-        "all three volumes and the live microphone use the blocked design");
+    assert.match(sound, /PwNodePeakMonitor\s*\{[\s\S]{0,40}node:\s*Audio\.source/);
+    assert.match(sound, /onClicked:\s*Audio\.setDefaultSink\(sinkRow\.modelData\)/);
+    assert.match(sound, /Accessible\.role:\s*Accessible\.Button\s*Accessible\.name:\s*I18n\.format\("Switch output to %1"/);
+    assert.match(sound, /streamAudio\.volume = v;/);
     assert.match(blockMeter, /Format\.clamp01\(stepped\)/,
         "the shared blocked control clamps interaction to 100%");
     assert.match(blockMeter, /Accessible\.role:\s*Accessible\.Slider/);
     assert.match(blockMeter, /Qt\.Key_Left[\s\S]{0,300}Qt\.Key_Right/);
     assert.match(blockMeter, /Qt\.Key_Home[\s\S]{0,100}Qt\.Key_End/);
-    assert.match(picker, /Accessible\.role:\s*Accessible\.RadioButton/);
-    assert.match(picker, /Qt\.Key_Return[\s\S]{0,100}Qt\.Key_Space/);
-    assert.match(picker, /Audio\.setAllMuted\(!value\)/);
 
     assert.match(audio, /scripts\/audio-route/);
     assert.match(audio, /function setDefaultSource\(node\)/);
@@ -334,12 +287,33 @@ printf '%s #43\\n\\tProperties:\\n\\t\\tapplication.name = "mpv"\\n' "$header"
     }
 });
 
-test("the input routing helper updates the default and existing recorders", () => {
-    const route = untranslated(fs.readFileSync(path.join(shellDir,
-        "scripts/audio-source-route"), "utf8"));
-    assert.match(route, /pactl set-default-source "\$target"/);
-    assert.match(route, /pactl list short source-outputs/);
-    assert.match(route, /pactl move-source-output "\$output" "\$target"/);
+test("the input routing helper moves named recorders but leaves filter internals", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "audio-source-route-"));
+    try {
+        const bin = path.join(tmp, "bin");
+        const calls = path.join(tmp, "calls.log");
+        fs.mkdirSync(bin);
+        fs.writeFileSync(path.join(bin, "pactl"), `#!/usr/bin/env bash
+printf '%s\\n' "LC_ALL=\${LC_ALL:-} $*" >>"$AUDIO_ROUTE_CALLS"
+[[ \${1:-} == list ]] || exit 0
+if [[ \${LC_ALL:-} == C ]]; then header='Source Output'; else header='Bronuitvoer'; fi
+printf '%s #51\\n\\tProperties:\\n\\t\\tapplication.name = "OBS"\\n' "$header"
+printf '%s #52\\n\\tProperties:\\n\\t\\tnode.name = "echo-cancel-capture"\\n' "$header"
+`, { mode: 0o755 });
+        const run = spawnSync("bash", [path.join(shellDir, "scripts/audio-source-route"), "usb-mic"], {
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LC_ALL: "nl_NL.UTF-8",
+                AUDIO_ROUTE_CALLS: calls },
+        });
+        assert.equal(run.status, 0, run.stderr);
+        const lines = untranslated(fs.readFileSync(calls, "utf8")).split("\n")
+            .map(line => line.replace(/^LC_ALL=\S* /, ""));
+        assert.ok(lines.includes("set-default-source usb-mic"), lines.join("\n"));
+        assert.deepEqual(lines.filter(line => line.includes("move-source-output")),
+            ["move-source-output 51 usb-mic"], "the recorder moves; the echo-cancel capture stays put");
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
 });
 
 test("a player's own streams: by process id when it publishes one, else by name", () => {

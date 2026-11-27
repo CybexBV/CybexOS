@@ -22,7 +22,7 @@ Singleton {
         onExited: exitCode => {
             const service = root.externalDomain === "sound" ? root.sound : root.network;
             if (exitCode !== 0)
-                service.error = "The advanced settings window could not open. Check that its package is installed.";
+                service.error = I18n.tr("The advanced settings window could not open. Check that its package is installed.");
             service.refresh();
         }
     }

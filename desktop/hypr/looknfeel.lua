@@ -93,7 +93,7 @@ hl.config({
   dwindle = { preserve_split = true, split_width_multiplier = 1.0 },
 })
 
--- The system theme (docs/system-theme.md). The shell renders its colours into
+-- The system theme. The shell renders its colours into
 -- ~/.local/state/cybexos/theme/hyprland.lua, a data-only table of the keys
 -- below, and it is applied over the vendor colours above. That file is state
 -- the shell rewrites, so nothing in it may stop the compositor from starting:
@@ -383,7 +383,7 @@ end
 policy.subscription = hl.on("monitor.layout_changed", update_single_window_width)
 update_single_window_width()
 
--- Game mode (the game-mode helper; docs/operations.md) turns animations,
+-- Game mode (the game-mode helper; docs/keyboard-shortcuts.md) turns animations,
 -- blur, shadows, window rounding and gaps off for games, and the helper holds
 -- idle locking off. `game-mode on|off` calls cybexos_game_mode() through
 -- `hyprctl eval`; what it replaced is kept here and put back exactly.

@@ -29,6 +29,7 @@ node_jobs=$((jobs / 4))
 check tests/lint tests/lint
 
 check tests/quickshell node --test "--test-concurrency=$node_jobs" tests/quickshell/*.test.cjs
+check tests/qml-tests tests/qml-tests
 
 for script in plugin-packages.py theme-packs.py system-settings.py settings-ownership.py \
     nixos/default-agent.py nixos/camera-frame.py; do

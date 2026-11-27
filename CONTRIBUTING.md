@@ -21,6 +21,6 @@ workstation without authorization. Any live Quickshell test must use
 
 Publishing a release reaches every installed machine on its channel. Landing on
 `main` is not a release: releases bundle what landed, only when the owner asks,
-at most two betas a week, each after a passing full check on its exact commit
+each after a passing full check on its exact commit
 (AGENTS.md). Publishing to stable, with `--stable` or `release/promote`, needs
 the owner's explicit decision. See [release operations](docs/releasing.md).

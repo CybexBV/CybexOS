@@ -255,6 +255,18 @@ class TrustTests(unittest.TestCase):
                          ('1.0.3', ['1.0.3'], '# Cybex OS 1.0.3\n\nStable change.'))
         self.assertEqual(trust.discover(fetch, 'stable', '1.0.0')['notes'].splitlines()[2],
                          'This update also includes Cybex OS 1.0.1.')
+        # A promoted release carries its betas' notes for stable; beta lists those
+        # betas itself, so each appears once, and an installed one not at all.
+        promoted = self.fetch(notes(
+            ('v1.0.6', True, '# Cybex OS 1.0.6\n\nAfter promotion.'),
+            ('v1.0.5', False, '# Cybex OS 1.0.5\n\nThis stable release also includes 1.0.2, 1.0.4, published on '
+                              'the beta channel since Cybex OS 1.0.3.\n\nPromoted change.\n\n'
+                              '## From Cybex OS 1.0.4\n\nNewest change.\n\n## From Cybex OS 1.0.2\n\nOld.'),
+            ('v1.0.4', True, '# Cybex OS 1.0.4\n\nNewest change.\n')))
+        self.assertEqual(trust.discover(promoted, 'beta', '1.0.4')['notes'],
+                         '# Cybex OS 1.0.6\n\nThis update also includes Cybex OS 1.0.5.\n\n'
+                         'After promotion.\n\n## From Cybex OS 1.0.5\n\nPromoted change.\n')
+        self.assertIn('## From Cybex OS 1.0.2', trust.discover(promoted, 'stable', '1.0.3')['notes'])
         # Nothing to install: the newest release's notes, no included releases.
         current = trust.discover(fetch, 'beta', '1.0.4')
         self.assertEqual((current['releases'], current['notes']), ([], '# Cybex OS 1.0.4\n\nNewest change.\n'))

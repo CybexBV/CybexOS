@@ -6,7 +6,8 @@ Every release needs a passing full check on its exact commit
 tests and installations of the commit's own ISO in disposable VMs. Physical
 hardware and security qualification remain limited. The tables below record
 development evidence from 2026-10-22 onwards; each result belongs to the
-source snapshot it ran on and does not qualify later edits.
+source snapshot it ran on and does not qualify later edits. Every dated
+record is listed in [measurements](measurements/README.md).
 
 The [2026-10-30–31 VM audit](measurements/release-vm-audit-2026-10-30.md)
 records later fixes and exact-source ISO/runtime evidence for beta.31. The

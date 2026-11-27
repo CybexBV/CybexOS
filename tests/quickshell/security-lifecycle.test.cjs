@@ -4,7 +4,7 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { shellDir } = require("./shell.cjs");
+const { shellDir, load } = require("./shell.cjs");
 
 const repoDir = path.resolve(__dirname, "../..");
 
@@ -17,17 +17,21 @@ function readShell(relative) {
 }
 
 test("desktop-open boundaries accept only HTTP(S) URLs", () => {
-    const urls = require(path.join(shellDir, "Common/ExternalUrl.js"));
+    const urls = load("ExternalUrl.js");
     assert.equal(urls.safeHttpUrl("https://github.com/o/r/pull/1"),
         "https://github.com/o/r/pull/1");
-    assert.equal(urls.safeHttpUrl(" HTTP://example.test/thread "),
-        "HTTP://example.test/thread");
+    assert.equal(urls.safeHttpUrl(" HTTP://Example.test/thread "),
+        "http://example.test/thread");
     for (const unsafe of [
         "javascript:alert(1)",
         "file:///etc/passwd",
         "data:text/html,pwned",
         "t3code://app/",
         "https://example.test/\nfile:///etc/passwd",
+        // The notifications' strict rules hold for every link the shell opens.
+        "https://user:pass@example.test/",
+        "https://0x7f.0x0.0x0.0x1/",
+        "https://example.test/%0a",
         null,
     ])
         assert.equal(urls.safeHttpUrl(unsafe), "", String(unsafe));
@@ -39,26 +43,6 @@ test("desktop-open boundaries accept only HTTP(S) URLs", () => {
 
 
 
-
-test("control-center process toggles expose desired, pending, effective, and error state", () => {
-    const control = readShell("Popovers/ControlCenterPopover.qml");
-    assert.match(control, /property bool effective: on/);
-    assert.match(control, /property bool pending: false/);
-    assert.match(control, /property string error: ""/);
-    assert.match(control, /Accessible\.checked: tile\.effective/);
-    assert.match(control, /Accessible\.description: tile\.statusDescription/);
-    for (const binding of [
-        "effective: SysInfo.nightLightEffective",
-        "pending: SysInfo.nightLightPending",
-        "error: SysInfo.nightLightError",
-        "effective: SysInfo.idleInhibitEffective",
-        "pending: SysInfo.idleInhibitPending",
-        "error: SysInfo.idleInhibitError",
-    ])
-        assert.ok(control.includes(binding), binding);
-    assert.match(control,
-        /visible: SysInfo\.nightLightError !== ""[\s\S]*SysInfo\.idleInhibitError !== ""[\s\S]*Accessible\.role: Accessible\.StaticText/);
-});
 
 test("settings rail reports and retries both load and save failures", () => {
     const view = readShell("Settings/SettingsView.qml");

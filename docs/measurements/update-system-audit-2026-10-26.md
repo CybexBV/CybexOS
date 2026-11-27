@@ -152,7 +152,7 @@ the existing release process. Do not substitute a development key, skip
 verification or update from `main`. Upstream-only updates must remain
 independent of vendor delivery.
 
-Sources: [trust file](../../release/keys/trust.json),
+Sources: trust file (`release/keys/trust.json`, since removed),
 [delivery contract](../releasing.md#L1), and
 [current qualification limits](../validation.md#L1).
 
@@ -257,7 +257,7 @@ the complete review.
 
 Sources: [discovery](../../lifecycle/cybexos/engine.py#L142),
 [candidate diff](../../lifecycle/cybexos/engine.py#L300),
-[review rendering](../../desktop/quickshell/Popovers/UpdatesPopover.qml#L37), and
+review rendering (`desktop/quickshell/Popovers/UpdatesPopover.qml`, since removed), and
 [software manifest](../../nix/modules/software.nix#L27).
 
 ### 7. Action gates and deployment state disagree
@@ -283,7 +283,7 @@ button provides no retained-deployment picker. Those are expert tools crowded
 into the main update task rather than a coherent normal-user flow.
 
 Sources: [Overview action](../../desktop/quickshell/Popovers/Drawer/DrawerOverview.qml#L327),
-[panel controls](../../desktop/quickshell/Popovers/UpdatesPopover.qml#L21),
+panel controls (`desktop/quickshell/Popovers/UpdatesPopover.qml`, since removed),
 [shared review](../../desktop/quickshell/Settings/DeploymentReview.qml), and
 [rollback selection](../../lifecycle/cybexos/engine.py#L586).
 

@@ -75,9 +75,6 @@ class CodexAgent:
     def resumable(self):
         return bool(self.conversation_id)
 
-    def handoff(self):
-        return [self.executable, "resume", self.conversation_id] if self.conversation_id else None
-
     async def use(self, session):
         """Continue thread `session` (None starts a new one). The app-server
         keeps running; the next turn resumes or starts that thread."""

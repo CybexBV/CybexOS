@@ -28,7 +28,6 @@ Singleton {
     property string storeText: ""
     property string error: ""
     property string errorKind: ""
-    property double lastSavedAt: 0
     property var deletedRecord: null
     property int idCounter: 0
     property bool initialLoadHandled: false
@@ -38,8 +37,6 @@ Singleton {
     property var activeTitleRequest: null
     property int titleRequestCounter: 0
 
-    readonly property bool saving: writeInFlight
-        || (dirty && errorKind === "")
     readonly property bool undoAvailable: deletedRecord !== null
 
     function canMutate() {
@@ -343,7 +340,6 @@ Singleton {
         writeInFlight = false;
         error = "";
         errorKind = "";
-        lastSavedAt = Date.now();
         const changedWhileSaving = !sameContent(NotesHelpers.serializeState(records),
             completed);
         dirty = changedWhileSaving;

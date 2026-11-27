@@ -5,7 +5,7 @@ import "../Common"
 
 // The Day sheet: the surface the clock (and the weather pill) unrolls under
 // the bar — big time, today's sky and the next days' forecast, the month
-// with event marks (MonthGrid, shared with CalendarPopover), and the next
+// with event marks (MonthGrid), and the next
 // few events. Without a location the sky is a prompt to set one. Attached
 // flush under the bar and centred on the bar regardless of which trigger
 // opened it (PanelRegistryData `attached` + `centerAnchored`).

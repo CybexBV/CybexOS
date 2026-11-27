@@ -142,7 +142,9 @@ Retention keeps at least five confirmed deployments and 30 days of history,
 plus pins, the running system and its fallback, selected personal configurations,
 the current preview or result, and unresolved transactions. A failed build
 without pending activation can still be cleaned up, while its input roots and
-diagnostics are retained.
+diagnostics are retained. Cleanup also runs while a prepared update
+waits for review, keeping that preview whole; an interrupted cleanup must be
+recovered before the preview can be applied.
 
 A transaction that ended unconfirmed records how it ended: `outcome.json`
 says discarded, failed (staging), superseded (a newer preview replaced it) or

@@ -3,26 +3,16 @@
 # and a directory with a qmldir stops being scanned at all, so every
 # Popovers/*.qml type must be listed. qmldir.test.cjs enforces that.
 ActionButton ActionButton.qml
-AudioPopover AudioPopover.qml
-BatteryPopover BatteryPopover.qml
 BlockMeter BlockMeter.qml
-BluetoothPopover BluetoothPopover.qml
-CalendarPopover CalendarPopover.qml
-ControlCenterPopover ControlCenterPopover.qml
 DaySheetPopover DaySheetPopover.qml
-FillSlider FillSlider.qml
 HDivider HDivider.qml
 IconButton IconButton.qml
 LinkText LinkText.qml
 MediaPopover MediaPopover.qml
 MonthGrid MonthGrid.qml
 NotesPopover NotesPopover.qml
-NotifsPopover NotifsPopover.qml
 OverflowPopover OverflowPopover.qml
 ReminderPopover ReminderPopover.qml
 PopoutPanel PopoutPanel.qml
 SectionLabel SectionLabel.qml
 Surface Surface.qml
-TailscalePopover TailscalePopover.qml
-WeatherPopover WeatherPopover.qml
-WifiPopover WifiPopover.qml

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Change the session default and move recording applications that are already
 # active. A source switch should affect an open recorder, not only clients
-# created after the metadata default changes.
+# created after the metadata default changes. PipeWire filter-chain internals
+# (echo cancelling, noise filtering) have no application.name, so they stay
+# attached to their configured source, as in audio-route.
 set -uo pipefail
 
 target=${1:-}
@@ -15,4 +17,10 @@ pactl set-default-source "$target" || exit 1
 while IFS= read -r output; do
   [[ -n $output ]] || continue
   pactl move-source-output "$output" "$target" >/dev/null 2>&1 || true
-done < <(pactl list short source-outputs 2>/dev/null | awk '{ print $1 }')
+done < <(
+  # The long listing's "Source Output #" header is translated, so parse it untranslated.
+  LC_ALL=C pactl list source-outputs 2>/dev/null | awk '
+    /^Source Output #/ { id = substr($3, 2) }
+    /^[[:space:]]+application[.]name = / { print id; id = "" }
+  '
+)

@@ -6,8 +6,9 @@ const vm = require("node:vm");
 const { shellDir } = require("./shell.cjs");
 const Draft = require(path.join(shellDir, "Settings/InputDraft.js"));
 
-// Execute the production component's methods; tests/qml-lifecycle also
-// exercises its bindings and the actual page Loader in the real Qt engine.
+// Execute the production component's methods; tests/qml-lifecycle.py (run by
+// tests/shell-checks) also exercises its bindings and the actual page Loader in
+// the real Qt engine.
 function state(section, service) {
     const source = fs.readFileSync(path.join(shellDir, "Settings/InputDraftState.qml"), "utf8");
     const context = {Draft, service, section, fields: ["value"], draft: {}, original: {}, version: "", submitted: null,

@@ -32,7 +32,7 @@ SettingsPage {
     readonly property bool downloading: Dictation.download === "running"
 
     function megabytes(bytes) {
-        return Math.round(bytes / 1048576) + " MB";
+        return Math.round(bytes / 1000000) + " MB";
     }
 
     function downloadProblem() {

@@ -546,8 +546,9 @@ computer by design:
   its own family below it (`prebuilt.family`). Cybex OS's own wrappers name
   it exactly (`passthru.cybexosLocalBuilds`);
 - out-of-tree kernel modules (NVIDIA, the XPS camera, the medium's ZFS);
-- what `cybexos.updates.expectedBuilds` declares: the Libreswan path fix,
-  Steam's runtime, the XPS camera's GStreamer source and NVIDIA's 32-bit EGL
+- Cybex OS's own patched builds: the Libreswan path fix and the XPS camera's
+  GStreamer source, HAL and binaries, whose inputs must come prebuilt;
+- what `cybexos.updates.expectedBuilds` declares: Steam's runtime and NVIDIA's 32-bit EGL
   platform libraries for Steam, with the 32-bit build tools those need
   (`system.build.cybexosDeclaredBuilds`);
 - the machine's own configuration: initrd, PAM, setuid wrappers, dconf.

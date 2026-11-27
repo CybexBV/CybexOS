@@ -17,8 +17,8 @@ const { shellDir } = require("./shell.cjs");
 // every caller supplies.
 
 const CARD = path.join("Common", "NotifCard.qml");
-const CALLERS = ["NotificationToasts.qml", path.join("Popovers", "NotifsPopover.qml"),
-    path.join("Popovers", "Drawer", "DrawerNotifications.qml")];
+const CENTRE = path.join("Popovers", "Drawer", "DrawerNotifications.qml");
+const CALLERS = ["NotificationToasts.qml", CENTRE];
 
 function read(rel) {
     return fs.readFileSync(path.join(shellDir, rel), "utf8");
@@ -48,17 +48,13 @@ function keysSupplied(rel) {
 
 test("web notification icons resolve locally without sender-triggered lookup processes or network fetches", () => {
     const icon = read(path.join("Common", "NotifIcon.qml"));
-    const resolver = read(path.join("Common", "WebIcons.qml"));
     const notifs = read(path.join("Common", "Notifs.qml"));
 
-    assert.doesNotMatch(icon, /WebIcons\.(?:request|sourceFor)\(/);
+    assert.doesNotMatch(icon, /Process|execDetached|XMLHttpRequest|https?:/);
     assert.match(notifs, /Smart\.localImageUrl\(value\)/);
-    assert.match(icon, /readonly property string siteSource: ""/);
     assert.match(icon, /status === Image\.Error[\s\S]*?root\.primaryFailed = true/,
-        "an expired Chromium image-path must fall through to the cached favicon");
-    assert.match(resolver, /scripts\/notification-icon\.py/);
-    assert.match(resolver, /property var requested:\s*\(\{\}\)/,
-        "toast and history instances must deduplicate origin lookups");
+        "an expired Chromium image-path must fall through to the monogram");
+    assert.match(icon, /source: brand\.available \|\| root\.primaryFailed \? "" : root\.primarySource/);
     const webBranch = notifs.match(/if \(entry\.webOrigin\) \{([\s\S]*?)\n        \}/);
     assert.ok(webBranch, "Notifs.iconSource must have an explicit web-origin branch");
     assert.match(webBranch[1], /entry\.image/);
@@ -84,7 +80,7 @@ test("both surfaces take the one shell face, as typography.test.cjs requires", (
     // hand it two different faces, which is how the same notification read as
     // two different products depending on where you saw it.
     const toast = keysSuppliedSource("NotificationToasts.qml");
-    const centre = keysSuppliedSource(path.join("Popovers", "NotifsPopover.qml"));
+    const centre = keysSuppliedSource(CENTRE);
     assert.match(toast, /face:\s*Theme\.fontMenu/,
         "the toast style must follow the Typography setting");
     assert.match(centre, /face:\s*Theme\.fontMenu/,
@@ -99,7 +95,7 @@ test("both surfaces take the one shell face, as typography.test.cjs requires", (
 test("toast hover and a history disclosure reveal the full notification text", () => {
     const card = read(CARD);
     const toast = read("NotificationToasts.qml");
-    const centre = read(path.join("Popovers", "NotifsPopover.qml"));
+    const centre = read(CENTRE);
 
     assert.match(card, /property bool expandTextOnHover:\s*false/);
     assert.match(card, /property bool allowTextExpansion:\s*false/);

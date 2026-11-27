@@ -23,8 +23,6 @@ usage:
       one JSON object per line: {"event": "tidying"}, {"event": "typing",
       "text": ...}, then {"event": "result", ...}. Exit 0 typed, 2 copied to
       the clipboard instead, 3 nothing to type, 1 failed.
-  dictation.py type FILE
-      Types a transcript as it is (no tidy-up, no history).
   dictation.py history list|clear|delete ID|edit ID TEXT|type ID|copy ID
                        |play ID|retranscribe ID|forget HEARD WRITE
       The saved dictations ($XDG_STATE_HOME/cybexos/dictation). `list` prints
@@ -164,10 +162,6 @@ def file_path(model: str, entry: dict) -> Path:
 def partial_path(model: str = "enhanced", entry: dict | None = None) -> Path:
     entry = entry or MODELS[model]["files"][0]
     return model_dir(model) / f".{entry['name']}.part"
-
-
-def model_path() -> Path:
-    return file_path("enhanced", MODELS["enhanced"]["files"][0])
 
 
 def size_of(path: Path) -> int:
@@ -1031,8 +1025,6 @@ def main(argv: list[str]) -> int:
     applying.add_argument("--languages", required=True)
     applying.add_argument("--live", choices=("0", "1"), required=True)
     applying.add_argument("--vocabulary", default="")
-    typing = commands.add_parser("type")
-    typing.add_argument("file")
     delivering = commands.add_parser("deliver")
     delivering.add_argument("file")
     delivering.add_argument("--options", default="{}")
@@ -1073,14 +1065,7 @@ def main(argv: list[str]) -> int:
         return 0
     if args.command == "deliver":
         return deliver(Path(args.file), options_of(args.options))
-    if args.command == "history":
-        return history_command(args, args.retention)
-    try:
-        text = Path(args.file).read_text(encoding="utf-8").strip()
-    except OSError as error:
-        print(error, file=sys.stderr)
-        return 1
-    return type_text(text)
+    return history_command(args, args.retention)
 
 
 if __name__ == "__main__":

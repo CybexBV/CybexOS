@@ -60,8 +60,9 @@ set -euo pipefail
 printf '%s\\n' "$*" >> "$MOCK_QS_LOG"
 `);
     const home = path.join(root, "home");
-    fs.mkdirSync(path.join(home, ".local/bin"), { recursive: true });
-    executable(path.join(home, ".local/bin/cybexos-runtime"), `#!/usr/bin/env bash
+    fs.mkdirSync(home, { recursive: true });
+    // The package puts its own bin on every helper's PATH.
+    executable(path.join(bin, "cybexos-runtime"), `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$*" >> "$MOCK_RUNTIME_LOG"
 `);

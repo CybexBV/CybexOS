@@ -7,8 +7,8 @@ and compact X mark. [Source and deployment mapping](../assets/brand/README.md)
 identifies generated variants; `assets/brand/kit-sha256.json` records their
 byte identities. The lettering has no runtime font dependency.
 
-The installer and browser separately bundle their UI fonts with the existing
-font copyright and licence notices.
+The installer bundles its UI fonts with the existing font copyright and
+licence notices.
 
 Existing procedural wallpaper provenance, generator digests, pinned third-party
 design references and historical patch authors remain unchanged. Third-party
@@ -16,5 +16,7 @@ marks and notices retain their original owners. See the Quickshell
 `assets/THIRD_PARTY_LICENSES.md`.
 
 John must perform a trademark search for **Cybex OS**; no clearance is asserted.
-The existing owner distribution review still applies to the actual release
-closure and compiled browser output.
+The existing owner distribution review
+([`assets/distribution-review.json`](../assets/distribution-review.json)) still
+applies to the actual release closure. Its `web` scope concerns the website,
+which is no longer built from this repository.

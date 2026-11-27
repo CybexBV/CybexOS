@@ -102,7 +102,7 @@ test("the lock screen renders the shell's font and colours over a solid base", (
     // $FAIL is the latest failure from PAM or hyprlock's fingerprint check.
     assert.equal(field.fail_text, '<span foreground="##ff8f8f">$FAIL</span>');
     // The fingerprint prompt under the field is empty, so unseen, unless
-    // cybexos-runtime turns on hyprlock's fprintd check (docs/security.md).
+    // cybexos-runtime turns on hyprlock's fprintd check.
     const prompt = section(config, "label", 2);
     assert.equal(prompt.text, "$FPRINTPROMPT");
     assert.equal(prompt.color, "rgba(b3afa4ff)");

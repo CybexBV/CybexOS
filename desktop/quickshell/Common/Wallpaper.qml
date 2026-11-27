@@ -153,7 +153,7 @@ Singleton {
     function requestDirectory(path) {
         const normalized = SettingsHelpers.pathIn(path, "");
         if (normalized === "") {
-            directoryError = "Choose an absolute folder or a path under ~/";
+            directoryError = I18n.tr("Choose an absolute folder or a path under ~/");
             return;
         }
         if (normalized === Settings.wallDir) {
@@ -177,7 +177,7 @@ Singleton {
             return;
         candidateTimeout.stop();
         if (candidateModel.count < 1) {
-            directoryError = "Folder is unreadable or has no supported images";
+            directoryError = I18n.tr("Folder is unreadable or has no supported images");
             pendingDir = "";
             return;
         }
@@ -226,7 +226,7 @@ Singleton {
         id: candidateTimeout
         interval: 2500
         onTriggered: {
-            root.directoryError = "Folder could not be read";
+            root.directoryError = I18n.tr("Folder could not be read");
             root.pendingDir = "";
         }
     }

@@ -1,11 +1,10 @@
 {
-  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
+  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs for a release, started by hand on the release branch, and on the Nixpkgs and vendor update branches.",
   "steps": [
     {
       "name": "regression",
       "where": "beast-nix",
-      "about": "The source and fixture regression suite, with the linters (tests/lint: Ruff, ShellCheck, actionlint).",
-      "unless": ["docs/**", "*.md", "release/notes.md", "assets/**", ".github/**"],
+      "about": "The source and fixture regression suite, with the linters (tests/lint: Ruff, ShellCheck, actionlint). It runs for every change: its tests also read the docs, the workflows, the release notes and assets/scripts.",
       "run": "tests/fast-test-container tests/run",
       "timeout": 20
     },
@@ -14,7 +13,7 @@
       "where": "beast-nix",
       "about": "QML lint and the shell's runtime tests (Settings, Software, Software Update, Welcome, shortcuts, wallpapers, displays, media, plugins), when the code they run changed. Each test's Quickshell has a home, runtime directory, session bus and compositor of its own, so the step runs beside the others and beside another run.",
       "when": ["desktop/**", "assets/scripts/**", "lifecycle/cybexos/software.py", "lifecycle/cybexos/common.py",
-        "tests/qml-lint", "tests/shell-checks", "tests/checks.bash", "tests/shell_fonts.py", "tests/fast-test-container",
+        "tests/qml-lint", "tests/shell-checks", "tests/omarchy-plugins/**", "tests/user-widgets/**", "tests/qml-lifecycle/**", "tests/qml-lifecycle.py", "tests/checks.bash", "tests/shell_fonts.py", "tests/fast-test-container",
         "tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
         "tests/update-flow.py", "tests/app-windows.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py",
@@ -40,12 +39,13 @@
       "unless": ["tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
         "tests/update-flow.py", "tests/app-windows.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py",
-        "tests/assistant-overlay.py", "tests/settings-runtime.py", "tests/omarchy-runtime.py"],
+        "tests/assistant-overlay.py", "tests/settings-runtime.py", "tests/omarchy-runtime.py",
+        "tests/plugin-packages.py", "tests/theme-packs.py", "tests/system-settings.py", "tests/settings-ownership.py", "tests/qml-lifecycle.py"],
       "run": "tests/fast-test-container sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
     },
     {
       "name": "lint",
-      "about": "The linters, for the workflows and scripts the regression step (which runs them too) skips.",
+      "about": "A quick first run of the linters here, for the workflows and scripts; the regression step runs them too.",
       "when": [".github/**", "assets/**"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/lint"
     },

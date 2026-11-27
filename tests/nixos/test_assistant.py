@@ -737,7 +737,8 @@ class SnapshotTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.home, ignore_errors=True)
 
-    def test_undo_restores_preferences_and_removes_created_files(self):
+    # Undo itself goes through the change log (test_assistant_wiz.py).
+    def test_a_turn_lists_the_preferences_and_files_it_changed(self):
         snapshots = policy.Snapshots(self.home)
         snapshots.begin()
         widget = self.home / ".local/share/cybexos/plugins/personal.cpu/Widget.qml"
@@ -747,22 +748,6 @@ class SnapshotTest(unittest.TestCase):
         widget.write_text("Item {}")
         self.assertEqual(snapshots.finish(), ["~/.config/cybexos/shell.json",
                                               "~/.local/share/cybexos/plugins/personal.cpu/Widget.qml"])
-        restored, skipped = snapshots.undo()
-        self.assertEqual((len(restored), skipped), (2, []))
-        self.assertEqual(self.shell.read_text(), "before")
-        self.assertEqual(self.shell.stat().st_mode & 0o777, 0o640)
-        self.assertFalse(widget.parent.exists())
-        self.assertTrue((self.home / ".local/share/cybexos/plugins").exists())
-
-    def test_later_edits_are_not_overwritten(self):
-        snapshots = policy.Snapshots(self.home)
-        snapshots.begin()
-        self.shell.write_text("assistant")
-        snapshots.finish()
-        self.shell.write_text("person")
-        restored, skipped = snapshots.undo()
-        self.assertEqual((restored, skipped), ([], ["~/.config/cybexos/shell.json"]))
-        self.assertEqual(self.shell.read_text(), "person")
 
     def test_plugins_and_staged_changes(self):
         before = policy.plugin_manifests(self.home)

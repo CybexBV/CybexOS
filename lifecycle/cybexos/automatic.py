@@ -21,10 +21,10 @@ LAST_RUN = 'update-automatic-run.json'
 DEFAULTS = {'prepare': True, 'confirm': True}
 # A failed automatic preparation of the same target is retried at most daily.
 RETRY_SECONDS = 24 * 3600
-# A prepared update is prepared again for newer NixOS packages alone only
-# once it is this old: nixos-unstable moves every day or two, and a review
-# that is rebuilt for each snapshot never settles. A new Cybex OS release
-# replaces it straight away.
+# A prepared update is prepared again for newer NixOS packages alone (the
+# Nixpkgs revision a release was checked with, left out of a preview) only
+# once it is this old, so a review doesn't keep being rebuilt. A new Cybex OS
+# release replaces it straight away.
 OUTDATED_SECONDS = 3 * 24 * 3600
 # The requests background preparation submitted, newest last; their previews
 # may take in every available source, the person's own keep their sources.

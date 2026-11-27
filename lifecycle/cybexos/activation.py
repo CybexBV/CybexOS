@@ -91,6 +91,8 @@ class ActivationMixin:
 
     def apply(self, identifier, token):
         with locked(self.state / 'operation.lock'):
+            if (self.state / 'maintenance-pending.json').exists():
+                raise Failure('Storage cleanup awaits recovery. Complete it before applying.')
             tx = self.tx(identifier)
             self.run.log = tx / 'build.log'
             record = read(tx / 'deployment.json')

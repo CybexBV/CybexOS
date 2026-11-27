@@ -32,10 +32,15 @@ file; personal modules and persistent data are separate from vendor releases.
 - [Cybex OS Assistant](docs/assistant.md)
 - [Release publishing and signing keys](docs/releasing.md)
 - [Recovery, persistence and garbage collection](docs/recovery.md)
+- [Shell crash recovery](docs/shell-recovery.md)
 - [System check (`cybex doctor`)](docs/system-check.md)
 - [Hardware and security](docs/hardware-security.md)
 - [Hardware support and qualification](docs/hardware-support.md)
 - [Matched laptops: Dell XPS 2026 and HP ZBook Ultra G1a](docs/laptop-support.md)
+- [Music player in the menubar](docs/media-player.md)
+- [Lid handling and external displays](docs/power.md)
+- [Desktop integration boundaries](docs/integration-boundaries.md)
+- [Artwork and licensing](docs/licensing.md)
 - [Validation status](docs/validation.md)
 
 Each release pins the Nixpkgs revision its full check built, and an update

@@ -27,3 +27,20 @@ test('every Hyprland configuration and fixture Lua file compiles under Lua 5.5',
         assert.equal(result.status, 0, result.stderr);
     }
 });
+test('the workspace and mode fixtures pass under Lua 5.5', () => {
+    assert.ok(lua, 'Lua is required: run these tests through nix develop');
+    // The modules keep state under HOME and the XDG directories: all of them private.
+    const home = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'cybexos-hypr-lua-'));
+    const env = {...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'),
+        XDG_STATE_HOME: path.join(home, '.local/state'), XDG_RUNTIME_DIR: path.join(home, 'run')};
+    for (const directory of [env.XDG_CONFIG_HOME, env.XDG_STATE_HOME, env.XDG_RUNTIME_DIR])
+        fs.mkdirSync(directory, {recursive: true, mode: 0o700});
+    try {
+        const result = spawnSync(lua, ['tests/fixtures/hyprland-workspace-modes.lua'],
+            {cwd: root, encoding: 'utf8', env});
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        assert.match(result.stdout, /fixtures passed \(\d+ assertions\)/);
+    } finally {
+        fs.rmSync(home, {recursive: true, force: true});
+    }
+});

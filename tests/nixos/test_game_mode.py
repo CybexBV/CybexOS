@@ -187,8 +187,7 @@ class GameMode(unittest.TestCase):
                 self.assertEqual(self.game_mode(*arguments).returncode, 2)
 
     def test_the_helper_is_a_shared_user_helper_bound_to_super_shift_g(self):
-        contract = json.loads((ROOT / "assets/desktop-contract.json").read_text())
-        self.assertIn("game-mode", contract["userHelpers"])
+        # Every file in assets/scripts is installed on the session's PATH (nix/packages/desktop.nix).
         self.assertTrue(os.access(HELPER, os.X_OK))
         # Nix rewrites the interpreter into the store. Retain isolated mode
         # in both portable source and the packaged executable.

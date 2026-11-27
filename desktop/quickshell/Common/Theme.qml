@@ -30,7 +30,6 @@ Singleton {
         || ["1", "true", "yes", "on"].includes(reducedMotionValue)
     readonly property var metrics: ShellMetrics.calculate(Settings)
     readonly property real typeScale: metrics.fontScale
-    readonly property real densityScale: metrics.density
     readonly property real contentScale: metrics.spacingScale
     readonly property int fontBaseSize: metrics.fontBase
     function scaled(value, scale) {
@@ -206,15 +205,8 @@ Singleton {
     readonly property color barAmber: SettingsHelpers.ensureContrast(
         themePaletteActive ? themeColors.amber : barLightForeground ? "#ffc26e" : "#b5761e",
         barBg.toString(), 4.5)
-    readonly property var barAmberPalette: SettingsHelpers.barPalette(barAmber)
-    readonly property color barAmberFg: barAmberPalette.foreground
-    readonly property color barGreen: SettingsHelpers.ensureContrast(
-        themePaletteActive ? themeColors.green : barLightForeground ? "#63d68c" : "#1f9d57",
-        barBg.toString(), 4.5)
     readonly property color barRedBg: Qt.rgba(
         barRedText.r, barRedText.g, barRedText.b, 0.18)
-    readonly property color barAmberBg: Qt.rgba(
-        barAmber.r, barAmber.g, barAmber.b, barLightForeground ? 0.17 : 0.14)
 
     readonly property color barWxSun: SettingsHelpers.ensureContrast(
         "#ffc26e", barBg.toString(), 4.5)
@@ -314,11 +306,6 @@ Singleton {
         textFaint.b, stateTokens.switchOffTrackAlpha)
     readonly property color switchOffBorder: textMid
     readonly property color switchOffKnob: textMid
-    // Empty workspace places in the shell's own palette (previews of the bar
-    // draw barWsEmpty): a step above dotDim so the row of places still reads.
-    readonly property color wsEmpty: dark
-        ? Qt.rgba(245 / 255, 244 / 255, 251 / 255, 0.42)
-        : Qt.rgba(28 / 255, 26 / 255, 46 / 255, 0.36)
 
     // ---- text -------------------------------------------------------------
     // The design's --txt3 lands at 3.2:1 over the panel reference, below the
@@ -457,7 +444,6 @@ Singleton {
     readonly property color connected: ok
     readonly property color okBg: Qt.rgba(okSeed.r, okSeed.g, okSeed.b, dark ? 0.16 : 0.14)
     readonly property color okBgSoft: Qt.rgba(okSeed.r, okSeed.g, okSeed.b, dark ? 0.10 : 0.08)
-    readonly property color okBorder: Qt.rgba(okSeed.r, okSeed.g, okSeed.b, 0.30)
 
     // The recessed console surface sits below the surrounding tiles.
     readonly property color well: dark
@@ -523,9 +509,6 @@ Singleton {
     // group's heading): the installer's mono kickers, in the same face as the
     // data they introduce.
     readonly property string fontLabel: fontNumeric
-    // Bundled Tabler icons. Sym owns name resolution, font loading and the
-    // consistent outline rendering; views must not draw icon codepoints directly.
-    readonly property string fontIcon: "Cybex OS Tabler Outline"
 
     // One library owns the scale AND its usage by native and plugin surfaces.
     readonly property var typography: Typography.resolve(fontBaseSize)
@@ -533,7 +516,6 @@ Singleton {
     readonly property int fontMicro: typography.metadata
     readonly property int fontTiny: typography.secondary
     readonly property int fontCaption: typography.caption
-    readonly property int fontSecondary: typography.secondary
     readonly property int fontBody: typography.primary
     readonly property int fontHeading: typography.heading
     readonly property int fontProminent: typography.title
@@ -553,7 +535,6 @@ Singleton {
     readonly property int weightMedium: 500
     readonly property int weightSemibold: 600
     readonly property int weightBold: 700
-    readonly property int weightHeavy: 750
 
     readonly property int iconTiny: scaled(11, typeScale)
     readonly property int iconSmall: scaled(13, typeScale)
@@ -597,7 +578,6 @@ Singleton {
     readonly property int tooltipHeight: scaled(28)
 
     readonly property int popWidth: scaled(408, contentScale)
-    readonly property int popWideWidth: scaled(448, contentScale)
     // The edge drawer and the Day sheet: attached surfaces from the 2026-09
     // redesign. The drawer holds one width across all its tabs so switching
     // never slides the surface; the sheet hangs under the clock.
@@ -610,10 +590,6 @@ Singleton {
     // two-line tile does not grow or clip when its actions are revealed.
     readonly property int inlineActionHeight: scaled(32)
     readonly property int settingsControlHeight: Math.max(scaled(28), fontBody + scaled(12))
-    readonly property int rowHeight: scaled(52)
-    readonly property int tileHeight: scaled(64)
-    readonly property int calendarCellSize: scaled(22)
-    readonly property int pickerRowHeight: scaled(40)
     // A panel takes the shared surface corner and everything inside it takes the bar's
     // chip corner. `surfaceRadius` stays where it is: it is the compositor's
     // window rounding (desktop/hypr/looknfeel.lua) and the Hug corners
@@ -630,7 +606,6 @@ Singleton {
     }
     readonly property int cardRadius: chipRadius
     readonly property int rowRadius: chipRadius
-    readonly property int tileRadius: chipRadius
     // Wiz's box keeps its approved mockup's rounder corners instead of the
     // concentric rule (John, 2026-11-27): popups and question bubbles 14,
     // blocks across the box 12, segment tracks 10, rows and buttons 8, a
@@ -682,10 +657,6 @@ Singleton {
     // closed by a hairline. The footer carries one line and no more.
     readonly property int panelHeaderHeight: scaled(52)
     readonly property int panelFooterHeight: scaled(30)
-    // A row that genuinely carries two lines — a device and what it is doing,
-    // a track and its artist. Most rows do not: one line and a right-aligned
-    // qualifier is the shell's default, and `listRowHeight` is that.
-    readonly property int panelTileHeight: scaled(48)
     // Between two rows in one group, and between two groups.
     readonly property int panelRowSpacing: scaled(2)
     readonly property int panelSectionSpacing: scaled(16)
@@ -767,9 +738,6 @@ Singleton {
     // Cross-fade when one panel morphs into another in the same surface.
     readonly property int popoutContentFadeDuration: reducedMotion ? 0 : 150
     readonly property int popoutContentRevealDelay: reducedMotion ? 0 : 30
-    // A row entering a list: the per-item stagger and its cap.
-    readonly property int staggerStep: reducedMotion ? 0 : 26
-    readonly property int staggerMax: 8
 
     // Bar popouts answer more quickly than modal surfaces. Opening and closing
     // are directional; only an already-open card morphing between triggers
@@ -797,8 +765,4 @@ Singleton {
     readonly property int launcherTravel: reducedMotion ? 0 : 8
     readonly property var launcherEnterCurve: popoutEnterCurve
     readonly property var launcherExitCurve: popoutExitCurve
-
-    readonly property int popoutTabMinWidth: 104
-    readonly property int popoutTabPadding: 24
-    readonly property int popoutTabRadius: 17
 }

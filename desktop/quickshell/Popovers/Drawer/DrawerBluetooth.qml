@@ -170,7 +170,7 @@ Column {
                 return;
             }
             if (root.visible && root.powered && root.error === "")
-                root.error = "Bluetooth controls stopped. Reopen this tab to retry.";
+                root.error = I18n.tr("Bluetooth controls stopped. Reopen this tab to retry.");
         }
     }
 

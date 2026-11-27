@@ -15,7 +15,6 @@ Singleton {
     property string actionInFlight: ""
     property string actionError: ""
     property string actionOutput: ""
-    readonly property bool actionBusy: sessionAction.running
 
     // The cheatsheet's groups, read from Hyprland's live bindings each time
     // it opens (KeybindHelpers.js documents the description convention). A

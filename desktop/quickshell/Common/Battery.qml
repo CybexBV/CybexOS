@@ -23,7 +23,6 @@ Singleton {
     readonly property string state: StatusHelpers.chargeState(device)
     readonly property bool pluggedIn: StatusHelpers.isPluggedIn(device, UPower.onBattery)
     readonly property bool charging: state === "charging"
-    readonly property bool full: state === "full"
     readonly property string statusText: StatusHelpers.batteryStatus(
         state, pluggedIn, BatteryHealth.known && BatteryHealth.enabled)
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Static QML analysis for the quickshell config: catches syntax errors and
 # unresolved references before a shell reload, complementing the runtime
-# journal grep in tests/verify-system.
+# journal check in tests/lib/quickshell-live.
 #
 # Batched qmllint invocations over slices of the tree, run side by side
 # (spawning it per file costs ~4x as much; a single invocation leaves the

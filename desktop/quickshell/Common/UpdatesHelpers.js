@@ -503,7 +503,7 @@ function elapsed(seconds) {
 function downloadSize(bytes) {
     const value = Number.isFinite(bytes) && bytes >= 0 ? bytes : 0;
     return value >= 1e9 ? (value / 1e9).toFixed(1) + " GB"
-        : value >= 1e6 ? (value / 1e6).toFixed(1) + " MB" : Math.round(value / 1000) + " kB";
+        : value >= 1e6 ? (value / 1e6).toFixed(1) + " MB" : Math.round(value / 1000) + " KB";
 }
 
 // Times in Software Update follow the clock's 12/24-hour setting, as the

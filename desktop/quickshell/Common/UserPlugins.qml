@@ -108,14 +108,14 @@ Singleton {
 
     function settleDiscovery(code, text, timedOut) {
         if (code !== 0 || timedOut) {
-            discoveryError = timedOut ? "Plugin discovery timed out" : "Could not inspect user widgets";
+            discoveryError = timedOut ? I18n.tr("Plugin discovery timed out") : I18n.tr("Could not inspect user widgets");
             return;
         }
         try {
             const result = JSON.parse(text);
             if (!result || result.error || !(Array.isArray(result.plugins) || result.plugins instanceof Array)) {
                 // A malformed registry must never unload the last good set.
-                discoveryError = result && result.error || "Could not read user widgets";
+                discoveryError = result && result.error || I18n.tr("Could not read user widgets");
                 return;
             }
             // Recovery can return the very same bytes as the last good scan.
@@ -128,7 +128,7 @@ Singleton {
             plugins = result.plugins;
             lastResult = text;
         } catch (exception) {
-            discoveryError = "Could not read user widgets";
+            discoveryError = I18n.tr("Could not read user widgets");
         }
     }
 
@@ -217,7 +217,7 @@ Singleton {
             if (!scanner.running)
                 return;
             scanner.timedOut = true;
-            root.discoveryError = "Plugin discovery timed out";
+            root.discoveryError = I18n.tr("Plugin discovery timed out");
             scanner.running = false;
         }
     }

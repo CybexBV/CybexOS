@@ -20,6 +20,9 @@ let
   omasnap = callPackage ./omasnap.nix {};
   # QML helpers inherit this interpreter from the managed desktop. A plain
   # python3 earlier in PATH would shadow the system's withPackages environment.
+  # websockets, like QtWebSockets and Qt5Compat on the QML path below, is for
+  # plugins: no core shell file imports them, but widgets moved out to plugins
+  # (the T3 Code and Hermes ones, Model Usage) and Omarchy plugins do.
   python = python3.withPackages (p: [ p.pygobject3 p.pillow p.dbus-python p.websockets ]);
   # QML and shell helpers run these commands directly. Bind them into the
   # desktop environment so optional developer tools or ambient host PATH cannot
@@ -57,7 +60,7 @@ in stdenv.mkDerivation {
   src = import ../package-source.nix {
     inherit lib source;
     paths = [
-      "desktop/quickshell" "desktop/hypr" "desktop/defaults" "desktop/fastfetch"
+      "desktop/quickshell" "desktop/hypr" "desktop/defaults"
       # Software's app catalogue and icons; not its maintainer sources.
       "desktop/software/catalogue.json" "desktop/software/icons" "desktop/software/marks/THIRD_PARTY_LICENSES.md"
       "desktop/icons/hicolor" "desktop/bin" "assets/brand" "assets/wiz"
@@ -76,7 +79,9 @@ in stdenv.mkDerivation {
     cp -r desktop/quickshell $out/share/cybexos/runtime/
     cp -r desktop/hypr $out/share/cybexos/runtime/
     cp -r desktop/defaults $out/share/cybexos/
-    cp -r desktop/fastfetch $out/share/cybexos/
+    # fastfetch's logos, from the brand kit (scripts/export-brand.py).
+    mkdir -p $out/share/cybexos/fastfetch
+    cp assets/brand/ascii/* $out/share/cybexos/fastfetch/
     # /share/cybexos is linked into the system profile: Software reads
     # /run/current-system/sw/share/cybexos/software, following the generation.
     mkdir -p $out/share/cybexos/software

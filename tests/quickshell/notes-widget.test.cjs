@@ -81,7 +81,7 @@ test("Notes owns one center popout and every loader/index knows it", () => {
 
 test("Notes persistence and title generation are independently queued and retryable", () => {
     const notes = read("Common/Notes.qml");
-    for (const property of ["records", "ready", "saving", "error", "undoAvailable"])
+    for (const property of ["records", "ready", "error", "undoAvailable"])
         assert.match(notes, new RegExp(`property[^\\n]*${property}|property ${property}`));
     for (const fn of ["add", "update", "updateTitle", "remove", "undoDelete",
         "retrySave", "requestTitle", "retryTitle", "titlePending", "titleError"])

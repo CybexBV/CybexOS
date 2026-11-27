@@ -13,6 +13,7 @@ function harness() {
         mutationError: "", discoveryError: "", operationResult: "", pendingWrites: [],
         writer: { running: false, command: [] }, refreshes: 0,
         ProcHelpers: load("ProcHelpers.js"), Qt: { callLater(fn) { later.push(fn); } },
+        I18n: { tr: text => text },
         refresh() { context.refreshes++; },
         widgetMembershipFinished(...args) { signals.push(args); }
     });

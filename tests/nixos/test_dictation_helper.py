@@ -293,13 +293,6 @@ class TypeTests(HelperTest):
     def test_nothing_to_type_is_its_own_outcome(self) -> None:
         self.assertEqual(MODULE.type_text("", lambda c: self.fail("nothing runs")), 3)
 
-    def test_the_command_line_reads_and_trims_the_transcript(self) -> None:
-        transcript = self.root / "transcript.txt"
-        transcript.write_text("  Words.\n")
-        with mock.patch.object(MODULE, "type_text", return_value=0) as typed:
-            self.assertEqual(MODULE.main(["type", str(transcript)]), 0)
-        typed.assert_called_once_with("Words.")
-
 
 class CancelTests(HelperTest):
     def test_cancelling_a_download_removes_its_partial_file(self) -> None:

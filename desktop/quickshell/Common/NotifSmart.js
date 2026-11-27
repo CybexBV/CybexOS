@@ -60,10 +60,6 @@ function safeMailtoUrl(raw) {
   var h=canonicalHostname(m[2]); return h ? 'mailto:'+m[1]+'@'+h : ''
 }
 function safeExternalUrl(raw) { return /^mailto:/i.test(raw) ? safeMailtoUrl(raw) : safeHttpUrl(raw) }
-function hostOf(raw) {
-  var u=safeHttpUrl(raw), m=u.match(/^https?:\/\/([^/:?#]+)/)
-  return m ? m[1] : ''
-}
 var CODE_WORDS = /\b(verificatiecode|beveiligingscode|inlogcode|bevestigingscode|toegangscode|pincode|code|otp|one[\s-]?time|verification|verify|passcode|pin|2fa|two[\s-]factor|security key|confirm(?:ation)?)\b/i
 
 // "482913", "482 913", "84 2139", "482-913", "G-482913".

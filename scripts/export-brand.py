@@ -148,9 +148,9 @@ def ascii_logo(width):
 for kind, width in [('compact', 40), ('large', 64), ('banner', 80)]:
     colored = ascii_logo(width)
     plain = '\n'.join(line.rstrip() for line in colored.replace('$1', '').replace('$2', '').splitlines()) + '\n'
-    for prefix in ('assets/brand/ascii/', 'desktop/fastfetch/'):
-        write(prefix + f'cybexos-{kind}.fastfetch.txt', colored)
-        write(prefix + f'cybexos-{kind}.txt', plain)
+    # The desktop package installs these for fastfetch (nix/packages/desktop.nix).
+    write(f'assets/brand/ascii/cybexos-{kind}.fastfetch.txt', colored)
+    write(f'assets/brand/ascii/cybexos-{kind}.txt', plain)
 
 write('assets/brand/kit-sha256.json', json.dumps({'schema': 1, 'files': files}, indent=2) + '\n')
 print(f'Exported {len(files)} Cybex OS assets from {SOURCE.relative_to(ROOT)}')

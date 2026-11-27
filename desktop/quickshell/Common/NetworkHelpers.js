@@ -179,6 +179,7 @@ function formatNumber(value, digits) {
     return number.toFixed(digits).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
+// Decimal units, as for storage (docs/shell-states.md#formats): 1 KB is 1000 bytes.
 function formatBytes(value) {
     if (value === null || value === undefined || value === "")
         return "--";
@@ -187,8 +188,8 @@ function formatBytes(value) {
         return "--";
     var units = ["B", "KB", "MB", "GB", "TB", "PB"];
     var unit = 0;
-    while (number >= 1024 && unit < units.length - 1) {
-        number /= 1024;
+    while (number >= 1000 && unit < units.length - 1) {
+        number /= 1000;
         unit++;
     }
     var digits = unit === 0 || number >= 100 ? 0 : number >= 10 ? 1 : 2;
@@ -407,39 +408,6 @@ function networkBySsid(networks, ssid) {
     return {
         ssid: text(ssid), signal: -1, security: "", connected: false,
         known: false, profileUuid: "", missing: true
-    };
-}
-
-function availableBands(networks, activeSsid) {
-    var found = {};
-    ((Array.isArray(networks) || networks instanceof Array) ? networks : []).forEach(function (network) {
-        if (ssidOf(network) !== text(activeSsid))
-            return;
-        networkFrequencies(network).forEach(function (frequency) {
-            var band = bandForFrequency(frequency);
-            if (band !== "")
-                found[band] = true;
-        });
-    });
-    return ["2.4", "5", "6"].filter(function (band) { return found[band]; });
-}
-
-function bandState(profile, networks, activeSsid, currentFrequency) {
-    var selected = text(profile && (profile.selectedBand || profile.bandChoice));
-    var rawBand = text(profile && profile.band).toLowerCase();
-    if (selected === "") {
-        if (rawBand === "bg")
-            selected = "2.4";
-        else if (rawBand === "a")
-            selected = Number(profile && profile.channel) > 180 ? "6" : "5";
-        else
-            selected = "auto";
-    }
-    return {
-        selected: selected,
-        current: bandForFrequency(currentFrequency),
-        available: availableBands(networks, activeSsid),
-        automatic: selected === "auto"
     };
 }
 
@@ -688,8 +656,6 @@ var exported = {
     networkListKey: networkListKey,
     networkListIds: networkListIds,
     networkBySsid: networkBySsid,
-    availableBands: availableBands,
-    bandState: bandState,
     isIpv4: isIpv4,
     isIpv6: isIpv6,
     validateDnsServers: validateDnsServers,

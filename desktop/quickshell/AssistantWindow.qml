@@ -315,8 +315,11 @@ PanelWindow {
         }
     }
 
+    // Each read starts hyprctl, and a pointer resting beside him keeps him
+    // faded, so this repeats for as long as it rests there: a quarter second
+    // keeps his return prompt without a process every frame.
     Timer {
-        interval: 90
+        interval: 250
         repeat: true
         running: root.faded && root.visible
         onTriggered: cursorProbe.poll()

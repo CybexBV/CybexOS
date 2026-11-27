@@ -201,8 +201,8 @@ render_hypridle_config() {
   fi
 }
 
-# Prints the lock screen the system theme rendered in the shell's colours
-# (docs/system-theme.md), or fails so the vendor file is used. Only a regular
+# Prints the lock screen the system theme rendered in the shell's colours,
+# or fails so the vendor file is used. Only a regular
 # file whose first line is the renderer's header counts: the renderer replaces
 # it atomically, and hyprlock skips entries it cannot parse rather than
 # refusing to lock, so a damaged file costs the look, never the lock.
@@ -217,7 +217,7 @@ themed_hyprlock_config() {
 }
 
 # Whether this account registered a security key in the pam_u2f mapping the
-# lock screen's PAM service reads (docs/security.md).
+# lock screen's PAM service reads (Settings > Security).
 registered_security_key() {
   local mapping=$HOME/.config/Yubico/u2f_keys user line
   [[ -f $mapping && ! -L $mapping ]] || return 1

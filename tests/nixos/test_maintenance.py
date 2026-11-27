@@ -78,7 +78,7 @@ class MaintenanceTests(unittest.TestCase):
         atomic(self.engine.pending_path, {'phase':'boot'})
         with self.assertRaises(Failure): self.maintenance.preview()
         self.engine.pending_path.unlink()
-        atomic(self.engine.status_path, {'state':'ready'})
+        atomic(self.engine.status_path, {'state':'building'})
         with self.assertRaises(Failure): self.maintenance.preview()
         atomic(self.engine.status_path, {'state':'done'})
         unexpected = self.engine.tx(self.records[0]['id']) / 'roots/unknown'
@@ -87,6 +87,25 @@ class MaintenanceTests(unittest.TestCase):
         unexpected.unlink()
         self.booted.unlink(); self.booted.symlink_to('/nix/store/' + 'a'*32 + '-other')
         with self.assertRaisesRegex(Failure, 'confirmed system boot'): self.maintenance.preview()
+
+    def test_cleanup_keeps_a_prepared_update_waiting_for_review(self):
+        self.setup_retention()
+        identifier = 'b' * 32
+        tx = self.engine.tx(identifier); tx.mkdir()
+        record = {'id': identifier, 'system': '/nix/store/' + 'b' * 32 + '-system',
+                  'previousSystem': self.records[-1]['system'], 'createdAt': self.now - 50 * 86400}
+        atomic(tx / 'deployment.json', record)
+        (tx / 'roots').mkdir(); (tx / 'roots/system').symlink_to(record['system'])
+        atomic(self.engine.status_path, {'state': 'ready', 'transaction': identifier})
+        plan = self.maintenance.preview()
+        self.assertNotIn(identifier, plan['candidates'])
+        self.maintenance.clean(plan['id'], plan['token'])
+        self.assertTrue((tx / 'roots/system').is_symlink())
+        self.assertFalse((tx / 'retired.json').exists())
+        # An interrupted cleanup holds the preview back until it is recovered.
+        atomic(self.maintenance.pending, {'id': plan['id']})
+        with self.assertRaisesRegex(Failure, 'Storage cleanup awaits recovery'):
+            self.engine.apply(identifier, 'token')
 
     def test_interrupted_cleanup_resumes_before_gc_and_keeps_journal_until_success(self):
         self.setup_retention()

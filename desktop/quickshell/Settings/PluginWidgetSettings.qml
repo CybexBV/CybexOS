@@ -48,7 +48,7 @@ Column {
                 throw new Error("Keep the same value type for " + key + ".");
             setValue(key, value);
         } catch (error) {
-            validationError = "Invalid value for " + key + ": " + error.message;
+            validationError = I18n.format("Invalid value for %1: %2", [key, error.message]);
         }
     }
     SliderRow {
@@ -394,7 +394,7 @@ Column {
                     root.setValue(keyField.text.trim(), JSON.parse(valueFieldInput.text));
                     keyField.text = "";
                     valueFieldInput.text = "";
-                } catch (error) { root.validationError = "Enter a valid JSON value: " + error.message; }
+                } catch (error) { root.validationError = I18n.format("Enter a valid JSON value: %1", [error.message]); }
             }
         }
     }

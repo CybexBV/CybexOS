@@ -60,10 +60,9 @@ suppress_refresh=0
 # cybexos-runtime names the active runtime. Best effort: the shell's own
 # settle and restore reads are the fallback for a missed call.
 refresh_shell() {
-  local runtime=${HOME:-}/.local/bin/cybexos-runtime
   ((suppress_refresh == 0)) || return 0
-  [[ -x $runtime ]] || return 0
-  "$runtime" ipc reminders refresh >/dev/null 2>&1 || true
+  command -v cybexos-runtime >/dev/null 2>&1 || return 0
+  cybexos-runtime ipc reminders refresh >/dev/null 2>&1 || true
 }
 
 list_json() {
