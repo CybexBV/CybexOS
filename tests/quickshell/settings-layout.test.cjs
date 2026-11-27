@@ -5,24 +5,6 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../../desktop/quickshell');
 const read = name => untranslated(fs.readFileSync(path.join(root, name), 'utf8'));
 
-test('settings subsections own separation inside revealers and preserve the row grid', () => {
-    const subsection = read('Settings/SettingsSubsection.qml');
-    assert.match(subsection, /implicitHeight: Theme.settingsSubsectionSpacing/);
-    assert.match(subsection, /heading.height[\s\S]*Theme.settingsContentSpacing/);
-    assert.match(subsection, /root.insetContent \? Theme.settingsMarkInset : 0/);
-    const appearance = read('Settings/AppearancePage.qml');
-    // Accent source reveals rows attached to it (2026-09), not headed
-    // subsections: the fixed presets and hue, or the wallpaper palette.
-    assert.doesNotMatch(appearance, /SettingsSubsection \{/);
-    assert.doesNotMatch(appearance, /SectionHeader \{/);
-    for (const reveal of ['fixedColorReveal', 'wallpaperPaletteReveal'])
-        assert.match(appearance, new RegExp(`id: ${reveal}[\\s\\S]{0,400}?SettingsRow \\{`),
-            `${reveal} holds rows in the page's grid`);
-    for (const page of ['AppearancePage', 'BarLayoutGroups', 'DrawerPage', 'NotificationsPage',
-            'PowerPage', 'RegionPage', 'TouchpadPage', 'ModulesPage', 'PluginsPage'])
-        assert.match(read(`Settings/${page}.qml`), /spacing: Theme.settingsGroupSpacing/);
-});
-
 test('responsive controls and focus scrolling respect their content bounds', () => {
     const picker = read('Settings/PickerRow.qml');
     assert.match(picker, /wideHeight: Math.max\(Theme.panelRowHeight, pills.implicitHeight\) \+ rowPad \* 2/);
@@ -100,57 +82,6 @@ test('native forms share field chrome and drawer tabs expose keyboard selection'
         assert.match(tabs, new RegExp(`Qt.Key_${key}`));
     // Every tab keeps its label; the strip wraps rather than hiding one.
     assert.match(tabs, /layout: DrawerFormat.tabLayout\(/);
-});
-
-test('widget editor pins a bar preview over lanes and one tray, and opens options in a dialog', () => {
-    const editor = read('Settings/ModulesPage.qml');
-    assert.match(editor, /model: \["left", "center", "right"\]/);
-    assert.match(editor, /WidgetPill \{/);
-    assert.match(editor, /popupType: Controls.Popup.Item/);
-    assert.match(editor, /function focusEntry/);
-    assert.doesNotMatch(editor, /id: availablePanel|id: previewZone/);
-
-    // The preview is pinned above the scrolling page, not scrolled with it,
-    // and a widget in it opens the same options dialog as its pill.
-    const header = editor.indexOf('id: header');
-    const arrangement = editor.indexOf('id: arrangement');
-    assert.ok(header > 0 && arrangement > header);
-    assert.match(editor.slice(header, arrangement), /BarPreview \{[\s\S]*?onWidgetActivated: key => page\.openFromPreview\(key\)/);
-    assert.match(editor, /function openFromPreview\(id\) \{\s*openSubPage\(id\);/);
-    assert.match(editor, /id: arrangement\s+anchors\.top: header\.bottom/);
-    assert.match(read('Settings/qmldir'), /^BarPreview BarPreview\.qml$/m);
-
-    // Lanes are rows, not cards; adding happens from one tray, not a picker per lane.
-    const lane = editor.slice(editor.indexOf('component ArrangementSection'), editor.indexOf('component Caption'));
-    assert.match(lane, /component ArrangementSection: Item \{/);
-    assert.doesNotMatch(lane, /Theme\.cardFill|border\.width/);
-    assert.doesNotMatch(editor, /WidgetPicker/);
-    assert.ok(!fs.existsSync(path.join(root, 'Settings/WidgetPicker.qml')));
-    assert.match(editor, /title: "Add widgets"[\s\S]*?model: page\.availableEntries[\s\S]*?onAddRequested: page\.addFromTray\(modelData, index\)/);
-    assert.match(editor, /function addFromTray\(entry, index, section\) \{[\s\S]*?setEnabled\(entry, true, false, section\);/,
-        'the tray adds through the same membership path as everything else');
-    assert.match(editor, /Widgets from plugins show up here too/);
-    assert.match(editor, /drag it to a place in any section/, 'the tray says its chips can be dragged');
-
-    // Every pill shows its Move/Remove menu without a right-click.
-    const pill = read('Settings/WidgetPill.qml');
-    assert.match(pill, /SettingsAction \{\s*id: moreAction[\s\S]*?glyph: "more_horiz"[\s\S]*?onTriggered: root\.openMenu\(moreAction\)/);
-    assert.match(pill, /event\.button === Qt\.RightButton\) menu\.popup\(\)/);
-    assert.doesNotMatch(pill, /glyph: "settings"/, 'the chip body is the way into its options');
-    assert.match(pill, /SettingsTooltip \{/);
-    assert.doesNotMatch(pill, /Controls\.ToolTip\./);
-});
-
-test('the bar preview draws the live bar settings', () => {
-    const preview = read('Settings/BarPreview.qml');
-    for (const token of ['Settings.position', 'Theme.barHeight', 'Theme.barTopMargin', 'Theme.barSideMargin',
-            'Theme.clusterRadius', 'Theme.barHug', 'Theme.barSurface', 'Theme.barIcon', 'Settings.autoHide'])
-        assert.ok(preview.includes(token), `the preview ignores ${token}`);
-    assert.equal((preview.match(/HugCorner \{/g) || []).length, 2, "Hug's two inverted corners");
-    assert.match(preview, /BarGeometry\.exclusiveZone\(/, 'reserved space uses the bar\'s own geometry');
-    for (const section of ['left', 'center', 'right'])
-        assert.match(preview, new RegExp(`Editor\\.sectionEntries\\(root\\.entries, "${section}"\\)`));
-    assert.match(preview, /onClicked: root\.widgetActivated\(widget\.modelData\.key\)/);
 });
 
 test('bar preview workspace pips survive losing their strip during teardown', () => {

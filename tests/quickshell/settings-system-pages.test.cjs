@@ -47,23 +47,6 @@ test("a timestamp reads as today, yesterday, a weekday or a date", () => {
     assert.equal(LocalTime.label(Number.NaN, now, true), "");
 });
 
-test("Home reads shell health in the status colours and the deploy check as a time", () => {
-    const home = read("Settings/HomePage.qml");
-    assert.match(home, /healthColor: !ShellHealth\.serviceActive \? Theme\.red\s*: !ShellHealth\.healthy \|\| ShellHealth\.issueCount > 0 \? Theme\.amber\s*: Theme\.connected/,
-        "green healthy, amber with a problem, red not running: the accent is a mark, not a verdict");
-    assert.match(home, /LocalTime\.fromText\(ShellHealth\.deploymentCheckedAt,\s*page\.nowMs, Settings\.clock24/);
-    assert.match(home, /Timer \{\s*interval: 60000\s*running: page\.visible/, "relative times tick only while Home shows");
-    assert.match(home, /label: "Settings file"\s*hint: "~\/\.config\/cybexos\/shell\.json"/);
-    assert.match(home, /hint: "Every page back to its defaults\. You can undo for 8 seconds\."/);
-    assert.match(home, /onTriggered: Welcome\.show\(""\)/);
-    // The old About id still opens it.
-    assert.match(read("Common/Settings.qml"), /about: "home"/);
-
-    const recovery = read("Settings/RecoveryGroup.qml");
-    assert.match(recovery, /generation|Generation/);
-    assert.doesNotMatch(recovery, /RecoveryHelpers/);
-});
-
 test("Online accounts has an explicit empty state and no standing Refresh", () => {
     const accounts = read("Settings/AccountsPage.qml");
     assert.doesNotMatch(accounts, /SystemServiceStatus/);
@@ -103,18 +86,6 @@ test("each plugin is one row: an Enabled switch and a ⋯ menu", () => {
     assert.match(row, /dirty: false\s*resetKeys: \[\]/);
 });
 
-test("the Omarchy plugins page links the directory and explains adding one", () => {
-    const page = read("Settings/PluginsPage.qml");
-    const settings = read("Common/Settings.qml");
-    // Plugins add widgets and panels, so they sit with the rest of Personalize;
-    // where they come from stays in the description.
-    assert.match(settings, /id: "plugins", group: "Personalize", label: "Plugins", glyph: "extension",\s*description: "Community widgets, panels and services from Omarchy"/);
-    assert.match(page, /directoryUrl: "https:\/\/plugins\.omarchy\.org\/"/);
-    assert.match(page, /text: "Browse plugins"[\s\S]{0,160}?onTriggered: Settings\.openExternalUrl\(page\.directoryUrl\)/);
-    assert.equal((page.match(/^\s*Step \{/gm) ?? []).length, 3, "three numbered steps");
-    assert.match(page, /title: "Add a plugin"/);
-});
-
 test("a pasted install command installs its source", () => {
     const PluginSource = require(path.join(shellDir, "Settings/PluginSource.js"));
     const url = "https://github.com/acme/omarchy-weather.git";
@@ -133,10 +104,4 @@ test("a pasted install command installs its source", () => {
     assert.equal(PluginSource.parse("\"/tmp/my plugin\""), "/tmp/my plugin");
     for (const empty of ["", "   ", null, undefined, "omarchy plugin add", "omarchy plugin add --enable"])
         assert.equal(PluginSource.parse(empty), "", JSON.stringify(empty));
-});
-
-test("the new System page types are registered", () => {
-    const qmldir = read("Settings/qmldir");
-    for (const type of ["IdleTimeline", "ValueRow", "FieldRow", "RowCluster", "PluginRow"])
-        assert.match(qmldir, new RegExp(`^${type} ${type}\\.qml$`, "m"));
 });

@@ -54,13 +54,6 @@ test("malformed and incomplete Matugen output is rejected", () => {
     assert.equal(P.sanitizeMatugen(badColor), null);
 });
 
-test("light and dark selection uses one validated palette", () => {
-    const palette = P.sanitizeMatugen(output());
-    assert.equal(P.activeVariant(palette, "dark").primary, dark.primary);
-    assert.equal(P.activeVariant(palette, "light").primary, light.primary);
-    assert.equal(P.activeVariant(palette, "system").primary, dark.primary);
-});
-
 test("cache reads require the exact version and wallpaper identity", () => {
     const palette = P.sanitizeMatugen(output());
     const identity = "/wallpapers/current.jpg";

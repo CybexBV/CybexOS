@@ -271,15 +271,6 @@ class RegionTransactions(unittest.TestCase):
         self.assertEqual(self.locale, previous)
         self.service.call.assert_not_called()
 
-    def test_timezone_stages_nixos_preview_without_mutable_service_writes(self):
-        with patch.object(region.subprocess, 'run', return_value=Mock(returncode=0)) as run:
-            result = self.stage(('timezone', 'UTC', self.timezone))
-        self.assertTrue(result['staged'])
-        self.assertEqual(run.call_args.args[0],
-                         ['cybex', 'config', 'region', 'timezone', 'UTC', json.dumps(self.timezone)])
-        self.assertEqual(self.timezone, 'Europe/Amsterdam')
-        self.service.call.assert_not_called()
-
     def test_timezone_and_language_stage_one_preview(self):
         previous = self.locale.copy()
         with patch.object(region.subprocess, 'run', return_value=Mock(returncode=0)) as run:

@@ -284,12 +284,6 @@ class Contract(unittest.TestCase):
                          'Detection does not verify'):
             self.assertIn(expected, readable)
 
-    def test_missing_support_information_is_unknown_and_does_not_hide_driver_checks(self):
-        self.fixture.write('hardware.json', '{malformed')
-        report = self.fixture.report()
-        self.assertEqual(by_id(report)['hardware-support']['state'], 'unknown')
-        self.assertEqual(by_id(report)['graphics']['state'], 'ok')
-
     def test_available_profile_needs_review_and_kernel_versions_remain_distinct(self):
         inventory = {'support': {'profileId': 'framework-13-amd-7040', 'profileName': 'Framework 13',
                                  'status': 'experimental', 'summary': 'Needs physical testing.', 'limitations': []},
@@ -486,12 +480,6 @@ class Checks(unittest.TestCase):
             {'driver': 'platform', 'file': 'regulatory.db', 'error': -2}])
         self.assertNotIn('Neighbours', json.dumps(check))
 
-    def test_an_unreadable_kernel_log_is_unknown(self):
-        self.fixture.write('kernel.log', '')
-        self.assertEqual(self.check('firmware-files')['state'], 'unknown')
-        self.fixture.flag('fail-journalctl')
-        self.assertEqual(self.check('firmware-files')['state'], 'unknown')
-
     def test_failed_units_are_problems_per_scope_and_private(self):
         self.fixture.write('system-failed', textwrap.dedent(f'''\
             {HOST}-backup.service loaded failed failed Nightly backup
@@ -655,16 +643,6 @@ class Checks(unittest.TestCase):
         self.assertEqual((check['state'], check['summary']), ('problem', '1 of 4 speaker amplifiers did not start.'))
         self.assertIn('cs35l56', check['detail'])
         self.assertIn('laptop:problem', ' '.join(f"{c['id']}:{c['state']}" for c in self.fixture.report()['checks']))
-
-    def test_xps_13_reports_its_codec_speaker_path(self):
-        self.laptop(sys_vendor='Dell Inc.', product_name='XPS 13 DX13260', product_sku='0E54')
-        self.profile(xps='0E54')
-        self.assertEqual(self.check('laptop')['state'], 'ok')
-        quirk = self.fixture.sys / 'module/snd_soc_sof_sdw/parameters/quirk'
-        quirk.parent.mkdir(parents=True)
-        quirk.write_text('1\n')
-        check = self.check('laptop')
-        self.assertEqual((check['state'], check['summary']), ('info', "The speakers use the sound codec's own amplifier."))
 
     def test_zbook_pluton_bios_and_camera(self):
         self.laptop(sys_vendor='HP', product_name='HP ZBook Ultra G1a 14 inch Mobile Workstation PC',

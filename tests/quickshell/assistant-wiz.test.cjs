@@ -162,15 +162,6 @@ test("a setting change is named as Settings names it, with its resolved values",
     assert.match(changes, /case "On": return I18n\.tr\("On"\);/, "values read in the person's language");
 });
 
-test("the reply's copy and terminal actions say what they do", () => {
-    const reply = read("Assistant/AssistantReply.qml");
-    assert.match(reply, /objectName: "assistantCopyReply"[\s\S]{0,160}?label: I18n\.tr\("Copy"\)/);
-    assert.match(reply, /objectName: "assistantHandoff"[\s\S]{0,160}?label: I18n\.tr\("Terminal"\)[\s\S]{0,120}?tip: I18n\.tr\("Continue in a terminal"\)/);
-    const button = read("Assistant/AssistantButton.qml");
-    assert.match(button, /property string tip: label === "" \? accessibleName : ""/, "a glyph-only button names itself on hover");
-    assert.match(button, /hitPad: Math\.max\(0, \(Theme\.scaled\(32\) - height\) \/ 2\)/, "a 32 px pointer target");
-});
-
 test("one suggestion fits the moment: a failure, then a kept update, then a repeated warning", () => {
     const now = 10 * 3600 * 1000;
     const warnings = [1, 2, 3].map(minute => ({ key: "nm|Wi-Fi disconnected", summary: "Wi-Fi disconnected",

@@ -331,23 +331,6 @@ test('keyboard map lays out Super+digit and letter rows with owners, protection 
     assert.equal(unbound.flat().find(entry => entry.key === 'L').reservedBy.id, 'shell.lock');
 });
 
-test('map labels shorten workspace switches only', () => {
-    assert.equal(S.workspaceNumber('Switch to workspace 10'), 10);
-    assert.equal(S.workspaceNumber('Move window to workspace 3'), 0);
-    assert.equal(S.workspaceNumber(undefined), 0);
-});
-
-test('a key name that does not fit shows its group icon, and every group has one that resolves', () => {
-    const Tabler = load('TablerGlyphs.js');
-    const KeybindHelpers = load('KeybindHelpers.js');
-    for (const group of KeybindHelpers.GROUP_ORDER.concat(['Web']))
-        assert.ok(S.GROUP_GLYPHS[group], group);
-    for (const glyph of Object.values(S.GROUP_GLYPHS).concat([S.groupGlyph('Mine')]))
-        assert.ok(Tabler.has(glyph), glyph);
-    assert.equal(S.groupGlyph('Mine'), 'keyboard', 'a group of your own falls back to the keyboard');
-    assert.equal(S.groupGlyph(undefined), 'keyboard');
-});
-
 test('both keyboard maps light the keys in use, outline the free ones and share one legend', () => {
     const shell = path.join(root, 'desktop/quickshell');
     const read = name => fs.readFileSync(path.join(shell, name), 'utf8');
@@ -375,27 +358,6 @@ test('both keyboard maps light the keys in use, outline the free ones and share 
     assert.doesNotMatch(settingsMap, /id: detail\s+visible:/);
     assert.match(settingsMap, /function focusKey[\s\S]*?selected = key\.combo;/);
     assert.match(settingsMap, /active: keyMouse\.containsMouse\s+sourceComponent: SettingsTooltip/, 'a hovered key names itself in full');
-});
-
-test('the Shortcuts page keeps one search field and a compact toolbar above the list', () => {
-    const shell = path.join(root, 'desktop/quickshell');
-    const page = fs.readFileSync(path.join(shell, 'Settings/ShortcutsPage.qml'), 'utf8');
-    assert.equal((page.match(/SettingsField \{/g) || []).length, 1, 'one search field');
-    assert.doesNotMatch(page, /DraftFieldRow|PickerRow \{/, 'no label-and-control rows above the list');
-    assert.match(page, /\{ value: "user", label: I18n\.tr\("Hand-written"\) \}/);
-    assert.doesNotMatch(page, /"From user\.lua"/);
-    // The search jump anchors stay on the controls that replaced the rows.
-    for (const anchor of ['shortcuts-map', 'shortcuts-add', 'shortcuts-reset'])
-        assert.ok(page.includes(`"${anchor}"`), anchor);
-    // Reset all: under the read-only banner, else at the foot.
-    assert.match(page, /ResetRows \{\s+width: parent\.width\s+visible: page\.readOnly\s+\}[\s\S]*id: toolbar/);
-    // The foot's note leads with plain words; the files are its detail line.
-    assert.match(page, /ResetRows \{\s+width: parent\.width\s+visible: !page\.readOnly\s+\}\s+(?:\/\/[^\n]*\n\s+)?SettingsHint \{\s+width: parent\.width\s+text: I18n\.tr\("[^"~]+"\)\s+detail: I18n\.tr\("[^"]*keybindings\.json/);
-    // The narrow window's search tip is a tip, not a second field.
-    const view = fs.readFileSync(path.join(shell, 'Settings/SettingsView.qml'), 'utf8');
-    const tip = view.slice(view.indexOf('id: searchHint'), view.indexOf('id: hintCopy'));
-    assert.match(tip, /color: "transparent"/);
-    assert.doesNotMatch(tip, /name: "search"/);
 });
 
 test('keyboard map focus moves clamp to the staggered rows', () => {

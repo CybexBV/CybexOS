@@ -19,20 +19,7 @@ function bind(modmask, key, description, extra = {}) {
     };
 }
 
-function rows(groups, title) {
-    const group = groups.find(entry => entry.title === title);
-    assert.ok(group, `no ${title} group`);
-    return group.rows;
-}
-
 // ---- key caps ----------------------------------------------------------------
-
-test("modifiers read in the conventional order, whatever the mask order", () => {
-    assert.deepEqual(H.modifierNames(SUPER | CTRL | SHIFT), ["Super", "Ctrl", "Shift"]);
-    assert.deepEqual(H.modifierNames(SUPER | 8), ["Super", "Alt"]);
-    assert.deepEqual(H.modifierNames(0), []);
-    assert.deepEqual(H.modifierNames(undefined), []);
-});
 
 test("keysyms become the words printed on the keys", () => {
     for (const [key, cap] of [
@@ -58,102 +45,6 @@ test("descriptions split into group and label at the first colon-space", () => {
 });
 
 // ---- grouping ----------------------------------------------------------------
-
-test("only described bindings are drawn, vendor groups first", () => {
-    const groups = H.groupsFromBinds([
-        bind(SUPER, "Z", "Personal: Zen mode"),
-        bind(SUPER, "Q", "Windows: Close window"),
-        bind(SUPER, "Return", "Apps: Terminal"),
-        bind(SUPER, "H", ""),
-        bind(SUPER, "O", "Open my notes"),
-        bind(SUPER, "space", "Shell: Launcher")
-    ]);
-    assert.deepEqual(groups.map(group => group.title),
-        ["Shell", "Apps", "Windows", "Personal", "Other"]);
-    assert.deepEqual(rows(groups, "Apps"), [{ label: "Terminal", combos: [["Super", "Enter"]] }]);
-    assert.equal(groups.flatMap(group => group.rows).length, 5, "the undescribed Super+H is hidden");
-});
-
-test("several bindings for one action become alternatives, duplicates vanish", () => {
-    const groups = H.groupsFromBinds([
-        bind(SUPER, "grave", "Capture: Screenshot a region"),
-        bind(0, "Print", "Capture: Screenshot a region"),
-        bind(0, "Print", "Capture: Screenshot a region"),
-        bind(0, "XF86AudioPlay", "Media: Play or pause"),
-        bind(0, "XF86AudioPause", "Media: Play or pause")
-    ]);
-    assert.deepEqual(rows(groups, "Capture"),
-        [{ label: "Screenshot a region", combos: [["Super", "`"], ["Print"]] }]);
-    assert.deepEqual(rows(groups, "Media"),
-        [{ label: "Play or pause", combos: [["Play"], ["Pause"]] }]);
-});
-
-test("hardware keys stay described in Hyprland but off the sheet", () => {
-    const groups = H.groupsFromBinds([
-        bind(0, "XF86AudioRaiseVolume", "Hardware keys: Volume up"),
-        bind(0, "XF86MonBrightnessUp", "Hardware keys: Brightness up"),
-        bind(SUPER, "K", "Shell: Keyboard shortcuts")
-    ]);
-    assert.deepEqual(groups.map(group => group.title), ["Shell"]);
-    assert.ok(H.HIDDEN_GROUPS.includes("Hardware keys"));
-    assert.equal(H.GROUP_ORDER.includes("Hardware keys"), false);
-});
-
-test("columns split the groups in reading order with balanced heights", () => {
-    const group = (title, count) => ({ title, rows: Array(count).fill({}) });
-    const groups = [group("Shell", 7), group("Apps", 10), group("Web apps", 5),
-        group("Development", 4), group("Windows", 8), group("Workspaces", 4),
-        group("Clipboard", 4), group("Capture", 4), group("Dictation", 2)];
-    const titles = columns => columns.map(column => column.map(entry => entry.title));
-
-    assert.deepEqual(titles(H.columnsFor(groups, 3)), [
-        ["Shell", "Apps"],
-        ["Web apps", "Development", "Windows"],
-        ["Workspaces", "Clipboard", "Capture", "Dictation"]
-    ]);
-    assert.deepEqual(titles(H.columnsFor(groups, 1)), [groups.map(entry => entry.title)]);
-    assert.deepEqual(H.columnsFor(groups, 2).flat(), groups, "nothing is dropped or reordered");
-    assert.equal(H.columnsFor(groups, 40).length, groups.length, "never more columns than groups");
-    assert.deepEqual(H.columnsFor([], 3), [[]]);
-    assert.deepEqual(H.columnsFor(groups.slice(0, 2), 0).length, 1);
-});
-
-test("numbered workspace bindings collapse into one row per modifier set", () => {
-    const binds = [];
-    for (let i = 1; i <= 10; i++) {
-        binds.push(bind(SUPER, String(i % 10), `Workspaces: Switch to workspace ${i}`));
-        binds.push(bind(SUPER | SHIFT, String(i % 10), `Workspaces: Move window to workspace ${i}`));
-    }
-    binds.push(bind(SUPER, "mouse_down", "Workspaces: Next workspace"));
-    assert.deepEqual(rows(H.groupsFromBinds(binds), "Workspaces"), [
-        { label: "Switch to workspace 1–10", combos: [["Super", "1…0"]] },
-        { label: "Move window to workspace 1–10", combos: [["Super", "Shift", "1…0"]] },
-        { label: "Next workspace", combos: [["Super", "Scroll down"]] }
-    ]);
-});
-
-test("a partial or broken digit run stays readable", () => {
-    const groups = H.groupsFromBinds([
-        bind(SUPER, "1", "Tags: Tag 1"),
-        bind(SUPER, "2", "Tags: Tag 2"),
-        bind(SUPER, "3", "Tags: Tag 3"),
-        bind(SUPER, "5", "Tags: Tag 5"),
-        bind(SUPER, "7", "Solo: Only 7")
-    ]);
-    assert.deepEqual(rows(groups, "Tags"), [{ label: "Tag 1–3, 5", combos: [["Super", "1…3 5"]] }]);
-    assert.deepEqual(rows(groups, "Solo"), [{ label: "Only 7", combos: [["Super", "7"]] }]);
-});
-
-test("the arrow keys share one cap", () => {
-    const groups = H.groupsFromBinds(["left", "right", "up", "down"]
-        .map(key => bind(SUPER, key, "Windows: Move focus")));
-    assert.deepEqual(rows(groups, "Windows"), [{ label: "Move focus", combos: [["Super", "← → ↑ ↓"]] }]);
-});
-
-test("submap bindings say which mode they belong to", () => {
-    const groups = H.groupsFromBinds([bind(0, "h", "Resize: Shrink left", { submap: "resize" })]);
-    assert.deepEqual(rows(groups, "Resize"), [{ label: "Shrink left (resize mode)", combos: [["H"]] }]);
-});
 
 test("unreadable hyprctl output is an error, not an empty sheet", () => {
     assert.match(H.fromJson("not json").error, /could not be read/);

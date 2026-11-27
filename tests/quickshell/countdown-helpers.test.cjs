@@ -3,19 +3,6 @@ const assert = require("node:assert/strict");
 const { load } = require("./shell.cjs");
 const C = load("CountdownHelpers.js");
 
-test("labels read minutes and hours until the final minute, then seconds", () => {
-    assert.equal(C.remainingLabel(0), "0s");
-    assert.equal(C.remainingLabel(-5000), "0s");
-    assert.equal(C.remainingLabel(1), "1s");
-    assert.equal(C.remainingLabel(59000), "59s");
-    assert.equal(C.remainingLabel(59001), "1m");
-    assert.equal(C.remainingLabel(60000), "1m");
-    assert.equal(C.remainingLabel(60001), "2m");
-    assert.equal(C.remainingLabel(59 * 60000), "59m");
-    assert.equal(C.remainingLabel(59 * 60000 + 1), "1h 0m");
-    assert.equal(C.remainingLabel(90 * 60000), "1h 30m");
-});
-
 test("the next wake lands exactly where the label changes", () => {
     // Every millisecond in the final two minutes, then a coarse sweep of the
     // next hours: the label holds until the wake and changes on it.

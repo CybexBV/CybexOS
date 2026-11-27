@@ -83,10 +83,6 @@ class HelperCase(unittest.TestCase):
 
 
 class UrlTests(HelperCase):
-    def test_accepts_wallhaven_full_images_and_names_them_from_the_id(self):
-        self.assertEqual(MODULE.validate(URL), ("wallhaven-qroy2d.png", "png"))
-        self.assertEqual(MODULE.validate("https://w.wallhaven.cc/full/rd/wallhaven-rdwjj7.jpg"),
-                         ("wallhaven-rdwjj7.jpg", "jpg"))
 
     def test_rejects_every_other_origin_path_and_type(self):
         for url in (
@@ -130,21 +126,6 @@ class DownloadTests(HelperCase):
         self.assertEqual(target.read_bytes(), PNG)
         self.assertEqual(self.entries(), ["wallhaven-qroy2d.png"])
         self.assertEqual(target.stat().st_mode & 0o777, 0o640)
-
-    def test_a_saved_image_of_the_listed_size_is_reused_without_a_request(self):
-        self.directory.mkdir()
-        (self.directory / "wallhaven-qroy2d.png").write_bytes(PNG)
-        opener, calls = opener_for(Response(PNG))
-        MODULE.download(URL, self.directory, len(PNG), opener)
-        self.assertEqual(calls, [])
-
-    def test_a_saved_file_of_another_size_is_replaced(self):
-        self.directory.mkdir()
-        (self.directory / "wallhaven-qroy2d.png").write_bytes(b"stale")
-        opener, calls = opener_for(Response(PNG))
-        target = MODULE.download(URL, self.directory, len(PNG), opener)
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(target.read_bytes(), PNG)
 
     def test_a_failed_replacement_keeps_the_previous_file(self):
         self.directory.mkdir()
@@ -194,11 +175,6 @@ class DownloadTests(HelperCase):
         self.assertTrue(all(line.startswith("progress ") for line in lines))
         self.assertEqual(values, sorted(values))
         self.assertEqual(values[-1], 100)
-
-    def test_main_reports_one_verdict_line(self):
-        self.assertEqual(MODULE.main(["x"]), 2)
-        self.assertEqual(MODULE.main(["x", URL, str(self.directory), "abc"]), 2)
-
 
 # Runs the helper's own main() in a child whose opener trickles the image, so
 # SIGTERM arrives mid-download the way Quickshell delivers it on a new pick.

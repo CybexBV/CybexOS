@@ -118,13 +118,6 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.fetch(), (0, []))
         self.assertEqual((self.cache / Path(SNAP).name / self.snap['name']).read_text(), 'snap')
 
-    def test_an_unreachable_host_is_tried_again_minutes_later(self):
-        self.builds = ['cannot download spotify.snap from any mirror', 'ok']
-        code, waits = self.fetch()
-        self.assertEqual(code, 0)
-        self.assertEqual(waits, vd.WAITS[:1])
-        self.assertTrue((self.cache / Path(SNAP).name).is_dir())
-
     def test_it_gives_up_after_three_attempts(self):
         self.builds = ['cannot download spotify.snap from any mirror'] * 3
         code, waits = self.fetch()

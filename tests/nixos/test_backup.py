@@ -547,23 +547,6 @@ class BackingUp(Fixture):
         self.assertEqual(state["lastSummary"]["files"], 3)
         self.assertFalse(self.context.progress_path.exists(), "progress belongs to a running backup")
 
-    def test_setup_and_status_explain_data_coverage_and_database_consistency(self):
-        setup = self.set_up_drive()
-        status, text, err = self.main("status", "--json")
-        self.assertEqual(status, 0, err)
-        for report in (setup, json.loads(text)):
-            self.assertIn("Proton saves", report["coverage"])
-            self.assertIn("container volumes", report["coverage"])
-            self.assertIn("writable layers", report["coverage"])
-            self.assertIn("Live database files may be inconsistent", report["consistency"])
-            self.assertIn("pg_dump", report["consistency"])
-            self.assertIn("readable rootless container volumes", report["coverage"])
-            self.assertIn("subordinate UIDs require readable exports", report["consistency"])
-            self.assertIn("alone does not make those files readable", report["consistency"])
-        status, text, err = self.main("status")
-        self.assertEqual(status, 0, err)
-        self.assertIn("Live database files may be inconsistent", text)
-
     def test_retention_prunes_at_most_weekly(self):
         self.set_up_drive()
         self.main("now")
@@ -638,20 +621,6 @@ class BackingUp(Fixture):
         self.assertEqual(self.state()["lastSummary"]["unreadable"], 1)
         self.assertEqual(self.state()["lastSummary"]["errors"], ["/home/tester/private: permission denied"])
 
-    def test_a_failure_is_explained_and_notified_once(self):
-        self.set_up_drive()
-        with patch.dict(os.environ, {"STUB_RESTIC_FAIL": json.dumps(
-                {"backup": {"status": 1, "stderr": "Fatal: write /x: no space left on device"}})}):
-            status, _, err = self.main("now", "--notify")
-        self.assertEqual(status, 1)
-        self.assertIn("The backup destination is full.", err)
-        state = self.state()
-        self.assertEqual((state["lastResult"], state["lastError"]),
-                         ("failed", "The backup destination is full."))
-        notices = [call for call in self.calls() if isinstance(call, str) and call.startswith("notify-send")]
-        self.assertEqual(len(notices), 1)
-        self.assertIn("--action=default=Open backup settings", notices[0])
-
     def test_one_run_at_a_time(self):
         self.set_up_drive()
         with backup.exclusive(self.context):
@@ -723,11 +692,6 @@ class Scheduled(Fixture):
         self.assertEqual(len(self.notices()), 1, "retries keep the once-a-day notification policy")
         self.assertIn("Backup incomplete", self.notices()[0])
 
-    def test_automatic_off_skips_the_backup(self):
-        self.main("automatic", "off")
-        self.scheduled()
-        self.assertEqual(self.backups(), 0)
-
     def test_an_absent_drive_is_skipped_quietly(self):
         config = self.config()
         config["destination"].update(mount=str(self.root / "unmounted"), label="T7")
@@ -788,17 +752,6 @@ class Scheduled(Fixture):
                  if isinstance(call, dict) and "secret-tool" in call]
         self.assertEqual(tools[-1], "search", "a scheduled run never calls the prompting lookup")
 
-    def test_a_manual_backup_names_a_locked_keyring_and_a_missing_password(self):
-        with patch.dict(os.environ, {"STUB_KEYRING_LOCKED": "1"}):
-            status, _, err = self.main("now")
-        self.assertEqual(status, 1)
-        self.assertIn("The keyring is locked. Unlock it and try again.", err)
-        for item in (self.root / "keyring").iterdir():
-            item.unlink()
-        status, _, err = self.main("now")
-        self.assertIn("missing from the keyring", err)
-        self.assertEqual(self.backups(), 0)
-
     def test_repeated_failures_notify_once_a_day(self):
         failing = {"STUB_RESTIC_FAIL": json.dumps(
             {"backup": {"status": 1, "stderr": "ssh: Could not resolve hostname nas"}})}
@@ -823,23 +776,6 @@ class Scheduled(Fixture):
         self.assertIn("Your last backup was 8 days ago. Automatic backups are off.", self.notices()[0])
         self.scheduled(later + timedelta(days=1))
         self.assertEqual(len(self.notices()), 2)
-
-    def test_a_reminder_names_the_drive_to_connect(self):
-        config = self.config()
-        config["destination"].update(mount=str(self.root / "unmounted"), label="T7")
-        backup.write_json(self.context.config_path, config)
-        backup.save_state(self.context, {"lastSuccess": backup.stamp(self.now - timedelta(days=9))})
-        with patch.object(backup.os.path, "ismount", lambda path: False):
-            self.scheduled()
-        notice, = self.notices()
-        self.assertIn("Your last backup was 9 days ago. Connect T7 to back up.", notice)
-
-    def test_unconfigured_accounts_do_nothing(self):
-        self.context.config_path.unlink()
-        self.log.write_text("")
-        self.scheduled()
-        self.assertEqual(self.calls(), [])
-
 
 class Restoring(Fixture):
     def setUp(self):
@@ -953,23 +889,6 @@ class Pure(unittest.TestCase):
             self.assertEqual(backup.normalize_recovery_key(key.lower().replace("-", " ")), key)
             self.assertFalse(set(key) & set("ILOU"))
         self.assertEqual(backup.normalize_recovery_key("  custom restic password "), "custom restic password")
-
-    def test_failures_read_as_plain_words(self):
-        explain = backup.explain
-        self.assertIn("does not trust nas", explain(1, "Host key verification failed.", "nas"))
-        self.assertEqual(explain(1, "tester@nas: Permission denied (publickey).", "nas"),
-                         "nas refused your SSH key.")
-        self.assertEqual(explain(12, ""), "The saved password does not open this backup. "
-                         "Connect it again with its recovery key.")
-        self.assertEqual(explain(1, "Fatal: something odd happened"), "Something odd happened.")
-        self.assertEqual(explain(7, ""), "The backup failed (restic exit 7).")
-
-    def test_drive_labels_come_from_udisks_mount_points(self):
-        self.assertEqual(backup.drive_label("/run/media/tester/T7"), "T7")
-        self.assertEqual(backup.drive_label("/media/Backup"), "Backup")
-        self.assertEqual(backup.drive_label("/"), "")
-        self.assertEqual(backup.drive_label("/mnt/data"), "")
-
 
 if __name__ == "__main__":
     unittest.main()

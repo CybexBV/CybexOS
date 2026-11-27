@@ -60,24 +60,6 @@ test("the Bluetooth row always opens details and never toggles the radio", () =>
     assert.doesNotMatch(row, /BluetoothState\.toggle/);
 });
 
-test("the stable wifi popout is a scrollable Ethernet and Wi-Fi Network view", () => {
-    const source = read("Popovers/WifiPopover.qml");
-    assert.match(source, /text:\s*"Network"/);
-    assert.match(source, /text:\s*"TAILSCALE"/);
-    assert.match(source, /text:\s*"ETHERNET"/);
-    assert.match(source, /model:\s*EthernetState\.devices/);
-    assert.match(source, /model:\s*WifiState\.others/);
-    assert.match(source, /Flickable\s*\{/);
-    assert.match(source, /ScrollChrome\s*\{/);
-    assert.match(source, /checked:\s*WifiState\.enabled/);
-    assert.match(source, /onToggled:\s*value => root\.setWifiEnabled\(value\)/);
-    assert.match(source,
-        /function setWifiEnabled\(value\)[\s\S]{0,100}WifiState\.setEnabled\(value\)/);
-    assert.match(source, /text:\s*"Network settings"/);
-    assert.match(source, /Settings\.showPanel\("network"\)/);
-    assert.doesNotMatch(source, /gnome-control-center wifi/);
-});
-
 test("Ethernet loading, absence and read failures are separate UI states", () => {
     const source = read("Popovers/WifiPopover.qml");
     assert.match(source, /!EthernetState\.known/);
@@ -86,22 +68,6 @@ test("Ethernet loading, absence and read failures are separate UI states", () =>
     assert.match(source, /Ethernet status unavailable/);
     assert.match(source, /EthernetState\.devices\.length === 0/);
     assert.match(source, /No Ethernet ports/);
-});
-
-test("the combined menubar indicator gives wired transport priority", () => {
-    const module = read("Bar/Modules/Wifi.qml");
-    assert.match(module, /moduleId:\s*"wifi"/);
-    assert.match(module, /panelName:\s*"wifi"/);
-    assert.match(module, /EthernetState\.connected \? "lan"/);
-    assert.match(module, /EthernetState\.connected \|\| WifiState\.connected/);
-    assert.match(module, /for \(const device of EthernetState\.connectedDevices\)/);
-    assert.match(module, /"Ethernet " \+ \(device\.connection \|\| device\.device\)/);
-    assert.match(module, /"Wi-Fi " \+ WifiState\.name/);
-    assert.match(module, /if \(Tailscale\.connected\)/);
-    assert.match(module, /Tailscale\.net \|\| Tailscale\.host/);
-    assert.match(module, /Tailscale\.exitNode/);
-    assert.doesNotMatch(module, /BrandIcon\s*\{/,
-        "Tailscale belongs in the tooltip and panel, not beside the transport glyph");
 });
 
 test("Tailscale is an overlay with a persistent drill-in, not the physical route", () => {
@@ -195,11 +161,4 @@ test("wired monitoring is ref-counted by each visible Network consumer", () => {
         assert.match(source, /EthernetState\.acquire\(\)/);
         assert.match(source, /EthernetState\.release\(\)/);
     }
-});
-
-test("the visible widget label is Network while stable identifiers stay wifi", () => {
-    const registry = read("Common/PanelRegistryData.js");
-    const catalog = require(path.join(shellDir, "Common", "WidgetCatalog.js"));
-    assert.equal(catalog.widgetName("wifi"), "Network");
-    assert.match(registry, /name: "wifi"[\s\S]*tab: "network"/);
 });

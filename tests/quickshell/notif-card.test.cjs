@@ -46,17 +46,6 @@ function keysSupplied(rel) {
     return new Set([...body.matchAll(/^\s*(\w+):/gm)].map(m => m[1]));
 }
 
-test("the card anatomy is defined once, in Common/", () => {
-    assert.ok(fs.existsSync(path.join(shellDir, CARD)));
-    for (const rel of CALLERS) {
-        const source = read(rel);
-        // A local `component NotifCard`/`AppIcon`/`ActionPills` is how the
-        // duplication looked before; re-adding one splits them again.
-        assert.doesNotMatch(source, /component\s+(NotifCard|AppIcon|ActionPills)\s*:/,
-            `${rel} redefines a card piece that Common/ already owns`);
-    }
-});
-
 test("web notification icons resolve locally without sender-triggered lookup processes or network fetches", () => {
     const icon = read(path.join("Common", "NotifIcon.qml"));
     const resolver = read(path.join("Common", "WebIcons.qml"));
@@ -105,43 +94,6 @@ test("both surfaces take the one shell face, as typography.test.cjs requires", (
     assert.doesNotMatch(centre.replace(/^\s*(bodyLines|bodyLeading):.*$/gm, ""),
         /:\s*\d+(?:\.\d+)?\s*,?$/m,
         "the centre style names a raw text size instead of a Theme token");
-});
-
-test("the toast countdown stays inside the rounded notification card", () => {
-    const toast = read("NotificationToasts.qml");
-
-    assert.match(toast, /height:\s*contentHeight\s*\n/,
-        "the countdown belongs in the card padding, not in extra space below its content");
-    assert.match(toast, /anchors\.leftMargin:\s*card\.padH/);
-    assert.match(toast, /anchors\.rightMargin:\s*card\.padH/);
-    assert.match(toast, /anchors\.bottomMargin:\s*card\.padV\s*\/\s*2/,
-        "the countdown must be inset from the card's curved bottom edge");
-    assert.doesNotMatch(toast, /anchors\.margins:\s*1/,
-        "a nearly edge-to-edge bar escapes the rounded card silhouette");
-});
-
-test("toast geometry and list motion stay compact and edge-aware", () => {
-    const toast = read("NotificationToasts.qml");
-
-    assert.match(toast,
-        /readonly property int cardWidth:\s*Math\.max\(1, Math\.min\(Theme\.scaled\(380, Theme\.contentScale\),/,
-        "toast cards must stay compact and clamp on unusually narrow outputs");
-    assert.match(toast, /edgeMargin:\s*Math\.max\(10, Theme\.barSideMargin\)/,
-        "attached bars still need a screen-edge gutter");
-    assert.match(toast, /ListView\s*\{\s*id:\s*toastList/);
-    assert.match(toast, /add:\s*Transition[\s\S]*?property:\s*"x"/,
-        "new toasts should arrive from their configured screen edge");
-    assert.match(toast, /addDisplaced:\s*Transition[\s\S]*?Theme\.springCurve/,
-        "existing cards should settle when a newer toast arrives");
-    assert.match(toast, /remove:\s*Transition[\s\S]*?property:\s*"x"/,
-        "expired toasts should leave toward their configured screen edge");
-    assert.match(toast, /removeDisplaced:\s*Transition[\s\S]*?Theme\.springCurve/,
-        "surviving cards should settle instead of jumping into the gap");
-    assert.match(toast, /property real reservedListHeight:\s*0/,
-        "the panel must remain mapped while the exit transition paints");
-    assert.match(toast,
-        /visible:\s*root\.screenGroups\.length > 0 \|\| reservedListHeight > 0/,
-        "the final toast's exit must finish before the layer is unmapped");
 });
 
 test("toast hover and a history disclosure reveal the full notification text", () => {

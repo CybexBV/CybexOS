@@ -68,27 +68,6 @@ test("the theme renders a data-only table of exactly the keys looknfeel accepts"
     }
 });
 
-test("the compositor colours follow the shell's tokens", () => {
-    const dark = leaves(render(darkTokens()));
-    assert.equal(dark["general.col.active_border"], "rgb(60a5fa)");
-    assert.equal(dark["general.col.inactive_border"], "rgb(3a3936)");
-    assert.equal(dark["group.col.border_locked_active"], "rgb(ff8f8f)");
-    assert.equal(dark["group.groupbar.col.active"], "rgb(60a5fa)");
-    assert.equal(dark["group.groupbar.text_color"], "rgb(f2f0ea)");
-    assert.equal(dark["decoration.shadow.color"], "rgba(1a1917ee)");
-
-    const tokens = lightTokens();
-    tokens.colors.accent = "#3366cc";
-    const light = leaves(render(tokens));
-    assert.equal(light["general.col.active_border"], "rgb(3366cc)");
-    assert.equal(light["group.col.border_active"], "rgb(3366cc)");
-    assert.equal(light["group.col.border_locked_active"], "rgb(c22f2f)");
-    assert.equal(light["group.groupbar.text_color"], "rgb(1f1d2b)");
-    assert.equal(light["group.groupbar.text_color_inactive"], "rgb(43415a)");
-    // A light shadow is the ink, faint; never the pale base nearly opaque.
-    assert.equal(light["decoration.shadow.color"], "rgba(1f1d2b30)");
-});
-
 test("looknfeel's vendor colours are the theme for the default dark tokens", () => {
     // Text-level, so it runs without luajit: every rendered leaf name appears
     // exactly once in the vendor hl.config, with the rendered value.

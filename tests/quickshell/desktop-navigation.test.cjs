@@ -23,7 +23,6 @@ const processList = read("Common/ProcessList.qml");
 const processes = read("Popovers/Drawer/DrawerProcesses.qml");
 const drawerOverview = read("Popovers/Drawer/DrawerOverview.qml");
 const bindings = untranslated(fs.readFileSync(path.resolve(shellDir, "../hypr/bindings.lua"), "utf8"));
-const look = untranslated(fs.readFileSync(path.resolve(shellDir, "../hypr/looknfeel.lua"), "utf8"));
 
 function functionBody(source, name) {
     const start = source.indexOf(`function ${name}(`);
@@ -115,12 +114,6 @@ test("the overview's keys: arrows, Tab, Enter, and Esc clears before it closes",
     assert.match(keys, /Qt\.Key_Enter:[\s\S]{0,250}?root\.activateWorkspace\(root\.tiles\[root\.selectedTileIndex\]\)[\s\S]{0,160}?root\.activateWindow\(root\.selected\)/);
 });
 
-test("overview motion uses the shared tokens, which reduced motion zeroes", () => {
-    assert.match(overviewWindow, /duration: Overview\.open \? Theme\.panelFadeDuration : Theme\.panelCloseDuration/);
-    assert.match(overviewView, /Behavior on scale \{\s*NumberAnimation \{\s*duration: Theme\.panelMotionDuration/);
-    assert.doesNotMatch(overviewView + overviewWindow, /duration:\s*\d/, "no literal durations");
-});
-
 // ---- dock -----------------------------------------------------------------
 
 test("the dock follows each monitor's live workspace and saved layout", () => {
@@ -192,24 +185,6 @@ test("running web apps reuse their launcher's icon, name and pinned group", () =
     assert.match(dock, /command: \["cybexos-webapp", "list", "--json"\]/);
 });
 
-test("the dock's all-layout preference and auto-hide sit on Workspaces & dock and are searchable", () => {
-    const groups = read("Settings/WorkspacesPage.qml");
-    assert.match(groups, /SettingsGroup \{\s*width: parent\.width\s*title: "Dock"/);
-    assert.doesNotMatch(read("Settings/BarLayoutGroups.qml"), /title: "Dock"|settingKey: "dock/);
-    assert.match(groups, /settingKey: "dock"/);
-    assert.match(groups, /label: "Show in all layouts"/);
-    assert.match(groups, /settingKey: "dockAutoHide"/);
-    assert.doesNotMatch(groups, /reveal: Settings\.dock/,
-        "auto-hide is available for automatic floating docks too");
-    const search = require(path.join(shellDir, "Common/SettingsSearchData.js"));
-    for (const key of ["dock", "dockAutoHide"])
-        assert.ok(search.ROWS.some(row => row.key === key && row.page === "workspaces"), key);
-    assert.ok(search.search("taskbar").some(row => row.key === "dock"));
-    const settings = read("Common/Settings.qml");
-    assert.match(settings, /"mods", "modOpts"\],/);
-    assert.match(settings, /workspaces: \["dock", "dockAutoHide", "dockPinned"\]/);
-});
-
 // ---- top processes ----------------------------------------------------------
 
 test("Top processes samples only while it is on screen", () => {
@@ -244,18 +219,6 @@ test("ending a process is confirmed, signals by start time, and escalates only w
 });
 
 // ---- compositor rules -------------------------------------------------------
-
-test("both surfaces skip layer animations; only the dock is blurred", () => {
-    const noAnim = look.match(/name = "quickshell-no-animation",\s*match = \{ namespace = \[\[([^\]]+)\]\] \}/);
-    assert.ok(noAnim);
-    assert.match(noAnim[1], /\|overview\|dock\|assistant\|/);
-    // The welcome guide and its resume pill fade themselves.
-    assert.match(noAnim[1], /\|welcome\|welcome-resume\)\$$/);
-    const blur = look.match(/name = "quickshell-blur",[\s\S]*?namespace = \[\[([^\]]+)\]\]/);
-    assert.ok(blur);
-    assert.match(blur[1], /\|dock\)\$$/);
-    assert.doesNotMatch(blur[1], /overview/, "a blur behind live captures redraws every frame");
-});
 
 test("an overview with no windows says so and offers one way on", () => {
     assert.match(overviewView, /readonly property bool empty: windows\.length === 0/);

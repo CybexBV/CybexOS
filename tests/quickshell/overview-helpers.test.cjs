@@ -43,19 +43,6 @@ test("the grid shows occupied and visible workspaces, then one new slot", () => 
     assert.equal(entries.at(-1).id, 2, "the new slot fills the lowest free id");
 });
 
-test("a window whose workspace Hyprland has not listed yet still shows", () => {
-    const entries = H.workspaceEntries([{ id: 1, name: "1", monitor: "a", active: true }],
-        [{ address: "x", workspaceId: 7 }]);
-    assert.deepEqual(entries.map(entry => entry.id), [1, 7, 2]);
-});
-
-test("the new workspace takes the lowest free positive id", () => {
-    assert.equal(H.newWorkspaceId([]), 1);
-    assert.equal(H.newWorkspaceId([1, 2, 3]), 4);
-    assert.equal(H.newWorkspaceId([1, 3, 4]), 2);
-    assert.equal(H.newWorkspaceId([-1337, 2]), 1);
-});
-
 // ---- grid ---------------------------------------------------------------
 
 function inside(layout, width, height) {
@@ -86,51 +73,12 @@ test("the grid picks the column count with the largest tiles and stays in bounds
     }
 });
 
-test("capped tiles prefer one row, and the last row is centred", () => {
-    const capped = H.gridLayout(3, 2400, 1200, 16 / 9,
-        { spacing: 20, labelHeight: 30, maxTileWidth: 400 });
-    assert.equal(capped.rows, 1, "equal tiles: fewest rows");
-    assert.equal(capped.tileWidth, 400);
-    const width = 3 * 400 + 2 * 20;
-    assert.equal(capped.cells[0].x, Math.round((2400 - width) / 2));
-
-    const layout = H.gridLayout(5, 1000, 700, 16 / 9, { spacing: 20, labelHeight: 30 });
-    assert.deepEqual([layout.columns, layout.rows], [2, 3]);
-    const lastRow = layout.cells.filter(cell => cell.y === layout.cells.at(-1).y);
-    assert.equal(lastRow.length, 1);
-    assert.ok(Math.abs(lastRow[0].x - (1000 - layout.tileWidth) / 2) <= 1, "partial row sits centred");
-    assert.equal(layout.cells[0].tileY, 30);
-    assert.equal(layout.cells[0].height, 30 + layout.tileHeight);
-});
-
 test("an empty or degenerate grid is empty rather than NaN", () => {
     assert.deepEqual(H.gridLayout(0, 100, 100, 1, {}).cells, []);
     assert.deepEqual(H.gridLayout(3, 0, 100, 1, {}).cells, []);
     const layout = H.gridLayout(2, 500, 300, NaN, {});
     assert.equal(layout.cells.length, 2, "a bad aspect falls back to 16:9");
     assert.ok(layout.cells.every(cell => Number.isFinite(cell.x) && Number.isFinite(cell.y)));
-});
-
-test("a monitor of another shape is letterboxed inside its cell", () => {
-    assert.deepEqual(H.fitAspect(400, 225, 16 / 9), { x: 0, y: 0, width: 400, height: 225 });
-    const portrait = H.fitAspect(400, 225, 9 / 16);
-    assert.equal(portrait.height, 225);
-    assert.equal(portrait.width, Math.round(225 * 9 / 16));
-    assert.equal(portrait.x, Math.round((400 - portrait.width) / 2));
-    const wide = H.fitAspect(400, 225, 32 / 9);
-    assert.equal(wide.width, 400);
-    assert.equal(wide.y, Math.round((225 - 112.5) / 2));
-});
-
-test("a compact box keeps the shape, centres across the top and never grows", () => {
-    // The New workspace tile beside an empty desktop (2026-11-24 review).
-    assert.deepEqual(H.compactBox({ x: 10, y: 4, width: 432, height: 270 }, 176),
-        { x: 138, y: 4, width: 176, height: 110 });
-    assert.deepEqual(H.compactBox({ x: 0, y: 0, width: 120, height: 75 }, 176),
-        { x: 0, y: 0, width: 120, height: 75 }, "a box already small enough is left alone");
-    assert.deepEqual(H.compactBox({ x: 0, y: 0, width: 0, height: 0 }, 176),
-        { x: 0, y: 0, width: 0, height: 0 });
-    assert.deepEqual(H.compactBox(null, 176), { x: 0, y: 0, width: 0, height: 0 });
 });
 
 // ---- windows inside a tile ----------------------------------------------

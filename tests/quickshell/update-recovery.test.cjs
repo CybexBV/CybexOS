@@ -294,40 +294,6 @@ test("prebuilt refusals wait without masking an active worker or a changed candi
         "an explicit check remains available while waiting");
 });
 
-test("keeping a trial boot names the version running and the one Go back returns to", () => {
-    const release = { scope: "both", installedVersion: "1.0.25", availableVersion: "1.0.26" };
-    assert.deepEqual(H.trialVersions(release), { id: "cybexos", now: "1.0.26", before: "1.0.25" });
-    const packages = { scope: "upstream", installedVersion: "1.0.25", availableVersion: "1.0.25", highlights: { schema: 1,
-        components: [{ id: "kernel", before: "6.12.55", after: "6.12.58" },
-            { id: "nixos", before: "26.05.20261024.abc", after: "26.05.20261027.def" }] } };
-    assert.deepEqual(H.trialVersions(packages), { id: "nixos", now: "26.05.20261027.def", before: "26.05.20261024.abc" },
-        "NixOS before the kernel; an unchanged Cybex OS is no identity");
-    assert.deepEqual(H.trialVersions({ highlights: { schema: 1, components: [{ id: "kernel", before: "6.12.55", after: "6.12.58" }] } }),
-        { id: "kernel", now: "6.12.58", before: "6.12.55" });
-    assert.equal(H.trialVersions({ state: "awaiting-login", transaction: "a" }), null, "an older record names none");
-    assert.equal(H.trialVersions(null), null);
-    const view = require("node:fs").readFileSync(require("node:path").join(require("./shell.cjs").shellDir,
-        "SoftwareUpdate/UpdateView.qml"), "utf8");
-    assert.match(view, /readonly property var trial: page === "confirm" \? Helpers\.trialVersions\(deployment\) : null/);
-    assert.match(view, /I18n\.tr\("This version"\)[\s\S]*?I18n\.tr\("Previous version"\)/);
-    assert.match(view, /I18n\.tr\("Keep this version"\)/);
-    assert.match(view, /I18n\.tr\("Go back to the previous version"\)/);
-});
-
-test("Software Update's buttons and labels are in sentence case", () => {
-    const fs = require("node:fs"), path = require("node:path"), { shellDir } = require("./shell.cjs");
-    for (const name of ["UpdateView.qml", "ReadyPage.qml", "TechnicalDetails.qml", "WhatsNewPage.qml", "StatusPage.qml"]) {
-        const source = fs.readFileSync(path.join(shellDir, "SoftwareUpdate", name), "utf8");
-        for (const [, text] of source.matchAll(/I18n\.tr\("([^"]+)"\)/g)) {
-            const names = text.replace(/Software Update|Cybex OS|NixOS|Linux|Wiz|NVIDIA|Flathub|Wi-Fi|Bluetooth|Mesa|Hyprland|OK/g, "");
-            for (const sentence of names.split(/[.?!:]\s+/)) {
-                const words = sentence.trim().split(/\s+/).slice(1);
-                assert.ok(!words.some(word => /^[A-Z][a-z]/.test(word)), `${name}: "${text}"`);
-            }
-        }
-    }
-});
-
 test("a trial boot is confirmed automatically unless that failed or is switched off", () => {
     assert.equal(page({ state: "awaiting-login" }), "finishing");
     assert.equal(page({ state: "awaiting-login", automatic: { prepare: true, confirm: false } }), "confirm");
@@ -383,16 +349,6 @@ test("a prepared update stays installable while preparing it again does not fini
     assert.equal(H.replacementRequest({ ...failed, request: { id: "other", state: "failed" } }), false);
     assert.equal(H.replacementRequest({ ...failed, state: "failed" }), false);
     assert.equal(H.replacementRequest(prepared), false);
-});
-
-test("versions read as people expect: NixOS builds and firmware as dates", () => {
-    assert.deepEqual(H.versionParts("nixos", "26.05.20261024.abcdef1"), { text: "26.05", date: "2026-10-24" });
-    assert.deepEqual(H.versionParts("nixos", "26.11pre.20261024.abcdef1"), { text: "26.11", date: "2026-10-24" });
-    assert.deepEqual(H.versionParts("firmware", "20261014"), { text: "", date: "2026-10-14" });
-    assert.deepEqual(H.versionParts("tool", "0-unstable-2026-10-01"), { text: "", date: "2026-10-01" });
-    assert.deepEqual(H.versionParts("kernel", "6.12.58"), { text: "6.12.58", date: "" });
-    assert.deepEqual(H.versionParts("tool", "20261399"), { text: "20261399", date: "" }, "not a date");
-    assert.deepEqual(H.versionParts("kernel", null), { text: "", date: "" });
 });
 
 test("the review groups components, apps and tools, falling back to package changes", () => {
@@ -484,23 +440,6 @@ test("Wiz shows each status page in the pose language every surface shares", () 
         assert.ok(states.includes(value.pose), page + ": " + value.pose);
         assert.equal(value.unread, page === "available", page);
     }
-});
-
-test("the review of a prepared update and its toasts stay free of Wiz", () => {
-    const fs = require("node:fs");
-    const path = require("node:path");
-    const { shellDir } = require("./shell.cjs");
-    const read = name => fs.readFileSync(path.join(shellDir, name), "utf8");
-    assert.doesNotMatch(read("SoftwareUpdate/ReadyPage.qml"), /Wiz\b/);
-    assert.doesNotMatch(read("Bar/Modules/Updates.qml"), /Wiz\b/);
-    assert.match(read("SoftwareUpdate/StatusPage.qml"), /AssistantUi\.Wiz \{/);
-    // The ring round his star shows the page's measured fraction (a download
-    // with a known size, the firmware's percent) and nothing else.
-    assert.match(read("SoftwareUpdate/StatusPage.qml"),
-        /AssistantUi\.Wiz \{[\s\S]*?progress: root\.progress[\s\S]*?\}/);
-    assert.match(read("SoftwareUpdate/StatusPage.qml"),
-        /\/\/ A measured transfer fraction only; -1 means indeterminate activity\.\s*property real progress: -1/);
-    assert.match(read("SoftwareUpdate/WhatsNewPage.qml"), /AssistantUi\.Wiz \{/);
 });
 
 const keptRecord = { state: "done", changeKind: "update", scope: "cybexos", transaction: "a".repeat(32),

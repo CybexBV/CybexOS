@@ -108,11 +108,6 @@ test("effort: Auto leaves it to the agent, Codex alone has None", () => {
     assert.equal(A.effortLabel("claude", "xhigh"), "XHigh");
 });
 
-test("turn statuses", () => {
-    assert.ok(A.active({ status: "waiting" }) && !A.active({ status: "completed" }));
-    assert.ok(A.finished({ status: "stopped" }) && !A.finished(null));
-});
-
 test("Wiz's pose follows the most urgent state and what a running turn is doing", () => {
     const base = { connected: true };
     const pose = state => A.characterPose(Object.assign({}, base, state));

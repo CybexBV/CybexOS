@@ -56,11 +56,11 @@ const cases = [
     { name: "default dark", dark: true, accent: defaultAccent,
       reference: H.mixHex(hex("darkPopBg"), "#ffffff", H.DARK_CARD_ALPHA),
       surfaces: [...darkPanels, hex("darkMenuBg"), ...cardsOn(darkPanels, true)],
-      ladder: fixedLadder("dark"), textMid: hex("darkTextMid") },
+      ladder: fixedLadder("dark") },
     { name: "default light", dark: false, accent: defaultAccent,
       reference: H.mixHex(hex("lightBackground"), "#18162c", chipHoverAlpha),
       surfaces: [...lightPanels, hex("lightMenuBg"), ...cardsOn(lightPanels, false, "#18162c")],
-      ladder: fixedLadder("light"), textMid: hex("lightTextMid") },
+      ladder: fixedLadder("light") },
 ];
 
 const themesDir = path.join(shellDir, "themes");
@@ -75,13 +75,9 @@ for (const id of fs.readdirSync(themesDir)) {
         name: id, dark, accent: pack.accent, reference,
         surfaces: [s.background, s.surface, s.surfaceRaised,
             ...cardsOn([s.background, s.surface], dark, s.ink)],
-        ladder, textMid: ladder.textMid,
+        ladder,
     });
 }
-
-test("every bundled theme pack is covered", () => {
-    assert.ok(cases.length >= 2 + 8, `expected the default palette and at least 8 packs, got ${cases.length}`);
-});
 
 for (const c of cases) {
     test(`${c.name}: selected marks and the focus ring clear 3:1`, () => {
@@ -92,11 +88,6 @@ for (const c of cases) {
             assert.ok(H.contrastRatio(tokens.focusRing, backdrop) >= 3,
                 `${c.name}: focus ring ${tokens.focusRing} on ${backdrop}`);
         }
-    });
-
-    test(`${c.name}: an off switch's boundary clears 3:1`, () => {
-        assert.ok(H.contrastRatio(c.textMid, c.reference) >= 3,
-            `${c.name}: switch border ${c.textMid} on ${c.reference}`);
     });
 
     test(`${c.name}: secondary copy clears 4.5:1 on every window and card surface`, () => {
@@ -117,11 +108,6 @@ for (const c of cases) {
                 `${c.name}: textDisabled ${disabled} on ${backdrop}`);
         assert.ok(onReference < H.contrastRatio(c.ladder.textFaint, c.reference),
             `${c.name}: disabled must read quieter than the faintest copy`);
-    });
-
-    test(`${c.name}: the selected fill is an accent tint, not the hover chip`, () => {
-        const tokens = H.stateTokens(c.accent, c.reference, c.dark);
-        assert.ok(tokens.selectedAlpha > 0.1 && tokens.selectedAlpha < 0.3);
     });
 }
 

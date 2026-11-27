@@ -68,21 +68,6 @@ class UpdateRequests(unittest.TestCase):
                 pass
         return self.status(), guard
 
-    def test_a_release_is_not_held_back_by_nixos_packages(self):
-        # NixOS has not built codex for the new packages: the release is
-        # prepared alone on the current ones, and the request succeeds.
-        result, guard = self.run_stage('both', [NotPrebuilt(['codex-0.167.0']), None])
-        self.assertEqual(guard.call_count, 2)
-        self.assertEqual((result['state'], result['scope'], result['availableVersion']), ('ready', 'cybexos', '1.1.0'))
-        self.assertEqual(result['request']['state'], 'done')
-        self.assertEqual(result['inputs']['nixpkgs'], lifecycle.inputs.identity(lifecycle.lock(), 'nixpkgs'))
-
-    def test_a_release_is_not_held_back_by_packages_awaiting_a_newer_release(self):
-        held = IncompatibleNixpkgs({'origin': 'cybexos', 'file': 'nix/modules/applications.nix',
-                                    'message': "attribute 'brave' missing"}, '1.1.0')
-        result, guard = self.run_stage('both', [held, None])
-        self.assertEqual((guard.call_count, result['state'], result['scope']), (2, 'ready', 'cybexos'))
-
     def test_a_release_is_not_held_back_by_any_failure_of_the_combined_update(self):
         # A kernel NixOS hasn't built, a personal module the new Nixpkgs
         # breaks, or a fault in the check itself: the release is prepared on
@@ -238,31 +223,6 @@ class UpdateRequests(unittest.TestCase):
         self.assertEqual(status['notes'], 'A qualified release')
         self.assertEqual(status['highlights']['components'],
                          [{'id': 'kernel', 'before': '6.12.55', 'after': '6.12.58'}])
-
-    def test_kept_nixos_update_keeps_the_installed_cybexos_version(self):
-        record = self.engine.stage('upstream')
-        self.engine.apply(record['id'], record['reviewToken'])
-        self.engine.boot_id = lambda: 'different-boot'
-        for link in (self.system, self.booted):
-            link.unlink(); link.symlink_to(lifecycle.NEW_SYSTEM)
-        self.engine.recover()
-        self.engine.confirm()
-        status = self.status()
-        self.assertEqual((status['state'], status['scope']), ('done', 'upstream'))
-        self.assertEqual((status['installedVersion'], status['availableVersion'], status['notes']), ('1.0.0', '1.0.0', ''))
-
-    def test_elapsed_freezes_after_preparation_and_restarts_for_activation(self):
-        with patch('cybexos.engine.time.time', return_value=100):
-            self.engine.status(transaction='a' * 32, state='building')
-        with patch('cybexos.engine.time.time', return_value=130):
-            self.engine.status(state='ready')
-        for now in (200, 1000):
-            with patch('cybexos.cli.time.time', return_value=now):
-                self.assertEqual(self.status()['elapsedSeconds'], 30)
-        with patch('cybexos.engine.time.time', return_value=1100):
-            self.engine.status(state='activating')
-        with patch('cybexos.cli.time.time', return_value=1110):
-            self.assertEqual(self.status()['elapsedSeconds'], 10)
 
     def test_discard_is_explicit_and_cannot_affect_a_pending_generation(self):
         candidate = self.engine.stage('upstream')

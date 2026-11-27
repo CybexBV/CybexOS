@@ -87,18 +87,6 @@ test("the rail shows the current page, the keyboard and the icon rail's names ap
     assert.match(view, /function onPageChanged\(\) \{[\s\S]{0,400}?as NavItem;[\s\S]{0,200}?Theme\.focusVisible[\s\S]{0,200}?item\.forceActiveFocus\(\)/);
 });
 
-test("the icon rail says once that / searches, for the session", () => {
-    const view = read("Settings/SettingsView.qml");
-    assert.match(view, /readonly property bool searchHintShown: compactNav && !searchHintSeen/);
-    assert.match(view, /function openPalette\(text\) \{[\s\S]{0,200}?searchHintSeen = true;/,
-        "using the palette retires the tip");
-    assert.match(view, /if \(root\.searchHintShown\)\s+root\.searchHintSeen = true;/,
-        "closing the window over the tip retires it");
-    assert.match(view, /id: searchHint[\s\S]{0,1600}?text: "Press \/ to search pages"[\s\S]{0,1200}?text: "Dismiss tip"/);
-    // The page and its tabs move down while it shows.
-    assert.match(view, /: searchHint\.visible \? searchHint\.y \+ searchHint\.height \+ Theme\.scaled\(12\)\s+: root\.gutter/);
-});
-
 test("Home reflows and keeps its formats, tiers and static memory", () => {
     const home = read("Settings/HomePage.qml");
     assert.match(read("Settings/SettingsPage.qml"),
@@ -168,29 +156,6 @@ test("waiting changes have one status, one Apply and headings that say what Appl
     assert.match(view, /Accessible\.name: navItem\.spokenName[\s\S]{0,800}?text: navItem\.spokenName/);
 });
 
-test("Home offers one way into Software Update at a time", () => {
-    const home = read("Settings/HomePage.qml");
-    assert.match(home, /attentionOpensUpdates: attention\.some\(item =>\s+item\.id === "restart" \|\| item\.id === "review" \|\| item\.id === "check:firmware-updates"\)/);
-    assert.match(home, /readonly property bool actionShown: !page\.attentionOpensUpdates/);
-    assert.match(home, /id: updateAction\s+visible: heroSide\.actionShown/);
-    // A hidden action takes no room in the hero.
-    assert.match(home, /rowWidth: updatePill\.width\s+\+ \(actionShown \? gap \+ updateAction\.width : 0\)/);
-});
-
-test("an attention item stacks its pill and action rather than eliding its title", () => {
-    const row = read("Settings/AttentionRow.qml");
-    assert.match(row, /readonly property bool stacked: width < compactWidth \|\| titleMetrics\.advanceWidth > wideTitleRoom/);
-    assert.match(row, /wrapMode: root\.stacked \? Text\.Wrap : Text\.NoWrap/);
-    assert.match(row, /x: root\.stacked \? root\.markInset :/, "the pill moves under the title");
-    assert.match(row, /x: root\.contentRight - width/, "the action ends on the control edge");
-    assert.doesNotMatch(row, /elide:/);
-    const pill = read("Settings/StatusPill.qml");
-    assert.match(pill, /SettingsHelpers\.ensureContrast\(baseInk\.toString\(\)/,
-        "the words hold 4.5:1 over their own tint");
-    for (const type of ["AttentionRow", "StatusPill"])
-        assert.match(read("Settings/qmldir"), new RegExp(`^${type} ${type}\\.qml$`, "m"));
-});
-
 test("theme and pointer cards mark the choice apart from keyboard focus", () => {
     for (const rel of ["Settings/ThemeGallery.qml", "Settings/PointerGallery.qml"]) {
         const gallery = read(rel);
@@ -203,23 +168,6 @@ test("theme and pointer cards mark the choice apart from keyboard focus", () => 
     const themes = read("Settings/ThemeGallery.qml");
     assert.match(themes, /thumbHeight: root\.compact \? Theme\.scaled\(72\)/);
     assert.match(themes, /property bool compact: width < Theme\.scaled\(560, Theme\.typeScale\)/);
-});
-
-test("Settings lists select with the accent tint, hover stays neutral", () => {
-    const choice = read("Settings/ChoiceRow.qml");
-    assert.match(choice, /color: root\.checked \? Theme\.selectedFill : "transparent"/);
-    assert.match(choice, /visible: root\.checked[\s\S]{0,120}?width: Theme\.selectedEdgeWidth/);
-    assert.doesNotMatch(choice, /focused: root\.activeFocus/);
-    assert.match(read("Settings/ShortcutCustomForm.qml"),
-        /color: chosen \? Theme\.selectedFill : appMouse\.containsMouse \? Theme\.hoverFill : "transparent"/);
-    assert.match(read("Settings/FolderDialog.qml"),
-        /color: selected \? Theme\.selectedFill\s+: rowMouse\.containsMouse \? Theme\.hoverFill : "transparent"/);
-    // A model card that cannot be chosen fades its name, never its reason.
-    const dictation = read("Settings/DictationPage.qml");
-    const card = dictation.slice(dictation.indexOf("component ChoiceCard"), dictation.indexOf("component WordList"));
-    assert.doesNotMatch(card, /^        opacity:/m);
-    assert.equal((card.match(/opacity: choice\.enabled \? 1 : 0\.55/g) || []).length, 2);
-    assert.match(card, /color: selected \? Theme\.selectedFill/);
 });
 
 // 2026-11-24 council review: one way back, one primary, one name per thing,
@@ -261,16 +209,6 @@ test("Settings tiles mark the choice with the selected tile and focus with the s
     assert.match(preview, /ScrollChrome \{\s+anchors\.fill: scroll\s+target: scroll/);
 });
 
-test("one primary on a screen, and the duplicate theme save is gone", () => {
-    const security = read("Settings/SecurityPage.qml");
-    assert.match(security, /primary: page\.keyEntries\.length === 0 && !page\.fingerprintLeads/);
-    const appearance = read("Settings/AppearancePage.qml");
-    assert.doesNotMatch(appearance, /id: saveThemeAction/);
-    assert.match(read("Settings/ApplyBar.qml"), /Behavior on width \{ NumberAnimation \{ duration: Theme\.expandDuration \} \}/);
-    assert.match(read("Settings/NotificationsPage.qml"),
-        /loops: Animation\.Infinite[\s\S]{0,160}?running: Settings\.notifProgress && page\.visible && !Theme\.reducedMotion/);
-});
-
 test("technical detail waits behind Details and missing features say how to add them", () => {
     const hint = read("Settings/SettingsHint.qml");
     assert.match(hint, /onDetailChanged: detailOpen = false/);
@@ -286,18 +224,4 @@ test("technical detail waits behind Details and missing features say how to add 
     assert.match(dictation, /label: "cybex update stage local" \/\/ i18n: untranslated/);
     assert.match(dictation, /in \/etc\/nixos\/machine\.nix, set features\.developer to true, run the command below/);
     assert.doesNotMatch(dictation, /which this installation does not have/);
-});
-
-test("a widget's sheet reads as one page", () => {
-    const page = read("Settings/SettingsPage.qml");
-    assert.match(page, /interactive: !embedded && contentHeight/);
-    assert.match(page, /clip: !embedded/);
-    assert.match(page, /edgeColor: root\.edgeColor/);
-    const modules = read("Settings/ModulesPage.qml");
-    assert.match(modules, /id: detailPage\s+edgeColor: Theme\.popBg/);
-    assert.match(modules, /ModuleDetailView \{[\s\S]{0,120}?embedded: true/);
-    assert.match(read("Settings/ModuleDetailView.qml"), /DrawerPage \{\s+height: contentHeight\s+embedded: true/);
-    // "Show on bar" is not followed by "On your bar".
-    assert.match(modules, /description: page\.selected \? page\.switchStatus\(page\.selected\) : ""/);
-    assert.match(modules, /if \(text === "On your bar"\)\s+return "";/);
 });

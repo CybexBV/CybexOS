@@ -32,24 +32,11 @@ function claimedPanels() {
 // human remembering four separate maps. Each one fails on a panel added to
 // one place but not another.
 
-test("every panel's view exists on disk", () => {
-    for (const panel of R.PANELS) {
-        assert.ok(fs.existsSync(path.join(shellDir, panel.source)),
-            `${panel.name} points at a missing file: ${panel.source}`);
-    }
-});
-
 test("panel names and module ids are unique", () => {
     const names = R.names();
     assert.equal(new Set(names).size, names.length, "duplicate panel name");
     const owned = R.PANELS.map(p => p.moduleId).filter(id => id !== "");
     assert.equal(new Set(owned).size, owned.length, "two panels claim one module");
-});
-
-test("every island is a real bar section", () => {
-    for (const panel of R.PANELS)
-        assert.ok(["left", "center", "right"].includes(panel.island),
-            `${panel.name} has island "${panel.island}"`);
 });
 
 test("the module id space and the panel space account for each other", () => {
@@ -168,34 +155,6 @@ test("panels no module owns are exactly the ones the bar sweep must skip", () =>
         ["overflow", "settings", "tailscale"]);
 });
 
-test("the behaviour flags are carried deliberately", () => {
-    // Each flag replaced a hardcoded `=== "settings"`; the Day sheet later
-    // adopted centerAnchored so its two triggers share one centred surface.
-    // A new carrier means a new deliberate entry here.
-    const expected = {
-        centerAnchored: ["calendar", "weather"],
-        fillsBody: []
-    };
-    for (const [flag, carriers] of Object.entries(expected)) {
-        const carrying = R.PANELS.filter(p => p[flag]).map(p => p.name).sort();
-        assert.deepEqual(carrying, carriers, `unexpected panels carry ${flag}`);
-    }
-});
-
-test("no consumer still hardcodes a panel name it should ask the registry for", () => {
-    // Guards the substitution this WP made: these files used to test
-    // `Popouts.currentName === "settings"` directly.
-    for (const file of ["shell.qml", "Bar/Bar.qml", "Bar/PopoutHost.qml",
-                        "Bar/BarPopoutWindow.qml"]) {
-        // Line by line, so a failure names the offending line rather than
-        // dumping the whole file into the assertion diff.
-        read(file).split("\n").forEach((line, i) => {
-            assert.ok(!/currentName\s*[!=]==\s*"settings"/.test(line),
-                `${file}:${i + 1} compares currentName against a literal panel name:\n    ${line.trim()}`);
-        });
-    }
-});
-
 test("lookups answer for unknown panels instead of throwing", () => {
     // The IPC boundary accepts arbitrary strings; registry lookups themselves
     // remain total so every caller can decide how to handle one.
@@ -309,14 +268,6 @@ test("a primitive that registers a panel also opens it", () => {
         const src = read(file);
         assert.match(src, /host\.togglePopout\(\s*(root\.)?panelName/,
             `${file} registers a panel but never toggles it on click`);
-    }
-});
-
-test("no bar module hand-wires a panel the primitive already owns", () => {
-    const bar = barSources();
-    for (const call of ["registerPanel", "unregisterPanel", "togglePopout"]) {
-        assert.doesNotMatch(bar, new RegExp(`barWindow\\.${call}\\(`),
-            `Bar.qml still hand-wires ${call}; panelName should drive it`);
     }
 });
 

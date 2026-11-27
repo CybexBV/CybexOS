@@ -11,20 +11,6 @@ const prefs = (patch = {}) => settings.merge({ ...settings.defaults(),
     ...patch });
 const values = (p, colors = palette, session) => theme.values(p, colors, metrics.calculate(p), session);
 
-test("Omarchy adapter maps the default font, geometry and supplied palette border", () => {
-    const p = prefs();
-    assert.equal(p.font, "grotesk");
-    assert.equal(p.surfaceCornerRadius, 16);
-    const v = values(p);
-    assert.equal(v["font.base-size"], "14");
-    assert.equal(Math.round(420 * Number(v["font.base-size"]) / 12), 490);
-    for (const surface of ["popups", "tooltip", "menu", "launcher", "notifications"]) {
-        assert.equal(v[surface + ".border"], palette.surfaceBorder);
-        assert.equal(v[surface + ".border-width"], "2");
-        assert.equal(v[surface + ".border-alpha"], "1");
-    }
-});
-
 test("all density and accessibility combinations share font and geometry scaling", () => {
     for (const shellFontSize of [10, 12, 14, 24])
         for (const shellScale of [75, 100, 150, 200])

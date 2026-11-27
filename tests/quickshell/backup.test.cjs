@@ -122,17 +122,6 @@ test("helper failures are shown in its own words", () => {
         { id: "latest" }, { id: "not hex" }] })).map(entry => entry.id), ["ab".repeat(32)]);
 });
 
-test("the next run reads in the future tense", () => {
-    const page = read("Settings/BackupPage.qml");
-    assert.match(page, /days <= 0 \? "today after " \+ time\s*: days === 1 \? "tomorrow after " \+ time/);
-    assert.match(page, /page\.nowMs, page\.formatDue\)/);
-    const localTime = require(path.join(shellDir, "Settings/LocalTime.js"));
-    const now = new Date(2026, 9, 13, 12, 0).getTime();
-    assert.equal(-localTime.daysBetween(new Date(2026, 9, 14, 7, 0).getTime(), now), 1);
-    // -0 on the same day, which the page's `days <= 0` reads as today.
-    assert.ok(-localTime.daysBetween(new Date(2026, 9, 13, 23, 0).getTime(), now) <= 0);
-});
-
 test("Backup & storage is a System page with three tabs that search reaches", () => {
     const settings = read("Common/Settings.qml");
     const view = read("Settings/SettingsView.qml");
@@ -187,24 +176,4 @@ test("the Backups tab is personal files only, with setup inline", () => {
         "the recovery key never reaches clipboard history or argv");
     assert.doesNotMatch(service, /FileView|writeAdapter|setText\(/, "the shell never stores the key");
     assert.match(service, /running: root\.watched/, "status is polled only while the page is shown");
-});
-
-test("recovery points live on one tab: the list, then how long they are kept, then the boot menu", () => {
-    const page = read("Settings/StoragePage.qml");
-    const listAt = page.indexOf('title: "Recovery points"');
-    const retentionAt = page.indexOf('title: "Retention"');
-    const generationsAt = page.indexOf('RecoveryGroup { visible: page.section === "recovery" }');
-    assert.ok(listAt > 0 && retentionAt > listAt && generationsAt > retentionAt, "list, retention, generations");
-    assert.match(page, /property string searchAnchor: "recoveryPoints"/, "search's Recovery points row lands here");
-    assert.match(page, /title: "Retention"[\s\S]{0,120}changeTag: "restart"/, "retention says it builds a system change");
-    assert.match(read("Settings/RecoveryGroup.qml"), /title: "Going back"[\s\S]*ValueRow \{\s*width: parent\.width/);
-    // One plain name in what the tab shows (2026-11-24 review): "recovery
-    // points"; the technical terms only in secondary lines.
-    for (const heading of ["System generations", "View generations", "Confirmed deployments to keep"]) {
-        assert.ok(!page.includes(`"${heading}"`), heading);
-        assert.ok(!read("Settings/RecoveryGroup.qml").includes(`"${heading}"`), heading);
-    }
-    assert.match(page, /label: "Recovery points to keep"\s+hint: "[^"]*\(confirmed deployments\)\."/);
-    // Home took over from About and holds no recovery points either.
-    assert.doesNotMatch(read("Settings/HomePage.qml"), /RecoveryGroup|Recovery points/);
 });

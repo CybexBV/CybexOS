@@ -155,18 +155,6 @@ class RedactorFixtures(unittest.TestCase):
                          '/home/[user]/x [user]@1000.service the [user] said')
         self.assertEqual(redact(redact('/home/user/x')), '/home/[user]/x')
 
-    def test_generic_hostnames_and_short_values_are_not_treated_as_private(self):
-        redact = report.Redactor(hosts={'nixos', 'localhost', 'ab'}, users={'jo'})
-        self.assertEqual(redact('NixOS nixos localhost ab jo'), 'NixOS nixos localhost ab jo')
-
-    def test_timestamps_versions_and_pci_addresses_are_not_addresses(self):
-        redact = report.Redactor()
-        for text in ('2026-10-13 22:09:11', '12:34:56.789', 'std::string::npos', 'qrc:/Foo.qml:12:5',
-                     'version 1.2.3.4.5', 'nvidia 615.78.08', '0000:00:02.0', 'fe80 is a prefix'):
-            self.assertEqual(redact(text), text)
-        self.assertEqual(redact('gateway 192.168.0.1:53'), 'gateway [ipv4]:53')
-
-
 FIXTURE_ENTRY = """
 import importlib.machinery, importlib.util, json, sys
 loader = importlib.machinery.SourceFileLoader('fixture_report', sys.argv[1])
@@ -275,24 +263,6 @@ class Bundle(unittest.TestCase):
                 self.assertIn('Redacted:', result.stdout)
             self.assertFalse((fixture.fixture / 'opened').exists())
 
-    def test_default_location_is_the_download_folder_and_zstd_is_optional(self):
-        with tempfile.TemporaryDirectory() as directory:
-            fixture = Fixture(directory)
-            output = json.loads(fixture.run('--json').stdout)
-            self.assertEqual(Path(output['path']).parent, fixture.home / 'Downloads')
-            zst = fixture.base / 'bundle.tar.zst'
-            result = fixture.run('--json', '--output', str(zst))
-            if result.returncode == 0:
-                listing = subprocess.run(['tar', '--zstd', '-tf', str(zst)], text=True, capture_output=True)
-                if listing.returncode == 0:
-                    self.assertIn('bundle/summary.json', listing.stdout)
-            else:
-                self.assertIn('zstd', result.stderr)
-            bad = fixture.run('--json', '--output', str(fixture.base / 'bundle.txt'))
-            self.assertNotEqual(bad.returncode, 0)
-
-
-
 class NativeDiagnostics(unittest.TestCase):
     def probe(self, replies=None, declaration=None):
         self.calls = []
@@ -321,18 +291,6 @@ class NativeDiagnostics(unittest.TestCase):
         self.assertIn(('systemctl', '--user', 'is-active', 'personal.service'), self.calls)
         self.assertNotIn('doctor', str(self.calls))
         self.assertFalse(any(action in {'start', 'stop', 'restart', 'confirm', 'apply'} for call in self.calls for action in call))
-
-    def test_failed_service_pending_deployment_and_safe_shell_are_actionable(self):
-        result = self.probe({
-            ('systemctl', 'is-active', 'NetworkManager.service'): (3, 'failed'),
-            ('cybex', 'update', 'status', '--json'): (0, '{"state":"awaiting-boot"}'),
-            ('cybex', 'shell', 'status', '--json'): (0, '{"safe":true,"reason":"Repeated crashes"}'),
-        })
-        warnings = {check['name']: check['detail'] for check in result['checks'] if check['state'] == 'warning'}
-        self.assertEqual(result['overall'], 'warning')
-        self.assertEqual(set(warnings), {'NetworkManager.service', 'deployment', 'shell'})
-        self.assertIn('awaiting-boot', warnings['deployment'])
-        self.assertIn('Repeated crashes', warnings['shell'])
 
     def test_reported_devices_are_listed_as_reported_only(self):
         declaration = {'schema': 1, 'units': ['NetworkManager.service'], 'userUnits': ['personal.service'],

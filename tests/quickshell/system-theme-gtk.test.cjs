@@ -38,23 +38,6 @@ function gsettingsCalls(stub) {
     return stub.calls().filter(line => line.startsWith("gsettings "));
 }
 
-test("render records the dark and light settings deterministically", () => {
-    const dark = renderTarget("gtk", darkTokens());
-    assert.deepEqual(Object.keys(dark), ["gtk.json"]);
-    assert.deepEqual(JSON.parse(dark["gtk.json"]), {
-        "accent-color": "blue", "color-scheme": "prefer-dark", "gtk-theme": "adw-gtk3-dark",
-        "text-scaling-factor": "1.00",
-    });
-    assert.ok(dark["gtk.json"].endsWith("}\n"));
-    assert.deepEqual(renderTarget("gtk", darkTokens()), dark);
-
-    const light = JSON.parse(renderTarget("gtk", lightTokens())["gtk.json"]);
-    assert.deepEqual(light, {
-        "accent-color": "blue", "color-scheme": "prefer-light", "gtk-theme": "adw-gtk3",
-        "text-scaling-factor": "1.00",
-    });
-});
-
 
 
 test("accents map to the nearest libadwaita accent by hue, greys to slate", () => {

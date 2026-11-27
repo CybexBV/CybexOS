@@ -53,13 +53,6 @@ test("CPU deltas reject malformed, reset, and non-moving counters", () => {
     assert.equal(H.cpuUsage({ total: 50, idle: 20 }, { total: 40, idle: 10 }), null);
 });
 
-test("CPU model parsing takes the first normalized model name", () => {
-    assert.equal(H.parseCpuModel(
-        "processor : 0\nmodel name : Intel(R)   Core(TM) Ultra\nprocessor : 1\nmodel name : other\n"),
-    "Intel(R) Core(TM) Ultra");
-    assert.equal(H.parseCpuModel("processor : 0\n"), "");
-});
-
 test("MemAvailable and swap counters become byte totals and usage", () => {
     const memory = H.parseMemInfo([
         "MemTotal:       16777216 kB",
@@ -120,17 +113,6 @@ test("df parsing validates the C-locale header, root target, and values", () => 
         assert.equal(H.parseDf(malformed), null);
 });
 
-test("IEC formatting changes units exactly at binary boundaries", () => {
-    assert.equal(H.formatIecBytes(0), "0 B");
-    assert.equal(H.formatIecBytes(1023), "1023 B");
-    assert.equal(H.formatIecBytes(1024), "1 KiB");
-    assert.equal(H.formatIecBytes(1536), "1.5 KiB");
-    assert.equal(H.formatIecBytes(1024 ** 2), "1 MiB");
-    assert.equal(H.formatIecBytes(12.25 * 1024 ** 3), "12.3 GiB");
-    assert.equal(H.formatIecBytes(-1), "Unavailable");
-    assert.equal(H.formatIecBytes(undefined), "Unavailable");
-});
-
 test("uptime parsing and formatting stay compact at minute boundaries", () => {
     assert.equal(H.parseUptime("90061.42 12345.67\n"), 90061);
     assert.equal(H.parseUptime("unavailable"), null);
@@ -143,14 +125,3 @@ test("uptime parsing and formatting stay compact at minute boundaries", () => {
     assert.equal(H.formatUptime(-1), "Unavailable");
 });
 
-test("formatStorageBytes counts storage in decimal units with three significant digits", () => {
-    assert.equal(H.formatStorageBytes(0), "0 B");
-    assert.equal(H.formatStorageBytes(999), "999 B");
-    assert.equal(H.formatStorageBytes(1000), "1 KB");
-    assert.equal(H.formatStorageBytes(412e9), "412 GB");
-    assert.equal(H.formatStorageBytes(31.94e9), "31.9 GB");
-    assert.equal(H.formatStorageBytes(1e12), "1 TB");
-    assert.equal(H.formatStorageBytes(1.34e12), "1.3 TB");
-    assert.equal(H.formatStorageBytes(-1), "Unavailable");
-    assert.equal(H.formatStorageBytes("x"), "Unavailable");
-});

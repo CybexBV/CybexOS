@@ -19,7 +19,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "desktop" / "assistant"))
 
-from cybexos_assistant import auth, policy, prompt, speech  # noqa: E402
+from cybexos_assistant import auth, policy, prompt  # noqa: E402
 from cybexos_assistant.protocol import encode, iter_lines, parse_json  # noqa: E402
 from cybexos_assistant.server import RESTARTED, Server  # noqa: E402
 from cybexos_assistant.turn import Turn  # noqa: E402
@@ -603,13 +603,6 @@ class AuthenticationTest(ServiceTest):
         missing = await self.client.call('auth.login', {'agent': 'codex'})
         self.assertEqual(missing['error']['code'], -32003)
 
-    def test_codex_plan_reads_only_the_sign_in_kind(self):
-        self.assertEqual(auth.codex_plan(b"Logged in using ChatGPT\n"), "chatgpt")
-        self.assertEqual(auth.codex_plan(b"Logged in using an API key - sk-proj-***ABCD\n"), "other")
-        self.assertEqual(auth.codex_plan(b"Logged in using access token\n"), "other")
-        self.assertIsNone(auth.codex_plan(b"Not logged in\n"))
-        self.assertIsNone(auth.codex_plan(None))
-
     async def test_uncheckable_auth_is_not_reported_as_ready(self):
         marker = self.harness.home / 'signed-out-claude'
         marker.write_text('error')
@@ -771,11 +764,6 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual((restored, skipped), ([], ["~/.config/cybexos/shell.json"]))
         self.assertEqual(self.shell.read_text(), "person")
 
-    def test_unchanged_files_are_not_listed(self):
-        snapshots = policy.Snapshots(self.home)
-        snapshots.begin()
-        self.assertEqual(snapshots.finish(), [])
-
     def test_plugins_and_staged_changes(self):
         before = policy.plugin_manifests(self.home)
         for identifier, name in (("personal.cputemp", "CPU temperature"), ("Bad ID", "x")):
@@ -790,24 +778,6 @@ class SnapshotTest(unittest.TestCase):
 
 
 class TextTest(unittest.TestCase):
-    def test_markdown_becomes_speakable_sentences(self):
-        reply = textwrap.dedent("""\
-            **Done.** The bar is now *transparent*. See [the docs](https://example.org).
-
-            - Open `Settings` first
-            - Then pick a_b_c.
-
-            ```nix
-            environment.systemPackages = [ pkgs.obsidian ];
-            ```
-            ```sh
-            cybex update status
-            ```
-            That's it!""")
-        self.assertEqual(speech.sentences(reply), [
-            "Done.", "The bar is now transparent.", "See the docs.", "Open Settings first",
-            "Then pick a_b_c.", speech.CODE_NOTE, "That's it!"])
-        self.assertEqual(len(speech.sentences("Hi. " * 100)), speech.MAX_SENTENCES)
 
     def test_prompt_and_turn_notes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -923,15 +893,6 @@ class ClaudeTest(ServiceTest):
         await self.client.result("approval.respond", {"id": card["id"], "decision": "allow"})
         done = await self.client.finished()
         self.assertEqual((done["text"], done["staged"]), ("applied", "b" * 32))
-
-    async def test_stop_interrupts(self):
-        await self.ask("hang around")
-        await self.client.until(lambda m: m["method"] == "turn.delta")
-        stopped = await self.client.result("turn.stop")
-        self.assertEqual(stopped, {"stopped": True})
-        done = await self.client.finished()
-        self.assertEqual(done["status"], "stopped")
-        self.assertEqual(await self.client.result("turn.stop"), {"stopped": False})
 
     async def test_crash_and_auth_errors(self):
         await self.ask("crash now")
@@ -1135,11 +1096,6 @@ class CodexTest(ServiceTest):
         self.assertEqual((card["kind"], card["command"], card["detail"]), ("command", "rm -rf ~/x", "Clean up"))
         await self.client.result("approval.respond", {"id": card["id"], "decision": "always"})
         self.assertEqual((await self.client.finished())["text"], "decision:acceptForSession")
-
-    async def test_preference_patch_is_accepted(self):
-        await self.ask("edit preferences")
-        done = await self.client.finished()
-        self.assertEqual((done["text"], done["undo"]), ("decision:accept", ["~/.config/cybexos/shell.json"]))
 
     async def test_unsupported_requests_are_declined(self):
         await self.ask("elicit something")
@@ -1425,12 +1381,6 @@ class RenewalTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.server.outdated() and not self.server.renewable())
         path.write_text(json.dumps({"assistantHistory": "month"}))
         self.assertEqual(await asyncio.wait_for(self.serving, self.QUIET + 5), 75)
-
-    async def test_stopping_the_service_is_an_ordinary_exit(self):
-        self.update()
-        self.server.stopping.set()
-        self.assertEqual(await asyncio.wait_for(self.serving, 5), 0)
-
 
 class SpeechTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

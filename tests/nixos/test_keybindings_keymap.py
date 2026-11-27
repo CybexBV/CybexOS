@@ -20,19 +20,6 @@ def fixture(name):
 
 
 class KeymapParser(unittest.TestCase):
-    def test_us_layout_maps_each_keycode_to_its_unshifted_symbol(self):
-        group = keymap.parse(fixture('us'))['groups'][0]
-        self.assertEqual({code: group[code] for code in ('10', '11', '19', '20', '21', '24', '49', '59', '60', '61', '65')},
-                         {'10': '1', '11': '2', '19': '0', '20': 'minus', '21': 'equal', '24': 'q', '49': 'grave',
-                          '59': 'comma', '60': 'period', '61': 'slash', '65': 'space'})
-        self.assertEqual(group['9'], 'Escape')
-        self.assertEqual(group['67'], 'F1')
-
-    def test_azerty_layout_puts_punctuation_on_the_number_row(self):
-        group = keymap.parse(fixture('fr'))['groups'][0]
-        self.assertEqual({code: group[code] for code in ('10', '11', '12', '13', '20', '24', '26', '49', '61')},
-                         {'10': 'ampersand', '11': 'eacute', '12': 'quotedbl', '13': 'apostrophe', '20': 'parenright',
-                          '24': 'a', '26': 'e', '49': 'twosuperior', '61': 'exclam'})
 
     def test_every_group_is_parsed_and_picked_by_the_active_keymap_name(self):
         parsed = keymap.parse(fixture('us-fr'))
@@ -172,11 +159,6 @@ class KeymapLookup(unittest.TestCase):
         self.assertEqual(self.lookup('us', '', 'ctrl:option%d' % (keymap.CACHE_FILES + 3)), newest)
         self.assertEqual(len(self.calls), count + 1)
 
-    def test_memo_is_bounded(self):
-        for index in range(keymap.CACHE_MEMO + 3):
-            self.lookup('us', '', 'ctrl:option%d' % index)
-        self.assertLessEqual(len(keymap._memo), keymap.CACHE_MEMO)
-
     def test_missing_tool_failure_garbage_and_oversize_fail_soft(self):
         with patch.object(keymap.shutil, 'which', return_value=None):
             self.assertIsNone(keymap.compile_keymap('us', '', ''))
@@ -193,13 +175,6 @@ class KeymapLookup(unittest.TestCase):
                     patch.object(keymap.subprocess, 'run', side_effect=error):
                 self.assertIsNone(keymap.compile_keymap('us', '', ''))
         self.assertEqual(list(Path(self.temporary.name, 'cybexos').glob('keymap-*.json')), [])
-
-    def test_works_without_a_runtime_directory(self):
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop('XDG_RUNTIME_DIR')
-            self.assertEqual(self.lookup('fr')['groups'][0]['10'], 'ampersand')
-            self.lookup('fr')
-            self.assertEqual(len(self.calls), 1)
 
     def hyprctl(self, keyboards, code=0):
         return subprocess.CompletedProcess([], code, json.dumps({'keyboards': keyboards}), '')

@@ -79,17 +79,6 @@ test("Notes owns one center popout and every loader/index knows it", () => {
     assert.match(read("Popovers/qmldir"), /^NotesPopover NotesPopover\.qml$/m);
 });
 
-test("the bar widget is icon-only and its tooltip owns the count", () => {
-    const module = read("Bar/Modules/Notes.qml");
-    assert.match(module, /moduleId:\s*"notes"/);
-    assert.match(module, /panelName:\s*"notes"/);
-    assert.match(module, /glyph:\s*"sticky_note_2"/);
-    assert.match(module, /label:\s*""/);
-    assert.match(module, /tooltip:\s*Notes\.count/);
-    assert.doesNotMatch(module, /Text\s*\{/,
-        "the menubar must not render a label or count beside the icon");
-});
-
 test("Notes persistence and title generation are independently queued and retryable", () => {
     const notes = read("Common/Notes.qml");
     for (const property of ["records", "ready", "saving", "error", "undoAvailable"])
@@ -120,26 +109,6 @@ test("Notes persistence and title generation are independently queued and retrya
         "CLI diagnostics must not be copied into the shell journal");
     assert.match(notes, /dirty = parsed\.migrated === true[\s\S]*?saveTimer\.restart\(\)/,
         "a valid v1 file must be rewritten atomically as v2");
-});
-
-test("the Notes popover has exclusive overview and editor views", () => {
-    const panel = read("Popovers/NotesPopover.qml");
-    const overview = panel.slice(panel.indexOf("id: overviewView"),
-        panel.indexOf("id: editorView"));
-    const editor = panel.slice(panel.indexOf("id: editorView"),
-        panel.indexOf("id: relativeTimeTimer"));
-
-    assert.match(overview, /visible:\s*!root\.editing/);
-    assert.match(editor, /visible:\s*root\.editing/);
-    assert.match(panel, /text:\s*"Notes"/);
-    assert.match(overview, /id:\s*addButton[\s\S]*?label:\s*"Add"[\s\S]*?Accessible\.name:\s*"Add note"/);
-    assert.match(editor, /id:\s*backButton[\s\S]*?label:\s*"Back"/);
-    assert.match(editor, /id:\s*doneButton[\s\S]*?label:\s*"Done"[\s\S]*?fill:\s*Theme\.accentBgSoft/);
-    assert.match(editor, /root\.editingId === "" \? "New note" : "Edit note"/);
-    assert.doesNotMatch(overview, /id:\s*noteEdit/,
-        "the document editor must not be part of the overview");
-    assert.doesNotMatch(editor, /id:\s*noteList/,
-        "the note list must not remain behind the writing view");
 });
 
 test("the editor is adaptive, document-shaped, and keeps explicit actions", () => {

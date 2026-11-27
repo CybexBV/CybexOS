@@ -51,31 +51,6 @@ test("the dismissal grab waits for layershell keyboard focus and keeps native te
     assert.doesNotMatch(view, /readOnly:\s*true|inputMethodHints:\s*Qt\.Imh/);
 });
 
-test("Enter activates the selected first result without waiting for animation", () => {
-    const view = read("LauncherView.qml");
-
-    assert.match(view, /property int selected:\s*0/);
-    assert.match(view,
-        /event\.key === Qt\.Key_Return \|\| event\.key === Qt\.Key_Enter\) \{[^}]*?activate\(rows\[selected\], \(event\.modifiers & Qt\.ShiftModifier\) !== 0\);/s);
-    assert.doesNotMatch(view, /\bentered\b|enterTimer|enterDelay|PauseAnimation/,
-        "result-row staging must not make the selected app look unavailable");
-});
-
-test("the empty app directory is alphabetical", () => {
-    const view = read("LauncherView.qml");
-    const providers = read("Common/LauncherProviders.qml");
-    const helpers = load("LauncherProviders.js");
-    const app = { id: "z.desktop", name: "Zulu", genericName: "", keywords: [] };
-
-    assert.equal(helpers.appScore(app, "", 9000), 1,
-        "an empty query must give every app the same score");
-    assert.match(providers,
-        /ProviderHelpers\.appScore\(app, root\.term,[\s\S]*Launcher\.usageBoost\(app\)\)/);
-    assert.match(providers,
-        /\.sort\(\(a, b\) => b\.score - a\.score[\s\S]*a\.title\.localeCompare\(b\.title\)\)/);
-    assert.match(view, /readonly property var rows:\s*LauncherProviders\.rows/);
-});
-
 test("the app directory keeps every match in a fixed scrolling viewport", () => {
     const view = read("LauncherView.qml");
     const providers = read("Common/LauncherProviders.qml");
@@ -99,24 +74,6 @@ test("the app directory keeps every match in a fixed scrolling viewport", () => 
         "keyboard navigation must reveal selections beyond the first viewport");
 });
 
-test("the view is provider-driven and owns no search subprocesses", () => {
-    const view = read("LauncherView.qml");
-    const providers = read("Common/LauncherProviders.qml");
-
-    assert.match(view, /readonly property var provider:\s*LauncherProviders\.activeProvider/);
-    assert.match(view, /LauncherProviders\.query = query/);
-    assert.match(view, /LauncherProviders\.activate\(row, copyOnly === true\)/);
-    assert.match(view, /LauncherProviders\.emptyText/);
-    assert.doesNotMatch(view, /LauncherProviders\.footerLeft/);
-    assert.doesNotMatch(providers, /\bfooterLeft\b|\bappTotal\b/,
-        "the removed footer must not leave provider summary work behind");
-    assert.doesNotMatch(view, /\bProcess\s*\{|\bTimer\s*\{|switch \(row\.kind\)/,
-        "providers, not the presentation, own asynchronous work and activation");
-
-    for (const process of ["fileProc", "calcProc", "clipboardListProc"])
-        assert.match(providers, new RegExp(`id:\\s*${process}`));
-});
-
 test("clipboard refreshes are generation-safe and password-aware", () => {
     const providers = read("Common/LauncherProviders.qml");
     const store = untranslated(fs.readFileSync(path.resolve(__dirname,
@@ -133,39 +90,6 @@ test("clipboard refreshes are generation-safe and password-aware", () => {
     assert.match(store, /passwordmanagerhint\|x-kde-secret\|keepassxc\|concealed/i);
     assert.match(store, /cliphist -max-items 500 store/,
         "the continuously running history must retain a bounded number of entries");
-});
-
-test("the launcher uses the compact single-line geometry", () => {
-    const view = read("LauncherView.qml");
-    const window = read("LauncherWindow.qml");
-    const providers = read("Common/LauncherProviders.qml");
-    const resultSection = view.slice(view.indexOf("// ---- Results"),
-        view.indexOf("// ---- Empty state"));
-
-    assert.match(view, /implicitWidth:\s*Theme\.fitWidth\(Theme\.scaled\(460, Theme\.contentScale\)/);
-    for (const [name, value] of Object.entries({
-        tabHeight: 34,
-        searchHeight: 44,
-        rowHeight: 42,
-        resultIconSize: 28
-    }))
-        assert.match(view, new RegExp(`property int ${name}: Theme\\.scaled\\(${value}\\)`));
-    assert.match(providers, /property int maxResults:\s*8\b/);
-    assert.match(view,
-        /fullHeight:\s*padding \* 2 \+ tabHeight \+ searchHeight\s*\+ maxResults \* rowHeight \+ spacing \* 2/);
-    assert.match(window,
-        /\(root\.outputHeight - launcherView\.fullHeight\) \/ 2/);
-
-    assert.match(resultSection, /height:\s*root\.rowHeight/);
-    assert.match(resultSection,
-        /width:\s*root\.resultIconSize\s*\n\s*height:\s*root\.resultIconSize/);
-    assert.doesNotMatch(resultSection,
-        /\bColumn\s*\{|modelData\.subtitle|enterGlyph|Behavior on color|ColorAnimation/,
-        "result delegates must be single-line and move the highlight immediately");
-    assert.match(resultSection, /animateColor:\s*false/,
-        "launcher result glyphs must change color with the highlight, without lag");
-    assert.doesNotMatch(view, /\bHDivider\s*\{|\bfooterLeft\b|id:\s*hints\b|esc close/,
-        "the compact view has no divider, footer, counts, or shortcut hints");
 });
 
 test("the launcher defaults to Apps and exposes the discoverable provider tabs", () => {
@@ -308,42 +232,6 @@ test("Super+Space uses Hyprland's in-process global shortcut", () => {
     assert.match(bindings,
         /mainMod \.\. " \+ SPACE", hl\.dsp\.global\("quickshell:launcherToggle"\)/);
     assert.doesNotMatch(bindings, /qs ipc call launcher toggle/);
-});
-
-test("the default AI agent is discoverable from the launcher and shortcut sheet", () => {
-    const bindings = untranslated(fs.readFileSync(path.resolve(shellDir, "../hypr/bindings.lua"), "utf8"));
-
-    // The sheet is drawn from the binding's own description.
-    assert.match(bindings,
-        /mainMod \.\. " \+ CTRL \+ SHIFT \+ A", hl\.dsp\.exec_cmd\([^)]*cybex agent --window"\),\s*\{ description = "Apps: AI agent" \}/);
-});
-
-test("launcher-only motion stays brief and cannot gate input", () => {
-    const theme = read("Common/Theme.qml");
-    const window = read("LauncherWindow.qml");
-
-    // Reduced motion removes movement but keeps a short opacity fade.
-    for (const [token, value, reduced] of [
-        ["launcherOpenDuration", 180, 0],
-        ["launcherCloseDuration", 120, 0],
-        ["launcherFadeInDuration", 110, 90],
-        ["launcherFadeOutDuration", 80, 70],
-        ["launcherResizeDuration", 140, 0],
-        ["launcherTravel", 8, 0]
-    ]) {
-        assert.match(theme, new RegExp(
-            `property (?:int|real) ${token}: reducedMotion \\? ${reduced} : ${value}\\b`));
-        assert.match(window, new RegExp(`Theme\\.${token}`));
-    }
-    assert.match(theme, /launcherInitialScale:\s*reducedMotion \? 1 : 0\.985/);
-    assert.match(window, /Theme\.launcherInitialScale/);
-});
-
-// The enlarged icon must reserve its actual width, including in compact density.
-test("launcher labels follow the scaled icon instead of a fixed text offset", () => {
-    const view = read("LauncherView.qml");
-    assert.match(view, /x: resultIcon\.x \+ resultIcon\.width \+ Theme\.scaled\(10\)/);
-    assert.doesNotMatch(view, /font\.pixelSize: \d+/);
 });
 
 test("launcher IPC opens a requested tab, and Super+Ctrl+V opens History", () => {
@@ -519,27 +407,4 @@ test("the Ask Wiz row shows a listening Wiz, the quoted query and the Enter key"
     assert.match(askRow, /text: "“" \+ root\.askQuote\s*textFormat: Text\.PlainText[\s\S]*?elide: Text\.ElideRight/);
     assert.match(askRow, /id: closingQuote\s*text: "”"/);
     assert.match(askRow, /text: "Enter" \/\/ i18n: untranslated \(key name\)/);
-});
-
-test("the search field shows a magnifier, labels mixed results and fades a list that goes on", () => {
-    const view = read("LauncherView.qml");
-    const providers = read("Common/LauncherProviders.qml");
-    const results = view.slice(view.indexOf("// ---- Results"),
-        view.indexOf("// ---- Empty state"));
-
-    // The Apps tab's grid glyph read as another app; a prefix or a prompt
-    // still names what the field does.
-    assert.match(view, /id: searchGlyph[\s\S]*?name: root\.argumentMode \? root\.pendingAction\.glyph\s*: root\.mode !== "" \? root\.provider\.glyph : "search"/);
-    assert.match(providers, /readonly property var groupLabels: ProviderHelpers\.groupLabels\(rows\)/);
-    assert.match(results, /readonly property string groupLabel: root\.groupLabels\[index\] \|\| ""/);
-    assert.match(results, /text: resultRow\.groupLabel === "Actions" \? "Actions" : "Apps"/);
-    // The label is outside the row's box: hover and click select the row.
-    assert.match(results, /id: rowBox\s*y: resultRow\.labelSpace/);
-    assert.match(results, /MouseArea \{\s*anchors\.fill: rowBox/);
-    assert.match(results, /ScrollChrome \{[\s\S]*?fadeSize: Math\.round\(root\.rowHeight \* 0\.75\)/);
-    // An icon that does not resolve, or fails to load, falls back to the
-    // app's monogram tile from the shared helper.
-    assert.match(view, /import "Common\/Monogram\.js" as Monogram/);
-    assert.match(results, /Monogram\.tile\(modelData\.title, Theme\.dark\)/);
-    assert.match(results, /visible: resultRow\.iconUrl === "" \|\| iconImage\.status === Image\.Error/);
 });

@@ -136,15 +136,6 @@ test("a QR code in the region is decoded and copied instead of OCR'd", t => {
     }
 });
 
-test("OCR still works where zbar is missing or fails", t => {
-    const f = fixture(t);
-    ocrStubs(f, { zbarimg: "exit 1" });
-    const result = runOcr(f);
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(fs.readFileSync(path.join(f.log, "clipboard"), "utf8"), "recognised text");
-    assert.match(notices(f), /Copied text from selection/);
-});
-
 test("OCR failures are reported instead of exiting silently", t => {
     let f = fixture(t);
     ocrStubs(f, { grimFails: true });

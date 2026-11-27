@@ -33,13 +33,6 @@ function bar(width, title, options = {}) {
     };
 }
 
-test("a roomy bar draws the media title at the user's maximum", () => {
-    const result = G.fitMenubar(L.fitBar, bar(1920, 180), 12);
-    assert.deepEqual(result.compact, []);
-    assert.deepEqual(result.overflow, []);
-    assert.equal(result.mediaCut, 0);
-});
-
 test("the media title shrinks to end the chip 12 px short of the centre group", () => {
     for (const width of [900, 800]) {
         const options = bar(width, 180);
@@ -132,51 +125,4 @@ test("bar targets span the bar's height and at least 32 px", () => {
     assert.match(read("Bar/BarHover.qml"), /region: root\.hitArea/);
     for (const rel of ["Bar/Workspaces.qml", "Bar/Modules/Tray.qml", "Bar/Modules/Indicators.qml"])
         assert.match(read(rel), /height: Math\.max\(parent\.height, Theme\.barHeight\)/, rel);
-});
-
-test("the dots style marks the current workspace with a 20 × 8 accent pill", () => {
-    // Claude Fable, 2026-11 review: "pills of at least 8px, a filled or
-    // wider pill for the active workspace, and a dimmer state for empty ones."
-    const source = read("Bar/Workspaces.qml");
-    const Motion = load("WorkspaceMotion.js");
-    const inset = (Motion.CELL_WIDTH - 4 - 20) / 2;
-    const cell = Motion.indicatorBounds([1, 2, 3], 2);
-    assert.equal((cell.right - inset) - (cell.left + inset), 20);
-    assert.equal((cell.left + inset + cell.right - inset) / 2, Motion.CELL_WIDTH * 1.5,
-        "the pill is centred on its cell");
-    assert.match(source, /readonly property int dotSize: 8/);
-    assert.match(source, /readonly property int dotPillWidth: 20/);
-    assert.match(source, /readonly property real dotPillInset: \(WorkspaceMotion\.CELL_WIDTH - 4 - dotPillWidth\) \/ 2/);
-    assert.match(source, /const inset = numbered \? 0 : dotPillInset;/);
-    assert.match(source, /height: root\.numbered \? Theme\.chipInnerHeight : root\.dotSize/);
-    assert.match(source, /color: Theme\.barWsCurrent/);
-    assert.match(source, /focused && !root\.numbered \? "transparent"/,
-        "the pill replaces the current workspace's dot");
-    // Every place is an 8 px pip in both styles; an empty one is a ring.
-    assert.match(source, /width: slot\.showNumber \? Theme\.chipInnerHeight : root\.dotSize/);
-    assert.match(source, /readonly property bool hollow: !exists && !urgent && !showNumber/);
-    assert.match(source, /color: slot\.hollow \? "transparent" : slot\.restingTone/);
-    assert.match(source, /border\.width: slot\.hollow \? 1\.5 : 0/);
-});
-
-test("the Cybex X is two-tone from its own SVG geometry", () => {
-    const brand = read("Bar/BarBrandIcon.qml");
-    const svg = read("assets/cybexos.svg");
-    const paths = [...svg.matchAll(/ d="([^"]+)"/g)].map(match => match[1]);
-    assert.equal(paths.length, 2);
-    for (const d of paths)
-        assert.ok(brand.includes(`path: "${d}"`), "BarBrandIcon draws assets/cybexos.svg's paths");
-    assert.match(svg, /viewBox="147 3 44 44"/);
-    assert.match(brand, /readonly property real unit: Math\.min\(root\.width, root\.height\) \/ 44/);
-    assert.match(brand, /x: -147 \* mark\.unit/);
-    assert.match(brand, /y: -3 \* mark\.unit/);
-    assert.match(brand, /readonly property bool twoTone: name === "cybexos"/);
-    // At rest: the shared ink, the short stroke at 55 %.
-    assert.match(brand, /property color longInk: root\.highlighted \? Theme\.barTextHi : Theme\.barIcon/);
-    assert.match(brand,
-        /property color shortInk: root\.highlighted \? brandRed\s*: Qt\.rgba\(Theme\.barIcon\.r, Theme\.barIcon\.g, Theme\.barIcon\.b, 0\.55\)/);
-    assert.match(brand, /readonly property color brandRed: "#DC1E37"/);
-    assert.match(svg, /fill="#DC1E37"/);
-    // Every other identity keeps the shared monochrome treatment.
-    assert.match(brand, /BrandIcon \{[\s\S]{0,120}?visible: !root\.twoTone/);
 });

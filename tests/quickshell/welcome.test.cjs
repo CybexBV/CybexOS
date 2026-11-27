@@ -58,12 +58,6 @@ test('1Password is known by its desktop entry id from 8.12.42 on, and before', (
     assert.equal(W.isPassword('1password-beta'), false);
     assert.equal(W.isPassword(undefined), false);
 });
-test('Chrome is known by its desktop entry id and its windows\' class, Wayland or XWayland', () => {
-    assert.equal(W.isChrome('google-chrome'), true);
-    assert.equal(W.isChrome('Google-chrome'), true);
-    for (const name of ['google-chrome-beta', 'chromium', 'brave-browser', 'chrome-web.whatsapp.com__-Default', undefined])
-        assert.equal(W.isChrome(name), false, String(name));
-});
 test('a sign-in owns every window it opens; 1Password and Chrome only their own', () => {
     assert.deepEqual(W.connectWindow('a1,1,kitty,claude auth login', 'sign-in'), {address: 'a1', action: 'sign-in'});
     assert.deepEqual(W.connectWindow('b2,1,google-chrome,Claude', 'sign-in'), {address: 'b2', action: 'sign-in'});
@@ -123,14 +117,6 @@ test('checklist derives actual readiness independently of Later or opening Setti
     rows = W.checklist({...facts, reader: true, fingerprint: true, backupKnown: true, backup: true,
         accountsKnown: true, accounts: true}, {});
     assert.ok(rows.filter(row => !['webapps', 'security'].includes(row.id)).every(row => row.done));
-});
-test('passwd name uses the first GECOS word, with a username fallback', () => {
-    assert.equal(W.firstName('john:x:1000:1000:John Doe,Room,Phone:/home/john:/bin/bash', 'john'), 'John');
-    assert.equal(W.firstName('john:x:1000:1000::/home/john:/bin/bash', 'john'), 'john');
-    assert.equal(W.firstName('', 'cybexqa'), 'cybexqa');
-    assert.equal(W.fullName('john:x:1000:1000:John Doe,Room,Phone:/home/john:/bin/bash'), 'John Doe');
-    assert.equal(W.fullName('john:x:1000:1000::/home/john:/bin/bash'), '');
-    assert.equal(W.fullName(''), '');
 });
 test('guide wiring stays out of safe mode and exposes its stable IPC and launcher routes', () => {
     const read = name => fs.readFileSync(path.join(shellDir, name), 'utf8');

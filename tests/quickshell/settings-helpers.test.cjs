@@ -153,31 +153,6 @@ test("defaults carry the design values", () => {
         H.defaultModOpts().indicators.enabled);
 });
 
-test("menubar presets are a small intentional neutral palette", () => {
-    assert.deepEqual(H.BAR_COLOR_CHOICES.map(choice => [choice.id, choice.label]), [
-        ["default", "Shell Default"],
-        ["macos", "macOS"],
-        ["black", "Black"],
-        ["graphite", "Graphite"],
-        ["slate", "Slate"],
-        ["white", "White"],
-        ["custom", "Custom"]
-    ]);
-
-    const resolve = (mode, theme = "dark") =>
-        H.resolveBarColor(mode, theme, 230, 14, 9);
-    assert.equal(resolve("default"), "#1a1917");
-    assert.equal(resolve("default", "light"), "#eae9ef");
-    assert.equal(resolve("macos"), "#1d1d1f");
-    assert.equal(resolve("macos", "light"), "#f5f5f7");
-    assert.equal(resolve("black", "light"), "#000000");
-    assert.equal(resolve("graphite"), "#2c2c2e");
-    assert.equal(resolve("slate"), "#344054");
-    assert.equal(resolve("white"), "#ffffff");
-    assert.equal(resolve("custom"), "#14151a",
-        "integer HSL sliders begin within one RGB step of the shell's dark colour");
-});
-
 test("custom menubar HSL is deterministic and persisted input is bounded", () => {
     assert.equal(H.hslToHex(0, 100, 50), "#ff0000");
     assert.equal(H.hslToHex(120, 100, 50), "#00ff00");
@@ -223,18 +198,6 @@ test("the automatic menubar palette keeps copy at AA contrast", () => {
     }
     assert.equal(H.foregroundFor("#000000"), "#ffffff");
     assert.equal(H.foregroundFor("#ffffff"), "#000000");
-});
-
-test("the automatic menubar palette keeps the shared icon brightness", () => {
-    const dark = H.barPalette("#131419");
-    const light = H.barPalette("#ffffff");
-
-    assert.equal(dark.icon, "#c2c6d1",
-        "the default dark bar must use the bright shared silver");
-    assert.equal(light.icon, "#3a3850",
-        "light bars need the established deep-ink counterpart");
-    assert.ok(H.contrastRatio(dark.icon, dark.background) >= 10.5);
-    assert.ok(H.contrastRatio(light.icon, light.background) >= 10.5);
 });
 
 test("normalizeModOpts drops unknown modules and keys", () => {

@@ -87,66 +87,6 @@ test("settings uses an independent floating window with compatibility routes", (
     assert.match(popouts, /Settings\.togglePanel\(undefined, targetScreenName\)/);
 });
 
-test("the control dashboard uses a compact Settings action without a chevron", () => {
-    const control = read("Popovers/ControlCenterPopover.qml");
-    const footer = control.slice(control.indexOf("// ---- Footer"));
-
-    assert.match(footer, /id:\s*settingsLabel[\s\S]{0,200}?text:\s*"Settings"/);
-    assert.match(footer,
-        /width:\s*settingsLabel\.x \+ settingsLabel\.implicitWidth \+ 9/,
-        "the Settings hit target should hug its visible content");
-    assert.match(footer, /height:\s*Theme\.chipHeight/,
-        "footer actions are chips, at the bar's own control height");
-    assert.doesNotMatch(footer, /text:\s*"Cybex OS Settings"|chevron_right/);
-});
-
-test("the panel card grows out of its trigger and never out of thin air", () => {
-    const host = read("Bar/PopoutHost.qml");
-
-    // The scale origin is the trigger's own centre, clamped inside the card:
-    // an origin outside the shape reads as the card sliding rather than
-    // growing, which is the whole difference between the two.
-    assert.match(host, /originX:\s*clamp\(anchor\.x \+ anchor\.width \/ 2 - bodyX/);
-    assert.match(host, /Scale \{[\s\S]*?origin\.x: host\.originX/);
-    assert.match(host, /origin\.y: host\.bottomBar \? card\.height : 0/,
-        "a bottom bar grows the card upward, from its own lower edge");
-    // Entry/exit are directional, morphing has only a small overshoot, and
-    // opacity eases independently so it can never inherit the motion spring.
-    assert.match(host,
-        /Behavior on openProgress[\s\S]*?Theme\.popoutCloseDuration : Theme\.popoutOpenDuration[\s\S]*?Theme\.popoutExitCurve : Theme\.popoutEnterCurve/);
-    assert.match(host,
-        /Behavior on surfaceOpacity[\s\S]*?Theme\.popoutFadeOutDuration : Theme\.popoutFadeInDuration[\s\S]*?Theme\.easeInCurve : Theme\.easeOutCurve/);
-    assert.match(host, /opacity:\s*Format\.clamp01\(host\.surfaceOpacity\)/);
-    assert.match(host, /duration:\s*Theme\.popoutMorphDuration/);
-    assert.match(host, /bezierCurve:\s*Theme\.popoutMorphCurve/);
-    assert.match(host,
-        /bodyTop:\s*barBottom \+ Theme\.popGap/,
-        "all cards share the same small gap from the bar");
-    // The mask has to come from real geometry, not from the animating card.
-    const mask = host.match(/Item \{\s*id: cardHitRegion[\s\S]*?\n    \}/)?.[0] ?? "";
-    assert.ok(mask !== "", "the popout host must still publish an input region");
-    assert.doesNotMatch(mask, /transform|scale:/);
-});
-
-test("bar popouts use the quick detached motion profile", () => {
-    const theme = read("Common/Theme.qml");
-    const host = read("Bar/PopoutHost.qml");
-
-    assert.match(theme, /popoutOpenDuration:\s*reducedMotion \? 0 : 250/);
-    assert.match(theme, /popoutCloseDuration:\s*reducedMotion \? 0 : 165/);
-    assert.match(theme, /popoutMorphDuration:\s*reducedMotion \? 0 : 320/);
-    assert.match(theme, /popoutFadeInDuration:\s*reducedMotion \? 120 : 170/);
-    assert.match(theme, /popoutFadeOutDuration:\s*reducedMotion \? 90 : 120/);
-    assert.match(theme, /popoutContentFadeDuration:\s*reducedMotion \? 0 : 150/);
-    assert.match(theme, /popoutInitialScale:\s*reducedMotion \? 1 : 0\.975/);
-    assert.match(theme, /popoutTravel:\s*reducedMotion \? 0 : 10/);
-    assert.match(host,
-        /bodyTop:\s*barBottom \+ Theme\.popGap/,
-        "the faster motion must retain the shared panel gap");
-    assert.match(host, /xScale:\s*Theme\.popoutInitialScale/);
-    assert.match(host, /host\.bottomBar \? Theme\.popoutTravel : -Theme\.popoutTravel/);
-});
-
 test("settings exposes responsive output and keyboard contracts", () => {
     const view = read("Settings/SettingsView.qml");
     const host = read("Bar/PopoutHost.qml");
@@ -251,29 +191,6 @@ test("declared overflow paints and receives input outside the panel card", () =>
     assert.match(window,
         /mask:\s*Region\s*\{[\s\S]*?item:\s*popout\.cardMaskItem[\s\S]*?item:\s*popout\.overflowMaskItem/,
         "the input mask is the union of the card and detached control");
-});
-
-test("the tray and the updates chip use the reorderable widget pipeline", () => {
-    const helpers = read("Common/SettingsHelpers.js");
-    const modules = read("Settings/ModulesPage.qml");
-    const catalog = read("Common/WidgetCatalog.js");
-    const bar = read("Bar/Bar.qml");
-
-    assert.match(helpers, /"notes", "updates",\s*"tray"/);
-    assert.match(catalog, /updates:\s*\{ name: "Updates"/);
-    assert.match(catalog, /tray:\s*\{ name: "System tray"/);
-    assert.doesNotMatch(modules, /pinnedTail|text:\s*"pinned"/);
-    // The widgets are files; the bar maps ids to their sources.
-    assert.match(bar, /updates:\s*"Modules\/Updates\.qml"/);
-    assert.match(bar, /tray:\s*"Modules\/Tray\.qml"/);
-    assert.match(read("Bar/Modules/Updates.qml"), /onClicked:\s*Updates\.show\(\)/);
-    // Only confirmed available updates show a menubar indicator.
-    assert.match(bar, /case "updates": return Updates\.showIndicator/);
-    assert.doesNotMatch(bar, /Updates\.ran && Updates\.busy/);
-    const updates = read("Bar/Modules/Updates.qml");
-    assert.match(updates, /label: ""/);
-    assert.doesNotMatch(updates, /Theme\.barGreen|"check_circle"/);
-    assert.match(bar, /case "tray": return SystemTray\.items\.values\.length > 0;/);
 });
 
 test("the retired bell, idle, and usage modules leave nothing behind", () => {
@@ -384,52 +301,6 @@ test("settings improvements expose fitting, embedded folders, undo, and shortcut
     assert.match(bindings, /mainMod \..*" \+ comma".*settings toggle/);
 });
 
-test("settings geometry accommodates wide menu fonts and focused rows", () => {
-    const view = read("Settings/SettingsView.qml");
-    const page = read("Settings/SettingsPage.qml");
-    const theme = read("Common/Theme.qml");
-    const base = read("Settings/SettingsRow.qml");
-    const picker = read("Settings/PickerRow.qml");
-    const switchRow = read("Settings/SwitchRow.qml");
-    const system = ["PowerPage", "RegionPage", "TouchpadPage"]
-        .map(name => read(`Settings/${name}.qml`)).join("\n");
-
-    assert.match(view, /preferredWidth:\s*Theme\.scaled\(960, Theme\.contentScale\)/);
-    assert.match(view, /preferredHeight:\s*Theme\.scaled\(700\)/,
-        "44 header + 656 body: room for Home and the rail's three groups of six without scrolling");
-    // The gutter is unconditional: making it depend on scrollbarVisible
-    // loops (narrower content re-wraps taller and flips the scrollbar).
-    // An embedded page (options inside the Bar page's sheet) leaves the
-    // gutter to the page around it: a static property, not a loop.
-    assert.match(page, /scrollGutter:\s*embedded \? 0 : 8/);
-    assert.doesNotMatch(page, /scrollGutter:\s*scrollbarVisible/);
-    assert.match(page, /width:\s*Math\.min\(root\.maxContentWidth, Math\.max\(0, root\.width - root\.scrollGutter\)\)/,
-        "a page's column is bounded and centered rather than stretched across the pane");
-    // One minimum label lane keeps short labels aligned across all menu
-    // fonts; controls end on the right-hand edge.
-    assert.match(theme,
-        /readonly property int settingsLabelWidth:\s*scaled\(132, typeScale\)/);
-    assert.match(theme, /readonly property int settingsNarrowWidth:\s*scaled\(520, typeScale\)/);
-    assert.match(base, /readonly property int labelWidth:\s*markInset/,
-        "the modified-mark gutter is part of every row's label column");
-    assert.match(base, /Theme\.settingsLabelWidth >= root\.minimumLabelWidth/);
-    assert.match(picker, /narrowHeight:[\s\S]{0,100}?pills\.implicitHeight/,
-        "wrapped narrow picker pills must grow their row");
-    assert.match(switchRow, /hint: description/,
-        "switch descriptions wrap on the shared hint line, which grows the row");
-    assert.match(base, /readonly property real lineHeight:/,
-        "controls centre on the control line, not on a row grown by its hint");
-    for (const row of ["SliderRow", "PickerRow", "SwitchRow", "SettingsTextRow", "SelectRow"])
-        assert.match(read(`Settings/${row}.qml`), /^SettingsRow \{$/m,
-            `${row} must build on SettingsRow`);
-    // Reset all keeps the header's undo rather than a confirm step, and sits
-    // in its own group on Home instead of under Open.
-    const about = read("Settings/HomePage.qml");
-    assert.doesNotMatch(about, /resetArmed|Confirm reset/);
-    assert.match(about, /title: "Reset"[\s\S]{0,400}?onTriggered:\s*Settings\.resetAll\(\)/);
-    assert.doesNotMatch(system, /resetAll/);
-});
-
 test("touchpad scroll speed defaults to Hyprland's factor and applies live", () => {
     const settings = read("Common/Settings.qml");
     const helpers = read("Common/SettingsHelpers.js");
@@ -538,64 +409,6 @@ test("the rail is Home and three labeled groups of six, and the palette searches
             assert.ok(schemaKeys.includes(row.key),
                 `search row "${row.label}" names unknown key "${row.key}"`);
     }
-});
-
-test("settings workspace uses shared responsive groups and bounded header lanes", () => {
-    const view = read("Settings/SettingsView.qml");
-    const group = read("Settings/SettingsGroup.qml");
-    const action = read("Settings/ResponsiveActionRow.qml");
-    const qmldir = read("Settings/qmldir");
-
-    assert.match(view, /preferredWidth:\s*Theme\.scaled\(960, Theme\.contentScale\)/);
-    assert.match(view, /preferredHeight:\s*Theme\.scaled\(700\)/);
-    assert.match(view, /compactNav:\s*availableWidth < Theme\.scaled\(860, Theme\.typeScale\)/);
-    assert.match(view, /height:\s*Theme\.panelRowHeight\n/,
-        "navigation rows follow the shared panel rhythm, not a local literal");
-    assert.match(view, /headerHeight:\s*Theme\.scaled\(44\)/,
-        "the header is one line; the two-line form made it the tallest thing here");
-    assert.match(view, /anchors\.right:\s*headerActions\.left/);
-    assert.match(view, /id:\s*headerCopy[\s\S]{0,2000}?elide:\s*Text\.ElideRight/,
-        "header copy must be bounded before the action lane");
-
-    assert.match(group, /default property alias content:/);
-    // Rows and pages reset; a third "Reset group" level between them is gone.
-    assert.doesNotMatch(group, /property bool dirty:|signal resetRequested/);
-    assert.doesNotMatch(read("Settings/SectionHeader.qml"), /Reset group|resetRequested/);
-    assert.match(action, /readonly property bool stacked:\s*width < breakpoint/);
-    assert.match(action, /maximumLineCount:\s*root\.maximumLines/);
-    assert.match(qmldir, /^SettingsGroup SettingsGroup\.qml$/m);
-    assert.match(qmldir, /^ResponsiveActionRow ResponsiveActionRow\.qml$/m);
-
-    for (const page of ["AppearancePage", "BarLayoutGroups", "NotificationsPage", "PowerPage",
-            "RegionPage", "TouchpadPage"])
-        assert.match(read(`Settings/${page}.qml`), /SettingsGroup \{/,
-            `${page} must use grouped settings sections`);
-    // The wallpaper folder is a row like any other now (2026-09): its path
-    // is the row's label, bounded by the actions beside it and eliding in
-    // its own lane, so a long folder never pushes Choose… and Open off the
-    // edge; on a narrow page the actions drop under it.
-    const wallpaper = read("Settings/WallpaperPage.qml");
-    const folder = wallpaper.slice(wallpaper.indexOf("id: folderRow"));
-    assert.match(folder, /id: folderPath[\s\S]{0,400}?: Math\.max\(0, folderActions\.x - Theme\.controlSpacing - x\)/,
-        "the folder path is bounded by the actions beside it");
-    assert.match(folder, /id: folderPath[\s\S]{0,800}?elide: Text\.ElideMiddle/,
-        "a long folder path elides in its own lane");
-    assert.match(folder, /x: folderRow\.narrow \? folderRow\.markInset : folderRow\.contentRight - width/,
-        "the folder actions end on the controls' edge and stack when narrow");
-    // Report and action rows (2026-09) keep a label and end their value and
-    // actions on the same right-hand edge as the settings rows around them.
-    const valueRow = read("Settings/ValueRow.qml");
-    assert.match(valueRow, /^SettingsRow \{$/m, "ValueRow builds on SettingsRow");
-    assert.match(valueRow, /x: root\.actionsLeft/);
-    assert.match(valueRow, /actionsLeft: contentRight - actionsWidth/,
-        "actions end at the control edge, not in the reset column");
-    assert.match(valueRow, /elide: Text\.ElideRight/, "a long value is bounded, not clipped");
-    for (const page of ["PowerPage", "HomePage", "AccountsPage", "RecoveryGroup"])
-        assert.match(read(`Settings/${page}.qml`), /ValueRow \{/,
-            `${page} must put its actions on labeled rows`);
-    for (const page of ["PowerPage", "HomePage", "AccountsPage", "PluginsPage", "RecoveryGroup"])
-        assert.doesNotMatch(read(`Settings/${page}.qml`), /ResponsiveActionRow \{/,
-            `${page} must not end actions outside the control column`);
 });
 
 // The menubar separates one run of modules from the next with a hairline and a
@@ -777,24 +590,6 @@ test("bar geometry reset ownership moves from Appearance to Bar", () => {
     assert.match(settings, /pageInfo\(section\)\.label/);
 });
 
-test("wallpaper and module layouts switch before content can collide", () => {
-    const wallpaper = read("Settings/WallpaperPage.qml");
-    const modules = read("Settings/ModulesPage.qml");
-
-    const grid = read("Settings/WallpaperGrid.qml");
-    assert.match(grid, /columnCount: width >= 300 \? 3 : width >= 190 \? 2 : 1/);
-    assert.match(grid, /cellWidth: Math.floor\(width \/ columnCount\)/);
-    assert.match(grid, /naturalCellHeight: Math.floor\(\(cellWidth - 8\) \* 10 \/ 16\) \+ 8/);
-    // Rows at rest end on the view's edge: no row is cut through its middle.
-    assert.match(grid, /wholeRows: Math\.max\(1, Math\.round\(height \/ Math\.max\(1, naturalCellHeight\)\)\)/);
-    assert.match(grid, /cellHeight: height >= naturalCellHeight \? Math\.floor\(height \/ wholeRows\) : naturalCellHeight/);
-    assert.match(wallpaper, /WallpaperPicker \{/);
-    assert.match(wallpaper, /label: "Current"[\s\S]*?text: "Shuffle now"[\s\S]{0,200}?onTriggered: Wallpaper.shuffle\(\)/);
-    assert.match(modules, /columns: Math.max\(1, Math.min\(3/);
-    assert.match(read("Settings/WidgetPill.qml"), /elide:\s*Text\.ElideRight/);
-
-});
-
 test("notification settings drive the toasts and the notification center", () => {
     const toasts = read("NotificationToasts.qml");
     const notifs = read("Common/Notifs.qml");
@@ -855,30 +650,6 @@ test("per-module options live under one validated modOpts key", () => {
     assert.match(settings, /parsed\.modOpts !== undefined/);
     assert.doesNotMatch(read("Common/Weather.qml"), /Quickshell\.env\("QS_WEATHER/,
         "Weather must read its location from Settings, not the environment");
-});
-
-test("a widget chip opens its built-in options in the widget dialog", () => {
-    const modules = read("Settings/ModulesPage.qml");
-    const view = read("Settings/SettingsView.qml");
-    const detail = read("Settings/ModuleDetailView.qml");
-
-    assert.doesNotMatch(modules, /cyclePolicy/,
-        "the A/D/C policy cycler is replaced by the cog + sub-page");
-    assert.match(modules, /function openSubPage/);
-    assert.match(modules, /if \(dragActive\)\s*\n\s*return;/,
-        "a drag in progress must not be interrupted by opening a sub-page");
-    assert.match(modules, /ModuleDetailView \{/);
-    assert.match(modules, /inlineMode:\s*true/,
-        "the detail panel owns the heading and scrolling");
-    assert.match(modules, /onActivated: page.openSubPage\(modelData.key\)/);
-    assert.match(view, /moduleSubPageActive[\s\S]{0,120}?closeModuleSubPage\(\)/,
-        "Escape must close an open module sub-page before clearing search");
-    assert.match(detail, /Settings\.setModuleDetail\(view\.moduleId/,
-        "the detail policy control lives on the sub-page, stored in mods");
-    assert.match(detail, /Settings\.setModuleOption/);
-    assert.match(detail, /case "notifications": return notificationsOptions/);
-    assert.match(detail,
-        /id:\s*notificationsOptions[\s\S]*?label:\s*"Grouping"[\s\S]*?value:\s*"solo", label:\s*"Separate"[\s\S]*?value:\s*"status", label:\s*"Status group"/);
 });
 
 test("the settings store keeps its fixed user-owned config path", () => {

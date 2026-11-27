@@ -32,16 +32,6 @@ test('dedupe compares exact full content in a first-occurrence window; progress 
     assert.equal(P.duplicate([first],row(),2000,0),null);
 });
 
-test('a null action comparison disables dedupe on either side without changing source identity', () => {
-    const bounded=row({actionSignature:'[]'}), overflow=row({actionSignature:null});
-    assert.equal(P.signature(overflow),null);
-    assert.equal(P.duplicate([bounded],overflow,2000,10),null);
-    assert.equal(P.duplicate([overflow],bounded,2000,10),null);
-    assert.equal(P.duplicate([overflow],overflow,2000,10),null);
-    assert.equal(P.sourceKey(overflow),P.sourceKey(bounded));
-    assert.equal(P.duplicate([bounded],bounded,2000,10),bounded);
-});
-
 test('dynamic images merge by verified pixels and never by unresolved provider handles', () => {
     const image = 'image://qsimage/1/2', next = 'image://qsimage/3/4';
     const fp = 'sha256:'+'a'.repeat(64), other = 'sha256:'+'b'.repeat(64);

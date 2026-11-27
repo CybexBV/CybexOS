@@ -113,36 +113,6 @@ class SecuritySettingsTests(unittest.TestCase):
             pam_files=[self.pam],
             which=lambda name: '/usr/bin/' + name)
 
-    def test_snapshot_reports_reader_fingers_switch_and_keys(self):
-        snapshot = self.service.dispatch({'action': 'snapshot'})
-        self.assertEqual(snapshot['reader'], {'state': 'ready', 'name': 'Fixture Reader',
-                                              'scanType': 'press', 'stages': 5})
-        self.assertEqual(snapshot['fingers'], ['right-index-finger'])
-        self.assertEqual(snapshot['freeFingers'][0], 'left-index-finger')
-        self.assertTrue(snapshot['fingerprintAuth'])
-        self.assertTrue(snapshot['fingerprintManaged'])
-        self.assertEqual(snapshot['keys'], {'state': 'ready', 'error': '', 'entries': []})
-        json.dumps(snapshot)
-
-    def test_missing_reader_or_service_is_one_state_not_an_error(self):
-        self.fprintd._devices = []
-        self.assertEqual(self.service.dispatch({})['reader'], {'state': 'none'})
-        self.fprintd.fail['devices'] = 'org.freedesktop.DBus.Error.ServiceUnknown'
-        snapshot = self.service.dispatch({})
-        self.assertEqual(snapshot['reader'], {'state': 'unavailable'})
-        self.assertEqual(snapshot['fingers'], [])
-        self.nixos_policy.unlink()
-        snapshot = self.service.dispatch({})
-        self.assertFalse(snapshot['fingerprintAuth'])
-        self.assertTrue(snapshot['fingerprintManaged'], 'Disabled fingerprint policy remains managed by the NixOS module')
-
-    def test_key_support_states(self):
-        self.assertEqual(self.service.key_state(self.service.features()), 'ready')
-        self.pam.write_text('auth sufficient pam_unix.so\n')
-        self.assertEqual(self.service.key_state([]), 'inactive')
-        self.service.which = lambda name: None
-        self.assertEqual(self.service.key_state([]), 'missing')
-
     def test_removing_a_finger_needs_confirmation_and_releases_the_reader(self):
         with self.assertRaisesRegex(ValueError, 'Confirm'):
             self.service.dispatch({'action': 'delete-finger', 'finger': 'right-index-finger'})

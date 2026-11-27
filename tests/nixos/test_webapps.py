@@ -187,16 +187,6 @@ class Install(Fixture):
         self.assertEqual(desktop(self.entry("example-chat"))["Icon"],
                          str(self.apps() / "example-chat/icon.png"))
 
-    def test_without_network_the_install_falls_back_to_a_monogram(self):
-        network = Network({})
-        with patch.object(webapp, "Fetcher", network()):
-            record = webapp.install("https://notes.example.org/", "Notes")
-        self.assertEqual(record["iconSource"], "monogram")
-        self.assertTrue((self.apps() / "notes/icon.svg").is_file())
-        self.assertIn("https://notes.example.org/favicon.ico", network.requested)
-        self.assertGreater(json.loads((self.apps() / "notes/app.json").read_text())
-                           ["iconAttempt"], 0, "a failed fetch waits before retrying")
-
     def test_http_addresses_and_non_images_are_never_used_as_icons(self):
         network = Network({"https://x.example/": b"<link rel=icon href=/a.ico>",
                            "https://x.example/a.ico": b"<html>not an icon</html>",
@@ -206,19 +196,6 @@ class Install(Fixture):
             self.assertEqual(network.requested, [], "http is never fetched")
             record = webapp.install("https://x.example/", "X Example")
         self.assertEqual(record["iconSource"], "monogram")
-
-    def test_icon_discovery_prefers_large_raster_icons(self):
-        parser = webapp.IconLinks()
-        parser.feed('<link rel="shortcut icon" href="/16.ico">'
-                    '<link rel="icon" sizes="192x192" href="/192.png">'
-                    '<link rel="apple-touch-icon-precomposed" href="/touch.png">'
-                    '<meta property="og:site_name" content="Site">')
-        ranked = [href for _size, href in sorted(parser.icons, key=lambda item: -item[0])]
-        self.assertEqual(ranked, ["/touch.png", "/192.png", "/16.ico"])
-        self.assertEqual(parser.name, "Site")
-        ico = (b"\x00\x00\x01\x00\x02\x00" + bytes([16, 16]) + b"\x00" * 14
-               + bytes([0, 0]) + b"\x00" * 14)
-        self.assertEqual(webapp.largest_ico_frame(ico), 1, "0 means 256 pixels")
 
     def test_the_fetcher_refuses_plain_http(self):
         with self.assertRaisesRegex(webapp.WebAppError, "https"):

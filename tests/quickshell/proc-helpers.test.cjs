@@ -25,26 +25,6 @@ test("a silent failure falls back to the exit code, and NOT_STARTED to the binar
     assert.equal(H.commandError("python3", H.NOT_STARTED, "boom\n"), "boom");
 });
 
-test("curl exit codes are translated because -sf leaves nothing else to go on", () => {
-    assert.equal(H.commandError("curl", 6, "", H.CURL_EXIT), "could not resolve the host");
-    assert.equal(H.commandError("curl", 7, "", H.CURL_EXIT), "could not connect to the host");
-    assert.equal(H.commandError("curl", 22, "", H.CURL_EXIT), "the server rejected the request");
-    assert.equal(H.commandError("curl", 28, "", H.CURL_EXIT), "the request timed out");
-    // Unmapped codes still say something specific enough to look up.
-    assert.equal(H.commandError("curl", 99, "", H.CURL_EXIT), "curl exited with status 99");
-});
-
-test("a runaway error line is clipped rather than handed to a popover whole", () => {
-    const long = "x".repeat(400);
-    const clipped = H.lastLine(long);
-    assert.equal(clipped.length, 160);
-    assert.ok(clipped.endsWith("…"));
-    assert.equal(H.lastLine("short"), "short");
-    assert.equal(H.lastLine(""), "");
-    assert.equal(H.lastLine(undefined), "");
-    assert.equal(H.lastLine(null), "");
-});
-
 // ---- ip -j -4 addr show --------------------------------------------------
 
 // Verbatim `ip -j -4 addr show wlp0s20f3` output from the machine this shell

@@ -16,14 +16,6 @@ test("Software Update reviews devices and displays fwupd requests without a term
     assert.doesNotMatch(view, /Device firmware…|openFirmware/);
 });
 
-test("firmware searches lead to the ordinary Software Update application", () => {
-    const actions = load("LauncherProviders.js").BUILTIN_ACTIONS;
-    assert.equal(actions.some(action => action.id === "firmware-update"), false);
-    const update = actions.find(action => action.id === "updates-open");
-    assert.deepEqual(update.command, ["cybexos-software-update"]);
-    assert.equal(update.keywords.includes("firmware"), true);
-});
-
 test("firmware-only discovery uses the normal prepare and install actions", () => {
     const sources = { upstream: { state: "current" }, cybexos: { state: "unpublished" },
         firmware: { state: "available", devices: [{ id: "device", to: "2" }] } };

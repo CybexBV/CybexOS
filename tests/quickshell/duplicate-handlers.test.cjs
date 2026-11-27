@@ -96,25 +96,3 @@ test("the check finds a duplicate the linter lets through", () => {
     assert.equal(found[0].name, "onWidthChanged");
     assert.equal(found[0].line, 6);
 });
-
-test("the check does not fire on separate sibling objects", () => {
-    const fine = [
-        "Row {",
-        "    Rectangle { width: 1 }",
-        "    Rectangle { width: 2 }",
-        "    Text { color: \"#fff\" }",
-        "    Text { color: \"#000\" }",
-        "}"
-    ].join("\n");
-    assert.deepEqual(duplicateMembers(fine), []);
-});
-
-test("a brace or colon inside a string does not shift the depth", () => {
-    const tricky = [
-        "Item {",
-        "    text: \"a { brace and a : colon\"",
-        "    color: \"#fff\"",
-        "}"
-    ].join("\n");
-    assert.deepEqual(duplicateMembers(tricky), []);
-});

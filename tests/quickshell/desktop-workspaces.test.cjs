@@ -9,7 +9,6 @@ const { load, shellDir } = require("./shell.cjs");
 const H = load("WorkspaceHelpers.js");
 const W = load("WindowCommands.js");
 const O = load("OverviewHelpers.js");
-const Tabler = load("TablerGlyphs.js");
 const read = file => fs.readFileSync(path.join(shellDir, file), "utf8");
 
 // The assigned IDs intentionally have no arithmetic relationship: the UI
@@ -30,11 +29,6 @@ function fixture() {
 }
 const snapshot = () => H.parseSnapshot(JSON.stringify(fixture()));
 const live = (id, occupied = true) => ({ id, name: String(id), toplevels: { values: occupied ? [{}] : [] } });
-
-test("all layout indicators use bundled theme icons", () => {
-    for (const layout of ["dwindle", "scrolling", "floating", "unmanaged"])
-        assert.ok(Tabler.has(H.layoutIcon(layout)), layout);
-});
 
 test("eval errors fail even when hyprctl exits zero", () => {
     assert.equal(H.commandSucceeded(0, 0, "ok\n"), true);

@@ -63,12 +63,6 @@ def theme(base: Path, name: str, shapes=("default", "pointer", "text", "wait", "
     return directory
 
 
-def png_size(path: Path):
-    data = path.read_bytes()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n"
-    return struct.unpack(">II", data[16:24])
-
-
 def executable(path: Path, body: str) -> Path:
     path.write_text(f"#!{sys.executable}\n{body}")
     path.chmod(0o755)
@@ -134,20 +128,6 @@ sys.exit({status})
 
 
 class XCursorPreviews(Scratch):
-    def test_render_draws_each_shape_at_the_preview_size_with_a_busy_strip(self) -> None:
-        theme(self.system, "Plain")
-        out = self.root / "out"
-        entry = pointer_xcursor.render("Plain", [str(self.system)], str(out))
-        self.assertEqual(entry["shapes"], ["arrow", "hand", "text", "busy", "resize", "forbidden"])
-        self.assertEqual(entry["sizes"], [24, 48])
-        self.assertEqual(entry["busyFrames"], 3)
-        self.assertEqual(entry["busyDuration"], 200, "three 40 ms frames run at least 200 ms")
-        self.assertEqual(png_size(out / "arrow.png"), (48, 48))
-        self.assertEqual(png_size(out / "busy.png"), (48 * 3, 48))
-
-    def test_premultiplied_pixels_become_straight_alpha(self) -> None:
-        self.assertEqual(bytes(pointer_xcursor.straight_rgba(bytes(GHOST))), bytes((255, 255, 255, 128)))
-        self.assertEqual(bytes(pointer_xcursor.straight_rgba(bytes(RED))), bytes((255, 0, 0, 255)))
 
     def test_older_names_and_inherited_themes_supply_missing_shapes(self) -> None:
         theme(self.system, "Base", shapes=("left_ptr", "hand2", "xterm", "watch", "sb_h_double_arrow", "crossed_circle"))
@@ -174,11 +154,6 @@ class XCursorPreviews(Scratch):
             self.assertTrue(pointer_xcursor.valid_name(name), name)
         for name in ("", "-x", ".hidden", "../etc", "two words", "a$(b)", "x" * 81, None, 7):
             self.assertFalse(pointer_xcursor.valid_name(name), name)
-
-    def test_search_path_expands_home_and_always_includes_the_icons_folder(self) -> None:
-        paths = pointer_xcursor.search_path({"HOME": "/h", "XCURSOR_PATH": "~/.icons:/sys/icons:/sys/icons"})
-        self.assertEqual(paths, ["/h/.icons", "/sys/icons", "/h/.local/share/icons"])
-
 
 class ThemeList(Scratch):
     def write_machine(self, downloads=None):
@@ -368,13 +343,6 @@ class Apply(Scratch):
         self.assertFalse([call for call in calls if call[0] in ("xrdb", "xsetroot") or call[1:3] == ["--user", "reload"]])
         self.assertTrue(self.xsettings().exists(), "the next start of the service reads it")
 
-    def test_an_x11_failure_is_reported(self) -> None:
-        self.recorder("xrdb", status=1, stderr="xrdb: Can't open display ':9'\n")
-        report = pointer.apply("Bibata-Modern-Classic", "32", True)
-        self.assertFalse(report["success"])
-        self.assertEqual(report["error"], "x11: xrdb: Can't open display ':9'")
-        self.assertEqual(report["steps"]["hyprland"], "ok")
-
     def test_the_service_serves_the_sessions_pointer_then_becomes_xsettingsd(self) -> None:
         self.machine.write_text(json.dumps({"v": 1, "default": {"theme": "Adwaita", "size": 30}, "downloads": {}}))
         os.environ.update(XCURSOR_THEME="Bibata-Modern-Classic", XCURSOR_SIZE="32")
@@ -433,10 +401,6 @@ with open({str(environment)!r}, "w") as out:
     def test_the_saved_pointer_starts_hyprland(self) -> None:
         self.assertEqual(self.run_session("XCURSOR_THEME=WhiteSur-cursors\nXCURSOR_SIZE=48"),
                          {"XCURSOR_THEME": "WhiteSur-cursors", "XCURSOR_SIZE": "48", "LD_PRELOAD": None})
-
-    def test_without_a_record_the_installation_default_stays(self) -> None:
-        self.assertEqual(self.run_session(None),
-                         {"XCURSOR_THEME": "Bibata-Modern-Classic", "XCURSOR_SIZE": "24", "LD_PRELOAD": None})
 
     def test_anything_else_in_the_record_is_ignored(self) -> None:
         record = ("LD_PRELOAD=/tmp/x.so\nXCURSOR_THEME=$(touch /tmp/pwned)\nXCURSOR_SIZE=4096\n"

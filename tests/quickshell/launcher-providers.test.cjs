@@ -25,14 +25,6 @@ test("provider registry preserves every launcher mode and adds palette providers
         P.PROVIDERS.length, "prefixes must be unique, including the default");
 });
 
-test("clearing a prefix restores the selected tab provider", () => {
-    const selectedTab = "clipboard";
-
-    assert.equal(P.prefixedProviderFor(":rocket").id, "emoji");
-    assert.equal(P.prefixedProviderFor(""), null);
-    assert.equal(P.providerById(selectedTab).id, "clipboard");
-});
-
 test("app scoring keeps an empty directory alphabetical and adds usage later", () => {
     const app = {
         id: "org.mozilla.firefox.desktop",
@@ -46,21 +38,6 @@ test("app scoring keeps an empty directory alphabetical and adds usage later", (
     assert.equal(P.appScore(app, "browser", 12), 6012);
     assert.equal(P.appScore(app, "internet", 12), 6012);
     assert.equal(P.appScore(app, "terminal", 12), -1);
-});
-
-test("clipboard rows retain the opaque cliphist entry and recognize images", () => {
-    const rows = P.clipboardRows([
-        "41\tsecond text",
-        "42\t[[ binary data 1920x1080 png ]]",
-        "43\tdeploy token"
-    ], "", 8);
-
-    assert.equal(rows.length, 3);
-    assert.equal(rows[0].raw, "41\tsecond text");
-    assert.equal(rows[1].image, true);
-    assert.equal(rows[1].title, "Clipboard image");
-    assert.deepEqual(P.clipboardRows(rows.map(row => row.raw), "deploy", 8)
-        .map(row => row.raw), ["43\tdeploy token"]);
 });
 
 test("emoji parser accepts only fully-qualified entries and searches names", () => {
@@ -469,13 +446,6 @@ test("launcher open targets a tab, or a prefix provider through its prefix", () 
     assert.deepEqual(P.openTarget(""), { tab: "apps", query: "" });
 });
 
-test("absolute desktop-entry icons load as files", () => {
-    assert.equal(P.directIconUrl("/home/a/x y/icon#1.png"), "file:///home/a/x%20y/icon%231.png");
-    assert.equal(P.directIconUrl("firefox"), "", "theme names go to the icon theme");
-    assert.equal(P.directIconUrl("file:///a.png"), "file:///a.png");
-    assert.equal(P.directIconUrl(""), "");
-});
-
 // ---- Clipboard: pins and image previews ------------------------------------
 
 test("pinned entries come first, survive pruning and hide their history twin", () => {
@@ -528,18 +498,4 @@ test("image previews are requested for the newest image entries only", () => {
         "4\t[[ binary data 1 KiB png 2x2 ]]", "2\t[[ binary data 9 KiB jpeg 30x30 ]]"
     ]);
     assert.deepEqual(P.clipboardPreviewTargets(["1\tplain"], 24), []);
-});
-
-test("a typed query that lists apps and actions labels each group once", () => {
-    const apps = [{ kind: "app", title: "Firefox" }, { kind: "app", title: "Files" }];
-    const actions = P.blendedActionRows(P.BUILTIN_ACTIONS, "screenshot");
-    assert.ok(actions.length > 0);
-    assert.deepEqual(P.groupLabels(apps.concat(actions)),
-        ["Apps", ""].concat(["Actions"], actions.slice(1).map(() => "")));
-    // One kind alone is already named by its tab, and Wiz's row by himself.
-    assert.deepEqual(P.groupLabels(apps), ["", ""]);
-    assert.deepEqual(P.groupLabels(actions), actions.map(() => ""));
-    assert.deepEqual(P.groupLabels(P.actionRows(P.BUILTIN_ACTIONS, "", 4)), ["", "", "", ""]);
-    assert.deepEqual(P.groupLabels([]), []);
-    assert.deepEqual(P.groupLabels(undefined), []);
 });

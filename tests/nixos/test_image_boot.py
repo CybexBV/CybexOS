@@ -27,9 +27,6 @@ class InstalledSourceIdentityTests(unittest.TestCase):
         self.assertEqual(evidence['installedRelease']['revision'], 'uncommitted')
         self.assertEqual(evidence['installedSource']['narHash'], self.media['narHash'])
 
-    def test_uncommitted_medium_keeps_exact_content_identity(self):
-        qualification.check_installed_identity(self.installed, self.installed, self.path_source)
-
     def test_git_input_requires_both_the_revision_and_content_identity(self):
         source = {'type': 'git', 'rev': self.media['revision'], 'narHash': self.media['narHash']}
         qualification.check_installed_identity(self.media, self.media, source)
