@@ -181,22 +181,6 @@ def emit(payload: dict[str, Any], status: int = 0) -> None:
     raise SystemExit(status)
 
 
-def unescape_nmcli(value: str) -> str:
-    output: list[str] = []
-    escaped = False
-    for char in value:
-        if escaped:
-            output.append(char)
-            escaped = False
-        elif char == "\\":
-            escaped = True
-        else:
-            output.append(char)
-    if escaped:
-        raise ToolError("invalid_nmcli", "NetworkManager returned a dangling escape")
-    return "".join(output)
-
-
 def split_escaped(value: str, separator: str = ":") -> list[str]:
     output: list[str] = []
     current: list[str] = []

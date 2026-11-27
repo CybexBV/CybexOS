@@ -1,5 +1,5 @@
 {
-  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs on every push to main, and by hand on a branch.",
+  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs only for a release, started by hand on the release branch.",
   "steps": [
     {
       "name": "regression",

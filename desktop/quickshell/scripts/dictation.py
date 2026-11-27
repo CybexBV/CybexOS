@@ -166,10 +166,6 @@ def partial_path(model: str = "enhanced", entry: dict | None = None) -> Path:
     return model_dir(model) / f".{entry['name']}.part"
 
 
-def model_path() -> Path:
-    return file_path("enhanced", MODELS["enhanced"]["files"][0])
-
-
 def size_of(path: Path) -> int:
     try:
         return path.stat().st_size

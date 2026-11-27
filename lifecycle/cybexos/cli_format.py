@@ -662,31 +662,6 @@ def format_shell_status(data, *, style=None):
     return '\n'.join(lines)
 
 
-def format_plugin_list(data, *, style=None):
-    style = style or Style()
-    plugins = data.get('plugins') or []
-    if data.get('error'):
-        return style.err('Plugin registry error: ' + str(data['error']))
-    if not plugins:
-        return style.dim("No plugins installed. Add one with 'cybex plugin add <URL>'.")
-    rows = []
-    for item in plugins:
-        status = 'error' if item.get('error') else ('enabled' if item.get('enabled') else 'disabled')
-        rows.append([
-            item.get('id', ''),
-            item.get('name', ''),
-            status,
-            item.get('section', '') or '-',
-            item.get('format', ''),
-        ])
-    lines = [style.bold(f'Installed plugins ({len(plugins)})'), '']
-    lines.extend(format_table(['ID', 'NAME', 'STATUS', 'SECTION', 'FORMAT'], rows, style=style))
-    for item in plugins:
-        if item.get('error'):
-            lines.append(style.err(f'  ! {item.get("id")}: {item["error"]}'))
-    return '\n'.join(lines)
-
-
 def format_assistant_status(data, *, style=None):
     style = style or Style()
     available = data.get('available')
