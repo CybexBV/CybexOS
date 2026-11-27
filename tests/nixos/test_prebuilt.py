@@ -12,7 +12,7 @@ import unittest.mock
 from unittest.mock import patch
 
 import test_lifecycle as lifecycle
-from cybexos import prebuilt
+from cybexos import cli, prebuilt
 from cybexos.common import CommandFailure, atomic, read
 from cybexos.common import Failure
 from cybexos.engine import NotBuilt, NotPrebuilt
@@ -533,7 +533,7 @@ class PackagesOnly(unittest.TestCase):
         self.assertIn(('cybexos-boot-trial', '--commit', lifecycle.NEW_SYSTEM), calls)
         self.assertNotIn(('cybexos-boot-trial', lifecycle.NEW_SYSTEM, lifecycle.OLD_SYSTEM), calls)
         status = read(self.engine.status_path)
-        self.assertEqual((status['state'], status['restart']), ('done', 'None'))
+        self.assertEqual((status['state'], status['restart'], status['restartRecommended']), ('done', 'None', None))
         self.assertFalse(self.engine.pending_path.exists())
         self.assertTrue((self.engine.tx(record['id']) / 'good.json').is_file())
         self.assertEqual(read(self.working / 'local/software.json')['packages'], ['gimp'])
@@ -565,7 +565,8 @@ class UnchangedBoot(unittest.TestCase):
             path = system / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(value)
-        for link, target in (('kernel', base / 'kernel-image'), ('initrd', base / (files.get('@initrd') or 'initrd-image'))):
+        for link, target in (('kernel', base / 'kernel-image'), ('initrd', base / (files.get('@initrd') or 'initrd-image')),
+                             ('kernel-modules', base / (files.get('@modules') or 'modules'))):
             target.touch()
             (system / link).symlink_to(target)
         (system / 'sw/bin').mkdir(parents=True)
@@ -583,6 +584,7 @@ class UnchangedBoot(unittest.TestCase):
             'another configuration file': ({'etc/sddm.conf.d/10-theme.conf': '[Theme]'}, False),
             'login screen unit': ({'etc/systemd/system/display-manager.service': '[Service]\nExecStart=other'}, False),
             'session script': ({'desktop/bin/.cybexos-session-wrapped': 'exec Hyprland --verbose'}, False),
+            'kernel modules': ({'@modules': 'other-modules'}, False),
         }
         for name, (changes, expected) in cases.items():
             with self.subTest(change=name), tempfile.TemporaryDirectory() as directory:
@@ -599,7 +601,7 @@ class UnchangedBoot(unittest.TestCase):
         self.assertFalse(self.engine.boot_unchanged({'changeKind': 'update', 'system': '/missing/new',
                                                      'previousSystem': '/missing/old'}))
 
-    def test_update_with_an_unchanged_boot_path_needs_no_restart(self):
+    def test_update_with_an_unchanged_boot_path_recommends_a_restart(self):
         record = self.engine.stage('upstream')
         with patch.object(type(self.engine), 'boot_unchanged', return_value=True):
             self.engine.apply(record['id'], record['reviewToken'])
@@ -607,8 +609,15 @@ class UnchangedBoot(unittest.TestCase):
         self.assertIn(('cybexos-boot-trial', '--commit', lifecycle.NEW_SYSTEM), calls)
         self.assertNotIn(('cybexos-boot-trial', lifecycle.NEW_SYSTEM, lifecycle.OLD_SYSTEM), calls)
         status = read(self.engine.status_path)
-        self.assertEqual((status['state'], status['restart']), ('done', 'None'))
-        self.assertIn('no restart is needed', status['phase'])
+        self.assertEqual((status['state'], status['restart']), ('done', 'Recommended'))
+        self.assertEqual(status['restartRecommended'], {'bootId': self.engine.boot_id()})
+        self.assertIn('logging in are unchanged', status['phase'])
+        self.assertEqual(cli.update_status(self.engine.state, self.working)['restartRecommended'],
+                         {'bootId': self.engine.boot_id()})
+        self.engine.status(restartRecommended={'bootId': 'previous-boot'})
+        self.assertIsNone(cli.update_status(self.engine.state, self.working)['restartRecommended'], 'cleared by a boot')
+        self.engine.status(restartRecommended={'bootId': self.engine.boot_id()}, state='ready')
+        self.assertIsNone(cli.update_status(self.engine.state, self.working)['restartRecommended'], 'only once done')
         self.assertFalse(self.engine.pending_path.exists())
         self.assertTrue((self.engine.tx(record['id']) / 'good.json').is_file())
 

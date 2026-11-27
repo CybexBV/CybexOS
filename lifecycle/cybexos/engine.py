@@ -72,7 +72,7 @@ class Engine(ConfigTreeMixin, StagingMixin, ActivationMixin):
             previous = {'schema': 1, 'startedAt': now, 'phase': '', 'error': '', 'notes': '', 'releases': [],
                         'replacement': None,
                         'changes': '', 'packageChanges': [], 'highlights': None, 'reviewToken': None, 'inputs': {},
-                        'recovery': '', 'retry': '', 'restart': '', 'requestId': None,
+                        'recovery': '', 'retry': '', 'restart': '', 'restartRecommended': None, 'requestId': None,
                         'workerUnit': None, 'software': None, 'firmware': None, 'notPrebuilt': None,
                         'incompatible': None,
                         'sessionRestarts': [], 'desktopRestart': ''}

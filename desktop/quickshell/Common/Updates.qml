@@ -85,6 +85,9 @@ Singleton {
     // the prepared update stays installable. Null otherwise.
     readonly property var replacement: Helpers.replacement(deployment, newerRelease)
     readonly property bool rebootRecommended: ["awaiting-boot", "awaiting-login"].includes(deployment.state) || Helpers.firmwareRestart(deployment)
+    // Suggested, not required: an update that changed nothing the computer
+    // starts with. Unlike rebootRecommended it blocks no other change.
+    readonly property bool restartSuggested: Helpers.restartSuggested(deployment)
     readonly property string rebootRecommendation: deployment.state === "awaiting-login"
         ? "Confirm this boot after signing in. No further restart is needed."
         : rebootRecommended ? "Restart when ready to finish this update." : ""
@@ -262,6 +265,9 @@ Singleton {
             value.changeKind === "update" ? I18n.tr("Update complete") : I18n.tr("System change complete"),
             (value.firmware || {}).error
                 ? I18n.tr("The system update passed its checks. Some device firmware still needs attention.")
+                : Helpers.restartSuggested(value)
+                ? I18n.tr("Everything passed its checks. Restart when convenient so open apps use the new version.")
+                : previous === "activating" ? I18n.tr("Everything passed its checks.")
                 : I18n.tr("Everything passed its checks after the restart.")]);
     }
     // One toast per kept release, whose action opens What's New. An open app
@@ -277,6 +283,7 @@ Singleton {
             "--action=default=" + I18n.tr("What's New"), "--action=whats-new=" + I18n.tr("What's New"),
             I18n.format("Cybex OS %1 is ready", [release.version]),
             (deployment.firmware || {}).error ? I18n.tr("See what's new. Some device firmware still needs attention.")
+                : restartSuggested ? I18n.tr("See what's new. Restart when convenient so open apps use the new version.")
                 : I18n.tr("See what's new.")];
         announcement.running = true;
     }

@@ -192,6 +192,15 @@ test("boot, login and stale preview have separate next steps", () => {
     assert.equal(stale.discard, true);
 });
 
+test("a suggested restart follows a finished update and blocks nothing", () => {
+    const done = { state: "done", changeKind: "update", transaction: "id", restartRecommended: { bootId: "boot" } };
+    assert.equal(H.restartSuggested(done), true);
+    assert.equal(H.restartSuggested({ ...done, restartRecommended: null }), false);
+    assert.equal(H.restartSuggested({ ...done, state: "ready" }), false);
+    assert.equal(H.page({ statusLoaded: true, sourcesLoaded: true, state: "done" }), "current");
+    assert.equal(H.capabilities(done, false, true, "upstream").prepare, true);
+});
+
 test("queued requests and unknown worker liveness block duplicate operations", () => {
     for (const state of ["queued", "running", "unknown"]) assert.equal(H.pending({ state }), true);
     for (const state of ["done", "failed"]) assert.equal(H.pending({ state }), false);

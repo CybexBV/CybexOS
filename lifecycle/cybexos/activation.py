@@ -158,8 +158,15 @@ class ActivationMixin:
                     atomic(self.pending_path, record | {'phase': 'boot', 'bootId': self.boot_id()})
                     self.run('cybexos-boot-trial', '--commit', record['system'])
                     atomic(tx / 'good.json', {'at': int(time.time())})
-                    self.finish_confirmation(record, 'Installed. System services and the desktop passed health checks.' if software
-                                             else 'Installed. Starting the computer and logging in are unchanged, so no restart is needed.')
+                    if software:
+                        self.finish_confirmation(record, 'Installed. System services and the desktop passed health checks.')
+                    else:
+                        # Nothing needs a restart, but apps that stay open
+                        # keep the libraries they started with until they
+                        # restart. Suggest one until the next boot; the phase
+                        # outlives that boot, so it does not say so itself.
+                        self.finish_confirmation(record, 'Installed. Starting the computer and logging in are unchanged.',
+                                                 restart_recommended=True)
                     return
                 # Keep the previous boot as default and try the candidate once.
                 # A failed boot therefore does not strand the next boot on it.
@@ -332,13 +339,20 @@ class ActivationMixin:
         except OSError:
             return False
 
-    def finish_confirmation(self, record, phase='Boot, login, system services, Hyprland and Quickshell passed health checks.'):
-        """Idempotent finalization after the durable successful-health marker."""
+    def finish_confirmation(self, record, phase='Boot, login, system services, Hyprland and Quickshell passed health checks.',
+                            restart_recommended=False):
+        """Idempotent finalization after the durable successful-health marker.
+
+        A recommended restart names this boot; `cybex update status` drops it
+        once the computer has started again.
+        """
         link(self.tx(record['id']) / 'config', self.state / 'deployed')
         # Publish the completed state before removing the recovery record. A
         # crash after unlink must never leave an unconfirmable awaiting-login UI.
         self.status(state='done', phase=phase,
-                    recovery='Known-good generation and all input identities retained against garbage collection.', restart='None')
+                    recovery='Known-good generation and all input identities retained against garbage collection.',
+                    restart='Recommended' if restart_recommended else 'None',
+                    restartRecommended={'bootId': self.boot_id()} if restart_recommended else None)
         self.pending_path.unlink(missing_ok=True)
         self._syncdir(self.state)
 

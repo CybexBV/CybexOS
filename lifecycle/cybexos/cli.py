@@ -134,6 +134,11 @@ def update_status(state=Path('/var/lib/cybexos'), working=Path('/etc/nixos'), po
         boot_id = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
         if device_firmware['bootId'] != boot_id:
             status['firmware'] = device_firmware | {'needsReboot': False}
+    # An update that needed no restart suggests one until the next boot.
+    suggested = status.get('restartRecommended')
+    if suggested is not None and (status.get('state') != 'done' or not isinstance(suggested, dict)
+                                  or suggested.get('bootId') != Path('/proc/sys/kernel/random/boot_id').read_text().strip()):
+        status['restartRecommended'] = None
     if (latest.get('id') == status.get('requestId') and latest.get('state') == 'failed'
             and status.get('state') in ('discovering', 'building', 'validating', 'activating', 'recovering', 'firmware')):
         recovery = status['state'] in ('activating', 'recovering')

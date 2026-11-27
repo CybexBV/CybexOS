@@ -66,10 +66,11 @@ SettingsPage {
             : I18n.tr("System change ready"))
         : Updates.runActive ? I18n.tr("Preparing…")
         : Updates.hasUpdates ? I18n.tr("Updates available")
+        : Updates.restartSuggested ? I18n.tr("Restart recommended")
         : Updates.sourcesLoaded ? I18n.tr("Up to date")
         : I18n.tr("Updates not checked yet")
     readonly property string updateTone: Updates.rebootRecommended || Updates.ready || Updates.hasUpdates
-        ? "info" : "neutral"
+        || Updates.restartSuggested ? "info" : "neutral"
 
     // What Home lists under "Needs attention", most urgent first. Each entry
     // carries its words, the one action that settles it, and whether that

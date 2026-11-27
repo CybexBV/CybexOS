@@ -140,6 +140,14 @@ function holdTarget(deployment, sources) {
     return known && !unknown ? "same" : "unknown";
 }
 
+// An update that needed no restart, finished on this boot: a restart is
+// suggested so apps that stayed open use the new version. Never required,
+// so it blocks nothing; `cybex update status` drops it after the next boot.
+function restartSuggested(deployment) {
+    const value = deployment || {};
+    return value.state === "done" && !!value.restartRecommended;
+}
+
 function firmwareRestart(deployment) {
     return !active(deployment.state) && deployment.state !== "awaiting-login" && !!(deployment.firmware || {}).needsReboot;
 }
@@ -505,7 +513,7 @@ function clockFormat(clock24) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-    active, pending, statusPollInterval, validSources, validDeployment, channel, scope, scopeLabel, capabilities, firmwareRestart,
+    active, pending, statusPollInterval, validSources, validDeployment, channel, scope, scopeLabel, capabilities, firmwareRestart, restartSuggested,
     overviewVisible, indicator, waitingPackages, incompatible, held, quietHold, holdTarget, COMPONENTS, component, page, confirmFailed, problem, statusPose, keptRelease,
     announce, releaseNotes, versionParts, releaseOrder, newerRelease, IDENTITY_ORDER, trialVersions,
     summary, noteItems, sizeChange, targetKey, autoPrepare, preparedUpdate, replacement, replacementRequest, PREPARATION_LABELS, preparation, elapsed, downloadSize,
