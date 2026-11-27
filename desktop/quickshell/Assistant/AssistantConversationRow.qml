@@ -19,7 +19,7 @@ Rectangle {
     signal deleteRequested()
 
     implicitHeight: content.implicitHeight + Theme.scaled(14)
-    radius: Theme.chipRadius
+    radius: Theme.assistantRowRadius
     // Focus shows only while the keyboard drives the box: a clicked row
     // does not stay lit.
     color: root.hovered || root.activeFocus && FocusModality.keyboard ? Theme.chipHover : "transparent"
@@ -146,7 +146,7 @@ Rectangle {
             visible: (root.status === "running" || root.status === "waiting") && !deleteButton.visible
             width: chipText.implicitWidth + Theme.scaled(12)
             height: Theme.scaled(20)
-            radius: Theme.chipRadius
+            radius: height / 2
             color: root.status === "waiting" ? Theme.amberBg : Theme.chip
 
             Text {

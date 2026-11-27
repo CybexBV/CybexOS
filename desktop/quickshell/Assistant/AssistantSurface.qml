@@ -16,18 +16,17 @@ import "../Common"
 // the card around it in the colour of his mood (`glow`): the accent, amber
 // while he waits on the person, red after a failure.
 //
-// Corners (2026-11-24 review: one card mixed 16, 12, 10, 9, 7 and pill
-// corners): the box takes the panels' corner, a block across its width (a
-// field, a card, a row) the concentric `innerRadius`, something inset in
-// such a block Theme.concentricRadius of that, and chips and buttons the
-// chip corner.
+// Corners (2026-11-27, the approved mockup's): the box takes the panels'
+// corner, a block across its width (a field, a card, the red block)
+// `innerRadius`, and the rest the Theme.assistant*Radius family: popups and
+// question bubbles, segment tracks, rows and buttons. Small chips are pills.
 Rectangle {
     id: root
 
     default property alias content: column.data
     property real padding: Theme.scaled(12)
     property alias spacing: column.spacing
-    readonly property int innerRadius: Theme.concentricRadius(radius, padding)
+    readonly property int innerRadius: Theme.assistantBlockRadius
     // The card's own colour; a card raised inside the box takes the menus'.
     property color fill: Theme.popBg
     // Where the tail leaves the card, in its own coordinates, and from which

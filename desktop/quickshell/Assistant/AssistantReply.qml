@@ -182,8 +182,8 @@ AssistantSurface {
             anchors.right: parent.right
             width: questionText.width + Theme.scaled(22)
             height: questionText.height + Theme.scaled(14)
-            radius: root.innerRadius
-            bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
+            radius: Theme.assistantPopupRadius
+            bottomRightRadius: Theme.assistantPointRadius
             color: Theme.accentBgSoft
             border.width: 1
             border.color: Theme.accentAlpha(0.24)
@@ -279,7 +279,7 @@ AssistantSurface {
                                     id: stagedMark
                                     width: Theme.scaled(32)
                                     height: width
-                                    radius: Theme.concentricRadius(root.innerRadius, Theme.scaled(11))
+                                    radius: Theme.assistantRowRadius
                                     color: Theme.chip
 
                                     Sym {
@@ -310,7 +310,7 @@ AssistantSurface {
                                 width: parent.width
                                 visible: root.deploymentState === "ready" && root.closure.rows.length > 0
                                 height: visible ? closureColumn.implicitHeight + Theme.scaled(14) : 0
-                                radius: Theme.concentricRadius(root.innerRadius, Theme.scaled(11))
+                                radius: Theme.assistantRowRadius
                                 color: Theme.well
 
                                 Column {
@@ -640,7 +640,7 @@ AssistantSurface {
         x: root.width - root.padding - width
         y: root.padding + field.y - root.pickerGap - height
         visible: root.pickerOpen
-        radius: root.innerRadius
+        radius: Theme.assistantPopupRadius
         continuing: true
         maximumHeight: root.room - root.padding * 2 - root.pickerTop - root.pickerGap - field.height
         tailSide: "bottom"

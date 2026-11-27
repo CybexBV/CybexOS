@@ -238,7 +238,7 @@ AssistantSurface {
         radius: root.innerRadius
         padding: Theme.scaled(5)
         spacing: 0
-        readonly property int rowRadius: Theme.concentricRadius(radius, padding)
+        readonly property int rowRadius: Theme.assistantRowRadius
 
         MenuRow {
             visible: root.thread !== null && root.thread.resumable === true
@@ -404,8 +404,8 @@ AssistantSurface {
                             anchors.right: parent.right
                             width: question.width + Theme.scaled(22)
                             height: question.height + Theme.scaled(14)
-                            radius: root.innerRadius
-                            bottomRightRadius: Theme.concentricRadius(root.innerRadius, Theme.scaled(6))
+                            radius: Theme.assistantPopupRadius
+                            bottomRightRadius: Theme.assistantPointRadius
                             color: Theme.accentBgSoft
                             border.width: 1
                             border.color: Theme.accentAlpha(0.24)
@@ -666,7 +666,7 @@ AssistantSurface {
                 required property var modelData
                 height: Theme.scaled(26)
                 width: Math.min(attachmentFlow.width * 0.8, chipRow.implicitWidth + Theme.scaled(6))
-                radius: Theme.chipRadius
+                radius: height / 2
                 color: Theme.chip
                 border.width: 1
                 border.color: Theme.hairline
@@ -966,7 +966,7 @@ AssistantSurface {
         y: root.pickerAbove ? root.padding + field.y - root.popupGap - height
             : root.padding + field.y + field.height + root.popupGap
         visible: root.pickerOpen && !Assistant.setupRequired && !root.listening
-        radius: root.innerRadius
+        radius: Theme.assistantPopupRadius
         continuing: root.continuing
         maximumHeight: root.pickerAbove
             ? root.room - root.padding * 2 - root.pickerTop - root.popupGap - field.height
@@ -993,7 +993,7 @@ AssistantSurface {
                 readonly property bool moment: !!chip.modelData.reason
                 width: Math.min(suggestionFlow.width, chipContent.implicitWidth + Theme.scaled(18))
                 height: Theme.scaled(26)
-                radius: Theme.chipRadius
+                radius: height / 2
                 color: chipMouse.containsMouse ? Theme.chipHover : Theme.chip
                 border.width: moment ? 1 : 0
                 border.color: chip.modelData.warn ? Theme.amber : Theme.accentText
@@ -1099,7 +1099,7 @@ AssistantSurface {
                 required property var modelData
                 required property int index
                 width: root.width - root.padding * 2
-                radius: root.innerRadius
+                radius: Theme.assistantRowRadius
                 row: modelData
                 showPreview: index === 0
                 onOpened: Assistant.openConversation(modelData.id)

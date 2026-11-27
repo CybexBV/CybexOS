@@ -491,18 +491,28 @@ test("a click opens a new conversation unless the last one still needs the perso
     assert.match(repo("desktop/assistant/cybexos_assistant/history.py"), /RETENTION = \("month", "forever", "session"\)/);
 });
 
-test("the box keeps one family of corners and keyboard-only focus rings", () => {
-    // 2026-11-24 review: one card mixed 16, 12, 10, 9, 7 and pill corners.
+test("the box keeps its mockup's family of corners and keyboard-only focus rings", () => {
+    // 2026-11-27: John chose the approved mockup's rounder corners over the
+    // concentric rule. One family, from Panel corners, so squaring the panels
+    // squares the box throughout.
+    const theme = read("Common/Theme.qml");
+    for (const [name, share] of [["Popup", "0.875"], ["Block", "0.75"], ["Track", "0.625"], ["Row", "0.5"], ["Point", "0.25"]])
+        assert.match(theme, new RegExp(`readonly property int assistant${name}Radius: Math\\.round\\(panelRadius \\* ${share.replace(".", "\\.")}\\)`));
     const surface = read("Assistant/AssistantSurface.qml");
     assert.match(surface, /radius: Theme\.panelRadius/);
-    assert.match(surface, /readonly property int innerRadius: Theme\.concentricRadius\(radius, padding\)/);
+    assert.match(surface, /readonly property int innerRadius: Theme\.assistantBlockRadius/);
     for (const name of ["AssistantComposer", "AssistantHistory", "AssistantReply", "AssistantWorking", "AssistantApproval",
         "AssistantChanges", "AssistantConversationRow", "AssistantModelPicker", "AssistantAgentButton", "AssistantMarkdown",
         "AssistantFailure"]) {
         const source = read(`Assistant/${name}.qml`);
-        assert.doesNotMatch(source, /radius: Theme\.scaled\(/, `${name} takes its corner from Theme`);
-        assert.doesNotMatch(source, /radius: height \/ 2/, `${name} has no pills`);
+        assert.doesNotMatch(source, /[rR]adius: Theme\.scaled\(/, `${name} takes its corner from Theme`);
+        assert.doesNotMatch(source, /[rR]adius: (?:[2-9]|\d{2,})\b/, `${name} has no corner of its own`);
+        assert.doesNotMatch(source, /[rR]adius: Theme\.(?:chip|card|row|tile)Radius/, `${name} uses the box's family, not the shell's`);
     }
+    // The picker and the question bubbles float at 14 with a 4 corner towards the person; small chips are pills.
+    assert.match(read("Assistant/AssistantReply.qml"), /radius: Theme\.assistantPopupRadius\n\s*bottomRightRadius: Theme\.assistantPointRadius/);
+    assert.match(read("Assistant/AssistantModelPicker.qml"), /readonly property int trackRadius: Theme\.assistantTrackRadius/);
+    assert.match(read("Assistant/AssistantComposer.qml"), /height: Theme\.scaled\(26\)\n\s*radius: height \/ 2\n\s*color: chipMouse/);
     assert.match(read("AssistantWindow.qml"), /FocusModalityObserver \{\}/);
     assert.match(read("Assistant/AssistantConversationRow.qml"),
         /color: root\.hovered \|\| root\.activeFocus && FocusModality\.keyboard \? Theme\.chipHover : "transparent"/);

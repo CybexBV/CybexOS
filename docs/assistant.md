@@ -105,11 +105,15 @@ or set up themselves.
   **Delete conversation**. History can be read while Wiz works on another question
   (the clock button on the working pill); a new question waits until he is
   free.
-- **Corners and focus.** The box takes the panels' corner (Settings →
-  Appearance → Panel corners); a field, card or row across its width takes
-  the concentric inner corner (`Theme.concentricRadius`), and chips and
-  buttons the chip corner. Focus rings show only while you use the keyboard
-  (`Common/FocusModality`): a click leaves none.
+- **Corners and focus.** The box keeps its mockup's round corners rather
+  than the rest of the shell's concentric ones (John's choice, 2026-11-27).
+  All follow the panels' corner (Settings → Appearance → Panel corners; the
+  sizes here are for its default, 16): the box 16, the picker and question
+  bubbles 14 (4 at the corner towards you), a field, card or the red block
+  across the box 12, the picker's segment bars 10, rows and buttons 8, and
+  small chips (suggestions, attachments, Working) are pills. Square panels
+  square all of it (`Theme.assistant*Radius`). Focus rings show only while
+  you use the keyboard (`Common/FocusModality`): a click leaves none.
 - **Deleting and clearing.** Hovering a row in History shows its delete
   button; the conversation goes at once and **Undo** brings it back until the
   box closes or another is deleted. **Clear history…** asks once, inside the

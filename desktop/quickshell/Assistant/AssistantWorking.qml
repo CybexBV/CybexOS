@@ -151,7 +151,8 @@ AssistantSurface {
             anchors.right: parent.right
             width: Math.min(parent.width * 0.85, sideQuestion.implicitWidth + Theme.scaled(20))
             height: sideQuestion.implicitHeight + Theme.scaled(12)
-            radius: root.innerRadius
+            radius: Theme.assistantPopupRadius
+            bottomRightRadius: Theme.assistantPointRadius
             color: Theme.chip
 
             Text {
@@ -177,7 +178,7 @@ AssistantSurface {
                 anchors.verticalCenter: parent.verticalCenter
                 width: badge.implicitWidth + Theme.scaled(12)
                 height: Theme.scaled(20)
-                radius: Theme.chipRadius
+                radius: height / 2
                 color: Theme.chip
 
                 Text {

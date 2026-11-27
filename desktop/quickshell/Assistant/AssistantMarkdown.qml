@@ -23,7 +23,7 @@ Column {
     // The first paragraph as the headline; the reply box sets it.
     property bool lead: false
     // A code block's and a group's corner; the box passes its inner corner.
-    property real blockRadius: Theme.cardRadius
+    property real blockRadius: Theme.assistantBlockRadius
     readonly property var blocks: plain ? [{ kind: "plain", text: text }] : AssistantHelpers.markdownBlocks(text)
     // The link under the pointer in any block, for the cursor.
     property string hoveredLink: ""

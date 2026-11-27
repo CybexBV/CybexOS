@@ -224,7 +224,7 @@ AssistantSurface {
                             delegate: AssistantConversationRow {
                                 required property var modelData
                                 width: group.width
-                                radius: root.innerRadius
+                                radius: Theme.assistantRowRadius
                                 row: modelData
                                 deletable: true
                                 onOpened: Assistant.openConversation(modelData.id)

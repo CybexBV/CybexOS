@@ -24,7 +24,7 @@ AssistantSurface {
 
     readonly property string agent: Assistant.askAgent
     readonly property var effortChoices: AssistantHelpers.effortChoices(agent) || []
-    readonly property int trackRadius: Theme.concentricRadius(radius, padding)
+    readonly property int trackRadius: Theme.assistantTrackRadius
     readonly property int segmentRadius: Theme.concentricRadius(trackRadius, Theme.scaled(2))
     // Everything but the model list and the note, which give way in a short box.
     readonly property real fixedHeight: agents.height + (startedWith.visible ? startedWith.implicitHeight : 0)
@@ -144,7 +144,7 @@ AssistantSurface {
                             required property var modelData
                             objectName: "assistantModel_" + modelData.value
                             width: modelRows.width
-                            radius: root.trackRadius
+                            radius: Theme.assistantRowRadius
                             label: modelData.value === "default" ? I18n.tr("Default") : modelData.label
                             // The default is the agent's own choice; the others need no gloss.
                             detail: modelData.value === "default" ? I18n.format("%1's own", [Assistant.askAgentLabel]) : ""
