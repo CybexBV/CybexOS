@@ -25,7 +25,8 @@ check tests/media-player.py python3 -B tests/media-player.py
 # The real Settings, Software, Software Update and Welcome windows, the
 # shortcut editor, the wallpaper picker (two live Wallhaven API requests) and
 # their models, each in a private headless Sway with scripted helpers.
-for script in display-settings.py keybindings-model.py settings-guide.py settings-pages.py \
+# app-windows.py opens the three apps' windows across two outputs.
+for script in app-windows.py display-settings.py keybindings-model.py settings-guide.py settings-pages.py \
     shortcut-editor.py software-app.py update-flow.py wallpaper-picker.py welcome-guide.py; do
   check "tests/$script" python3 -B "tests/$script"
 done

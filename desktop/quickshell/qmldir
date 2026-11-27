@@ -13,6 +13,7 @@ DictationPill DictationPill.qml
 DictationOffer DictationOffer.qml
 DictationHistory DictationHistory.qml
 ShortcutsOverlay ShortcutsOverlay.qml
+AppWindow AppWindow.qml
 SettingsWindow SettingsWindow.qml
 PolkitPrompt PolkitPrompt.qml
 PolkitWindow PolkitWindow.qml

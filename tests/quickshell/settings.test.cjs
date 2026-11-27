@@ -76,8 +76,9 @@ test("settings uses an independent floating window with compatibility routes", (
     const popouts = read("Common/Popouts.qml");
 
     assert.match(shell, /SettingsWindow\s*\{/);
-    assert.match(window, /FloatingWindow\s*\{/);
-    assert.match(window, /window\.visible = Settings\.panelOpen/);
+    assert.match(window, /AppWindow\s*\{/);
+    assert.match(read("AppWindow.qml"), /FloatingWindow\s*\{/);
+    assert.match(window, /open: Settings\.panelOpen/);
     assert.match(window, /onClosed: Settings\.closePanel\(\)/);
     assert.match(window, /view\.handleEscape\(\)/);
     assert.match(window, /startSystemMove\(\)/);

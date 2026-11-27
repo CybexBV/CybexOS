@@ -1,15 +1,16 @@
 import QtQuick
-import Quickshell
-import Quickshell.Hyprland
 import "Common"
 import "Settings" as SettingsUi
 
-FloatingWindow {
+// AppWindow maps it on the output Settings was opened from, and maps it
+// again when its window is gone.
+AppWindow {
     id: window
 
     // Stable compositor target; the workspace header carries localized copy.
     title: "Cybex OS Settings" // i18n: untranslated (compositor identity)
-    visible: false
+    open: Settings.panelOpen
+    openScreen: Screens.byName(Settings.panelScreenName) ?? Screens.focused
     color: Theme.panelSurface
     // 960 by 700 (2026-10 redesign): room for the rail's nineteen entries
     // without scrolling; smaller screens get a scrolling rail.
@@ -23,18 +24,7 @@ FloatingWindow {
     Connections {
         target: Settings
 
-        function onPanelOpenChanged() {
-            if (Settings.panelOpen) {
-                window.screen = Screens.byName(Settings.panelScreenName) ?? Screens.focused;
-                window.minimized = false;
-            }
-            window.visible = Settings.panelOpen;
-        }
-
-        function onPresentPanel() {
-            window.minimized = false;
-            Hyprland.dispatch('hl.dsp.focus({ window = "title:^Cybex OS Settings$" })');
-        }
+        function onPresentPanel() { window.present(); }
     }
 
     SettingsUi.SettingsView {

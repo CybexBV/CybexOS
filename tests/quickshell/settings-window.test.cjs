@@ -83,8 +83,15 @@ test("only an already-open settings window is raised by title", () => {
 
 test("the settings window maps unminimized and raises itself when asked", () => {
     const window = read("SettingsWindow.qml");
-    assert.match(window,
-        /function onPanelOpenChanged\(\) \{\s*if \(Settings\.panelOpen\) \{[^}]*window\.minimized = false;\s*\}\s*window\.visible = Settings\.panelOpen;/);
-    assert.match(window,
-        /function onPresentPanel\(\) \{\s*window\.minimized = false;\s*Hyprland\.dispatch\('hl\.dsp\.focus\(\{ window = "title:\^Cybex OS Settings\$" \}\)'\);/);
+    const app = read("AppWindow.qml");
+    assert.match(window, /^AppWindow \{/m);
+    assert.match(window, /open: Settings\.panelOpen/);
+    assert.match(window, /openScreen: Screens\.byName\(Settings\.panelScreenName\) \?\? Screens\.focused/);
+    assert.match(window, /function onPresentPanel\(\) \{ window\.present\(\); \}/);
+    // The output is chosen while the window is hidden; it maps unminimized.
+    assert.match(functionSource(app, "remap"),
+        /window\.visible = false;[^]*window\.screen = target;\s*window\.visible = true;\s*window\.minimized = false;/);
+    // A window that is there is raised by title; one that is gone maps again.
+    assert.match(functionSource(app, "present"),
+        /if \(!window\.mapped\) \{\s*window\.remap\(\);\s*return;\s*\}\s*window\.minimized = false;\s*Hyprland\.dispatch\('hl\.dsp\.focus\(\{ window = "title:\^' \+ window\.title \+ '\$" \}\)'\);/);
 });

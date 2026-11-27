@@ -17,7 +17,7 @@
         "tests/qml-lint", "tests/shell-checks", "tests/checks.bash", "tests/shell_fonts.py", "tests/fast-test-container",
         "tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
-        "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py",
+        "tests/update-flow.py", "tests/app-windows.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py",
         "tests/displays/**", "tests/fixtures/keybindings/**", "tests/quickshell/keybindings-support.cjs"],
       "run": "tests/fast-test-container tests/shell-checks",
       "timeout": 20
@@ -39,7 +39,7 @@
       "when": ["tests/*.py", "tests/nixos-native"],
       "unless": ["tests/user-plugins.py", "tests/media-player.py", "tests/display-settings.py", "tests/keybindings-model.py",
         "tests/settings-pages.py", "tests/shortcut-editor.py", "tests/software-app.py",
-        "tests/update-flow.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py",
+        "tests/update-flow.py", "tests/app-windows.py", "tests/wallpaper-picker.py", "tests/welcome-guide.py", "tests/shell_fonts.py",
         "tests/assistant-overlay.py", "tests/settings-runtime.py", "tests/omarchy-runtime.py"],
       "run": "tests/fast-test-container sh -c 'for f in \"$@\"; do python3 -B \"$f\" || exit 1; done' sh {files}"
     },
