@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Qt's own JavaScript engine runs the shell's helpers too, not only Node:
+# tests/qml/tst_*.qml in qmltestrunner (from qt6.qtdeclarative, in the dev
+# shell), offscreen.
+set -uo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." || exit 2
+
+runner=$(command -v qmltestrunner) || { echo "tests/qml-tests: qmltestrunner is missing (run it through nix develop)" >&2; exit 2; }
+# QtTest lives beside the runner; the dev shell doesn't put it on the import path.
+prefix=$(dirname -- "$(dirname -- "$(readlink -f -- "$runner")")")
+export QML_IMPORT_PATH=$prefix/lib/qt-6/qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}
+export QT_QPA_PLATFORM=offscreen
+
+status=0
+for file in tests/qml/tst_*.qml; do
+  "$runner" -input "$file" || status=1
+done
+exit "$status"
