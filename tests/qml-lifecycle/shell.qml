@@ -6,8 +6,9 @@ import "Common/SettingsHelpers.js" as SettingsHelpers
 import "Settings" as SettingsUi
 import "Popovers/Drawer" as DrawerUi
 
-// tests/run overlays this file on an isolated copy of the production config
-// before launching the real `qs` engine (never beside an existing live qs).
+// tests/qml-lifecycle.py (run by tests/shell-checks) overlays this file on an
+// isolated copy of the production config and launches the real `qs` engine
+// with a private home, runtime directory and session bus.
 // Keeping dependencies inside the selected config root matches production and
 // avoids Quickshell's intentional qrc:/qs-blackhole for out-of-root modules.
 ShellRoot {
@@ -175,10 +176,14 @@ ShellRoot {
         if (settingsStage === 0) {
             page.editLayouts([{layout: "nl", variant: ""}]);
             check(page.dirty && keyboard.version === "version-a", "keyboard edit has no versioned draft");
-            settingsView.searchQuery = "network";
+            // Search is the palette over the page since the 2026-10 redesign;
+            // it no longer replaces the page, so the page keeps its claim.
+            settingsView.openPalette("network");
         } else if (settingsStage === 1) {
-            check(settingsFixture.watchers === 0, "search retained the input polling claim");
+            const palette = descendant(settingsView, "settingsPalette");
+            check(palette !== null && palette.open, "search did not open the palette");
             check(settingsView.handleEscape(), "Escape did not return from search");
+            check(palette === null || !palette.open, "Escape left the search palette open");
         } else if (settingsStage === 2) {
             check(page.draft.layouts[0].layout === "nl" && page.dirty,
                 "edit-search-Escape discarded the keyboard draft");
@@ -304,6 +309,9 @@ ShellRoot {
             page.destroy();
         });
     }
+    // The Recovery points destination is the real group on Backup &
+    // storage's Recovery points tab, laid below long content the way an
+    // embedded page sits in another page's scroll.
     Component {
         id: recoveryPageComponent
         SettingsUi.SettingsPage {
@@ -311,7 +319,10 @@ ShellRoot {
             Column {
                 width: parent.width
                 Rectangle { width: parent.width; height: 1500 }
-                SettingsUi.RecoveryGroup { width: parent.width }
+                SettingsUi.StoragePage {
+                    width: parent.width; height: contentHeight
+                    embedded: true; section: "recovery"
+                }
             }
         }
     }
@@ -396,11 +407,11 @@ ShellRoot {
         request.killGraceMs = 80;
         request.stdinEnabled = commandStage === 4;
         request.inputText = "payload\n";
-        request.command = commandStage === 0 ? ["/usr/bin/printf", "ready"]
+        request.command = commandStage === 0 ? ["printf", "ready"]
             : commandStage === 1 ? ["/cybexos-test-executable-does-not-exist"]
-            : commandStage === 2 ? ["/bin/sh", "-c", "trap '' TERM; printf partial; exec sleep 10"]
-            : commandStage === 3 ? ["/usr/bin/printf", "after-timeout"]
-            : ["/bin/sh", "-c", "IFS= read -r value; printf '%s' \"$value\""];
+            : commandStage === 2 ? ["sh", "-c", "trap '' TERM; printf partial; exec sleep 10"]
+            : commandStage === 3 ? ["printf", "after-timeout"]
+            : ["sh", "-c", "IFS= read -r value; printf '%s' \"$value\""];
         request.running = true;
     }
 
@@ -415,6 +426,8 @@ ShellRoot {
 
     function runDesktopLifecycle() {
         const screen = Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
+        // The offscreen platform always has one; never skip the overview.
+        check(screen !== null, "no screen to lay the overview out on");
         if (screen !== null) {
             const view = overviewComponent.createObject(harness,
                 { output: screen, width: 1280, height: 720 });
@@ -485,8 +498,8 @@ ShellRoot {
         // A minimal ShellRoot has no production IPC object through which the
         // test driver can request shutdown. Terminate this exact test PID
         // after logging; timeout remains the outer leak guard.
-        Quickshell.execDetached(["/usr/bin/bash", "-c",
-            "sleep 0.2; kill -TERM -- \"$1\"", "bash", String(Quickshell.processId)]);
+        Quickshell.execDetached(["sh", "-c",
+            "sleep 0.2; kill -TERM -- \"$1\"", "sh", String(Quickshell.processId)]);
     }
 
     function descendant(item, name) {
@@ -667,7 +680,10 @@ ShellRoot {
         const storage = storageComponent.createObject(harness);
         root.check(storage !== null, "storage page did not construct");
         if (storage) {
-            root.check(storage.policyBaseline.automatic === true,
+            // The retention draft moved to the RetentionDraft singleton
+            // (2026-10 redesign); the page shows it as `draft`.
+            root.check(storage.draft.automatic === true
+                && SettingsUi.RetentionDraft.policyBaseline.automatic === true,
                 "storage page lost the enabled cleanup default");
             storage.destroy();
         }
