@@ -233,6 +233,7 @@ IPC = '''
                 overviewReview: !!shell.updateItem("overviewUpdateReview"),
                 sessionQuestion: !!shell.updateItem("drawerSessionConfirm"),
                 automaticToggle: !!shell.updateItem("updateAutomatic"),
+                restartSuggested: !!shell.updateItem("updateRestartSuggested"),
                 betaSwitch: !!shell.updateItem("updateBeta"),
                 channel: Updates.channel,
                 chip: rect ? {x:rect.x+chip.width/2,y:rect.y+chip.height/2} : null});
@@ -698,14 +699,26 @@ def main():
 
             # Up to date: the automatic download choice is a machine policy.
             session.fixture(sources={'upstream':{'state':'current'},'cybexos':{'state':'current'}})
-            session.status(state='done',changeKind='update',scope='upstream',transaction='a'*32,
+            done = dict(state='done',changeKind='update',scope='upstream',transaction='a'*32,
                 installedVersion='1.0.0-beta.22',availableVersion='1.0.0-beta.22',notes='')
+            session.status(**done)
             session.wait(lambda:session.state().get('page')=='current' and not session.state().get('hasUpdates')
                 and (session.state().get('title') or {}).get('text')=='Your system is up to date','up to date')
             assert not session.state()['indicator'] and session.state()['automaticToggle'], session.state()
             assert session.state()['primary'] is None, 'NixOS packages alone have no What\'s New'
             assert session.pose()==('happy',False) and session.state()['stance']=='happy', session.state()
+            assert not session.state()['restartSuggested'], session.state()
             shot('software-update-current.png')
+            # An update that needed no restart suggests one, without blocking
+            # anything and without taking the primary.
+            session.status(**done, restartRecommended={'bootId':'this-boot'})
+            session.wait(lambda:session.state().get('restartSuggested'),'restart suggested')
+            state = session.state()
+            assert 'Restart when convenient so open apps use the new version.' in state['body'], state
+            assert state['page']=='current' and state['primary'] is None and not state['indicator'], state
+            shot('software-update-restart-suggested.png')
+            session.status(**done)
+            session.wait(lambda:not session.state().get('restartSuggested'),'suggestion gone after a boot')
             session.call('update-test','toggle','updateAutomatic','true')
             session.wait(lambda:session.state().get('automatic',{}).get('prepare') is True,'automatic downloads chosen')
             assert session.calls()[-1]==['automatic','prepare','on'], session.calls()
