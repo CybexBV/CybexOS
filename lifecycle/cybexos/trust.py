@@ -8,8 +8,10 @@ its version and requirements. No Nix evaluation or privilege escalation here.
 """
 import hashlib
 import http.client
+import math
 from pathlib import Path
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -65,23 +67,60 @@ def https(url, hosts):
     return url
 
 
+# GitHub answers 60 requests an hour from one internet address without an
+# account, shared by every computer behind it, and a conditional request
+# that comes back 304 still counts unless it is signed in. A check the
+# desktop makes on its own therefore reuses GitHub's answers for a while
+# (CHECK_MAX_AGE); a check someone asks for, and every update, asks again.
+CHECK_MAX_AGE = 3 * 60 * 60
+# What a URL naming an exact commit returns never changes.
+FOREVER = math.inf
+
+
+def rate_limited(headers, now):
+    """The Failure for GitHub's rate limit, naming when it lifts when GitHub says."""
+    until = None
+    try:
+        if str(headers.get('X-RateLimit-Remaining', '')).strip() == '0':
+            until = int(headers.get('X-RateLimit-Reset', ''))
+        elif headers.get('Retry-After') is not None:
+            until = int(now) + int(headers.get('Retry-After'))
+    except (TypeError, ValueError):
+        until = None
+    shared = ('Every computer on the same internet connection shares GitHub\'s 60 requests an hour; '
+              'no account or token is needed.')
+    if until is not None and now < until <= now + 2 * 60 * 60:
+        return Failure(f'GitHub\'s limit for this internet connection is used up until '
+                       f'{time.strftime("%H:%M", time.localtime(until))}. {shared}')
+    return Failure(f'GitHub\'s limit for this internet connection is used up. Retry within the hour. {shared}')
+
+
 class Fetcher:
-    def __init__(self, cache):
+    def __init__(self, cache, max_age=0):
         self.cache = Path(cache)
         self.cache.mkdir(parents=True, exist_ok=True)
+        # Seconds an earlier answer is used again without asking GitHub.
+        self.max_age = max_age
 
-    def get(self, url, limit=2 * 1024 * 1024, accept='application/vnd.github+json'):
-        return self.page(url, limit, accept)[0]
+    def get(self, url, limit=2 * 1024 * 1024, accept='application/vnd.github+json', max_age=None):
+        return self.page(url, limit, accept, max_age)[0]
 
-    def page(self, url, limit=2 * 1024 * 1024, accept='application/vnd.github+json'):
+    def page(self, url, limit=2 * 1024 * 1024, accept='application/vnd.github+json', max_age=None):
         """A response body and its Link header's rel="next" URL ('' on the last page)."""
         https(url, HOSTS)
         name = hashlib.sha256((accept + ' ' + url).encode()).hexdigest()
         body, meta = self.cache / name, self.cache / (name + '.json')
         old = read(meta, {})
+        now = time.time()
+        fetched = old.get('at')
+        if (body.exists() and isinstance(fetched, (int, float)) and not isinstance(fetched, bool)
+                and 0 <= now - fetched < (self.max_age if max_age is None else max_age)):
+            # The cached page's own Link, checked again as it is used.
+            following = old.get('next') if isinstance(old.get('next'), str) else ''
+            return body.read_bytes(), following and listing_url(following)
         headers = {'User-Agent': 'CybexOS-updater/1', 'Accept': accept, 'X-GitHub-Api-Version': '2022-11-28'}
         if old.get('etag') and body.exists():
-            # GitHub does not count a 304 against the anonymous rate limit.
+            # A 304 is small and quick, but counts against the anonymous limit.
             headers['If-None-Match'] = old['etag']
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
@@ -91,17 +130,18 @@ class Fetcher:
                     raise Failure('Release response exceeds its size limit')
                 following = next_page(response.headers.get('Link', ''))
                 atomic(body, data)
-                atomic(meta, {'etag': response.headers.get('ETag', ''), 'next': following})
+                atomic(meta, {'etag': response.headers.get('ETag', ''), 'next': following, 'at': int(now)})
                 return data, following
         except urllib.error.HTTPError as error:
             if error.code == 304 and body.exists():
                 # The cached page's own Link, checked again as it is used.
                 following = old.get('next') if isinstance(old.get('next'), str) else ''
+                atomic(meta, old | {'at': int(now)})
                 return body.read_bytes(), following and listing_url(following)
             if error.code == 404:
                 raise EndpointNotFound('Release endpoint unavailable (HTTP 404); its status is unknown.') from error
             if error.code in (403, 429):
-                raise Failure('GitHub rate limit reached. Retry later; no account or token is required.') from error
+                raise rate_limited(error.headers or {}, now) from error
             raise Failure(f'Release endpoint unavailable (HTTP {error.code}); its status is unknown.') from error
         except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as error:
             raise Failure('Release endpoint unreachable; its status is unknown. Retry when connected.') from error

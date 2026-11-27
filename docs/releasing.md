@@ -52,8 +52,15 @@ update, since every stable release is on beta too.
 
 `cybex update check` and `cybex update stage cybexos` read the release listing
 and resolve the selected tag to its exact commit through the GitHub API: only
-`api.github.com`, with bounded responses and an ETag cache (GitHub does not
-count a conditional 304 against its anonymous rate limit). The listing comes
+`api.github.com`, with bounded responses and an ETag cache. GitHub answers 60
+requests an hour from one internet address without an account, shared by
+every computer behind it, and counts a conditional 304 too unless the request
+is signed in. So the desktop's own checks (`cybex update check --cached`: the
+shell's timer, opening Software Update, the network coming back) reuse its
+answers from the last 3 hours (`trust.CHECK_MAX_AGE`); a check someone asks
+for (Check for updates, the launcher, `cybex update check`) and every update
+ask again, and a release's `flake.lock` at its commit is read once and kept.
+At the limit, the error names the time GitHub gives for it to lift. The listing comes
 in pages of 30, newest first: the updater follows GitHub's next-page links
 (only to the release listing on `api.github.com`) until it has a release on
 its channel and has reached its installed version, at most 20 pages. Updaters

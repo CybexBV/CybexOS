@@ -13,7 +13,7 @@ from . import channel as channels
 from . import cli_flows, cli_format
 from .common import Failure, atomic, digest, locked, read
 from .engine import Engine, config_digest
-from .trust import version
+from .trust import CHECK_MAX_AGE, version
 
 LIVE_MARKER = Path('/etc/cybexos/installer')
 PKEXEC = '/run/wrappers/bin/pkexec'
@@ -163,8 +163,12 @@ def update_status(state=Path('/var/lib/cybexos'), working=Path('/etc/nixos'), po
     return status
 
 
-def run_check():
-    """Read-only update discovery using the caller's own cache directory."""
+def run_check(cached=False):
+    """Read-only update discovery using the caller's own cache directory.
+
+    `cached` is for checks the desktop makes on its own: they reuse GitHub's
+    answers from the last few hours (trust.CHECK_MAX_AGE).
+    """
     engine = object.__new__(Engine)
     engine.state = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'cybexos'
     engine.state.mkdir(parents=True, exist_ok=True)
@@ -174,7 +178,7 @@ def run_check():
     engine.channel_state = Path('/var/lib/cybexos')
     from .common import Runner
     engine.run = Runner()
-    return engine.check()
+    return engine.check(CHECK_MAX_AGE if cached else 0)
 
 
 def stage_update(engine, scope, identifier):
@@ -288,7 +292,9 @@ def _build_parser():
         dest='action',
         metavar='{check,status,history,log,stage,apply,rollback,confirm,discard,automatic,channel}',
     )
-    sub.add_parser('check', parents=[json_parent], help='Check for available updates')
+    update_check = sub.add_parser('check', parents=[json_parent], help='Check for available updates')
+    update_check.add_argument('--cached', action='store_true',
+                              help="Reuse GitHub's answers from the last 3 hours (the desktop's own checks)")
     sub.add_parser('status', parents=[json_parent], help='Show the current update state and review')
     sub.add_parser('history', parents=[json_parent], help='List retained deployments and recovery points')
     update_request = sub.add_parser('request', parents=[json_parent])
@@ -542,7 +548,7 @@ def _handle_update(args, *, json_mode):
         print(json.dumps(request_status(args.identifier)))
         return
     if action == 'check':
-        data = run_check()
+        data = run_check(getattr(args, 'cached', False))
         print(json.dumps(data) if json_mode else cli_format.format_update_check(data))
         return
     if action == 'history':

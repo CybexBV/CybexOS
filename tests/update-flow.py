@@ -55,7 +55,9 @@ args = [arg for arg in sys.argv[1:] if arg != '--json']
 if args[:1] != ['update']:
     sys.exit(1)
 fixture = json.loads((root / 'fixture.json').read_text())
-if args[1:] == ['check']:
+if args[1:2] == ['check'] and set(args[2:]) <= {'--cached'}:
+    with (root / 'checks.jsonl').open('a') as stream:
+        stream.write(json.dumps(args[2:]) + '\n')
     time.sleep(fixture.get('checkDelay', 0))
     print(json.dumps(fixture['sources']))
 elif args[1:] == ['status']:
@@ -294,6 +296,9 @@ class Session(welcome.Session):
 
     def units(self):
         return self.records('units.jsonl')
+
+    def checks(self):
+        return self.records('checks.jsonl')
 
     def toasts(self):
         return self.records('notify.jsonl')
@@ -751,7 +756,11 @@ def main():
             session.wait(lambda:session.state().get('hasUpdates'),'update found')
             session.status(state='done',changeKind='update',automatic={'prepare':True,'confirm':True})
             session.wait(lambda:session.state().get('page')=='available','available again')
+            # The desktop's own checks reuse GitHub's recent answers; one
+            # someone asks for asks GitHub again.
+            assert session.checks() and all(flags == ['--cached'] for flags in session.checks()), session.checks()
             session.call('updates','check')
+            session.wait(lambda:session.checks()[-1:] == [[]], 'a fresh check when asked for')
             session.wait(lambda:['--no-ask-password','start','--no-block','cybexos-update-auto.service'] in session.units(),
                 'background preparation requested')
             for _ in range(3):

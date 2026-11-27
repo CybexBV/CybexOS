@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -459,6 +460,76 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(trust.next_page(''), '')
         self.assertEqual(trust.next_page(f'<{second}>; rel="last"'), '')
 
+    def test_a_desktop_check_reuses_recent_answers_and_names_when_the_limit_lifts(self):
+        # GitHub counts every anonymous request, a 304 too, against 60 an
+        # hour per internet address: the desktop's own checks reuse answers.
+        url = self.API + '/releases?per_page=30'
+        sent, answers, clock = [], {}, [1_800_000_000.0]
+
+        class Response(io.BytesIO):
+            def __init__(self, url, data, headers):
+                super().__init__(data)
+                self.url, self.headers = url, headers
+
+        def transport(request, timeout=30):
+            sent.append(request.full_url)
+            status, data, headers = answers[request.full_url]
+            if status != 200:
+                raise urllib.error.HTTPError(request.full_url, status, 'refused', headers, None)
+            return Response(request.full_url, data, headers)
+
+        answers[url] = (200, b'[1]', {'ETag': '"one"'})
+        with patch('cybexos.trust.urllib.request.urlopen', side_effect=transport), \
+                patch('cybexos.trust.time.time', side_effect=lambda: clock[0]):
+            desktop = trust.Fetcher(self.base / 'cache', trust.CHECK_MAX_AGE)
+            self.assertEqual(desktop.get(url), b'[1]')
+            clock[0] += trust.CHECK_MAX_AGE - 60
+            self.assertEqual(desktop.get(url), b'[1]')
+            self.assertEqual(len(sent), 1, 'a recent answer is used again without asking')
+            # A check someone asked for, and every update, asks again; its
+            # 304 is a fresh answer for the desktop's next check.
+            answers[url] = (304, b'', {})
+            self.assertEqual(trust.Fetcher(self.base / 'cache').get(url), b'[1]')
+            clock[0] += trust.CHECK_MAX_AGE - 60
+            self.assertEqual(desktop.get(url), b'[1]')
+            self.assertEqual(len(sent), 2)
+            clock[0] += 120
+            reset = int(clock[0]) + 1500
+            answers[url] = (403, b'', {'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': str(reset)})
+            with self.assertRaises(Failure) as limited:
+                desktop.get(url)
+            self.assertIn('used up until ' + time.strftime('%H:%M', time.localtime(reset)), str(limited.exception))
+            self.assertIn('Every computer on the same internet connection shares', str(limited.exception))
+            for headers, text in (({'Retry-After': '120'}, 'used up until'), ({}, 'Retry within the hour'),
+                                  ({'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': 'soon'}, 'Retry within'),
+                                  ({'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': str(reset + 86400)}, 'Retry within')):
+                answers[url] = (429, b'', headers)
+                with self.subTest(headers=headers), self.assertRaisesRegex(Failure, text):
+                    desktop.get(url)
+
+    def test_a_desktop_check_reads_the_listing_and_tag_once_in_its_window(self):
+        listed = listing(('v1.1.0', False, False))
+        commit = '1' * 40
+        sent = []
+
+        class Response(io.BytesIO):
+            def __init__(self, url, data):
+                super().__init__(data)
+                self.url, self.headers = url, {}
+
+        def transport(request, timeout=30):
+            sent.append(request.full_url)
+            data = listed if '/releases?' in request.full_url else commit.encode()
+            return Response(request.full_url, data)
+
+        with patch('cybexos.trust.urllib.request.urlopen', side_effect=transport):
+            for _ in range(3):
+                found = trust.discover(trust.Fetcher(self.base / 'cache', trust.CHECK_MAX_AGE), 'stable', '1.0.0')
+                self.assertEqual((found['version'], found['revision']), ('1.1.0', commit))
+            self.assertEqual(len(sent), 2, 'the listing and the tag once each')
+            trust.discover(trust.Fetcher(self.base / 'cache'), 'stable', '1.0.0')
+            self.assertEqual(len(sent), 4, 'staging asks again')
+
     def test_release_source_declares_its_version_and_requirements(self):
         trust.validate_source('1.1.0\n', COMPATIBILITY, release(), INSTALLED)
         with self.assertRaisesRegex(Failure, 'VERSION'):
@@ -612,7 +683,7 @@ class EngineTests(unittest.TestCase):
         self.runner=FakeRunner()
         self.engine=Engine(base/'state',self.working,self.runner,self.release,self.policy,self.system,self.booted)
         copy_config(self.config,base/'deployed');(self.engine.state/'deployed').symlink_to(base/'deployed')
-        self.engine.channel=lambda:release()
+        self.engine.channel=lambda max_age=0:release()
         # The available release's flake.lock, as GitHub would serve it.
         self.engine.release_pin=lambda revision:PIN_NEW
         self.sentinel=config_digest(self.config)
@@ -1150,7 +1221,7 @@ class EngineTests(unittest.TestCase):
 
     def test_a_successful_preparation_replaces_the_prepared_update(self):
         first = self.engine.stage('upstream')
-        self.engine.channel = lambda: release() | {'notes': 'Combined', 'releases': ['1.1.0', '1.0.1']}
+        self.engine.channel = lambda max_age=0: release() | {'notes': 'Combined', 'releases': ['1.1.0', '1.0.1']}
         second = self.engine.stage('both')
         status = read(self.engine.status_path)
         self.assertEqual((status['transaction'], status['scope'], status['replacement']), (second['id'], 'both', None))
@@ -1202,7 +1273,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result['cybexos']['state'],'unavailable')
 
     def test_unpublished_channel_has_no_error_and_never_blocks_upstream(self):
-        self.engine.channel = lambda: (_ for _ in ()).throw(trust.NoPublishedRelease('No release yet'))
+        self.engine.channel = lambda max_age=0: (_ for _ in ()).throw(trust.NoPublishedRelease('No release yet'))
         result = self.engine.check()
         self.assertEqual(result['cybexos'], {'state': 'unpublished', 'installed': '1.0.0', 'channel': 'stable'})
         self.assertEqual(result['upstream']['state'], 'available')
@@ -1214,9 +1285,16 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(trust.NoPublishedRelease):
             self.engine.stage('both')
 
+    def test_only_the_desktops_own_check_reuses_recent_answers(self):
+        asked = []
+        self.engine.channel = lambda max_age=0: asked.append(max_age) or release() | {'version': '1.0.0'}
+        self.engine.check(trust.CHECK_MAX_AGE)
+        self.engine.check()
+        self.assertEqual(asked, [trust.CHECK_MAX_AGE, 0])
+
     def test_check_offers_only_a_release_pinned_nixpkgs_and_never_the_channel_head(self):
         # No release to install: the installed release's revision, if newer.
-        self.engine.channel = lambda: release() | {'version': '1.0.0'}
+        self.engine.channel = lambda max_age=0: release() | {'version': '1.0.0'}
         result = self.engine.check()
         self.assertEqual(result['upstream'], {
             'state': 'available', 'installed': REV_OLD, 'available': REV_NEW, 'release': '1.0.0',
@@ -1254,13 +1332,14 @@ class EngineTests(unittest.TestCase):
 
     def test_release_pin_reads_the_release_flake_lock_through_the_trusted_api(self):
         seen = []
-        def get(fetcher, url, limit=0, accept=''):
-            seen.append((url, accept))
+        def get(fetcher, url, limit=0, accept='', max_age=None):
+            seen.append((url, accept, max_age))
             return json.dumps(release_lock()).encode()
         with patch.object(trust.Fetcher, 'get', get):
             self.assertEqual(Engine.release_pin(self.engine, REV_NEW), PIN_NEW)
+        # A commit's flake.lock never changes: it is asked for once and kept.
         self.assertEqual(seen, [('https://api.github.com/repos/CybexBV/CybexOS/contents/flake.lock?ref=' + REV_NEW,
-                                 'application/vnd.github.raw+json')])
+                                 'application/vnd.github.raw+json', trust.FOREVER)])
         for broken in ({'rev': 'main'}, {'narHash': 'sha1-x'}, {'lastModified': 0}, {'ref': 'nixos-26.05'}):
             with self.subTest(broken=broken), self.assertRaises(Failure):
                 inputs.pin(PIN_NEW | broken)
@@ -1374,7 +1453,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(config_digest(self.config), working)
         # With no newer release it prepares the same packages again, as the
         # installation qualification does.
-        self.engine.channel = lambda: release() | {'version': '1.0.0'}
+        self.engine.channel = lambda max_age=0: release() | {'version': '1.0.0'}
         record = self.engine.stage('upstream')
         staged = read(self.engine.tx(record['id']) / 'config/flake.lock')
         self.assertEqual(inputs.identity(staged, 'nixpkgs')['rev'], REV_NEW)
@@ -1867,7 +1946,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(read(self.engine.tx(record['id']) / 'release.json'),
                          release() | {'narHash': NAR_NEW, 'nixpkgs': PIN_NEW})
         self.runner.calls.clear()
-        self.engine.channel=lambda:(_ for _ in ()).throw(Failure('Release listing unavailable'))
+        self.engine.channel=lambda max_age=0:(_ for _ in ()).throw(Failure('Release listing unavailable'))
         with self.assertRaises(Failure):self.engine.stage('cybexos')
         self.assertFalse(self.runner.calls)
 
