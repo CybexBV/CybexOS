@@ -17,7 +17,8 @@ AssistantButton {
     brand: AssistantHelpers.AGENT_ICONS[Assistant.askAgent] || ""
     glyph: brand === "" ? "smart_toy" : ""
     accessibleName: I18n.format("%1. Change the agent, model or effort.", [Assistant.askSummary])
-    tip: Assistant.askSummary
+    // The open picker shows all of it; the name would sit on top of it.
+    tip: open ? "" : Assistant.askSummary
     color: open ? Theme.chipHover : "transparent"
 
     Rectangle {

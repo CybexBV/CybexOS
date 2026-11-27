@@ -203,6 +203,8 @@ AssistantSurface {
                 visible: root.continuing
                 glyph: "more_horiz"
                 accessibleName: I18n.tr("More for this conversation")
+                // The open menu says it all; its name would sit on top of it.
+                tip: root.menuOpen ? "" : accessibleName
                 controlHeight: Theme.scaled(28)
                 color: root.menuOpen ? Theme.chipHover : "transparent"
                 onTriggered: {
