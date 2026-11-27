@@ -199,7 +199,7 @@
       {"id": "neovim", "summary": "Keyboard-driven editing, in your terminal.", "desktop": "nvim.desktop", "name": "Neovim", "included": true, "perks": ["terminal"]},
       {"id": "kate", "summary": "KDE’s capable editor, with sessions and a terminal panel.", "desktop": "org.kde.kate.desktop", "attribute": "kdePackages.kate", "perks": ["-kde"]}]},
     {"id": "files", "options": [
-      {"id": "nautilus", "summary": "GNOME Files: quick previews with Space, tabs and network places.", "desktop": "org.gnome.Nautilus.desktop", "name": "Files", "included": true},
+      {"id": "folio", "summary": "Quiet and keyboard-first, in your theme, and every app’s Open and Save dialog.", "desktop": "folio.desktop", "name": "Files", "included": true},
       {"id": "thunar", "summary": "Light and quick, from Xfce, with bulk renaming.", "desktop": "thunar.desktop", "name": "Thunar", "attribute": "thunar", "icon": "share/icons/hicolor/scalable/apps/org.xfce.thunar.svg"},
       {"id": "kdedolphin", "summary": "Split views, a terminal panel and plenty of settings, from KDE.", "desktop": "org.kde.dolphin.desktop", "name": "Dolphin", "attribute": "kdePackages.dolphin", "appstream": "org.kde.dolphin", "perks": ["-kde"]}]},
     {"id": "mail", "options": [

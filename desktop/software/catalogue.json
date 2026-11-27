@@ -4380,15 +4380,15 @@
    "id": "files",
    "options": [
     {
-     "id": "nautilus",
+     "id": "folio",
      "name": "Files",
-     "desktop": "org.gnome.Nautilus.desktop",
+     "desktop": "folio.desktop",
      "perks": [],
      "included": true,
      "web": false,
      "glyph": "",
      "icon": false,
-     "summary": "GNOME Files: quick previews with Space, tabs and network places."
+     "summary": "Quiet and keyboard-first, in your theme, and every app’s Open and Save dialog."
     },
     {
      "id": "thunar",

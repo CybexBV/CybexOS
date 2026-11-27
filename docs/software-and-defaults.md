@@ -327,6 +327,26 @@ Explicit `VISUAL`/`EDITOR` values and personal shortcuts retain their
 precedence. Arguments are passed as argv, including filenames and URLs
 containing spaces; they are not shell code.
 
+### Files and Open and Save dialogs
+
+Cybex OS's file manager is Folio, listed as **Files**: Omarchy's file manager,
+built from its pinned release (`nix/packages/folio.nix`). It follows the
+shell's colours (`desktop/quickshell/scripts/theme_folio.py`), language and
+text size, and answers "Show in folder" (`org.freedesktop.FileManager1`).
+Space previews a file; `?` lists its other keys.
+
+It is also every app's **Open and Save dialog**: xdg-desktop-portal's file
+chooser is Folio (`folio chooser`), floating and centred over the desktop.
+GTK 4, Chromium-based browsers, Electron apps and Flatpak apps ask the portal
+on their own; Qt apps do through `QT_QPA_PLATFORMTHEME=xdgdesktopportal`
+(the shell itself keeps Qt's own theme); Firefox through its
+`widget.use-xdg-desktop-portal.file-picker` policy. GTK 3 apps keep GTK's own
+dialog: `GTK_USE_PORTAL` would also send every link and file they open through
+the portal's app chooser. The dialog opens as a window of its own, not
+attached to the app that asked, and leaves out the extra choices some apps
+add to their dialogs (an encoding, say). The portal's **Open With** app
+chooser is GTK's, not Folio's.
+
 The `cybexos-apps` helper offers:
 
 - `status`;

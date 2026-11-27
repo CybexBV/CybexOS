@@ -168,8 +168,8 @@ test("pinning appends once, unpinning removes, and the list is bounded", () => {
 
 test("suggested pins hold until the person pins or unpins anything", () => {
     const suggestions = D.suggestedPins("google-chrome");
-    assert.deepEqual(suggestions, ["google-chrome", "org.gnome.Nautilus", "kitty"]);
-    assert.deepEqual(D.suggestedPins(""), ["org.gnome.Nautilus", "kitty"]);
+    assert.deepEqual(suggestions, ["google-chrome", "folio", "kitty"]);
+    assert.deepEqual(D.suggestedPins(""), ["folio", "kitty"]);
     assert.deepEqual(D.suggestedPins("firefox", "com.mitchellh.ghostty", "thunar"), ["firefox", "thunar", "com.mitchellh.ghostty"],
         "the chosen file manager and terminal replace Cybex OS's");
     assert.deepEqual(D.effectivePins([], false, suggestions), suggestions);

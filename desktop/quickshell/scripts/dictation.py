@@ -616,7 +616,7 @@ APP_NAMES = {
     "com.mitchellh.ghostty": "Ghostty", "google-chrome": "Chrome", "brave-browser": "Brave", "brave-origin": "Brave",
     "code": "VS Code", "code-oss": "VS Code", "vscodium": "VSCodium", "dev.zed.zed": "Zed",
     "org.mozilla.firefox": "Firefox", "firefox": "Firefox", "chromium": "Chromium",
-    "org.gnome.nautilus": "Files", "org.telegram.desktop": "Telegram",
+    "folio": "Files", "org.telegram.desktop": "Telegram",
     "signal": "Signal", "slack": "Slack", "discord": "Discord", "thunderbird": "Thunderbird",
     "org.mozilla.thunderbird": "Thunderbird", "obsidian": "Obsidian", "1password": "1Password",
     "libreoffice-writer": "LibreOffice Writer", "org.kde.kate": "Kate", "kitty": "kitty",
