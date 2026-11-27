@@ -14,7 +14,7 @@ at `2026-11-02T07:37:59Z`.
 - `VERSION` and `release/notes.md` name 1.0.9. Nixpkgs, compatibility APIs
   and `system.stateVersion` were not changed.
 
-This releases the [reliability fixes](../../BUGFIX_PROGRESS.md) for interrupted
+This releases the reliability fixes (`BUGFIX_PROGRESS.md`, since removed) for interrupted
 configuration backups, installer cleanup and power guards, and Flathub task
 state and submission races. It also includes the Ventoy startup correction.
 

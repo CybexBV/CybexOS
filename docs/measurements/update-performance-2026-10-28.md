@@ -42,7 +42,7 @@ and checks health; it does not run the full build again.
 
 [`nix/modules/default.nix`](../../nix/modules/default.nix) configures only
 `https://cache.nixos.org` by default. The
-[release workflow](../../.github/workflows/release.yml) builds/qualifies the ISO
+release workflow (`.github/workflows/release.yml`, since removed) builds/qualifies the ISO
 and publishes immutable release assets, without publishing a Nix binary cache.
 [The validation document](../validation.md) already records that public cache
 hosting and explicit trust remain release work.
@@ -74,7 +74,7 @@ binary substitution or NAR transfer.
 The overlay deliberately scopes newer libraries to the compositor. Its
 top-level `pkgs.hyprutils` remains stock; inspect
 `hyprland.buildInputs` to see the actual customized libraries. See
-[`nix/desktop-compatibility.nix`](../../nix/desktop-compatibility.nix).
+`nix/desktop-compatibility.nix` (since removed).
 
 Updating Nixpkgs can change the dependencies and therefore output identities of
 these custom builds even if their displayed versions stay the same. A newly
