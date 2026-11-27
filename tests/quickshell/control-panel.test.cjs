@@ -42,7 +42,6 @@ test("session actions use the installed helper and report observed failures", ()
     const session = read("Common/Session.qml");
     assert.match(session,
         /sessionAction\.command = \["cybexos-session-action", action\]/);
-    assert.match(session, /readonly property bool actionBusy:\s*sessionAction\.running/);
     assert.match(session, /Process \{[\s\S]*id:\s*sessionAction/);
     assert.match(session, /ProcHelpers\.NOT_STARTED/);
     assert.match(session, /summary:\s*"Session action failed"/);

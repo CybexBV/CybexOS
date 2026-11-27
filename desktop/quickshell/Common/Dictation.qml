@@ -270,10 +270,6 @@ Singleton {
         downloadProc.running = true;
     }
 
-    function downloadEnhanced() {
-        downloadModelNamed("enhanced");
-    }
-
     // The model the first-use offer recommends for the languages chosen.
     function downloadRecommended() {
         if (recommendedInstalled)
@@ -297,10 +293,6 @@ Singleton {
             Settings.setModuleOption("indicators", "dictationModel", "base");
         removeProc.command = ["python3", root.script, "remove", name];
         removeProc.running = true;
-    }
-
-    function removeEnhanced() {
-        removeModel("enhanced");
     }
 
     function useModel(value) {

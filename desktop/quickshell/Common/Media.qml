@@ -18,8 +18,6 @@ Singleton {
     id: root
 
     readonly property var players: Mpris.players.values
-    // Without playerctld's proxy, which would list the same track twice.
-    readonly property var listed: StatusHelpers.listedPlayers(players)
 
     property string pinnedKey: ""
     property var lastPlayingKeys: []
@@ -48,8 +46,6 @@ Singleton {
     readonly property bool playing: player !== null && player.isPlaying
 
     readonly property string glyph: StatusHelpers.playerGlyph(player)
-    readonly property string brandIcon: brandFor(player)
-    readonly property string iconSource: resolvePlayerIcon(player)
 
     // The panel shows the remaining time instead of the length once asked to,
     // for the rest of the session.

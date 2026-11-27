@@ -38,8 +38,6 @@ Singleton {
     property var activeTitleRequest: null
     property int titleRequestCounter: 0
 
-    readonly property bool saving: writeInFlight
-        || (dirty && errorKind === "")
     readonly property bool undoAvailable: deletedRecord !== null
 
     function canMutate() {

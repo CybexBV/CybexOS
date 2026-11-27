@@ -16,7 +16,6 @@ Singleton {
     id: root
 
     readonly property bool idle: monitor.isIdle
-    readonly property bool onBattery: UPower.onBattery
     // The user's explicit request to trade polish for battery. Motion and
     // compositor effects follow it; pollers follow `idle` instead.
     readonly property bool powerSaver:

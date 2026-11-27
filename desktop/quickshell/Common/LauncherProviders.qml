@@ -16,7 +16,6 @@ Singleton {
     property string query: ""
     property string selectedProviderId: "apps"
     readonly property int maxResults: 8
-    readonly property var providers: ProviderHelpers.PROVIDERS
     readonly property var tabProviders: ProviderHelpers.TAB_IDS.map(id =>
         ProviderHelpers.providerById(id))
 

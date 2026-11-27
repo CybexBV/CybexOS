@@ -54,8 +54,6 @@ Singleton {
         || (Settings.themeMode === "light" ? "#c22f2f" : "#ff8f8f")
     readonly property color errorContainer: active.errorContainer
         || (Settings.themeMode === "light" ? "#ffdad6" : "#93000a")
-    readonly property color errorInk: active.onError
-        || (Settings.themeMode === "light" ? "#ffffff" : "#690005")
 
     function usePalette(identity, palette) {
         if (!PaletteHelpers.resultIsCurrent(identity, wallpaperIdentity))

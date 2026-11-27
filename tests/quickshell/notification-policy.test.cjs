@@ -134,7 +134,7 @@ function service(){
     context.Settings.set=(name,value)=>{context.Settings[name]=value;if(name==='notifDnd')context.dnd=value;};
     vm.createContext(context);
     for(const name of ['describe','remoteSource','publish','updateEntry','removeEntry','hideToast','dismiss','invoke',
-        'defaultAction','secondaryActions','canActivate','invokeDefault','timeoutFor','send','clearAll',
+        'defaultAction','secondaryActions','canActivate','timeoutFor','send','clearAll',
         'historyReply','queueHistory','pruneHistory','scheduleRetention','setDndMode','setDnd','scheduleDndTick',
         'snoozeSource','unsnooze','scheduleSnoozes','holdGroup',
         'routeToDrawer','unpin','noteOverflow','activate','updateNotice','primaryAction']){

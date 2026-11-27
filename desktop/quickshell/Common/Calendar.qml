@@ -31,8 +31,6 @@ Singleton {
     // default window has to move with the clock.
     property bool requestIsDefault: false
     property double browsedAt: 0
-    property int onlineAccounts: 0
-    property int onlineCalendarAccounts: 0
     property var calendars: []
     property var events: []
     property var sourceErrors: []
@@ -52,10 +50,6 @@ Singleton {
         watchers = Math.max(0, watchers - 1);
     }
 
-    readonly property bool accountConnected: onlineAccounts > 0
-        || calendars.some(calendar => calendar.isOnline)
-    readonly property bool accountCalendarEnabled: onlineCalendarAccounts > 0
-        || calendars.some(calendar => calendar.isOnline)
     readonly property string partialWarning: sourceErrors.length === 0 ? ""
         : sourceErrors.length === 1 ? "One calendar could not be read"
         : sourceErrors.length + " calendars could not be read"
@@ -166,14 +160,6 @@ Singleton {
         startRange(window.start, window.end);
     }
 
-    function eventsForDay(value, limit) {
-        const start = dayStart(value);
-        const date = new Date(start);
-        const end = new Date(date.getFullYear(), date.getMonth(),
-            date.getDate() + 1).getTime();
-        return CalendarHelpers.eventsInRange(events, start, end, limit);
-    }
-
     function upcoming(limit) {
         const now = Date.now();
         const date = new Date(now);
@@ -225,8 +211,6 @@ Singleton {
         fetchError = payload.available ? "" : payload.error
             || "GNOME calendar support is unavailable";
         goaError = payload.goaError;
-        onlineAccounts = payload.onlineAccounts;
-        onlineCalendarAccounts = payload.onlineCalendarAccounts;
         calendars = payload.calendars;
         events = payload.events;
         sourceErrors = payload.sourceErrors;

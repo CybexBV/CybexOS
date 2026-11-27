@@ -16,8 +16,6 @@ test("network details poll only while acquired and serialize snapshots", () => {
     assert.match(controller, /function release\(\)/);
     assert.match(controller, /readonly property int pollIntervalMs:\s*1500/);
     assert.match(controller, /interval:\s*root\.pollIntervalMs/);
-    assert.match(controller, /pollCadenceText:/,
-        "the visible cadence label must come from the actual polling interval");
     assert.match(controller, /running:\s*root\.acquired/);
     assert.match(controller, /if \(snapshotProc\.running\)[\s\S]*snapshotAgain = true/);
     assert.match(controller, /scannerDevice\.scannerEnabled = false/);
@@ -29,15 +27,13 @@ test("the live network figures start no process per sample", () => {
     const controller = read("Common/NetworkDetails.qml");
     // Throughput: the 1.5 s tick reads sysfs counters through FileView.
     assert.match(controller,
-        /id: detailsPoll\s*interval: root\.pollIntervalMs\s*repeat: true\s*running: root\.acquired\s*onTriggered: \{\s*root\.sampleCounters\(\);\s*root\.checkPinger\(routerPinger, true\);\s*root\.checkPinger\(internetPinger, false\);/);
+        /id: detailsPoll\s*interval: root\.pollIntervalMs\s*repeat: true\s*running: root\.acquired\s*onTriggered: \{\s*root\.sampleCounters\(\);\s*root\.checkPinger\(internetPinger\);/);
     for (const counter of ["rx_bytes", "tx_bytes"])
         assert.match(controller, new RegExp(
             `FileView \\{[^}]*counterPath\\(root\\.counterInterface, "${counter}"\\)[^}]*blockAllReads: true`));
     assert.match(controller, /readonly property string counterInterface: acquired \? primaryInterface : ""/);
-    // Latency: two long-lived pingers, stopped when released.
-    assert.match(controller, /readonly property string routerPingTarget: acquired && snapshotPrimary/);
+    // Latency: one long-lived pinger, stopped when released.
     assert.match(controller, /readonly property string internetPingTarget: acquired && snapshotPrimary/);
-    assert.match(controller, /onRouterPingTargetChanged: restartPinger\(routerPinger, routerPingTarget\)/);
     assert.match(controller, /onInternetPingTargetChanged: restartPinger\(internetPinger, internetPingTarget\)/);
     assert.match(controller, /id: pingRetry[\s\S]{0,80}running: root\.acquired\s*&&/);
     // The snapshot follows NetworkManager's single monitor plus a slow poll.

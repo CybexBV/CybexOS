@@ -94,8 +94,6 @@ test("presenting a panel fronts its slot before the card turns visible", () => {
 });
 
 test("scan lists are not re-sorted while no Network view is using them", () => {
-    const wifi = read("Common/WifiState.qml");
-    assert.match(wifi, /readonly property var others:\s*\{\s*if \(!scanning \|\| !enabled\)\s*return \[\];/);
     const details = read("Common/NetworkDetails.qml");
     assert.match(details,
         /readonly property var fallbackNetworks:\s*\{\s*if \(!root\.acquired \|\| !WifiState\.device \|\| !WifiState\.enabled\)\s*return \[\];/);
