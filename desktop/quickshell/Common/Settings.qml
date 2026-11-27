@@ -6,6 +6,7 @@ import Quickshell.Services.Notifications
 import "SettingsHelpers.js" as SettingsHelpers
 import "ControlIconHelpers.js" as ControlIconHelpers
 import "ProcHelpers.js" as ProcHelpers
+import "ExternalUrl.js" as ExternalUrl
 import "Persistence"
 
 // Shell settings store (design v2, "Shell settings"). Single source of truth
@@ -545,9 +546,14 @@ Singleton {
             showPanel(targetPage, targetScreenName);
     }
 
+    // Plugin descriptions and wallpaper sites supply these links: the same
+    // check as every other link the shell opens.
     function openExternalUrl(value) {
+        const url = ExternalUrl.safeHttpUrl(value);
+        if (url === "")
+            return false;
         closePanel();
-        return Qt.openUrlExternally(value);
+        return Qt.openUrlExternally(url);
     }
 
     function closePanel() {
