@@ -55,16 +55,10 @@ test("spinners stop while their view is hidden", () => {
     // closes; an ungated spinner kept rendering behind the incoming one.
     const sites = {
         "Ui/Button.qml": /running:\s*root\.iconSpinning && iconLabel\.visible/,
-        "Ui/MultiSelect.qml": /running:\s*root\.loadingOptions && refreshButton\.visible/,
-        "Popovers/WifiPopover.qml": /running:\s*row\.working && signalGlyph\.visible/
+        "Ui/MultiSelect.qml": /running:\s*root\.loadingOptions && refreshButton\.visible/
     };
     for (const [file, pattern] of Object.entries(sites))
         assert.match(read(file), pattern, file);
-    // A stopped value source keeps its angle; the marks that replace the arc
-    // must not inherit the tilt.
-    for (const [file, id] of [["Popovers/WifiPopover.qml", "signalGlyph"]])
-        assert.match(read(file),
-            new RegExp(`onRunningChanged: if \\(!running\\) ${id}\\.rotation = 0`), `${file} ${id}`);
 });
 
 test("roving keyboard pickers move focus before they commit", () => {
@@ -112,10 +106,6 @@ test("roving keyboard pickers move focus before they commit", () => {
     assert.match(folders,
         /onClicked:\s*\{\s*folderRow\.forceActiveFocus\(\);\s*root\.selectedPath = folderRow\.path;\s*folderList\.currentIndex = folderRow\.index;/,
         "folder list clicks");
-    const battery = read("Popovers/BatteryPopover.qml");
-    order(battery.slice(battery.indexOf("function pickProfile(")),
-        "segment.forceActiveFocus();",
-        "PowerProfiles.profile = profileRepeater.model[index].profile;", "power profiles");
 });
 
 test("open views tick no faster than what they display", () => {

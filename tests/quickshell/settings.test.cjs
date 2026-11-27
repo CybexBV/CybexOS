@@ -629,7 +629,7 @@ test("notification settings drive the toasts and the notification center", () =>
         (_, i) => Number(clamp[1]) + i));
     assert.doesNotMatch(body.slice(0, body.indexOf("]")), /SliderRow \{/, "four line counts are choices, not a slider");
     // DND writers must go through the persisted setting, never the singleton.
-    for (const name of ["Popovers/NotifsPopover.qml", "Popovers/ControlCenterPopover.qml"])
+    for (const name of ["Popovers/Drawer/DrawerNotifications.qml", "Popovers/Drawer/DrawerOverview.qml"])
         assert.doesNotMatch(read(name), /Notifs\.dnd\s*=/,
             `${name} must use Notifs.setDnd`);
 });

@@ -22,15 +22,13 @@ test("popover action primitives are keyboard and assistive-technology operable",
     assert.match(link, /font\.underline:\s*activeFocus/,
         "a keyboard-focused text action needs a visible focus state");
 
-    const slider = read("Popovers/FillSlider.qml");
+    // The shell's one slider (DrawerSliderRow, the Sound tab's streams).
+    const slider = read("Common/HSlider.qml");
     assert.match(slider, /Accessible\.role:\s*Accessible\.Slider/);
     assert.match(slider, /Accessible\.onIncreaseAction:\s*applyValue/);
     assert.match(slider, /Accessible\.onDecreaseAction:\s*applyValue/);
     for (const key of ["Left", "Right", "PageDown", "PageUp", "Home", "End"])
         assert.match(slider, new RegExp(`Qt\\.Key_${key}`));
-    assert.match(slider,
-        /glyphIsButton[\s\S]*activeFocusOnTab:\s*visible && root\.ready[\s\S]*Accessible\.role:\s*Accessible\.Button/,
-        "the mute glyph must be a separate named keyboard action");
 });
 
 test("every overflowed widget remains keyboard reachable with visible focus", () => {
@@ -83,38 +81,11 @@ test("notification history exposes primary, action, disclosure, dismiss, and cle
 
 });
 
-test("Control Center focus reaches rows, toggles, audio, capture, session, and footer actions", () => {
-    const control = read("Popovers/ControlCenterPopover.qml");
-    assert.match(control, /focus:\s*visible/);
-    assert.match(control,
-        /Keys\.onEscapePressed:[\s\S]{0,260}?pendingSessionKey[\s\S]{0,260}?Popouts\.close\(\)/,
-        "Escape cancels a pending destructive action before closing the panel");
-    assert.match(control,
-        /function focusInitial\(\)[\s\S]*brightnessSlider\.ready \? brightnessSlider : outputButton/);
-
-    for (const component of ["RadioRow", "QuickTile", "SessionAction"])
-        assert.match(control, new RegExp(
-            `component ${component}:[\\s\\S]*?activeFocusOnTab: true[\\s\\S]*?Accessible\\.role:[\\s\\S]*?Keys\\.onPressed:`));
-    assert.match(control,
-        /component QuickTile:[\s\S]*Accessible\.checked:\s*tile\.effective/,
-        "quick toggles must expose observed state, not just persisted intent");
-    assert.match(control,
-        /component QuickTile:[\s\S]*Accessible\.description:\s*tile\.statusDescription/,
-        "pending and failure state must be announced with the toggle");
-    assert.match(control,
-        /id:\s*outputButton[\s\S]*Accessible\.name:\s*"Choose audio output"/);
-    assert.match(control,
-        /required property var modelData[\s\S]*Accessible\.name:\s*capture\.label[\s\S]*root\.runCapture/);
-    for (const label of ["Open Cybex OS Settings", "Keyboard shortcuts"])
-        assert.match(control, new RegExp(`Accessible\\.name: "${label}"`));
-});
-
 test("Bluetooth and media panels announce state and expose one focusable action per control", () => {
-    const bluetooth = read("Popovers/BluetoothPopover.qml");
-    assert.match(bluetooth, /function focusInitial\(\)[\s\S]*bluetoothToggle\.forceActiveFocus/);
+    const bluetooth = read("Popovers/Drawer/DrawerBluetooth.qml");
     assert.match(bluetooth,
-        /readonly property string actionName:[\s\S]*activeFocusOnTab:\s*enabled[\s\S]*Accessible\.name:\s*actionName/);
-    assert.match(bluetooth, /Qt\.Key_(?:Down|Right)[\s\S]*nextItemInFocusChain\(true\)/);
+        /activeFocusOnTab:\s*enabled\s*Accessible\.role:\s*Accessible\.Button\s*Accessible\.name:\s*actionLabel/);
+    assert.match(bluetooth, /Qt\.Key_Down \|\| event\.key === Qt\.Key_Up[\s\S]*nextItemInFocusChain\(event\.key === Qt\.Key_Down\)/);
     assert.match(bluetooth, /Accessible\.role:\s*Accessible\.AlertMessage/);
 
     const media = read("Popovers/MediaPopover.qml");
@@ -140,9 +111,7 @@ test("reduced-motion mode stops infinite activity loops instead of busy-looping 
     assert.match(theme, /readonly property bool reducedMotion:/);
 
     for (const relative of [
-        "Bar/Modules/Indicators.qml",
-        "Popovers/BatteryPopover.qml",
-        "Popovers/WifiPopover.qml"
+        "Bar/Modules/Indicators.qml"
     ]) {
         const source = read(relative);
         const loops = [...source.matchAll(/(?:RotationAnimation|SequentialAnimation)[\s\S]*?loops:\s*Animation\.Infinite/g)];

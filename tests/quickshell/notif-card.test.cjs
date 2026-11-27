@@ -17,8 +17,8 @@ const { shellDir } = require("./shell.cjs");
 // every caller supplies.
 
 const CARD = path.join("Common", "NotifCard.qml");
-const CALLERS = ["NotificationToasts.qml", path.join("Popovers", "NotifsPopover.qml"),
-    path.join("Popovers", "Drawer", "DrawerNotifications.qml")];
+const CENTRE = path.join("Popovers", "Drawer", "DrawerNotifications.qml");
+const CALLERS = ["NotificationToasts.qml", CENTRE];
 
 function read(rel) {
     return fs.readFileSync(path.join(shellDir, rel), "utf8");
@@ -84,7 +84,7 @@ test("both surfaces take the one shell face, as typography.test.cjs requires", (
     // hand it two different faces, which is how the same notification read as
     // two different products depending on where you saw it.
     const toast = keysSuppliedSource("NotificationToasts.qml");
-    const centre = keysSuppliedSource(path.join("Popovers", "NotifsPopover.qml"));
+    const centre = keysSuppliedSource(CENTRE);
     assert.match(toast, /face:\s*Theme\.fontMenu/,
         "the toast style must follow the Typography setting");
     assert.match(centre, /face:\s*Theme\.fontMenu/,
@@ -99,7 +99,7 @@ test("both surfaces take the one shell face, as typography.test.cjs requires", (
 test("toast hover and a history disclosure reveal the full notification text", () => {
     const card = read(CARD);
     const toast = read("NotificationToasts.qml");
-    const centre = read(path.join("Popovers", "NotifsPopover.qml"));
+    const centre = read(CENTRE);
 
     assert.match(card, /property bool expandTextOnHover:\s*false/);
     assert.match(card, /property bool allowTextExpansion:\s*false/);
