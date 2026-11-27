@@ -297,6 +297,7 @@ class ChangeLogTest(unittest.TestCase):
     def test_files_and_widgets_survive_a_restart(self):
         notes = self.home / "notes.txt"
         notes.write_text("before")
+        notes.chmod(0o640)
         plugin = self.home / ".local/share/cybexos/plugins/personal.cpu/manifest.json"
         entries = self.turn_writing("t-1", files={notes: "after", plugin: json.dumps({"id": "personal.cpu",
                                                                                          "name": "CPU"})})
@@ -308,7 +309,10 @@ class ChangeLogTest(unittest.TestCase):
         for entry in self.log.entries:
             self.assertEqual(self.log.undo_local(entry), "")
         self.assertEqual(notes.read_text(), "before")
+        self.assertEqual(notes.stat().st_mode & 0o777, 0o640)
+        # A widget the turn created leaves no empty folders, but the plugins folder stays.
         self.assertFalse((self.home / ".local/share/cybexos/plugins/personal.cpu").exists())
+        self.assertTrue((self.home / ".local/share/cybexos/plugins").exists())
         blobs = list((self.root / "changes" / "blobs").iterdir())
         self.assertTrue(all(oct(path.stat().st_mode & 0o777) == "0o600" for path in blobs))
 

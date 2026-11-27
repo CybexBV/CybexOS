@@ -536,36 +536,6 @@ class Snapshots:
             self.after[path] = now
         return [display(path, self.home) for path in sorted(self.after)]
 
-    def undo(self):
-        restored, skipped = [], []
-        plugins = os.path.join(self.home, ".local/share/cybexos/plugins")
-        for path, after in sorted(self.after.items()):
-            shown = display(path, self.home)
-            now = file_state(path)
-            if now is UNSNAPSHOTTABLE or content(now) != content(after):
-                skipped.append(shown)
-                continue
-            before = self.before[path]
-            try:
-                if before is None:
-                    if now is not None:
-                        os.unlink(path)
-                    # A widget the turn created leaves no empty folders behind.
-                    parent = os.path.dirname(path)
-                    while under(parent, plugins) and parent != plugins:
-                        try:
-                            os.rmdir(parent)
-                        except OSError:
-                            break
-                        parent = os.path.dirname(parent)
-                else:
-                    write_atomic(path, before[0], before[1])
-            except OSError:
-                skipped.append(shown)
-                continue
-            restored.append(shown)
-        self.after = {}
-        return restored, skipped
 
 
 # ---- what a turn produced ---------------------------------------------------
