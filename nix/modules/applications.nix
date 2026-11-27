@@ -271,7 +271,8 @@ in {
     # vpnc plugin still has unfixed local-root CVEs and is never permitted.
     networking.networkmanager.plugins = with pkgs; [ networkmanager-openvpn networkmanager-openconnect networkmanager-ssh libreswanPlugin ];
     # Expected local builds (nix/modules/prebuilt.nix): the plugin's helper-path
-    # fix, and Steam's FHS runtime, whose free wrapper carries the unfree client.
+    # fix, ChatGPT and its workspace runtime, and Steam's FHS runtime, whose
+    # free wrapper carries the unfree client.
     cybexos.updates.expectedBuilds = [ libreswanPlugin ]
       # AppArmor references the original unfree download, outside its launcher.
       ++ lib.optional cfg.features.proprietary chatgpt

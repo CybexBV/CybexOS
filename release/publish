@@ -83,15 +83,15 @@ kind=(--prerelease --latest=false) channel=beta
 # --prerelease=false too: resuming a draft that gh left as a prerelease.
 if ((stable)); then kind=(--prerelease=false --latest) channel='stable and beta'; fi
 # Only a commit the full check passed reaches machines: every job of a
-# nixos.yml run on The Beast, dispatched or started by the push to main
-# (docs/releasing.md#the-full-check). Both check out exactly this commit; a
+# nixos.yml run on The Beast, dispatched on the release branch (runs started by
+# a push to main before 2026-11-26 count too; docs/releasing.md#the-full-check). Both check out exactly this commit; a
 # pull request's run checks a merge commit instead, so it doesn't count. A
 # run whose upgrade job started from another release (`-f from=`) has its
 # own title and doesn't count either.
 qualified=$(gh run list --repo "$REPO" --workflow nixos.yml --commit "$revision" --status success --limit 100 \
     --json event,displayTitle --jq '[.[] | select((.event == "workflow_dispatch" or .event == "push") and .displayTitle == "NixOS qualification")] | length') \
     || fail 'cannot ask GitHub whether the full check passed; nothing was published'
-[[ $qualified =~ ^[1-9][0-9]*$ ]] || fail "the full check has not passed for $revision; run gh workflow run nixos.yml --repo $REPO --ref main and publish once it passes"
+[[ $qualified =~ ^[1-9][0-9]*$ ]] || fail "the full check has not passed for $revision; run gh workflow run nixos.yml --repo $REPO --ref release-$version and publish once it passes"
 # A run passes only when every job of the commit's own workflow passed. After
 # 1.0.32 that workflow must run the upgrade (docs/releasing.md#the-upgrade):
 # in its own job until 1.0.37, in the image job's script since.

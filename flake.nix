@@ -42,8 +42,6 @@
         installer-ui = pkgs.callPackage ./nix/packages/installer.nix { source = self; };
         plymouth = pkgs.callPackage ./nix/packages/plymouth.nix { source = self; };
         symbols-font = pkgs.callPackage ./nix/packages/symbols-font.nix { source = self; };
-        xps-camera = (pkgs.callPackage ./nix/packages/ipu7.nix { inherit (pkgs.linuxPackages_latest) kernel kernelModuleMakeFlags; }).sensor;
-        xps-psys = (pkgs.callPackage ./nix/packages/ipu7.nix { inherit (pkgs.linuxPackages_latest) kernel kernelModuleMakeFlags; }).psys;
         t3-code = pkgs.callPackage ./nix/packages/t3-code.nix {};
         # Built by the vendor-updates workflow before it releases a Brave update.
         brave-origin = pkgs.callPackage ./nix/packages/brave {};
@@ -93,7 +91,14 @@
             (map builtins.unsafeDiscardStringContext inputSources);
         } ];
       };
-      checks = each (system: let pkgs = nixpkgs.legacyPackages.${system}; in {
+      checks = each (system: let
+        pkgs = nixpkgs.legacyPackages.${system};
+        # The default test machine, evaluated once for both checks that use it.
+        machine = nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [ module ./nix/tests/machine.nix ];
+        };
+      in {
         parity = import ./nix/tests/parity.nix {
           inherit nixpkgs pkgs module system inputSources inputNarHashes;
           installer = self.nixosConfigurations.installer.config;
@@ -115,10 +120,7 @@
           inherit pkgs;
           inherit (self.packages.${system}) codex claude-code;
         };
-        system = (nixpkgs.lib.nixosSystem {
-          inherit system;
-          modules = [ module ./nix/tests/machine.nix ];
-        }).config.system.build.toplevel;
+        system = machine.config.system.build.toplevel;
         # Qualify the complete default application selection too. The small
         # VM/installer choices must not hide unsupported proprietary packages.
         product = (nixpkgs.lib.nixosSystem {
@@ -171,10 +173,7 @@
         folio = (pkgs.callPackage ./nix/packages/folio.nix {}).tests.suite;
         # Voxtype's test suite, with Cybex OS's dictation patch, which machines
         # skip when they build it too.
-        voxtype = (nixpkgs.lib.nixosSystem {
-          inherit system;
-          modules = [ module ./nix/tests/machine.nix ];
-        }).config.cybexos.dictationPackage.overrideAttrs { doCheck = true; };
+        voxtype = machine.config.cybexos.dictationPackage.overrideAttrs { doCheck = true; };
         # Installing apps leaves the shell and the assistant running; their own changes still reach them.
         session-restarts = import ./nix/tests/session-restarts.nix { inherit pkgs module; };
         # Settings -> Security -> Sudo without password: Polkit, the helper and real sudo.
