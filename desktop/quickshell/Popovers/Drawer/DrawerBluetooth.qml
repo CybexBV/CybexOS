@@ -230,7 +230,7 @@ Column {
             metrics: Theme.switchCompact
             checked: root.powered
             enabled: root.adapter !== null && !root.blocked && !root.powerBusy
-            accessibleName: "Bluetooth"
+            accessibleName: I18n.tr("Bluetooth")
             onToggled: value => BluetoothState.setEnabled(value)
         }
     }
@@ -270,8 +270,14 @@ Column {
                     readonly property bool busy: root.busyDevice === modelData.dbusPath
                         || modelData.pairing || modelData.state === BluetoothDeviceState.Connecting
                         || modelData.state === BluetoothDeviceState.Disconnecting
-                    readonly property string actionLabel: busy ? "Working…"
-                        : modelData.connected ? "Disconnect" : modelData.paired ? "Connect" : "Pair"
+                    readonly property string actionLabel: busy ? I18n.tr("Working…")
+                        : modelData.connected ? I18n.tr("Disconnect") : modelData.paired ? I18n.tr("Connect") : I18n.tr("Pair")
+                    readonly property string deviceName: BluetoothHelpers.deviceLabel(modelData) || modelData.address
+                    // The whole action as one sentence, so a translation can order it.
+                    readonly property string actionName: busy ? I18n.format("Working on %1…", [deviceName])
+                        : modelData.connected ? I18n.format("Disconnect %1", [deviceName])
+                        : modelData.paired ? I18n.format("Connect %1", [deviceName])
+                        : I18n.format("Pair %1", [deviceName])
                     width: section.width
                     height: Theme.scaled(44)
                     radius: Theme.rowRadius
@@ -281,8 +287,9 @@ Column {
                     enabled: root.ready && root.busyDevice === "" && !busy
                     activeFocusOnTab: enabled
                     Accessible.role: Accessible.Button
-                    Accessible.name: actionLabel + " " + (BluetoothHelpers.deviceLabel(modelData) || modelData.address)
-                    Accessible.description: modelData.connected ? "Connected" : modelData.paired ? "Paired" : "Nearby device"
+                    Accessible.name: actionName
+                    Accessible.description: modelData.connected ? I18n.tr("Connected")
+                        : modelData.paired ? I18n.tr("Paired") : I18n.tr("Nearby device")
                     Accessible.onPressAction: root.activate(modelData)
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
@@ -320,7 +327,7 @@ Column {
                         spacing: 2
                         Text {
                             width: parent.width
-                            text: BluetoothHelpers.deviceLabel(deviceRow.modelData) || "Unknown device"
+                            text: BluetoothHelpers.deviceLabel(deviceRow.modelData) || I18n.tr("Unknown device")
                             elide: Text.ElideRight
                             font.family: Theme.fontMenu
                             font.pixelSize: Theme.typography.primary
@@ -329,7 +336,8 @@ Column {
                         }
                         Text {
                             width: parent.width
-                            text: (deviceRow.modelData.connected ? "Connected" : deviceRow.modelData.paired ? "Paired" : deviceRow.modelData.address)
+                            text: (deviceRow.modelData.connected ? I18n.tr("Connected")
+                                    : deviceRow.modelData.paired ? I18n.tr("Paired") : deviceRow.modelData.address)
                                 + (deviceRow.modelData.batteryAvailable ? " · " + Math.round(deviceRow.modelData.battery * 100) + "%" : "")
                             elide: Text.ElideRight
                             font.family: Theme.fontMenu
@@ -468,7 +476,7 @@ Column {
         visible: root.emptyKind === ""
         info: root.scanning ? I18n.tr("Searching for devices…") : ""
         actionText: !root.powered || !root.ready || root.scanBusy ? ""
-            : root.scanning ? "Stop scan" : "Scan again"
+            : root.scanning ? I18n.tr("Stop scan") : I18n.tr("Scan again")
         onActionClicked: {
             root.showNearby = true;
             root.send({ action: "scan", enabled: !root.scanning });
