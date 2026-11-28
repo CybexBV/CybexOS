@@ -214,6 +214,24 @@ class DefaultApplicationTests(unittest.TestCase):
         self.run_apps('files', str(self.base / 'a folder'))
         self.assertEqual(self.captured(), [str(self.base / 'a folder')])
 
+    def test_a_file_manager_that_keeps_running_does_not_hold_the_caller(self):
+        # Folio has no DBusActivatable entry, so GIO starts it as a child. It
+        # must not inherit the caller's output: whoever reads that (the
+        # shell, a test, a pipe) would wait until the file manager closes.
+        stay = self.base / 'stay'
+        stay.write_text('#!' + sys.executable + '\nimport os,sys,json,time\nfrom pathlib import Path\n'
+                        'Path(os.environ["APPLICATION_LOG"]).write_text(json.dumps(sys.argv[1:]))\ntime.sleep(60)\n')
+        stay.chmod(0o755)
+        (self.data / 'applications' / 'staying.desktop').write_text(
+            '[Desktop Entry]\nType=Application\nName=Staying\nExec=' + str(stay) + ' %U\n'
+            'MimeType=inode/directory;\nCategories=Utility;FileManager;\n')
+        self.run_apps('set', 'files', 'staying.desktop')
+        started = time.monotonic()
+        self.run_apps('files')
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual(self.captured(), [])
+        subprocess.run(['pkill', '-f', str(stay)], check=False)
+
     def test_terminals_without_argument_keys_get_their_own_options(self):
         self.desktop('Alacritty.desktop', 'Alacritty', 'Categories=System;TerminalEmulator;\n')
         self.run_apps('set', 'terminal', 'Alacritty.desktop')

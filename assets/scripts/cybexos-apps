@@ -2,6 +2,7 @@
 """Personal default applications and argv-safe desktop launch entry points."""
 import argparse
 import configparser
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -368,6 +369,28 @@ def terminal(arguments):
     os.execvp('xdg-terminal-exec', ['xdg-terminal-exec', *arguments])
 
 
+@contextlib.contextmanager
+def detached():
+    """Start apps without this command's input and output.
+
+    GIO starts an app whose entry is not DBusActivatable (Folio, browsers)
+    as a child that inherits these streams. Whoever reads them (the shell, a
+    pipe, a test) would then wait until the app closes, though this command
+    finished long before. Errors are raised after the streams are back.
+    """
+    saved = [os.dup(fd) for fd in (0, 1, 2)]
+    null = os.open(os.devnull, os.O_RDWR)
+    try:
+        for fd in (0, 1, 2):
+            os.dup2(null, fd)
+        yield
+    finally:
+        for fd, copy in zip((0, 1, 2), saved):
+            os.dup2(copy, fd)
+            os.close(copy)
+        os.close(null)
+
+
 def files(paths):
     """Open folders (or the home folder) in the selected file manager."""
     warn_fallback('files')
@@ -375,7 +398,8 @@ def files(paths):
     if not app:
         raise ValueError('Choose an installed file manager in Software.')
     Gio, _, _ = libraries()
-    app.launch([Gio.File.new_for_commandline_arg(path) for path in paths], None)
+    with detached():
+        app.launch([Gio.File.new_for_commandline_arg(path) for path in paths], None)
 
 
 def compose_url(provider, address):
@@ -422,17 +446,20 @@ def browser(arguments, private=False):
             raise ValueError('The selected browser does not advertise a private-window action.')
         if arguments:
             raise ValueError('Private launch does not accept addresses.')
-        app.launch_action(action, None)
+        with detached():
+            app.launch_action(action, None)
     else:
-        if arguments: app.launch_uris(arguments, None)
-        else: app.launch([], None)
+        with detached():
+            if arguments: app.launch_uris(arguments, None)
+            else: app.launch([], None)
 
 
 def webapp(url):
     app = current('browser')
     if app and any(name in (app.get_id() or '').lower() for name in ('brave', 'chromium', 'chrome', 'msedge', 'vivaldi')):
         warn_fallback('browser')
-        subprocess.Popen([*editor_argv(app, []), '--app=' + url], start_new_session=True)
+        subprocess.Popen([*editor_argv(app, []), '--app=' + url], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         browser([url])
 
@@ -473,7 +500,8 @@ def edit(files):
         terminal(['--', *editor_argv(app, files)])
     else:
         Gio, _, _ = libraries()
-        app.launch([Gio.File.new_for_commandline_arg(f) for f in files], None)
+        with detached():
+            app.launch([Gio.File.new_for_commandline_arg(f) for f in files], None)
 
 
 def main():
