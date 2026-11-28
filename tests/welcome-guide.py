@@ -372,9 +372,9 @@ class Session:
         entry = shell / 'shell.qml'
         text = entry.read_text().replace('import "Common"\n', 'import "Common"\nimport "Common" as TestCommon\nimport "Welcome" as TestGuide\n')
         assert text.count('    WelcomeWindow {}\n') == 1
-        loader = '    LazyLoader {\n        active: Assistant.shown\n'
+        loader = '    LazyLoader {\n        active: Assistant.shown || Assistant.leaving\n'
         assert text.count(loader) == 1
-        text = text.replace(loader, '    LazyLoader {\n        id: assistantLoader\n        active: Assistant.shown\n')
+        text = text.replace(loader, '    LazyLoader {\n        id: assistantLoader\n        active: Assistant.shown || Assistant.leaving\n')
         entry.write_text(text.replace('    WelcomeWindow {}\n', '    WelcomeWindow { id: welcomeWindow }\n'
             + TEST_IPC.replace('const keys = {};', ids + '\n            const keys = {};'), 1))
         path = shell / 'Welcome/WelcomeView.qml'
