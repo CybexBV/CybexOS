@@ -116,6 +116,27 @@ Singleton {
     // ---- presence and placement --------------------------------------------
     // The character is out unless game mode wants the screen to itself.
     readonly property bool shown: available && Settings.assistantShown && !GameMode.active
+    // Hidden, he vanishes in a puff of smoke: the window stays this long for
+    // it to play (shell.qml's LazyLoader, AssistantWindow), longer than the
+    // poof itself. Not when he may not move: then he goes at once.
+    property bool leaving: false
+
+    onShownChanged: {
+        if (shown) {
+            leave.stop();
+            leaving = false;
+        } else if (!Theme.reducedMotion && !Activity.idle) {
+            leaving = true;
+            leave.restart();
+        }
+    }
+
+    Timer {
+        id: leave
+        interval: 700
+        onTriggered: root.leaving = false
+    }
+
     readonly property ShellScreen screen: Screens.byName(Settings.assistantScreen) ?? Screens.focused
     readonly property string screenName: screen ? screen.name : ""
 

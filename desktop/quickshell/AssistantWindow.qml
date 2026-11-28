@@ -48,10 +48,10 @@ PanelWindow {
     property point dragPoint: Qt.point(0, 0)
     property point pressWindow: Qt.point(0, 0)
     property point pressBubble: Qt.point(0, 0)
-    // Shown, he flies in from just past the top-right corner to his place.
-    // A surface maps before the compositor sizes it, so until the size has
-    // arrived he waits in that corner and nothing animates: otherwise he
-    // would sweep in from the left edge, where a zero width puts him.
+    // Shown, he appears at his place in a puff of smoke (Wiz.poofIn). A
+    // surface maps before the compositor sizes it, so until the size has
+    // arrived he waits just past the top-right corner and nothing animates:
+    // otherwise a zero width would put him at the left edge first.
     property bool entered: false
     property bool settled: false
     readonly property real bubbleX: dragging ? dragX : !entered ? root.width
@@ -71,7 +71,8 @@ PanelWindow {
         && !showHistory
     readonly property bool showComposer: Assistant.composing && !showHistory
         && (!Assistant.busy || readingOther)
-    readonly property bool boxOpen: (showComposer || showWorking || showReply || showHistory)
+    // Assistant.shown: hidden, the box goes at once while he poofs away.
+    readonly property bool boxOpen: Assistant.shown && (showComposer || showWorking || showReply || showHistory)
         && !Assistant.capturing && !covered && tuck === ""
     // The box steps out of the way while the character is dragged.
     readonly property bool dockShown: boxOpen && !dragging
@@ -103,8 +104,9 @@ PanelWindow {
 
     screen: Assistant.screen
     // Not root.screen: the window writes that back as it maps, which would
-    // loop through this binding.
-    visible: Assistant.shown && Assistant.screen !== null
+    // loop through this binding. Assistant.leaving keeps the surface up
+    // while his vanishing poof plays.
+    visible: (Assistant.shown || Assistant.leaving) && Assistant.screen !== null
     anchors {
         top: true
         bottom: true
@@ -181,15 +183,26 @@ PanelWindow {
     function enter() {
         if (entered || !visible || width <= 0 || height <= 0)
             return;
-        if (covered) {
-            // The welcome guide's own Wiz hops to this place, so this one is
-            // there already when he is uncovered.
-            entered = true;
-            settled = true;
-        } else {
-            // Animation on first, so the move to his place is the flight.
-            settled = true;
-            entered = true;
+        // Into his place unanimated, then the poof there. Under the welcome
+        // guide its own Wiz makes the hop, so this one only takes the place.
+        entered = true;
+        settled = true;
+        if (!covered)
+            character.poofIn();
+    }
+
+    // Hidden while he is out, he vanishes in a puff of smoke; shown again
+    // before it has played out, he poofs back in. A window made by the
+    // toggle is not yet entered: enter() plays its poof.
+    Connections {
+        target: Assistant
+        function onShownChanged() {
+            if (!root.entered || root.covered)
+                return;
+            if (Assistant.shown)
+                character.poofIn();
+            else if (root.visible)
+                character.poofOut();
         }
     }
 
@@ -658,14 +671,14 @@ PanelWindow {
             height: root.dockShown ? dock.height : 0
         }
 
-        // The character's own region; none while he is faded, so clicks reach
-        // the window underneath.
+        // The character's own region; none while he is faded or poofing
+        // away, so clicks reach the window underneath.
         Item {
             id: characterMask
             x: character.x
             y: character.y
-            width: root.faded ? 0 : character.width
-            height: root.faded ? 0 : character.height
+            width: root.faded || !Assistant.shown ? 0 : character.width
+            height: root.faded || !Assistant.shown ? 0 : character.height
         }
 
         Item {
