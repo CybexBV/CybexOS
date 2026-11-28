@@ -155,7 +155,7 @@ A status pill (dot and label) sits beside its action.
   grows with it.
   A tile shows what is in effect, not what was asked for: Night light and
   Stay awake are on only while their process runs. While a change runs, the
-  glyph becomes the spinner (still under reduced motion), and assistive
+  glyph becomes the spinner (it holds still under reduced motion), and assistive
   technology hears "Turning on…" or "Turning off…". A change that fails
   while the drawer is open shows a red alert glyph and "Failed" in the
   name's place for four seconds, then the actual state; pressing it again

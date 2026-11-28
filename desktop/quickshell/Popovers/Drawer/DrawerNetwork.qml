@@ -684,6 +684,7 @@ Column {
 
                             Accessible.role: Accessible.RadioButton
                             Accessible.checked: dnsChoice.on
+                            Accessible.onPressAction: dnsGroup.choose(dnsChoice.index)
                             Accessible.name: I18n.format("DNS %1", [dnsChoice.modelData === "Automatic"
                                 ? I18n.tr("Automatic") : dnsChoice.modelData])
                         }

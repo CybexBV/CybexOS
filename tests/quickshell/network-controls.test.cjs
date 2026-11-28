@@ -112,3 +112,22 @@ test("wired monitoring is ref-counted by each visible Network consumer", () => {
         assert.match(source, /EthernetState\.release\(\)/);
     }
 });
+
+test("DNS providers answer the keyboard like the power profiles", () => {
+    const network = read("Popovers/Drawer/DrawerNetwork.qml");
+    const group = network.slice(network.indexOf("id: dnsGroup"), network.indexOf("// ---- metrics"));
+    assert.ok(group.length > 0, "the DNS group is missing");
+    assert.match(group, /Accessible\.role:\s*Accessible\.Grouping\s*Accessible\.name:\s*"DNS"/);
+    assert.match(group, /model:\s*dnsGroup\.providers/);
+    // One Tab stop: the chosen provider, or the first while none is.
+    assert.match(group, /activeFocusOnTab:\s*on \|\| \(!dnsGroup\.anyChosen && index === 0\)/);
+    assert.match(group, /border\.width:\s*Theme\.focusWidth\(activeFocus\)\s*border\.color:\s*Theme\.focusRing/);
+    assert.match(group,
+        /Keys\.onPressed:\s*event => \{\s*const next = DrawerFormat\.segmentTarget\(event\.key, index,\s*dnsRepeater\.count\);\s*if \(next < 0\)\s*return;\s*if \(next !== index\)\s*dnsRepeater\.itemAt\(next\)\.forceActiveFocus\(\);\s*dnsGroup\.choose\(next\);\s*event\.accepted = true;/);
+    // Pointer, keyboard and assistive technology choose the same way, and
+    // choosing the provider already in use asks NetworkManager for nothing.
+    assert.match(group, /onClicked:\s*dnsGroup\.choose\(dnsChoice\.index\)/);
+    assert.match(group, /Accessible\.onPressAction:\s*dnsGroup\.choose\(dnsChoice\.index\)/);
+    assert.match(group,
+        /function choose\(index\) \{\s*const provider = providers\[index\];\s*if \(provider !== undefined && NetworkDetails\.dnsProvider !== provider\)\s*NetworkDetails\.setDns\(provider, \[\]\);/);
+});
