@@ -25,6 +25,13 @@
   Nix container on The Beast (the tests in the dev shell, through `tests/fast-test-container`); only the linters'
   quick step runs here on The Dragon. `fast-test --dry-run` shows
   what it would run and why.
+- fast-test's `vm-tests` step runs the NixOS VM tests a change touches: a changed test, the tests using a changed
+  helper in `nix/tests`, and the tests `scripts/vm-test` ties to code (its `COVERS`; give a new VM test the code it
+  alone checks). To run one yourself: `scripts/vm-test NAME...` (flake check names, e.g. `hyprland-pointer`). It
+  runs them on The Beast with KVM. Never build a `vm-test-run-…` derivation there instead: Nix's build sandbox has no
+  KVM, the VM runs about five times slower, and timing-bound tests fail for that alone.
+- Every VM test sets its own `globalTimeout`: about three times its run in the full check, at least 10 minutes,
+  at most 30. A hang then fails in minutes, not after the driver's hour and its retry.
 - Exit 0 passed, 1 failed, 2 couldn't run (say so; don't run the full suite here instead). When it fails, its output
   ends with the failing step's last lines; the whole log is in `.git/fast-test/`.
 - A failing test runs once more before it counts as failing (fast-test does this itself). Never skip or weaken a test
@@ -41,7 +48,9 @@
   every beta (see Releases), which also covers everything merged since the last one. Ordinary fixes and changes land
   on `main` without it, whatever paths they touch (owner's decision, 2026-11-26); pushes to `main` don't start it and
   there is no nightly run. The Nixpkgs and vendor update workflows start it on their own branches (see Releases). Start it with `gh workflow run nixos.yml --repo CybexBV/CybexOS --ref <branch>` and follow
-  it with `gh run watch`. Never run it on The Dragon.
+  it with `scripts/watch-full-check <run id>`, not `gh run watch`: it stops with exit 3 when a step runs far longer
+  than in the last passing run. Then look at that step's live log at once instead of waiting for the end. Never run
+  it on The Dragon.
 
 ## Git workflow
 
@@ -65,7 +74,8 @@ When John gives you an instruction directly in the main checkout (`/home/john/Co
 sub-agent in a worktree):
 
 1. Implement in a worktree of your own. Other sessions use this checkout too. Commit as above.
-2. Verify with `fast-test`, plus a Nix build of what changed when one exists (on The Beast). No full check: that
+2. Verify with `fast-test` (it runs the VM tests the change touches), plus a Nix build of what changed when one
+   exists (on The Beast). No full check: that
    waits for the release.
 3. Merge into `main` (`git merge --no-ff <branch>`), check that `HEAD` actually moved, delete the branch and
    worktree, and `git push origin main`.
