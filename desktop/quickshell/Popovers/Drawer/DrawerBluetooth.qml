@@ -94,8 +94,9 @@ Column {
         busyDevice = device.dbusPath;
         busyName = BluetoothHelpers.deviceLabel(device) || device.address;
         action = device.connected ? "disconnect" : device.paired ? "connect" : "pair";
-        announcement = (action === "pair" ? "Pairing with "
-            : action === "connect" ? "Connecting to " : "Disconnecting ") + busyName;
+        announcement = action === "pair" ? I18n.format("Pairing with %1…", [busyName])
+            : action === "connect" ? I18n.format("Connecting to %1…", [busyName])
+            : I18n.format("Disconnecting %1…", [busyName]);
         send({ action: action, device: busyDevice });
     }
 
@@ -120,7 +121,7 @@ Column {
         if (event.scanBusy !== undefined) scanBusy = event.scanBusy;
         if (event.busy !== undefined) {
             busyDevice = event.busy;
-            if (busyDevice === "") announcement = event.error || "Bluetooth action completed";
+            if (busyDevice === "") announcement = event.error || I18n.tr("Bluetooth action completed");
         }
         if (event.error !== undefined) error = event.error;
         if (event.prompt !== undefined) {
@@ -367,8 +368,8 @@ Column {
             Text {
                 visible: section.devices.length === 0
                 width: parent.width
-                text: root.scanning ? "Searching… Put your device in pairing mode."
-                    : "No nearby devices found. Try scanning again."
+                text: root.scanning ? I18n.tr("Searching… Put your device in pairing mode.")
+                    : I18n.tr("No nearby devices found. Try scanning again.")
                 wrapMode: Text.WordWrap
                 font.family: Theme.fontMenu
                 font.pixelSize: Theme.typography.secondary
@@ -405,14 +406,20 @@ Column {
                 width: parent.width
                 text: {
                     const p = root.prompt;
-                    if (!p) return "Pairing with " + root.busyName + "…";
-                    if (p.kind === "RequestConfirmation") return "Confirm that " + root.busyName + " shows this code: " + p.code;
-                    if (p.kind === "DisplayPinCode" || p.kind === "DisplayPasskey")
-                        return "Enter " + p.code + " on " + root.busyName + ", then press Enter."
-                            + (p.kind === "DisplayPasskey" ? " (" + p.entered + " digits entered)" : "");
-                    if (root.inputPrompt) return "Enter the " + (p.kind === "RequestPinCode" ? "PIN" : "passkey") + " for " + root.busyName + ".";
-                    if (p.kind === "AuthorizeService") return "Allow " + root.busyName + " to use service " + p.service + "?";
-                    return "Allow pairing with " + root.busyName + "?";
+                    const name = root.busyName;
+                    if (!p) return I18n.format("Pairing with %1…", [name]);
+                    if (p.kind === "RequestConfirmation")
+                        return I18n.format("Confirm that %1 shows this code: %2", [name, p.code]);
+                    if (p.kind === "DisplayPasskey")
+                        return I18n.format("Enter %1 on %2, then press Enter. (%3 digits entered)", [p.code, name, p.entered]);
+                    if (p.kind === "DisplayPinCode")
+                        return I18n.format("Enter %1 on %2, then press Enter.", [p.code, name]);
+                    if (root.inputPrompt)
+                        return p.kind === "RequestPinCode" ? I18n.format("Enter the PIN for %1.", [name])
+                            : I18n.format("Enter the passkey for %1.", [name]);
+                    if (p.kind === "AuthorizeService")
+                        return I18n.format("Allow %1 to use service %2?", [name, p.service]);
+                    return I18n.format("Allow pairing with %1?", [name]);
                 }
                 wrapMode: Text.WordWrap
                 font.family: Theme.fontMenu

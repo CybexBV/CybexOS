@@ -461,7 +461,7 @@ SettingsPage {
                                     anchors.verticalCenter: parent.verticalCenter
                                     metrics: Theme.switchCompact
                                     checked: indicatorRow.shown
-                                    accessibleName: "Show " + indicatorRow.meta.label
+                                    accessibleName: I18n.format("Show %1", [I18n.tr(indicatorRow.meta.label)])
                                     onToggled: value => view.setIndicatorEnabled(
                                         indicatorRow.modelData, value)
                                 }

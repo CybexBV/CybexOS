@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell.Networking as QsNetworking
 import "../../Common"
 import "../../Common/NetworkHelpers.js" as NetworkHelpers
+import "DrawerFormat.js" as DrawerFormat
 import ".."
 
 // The drawer's Network tab: the active Wi-Fi connection and its vitals, the
@@ -347,8 +348,9 @@ Column {
                     }
 
                     Accessible.role: Accessible.Button
-                    Accessible.name: (netEntry.current ? "Connected to "
-                        : "Connect to ") + netEntry.network.ssid
+                    Accessible.name: netEntry.current
+                        ? I18n.format("Connected to %1", [netEntry.network.ssid])
+                        : I18n.format("Connect to %1", [netEntry.network.ssid])
                 }
 
                 // Inline credential entry for a secured network the shell has
@@ -601,10 +603,26 @@ Column {
                 color: Theme.textHi
             }
 
+            // A segmented radio group like the power profiles: Tab reaches the
+            // chosen provider, the arrows, Home and End move and choose, Enter
+            // and Space choose (DrawerFormat.segmentTarget).
             Rectangle {
+                id: dnsGroup
+
+                readonly property var providers: ["Automatic", "Cloudflare", "Google"]
+                readonly property bool anyChosen: providers.indexOf(NetworkDetails.dnsProvider) >= 0
+
+                function choose(index) {
+                    const provider = providers[index];
+                    if (provider !== undefined && NetworkDetails.dnsProvider !== provider)
+                        NetworkDetails.setDns(provider, []);
+                }
+
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 width: dnsRow.implicitWidth + 4
+                Accessible.role: Accessible.Grouping
+                Accessible.name: I18n.tr("DNS")
                 height: 26
                 radius: 7
                 color: Theme.chip
@@ -616,12 +634,15 @@ Column {
                     spacing: 2
 
                     Repeater {
-                        model: ["Automatic", "Cloudflare", "Google"]
+                        id: dnsRepeater
+
+                        model: dnsGroup.providers
 
                         delegate: Rectangle {
                             id: dnsChoice
 
                             required property string modelData
+                            required property int index
                             readonly property bool on:
                                 NetworkDetails.dnsProvider === modelData
 
@@ -629,6 +650,20 @@ Column {
                             height: 22
                             radius: 5
                             color: on ? Theme.chipHover : "transparent"
+                            activeFocusOnTab: on || (!dnsGroup.anyChosen && index === 0)
+                            border.width: Theme.focusWidth(activeFocus)
+                            border.color: Theme.focusRing
+
+                            Keys.onPressed: event => {
+                                const next = DrawerFormat.segmentTarget(event.key, index,
+                                    dnsRepeater.count);
+                                if (next < 0)
+                                    return;
+                                if (next !== index)
+                                    dnsRepeater.itemAt(next).forceActiveFocus();
+                                dnsGroup.choose(next);
+                                event.accepted = true;
+                            }
 
                             Text {
                                 id: dnsChoiceText
@@ -644,11 +679,7 @@ Column {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (!dnsChoice.on)
-                                        NetworkDetails.setDns(
-                                            dnsChoice.modelData, []);
-                                }
+                                onClicked: dnsGroup.choose(dnsChoice.index)
                             }
 
                             Accessible.role: Accessible.RadioButton
