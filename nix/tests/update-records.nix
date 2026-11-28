@@ -42,7 +42,7 @@ pkgs.testers.runNixOSTest {
 
     # Commands typed in the session itself, whatever the login shell is. No
     # Polkit agent runs there: a request that needs a password fails.
-    machine.send_key("alt-f2")
+    machine.succeed("systemctl start getty@tty2.service", "chvt 2")
     machine.wait_until_succeeds("loginctl show-user tester -p State --value | grep -qx active", timeout=120)
     probe = "\n".join([
         "out=/tmp/probe",
