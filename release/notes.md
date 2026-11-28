@@ -1,13 +1,13 @@
-# Cybex OS 1.0.37
+# Cybex OS 1.0.38
 
-Wiz's model picker now looks as it was designed: a small popup next to the logo with a ticked list of models, the effort and, for Codex, Fast. The answer stays where it is underneath, and in a short box only the list of models scrolls.
+Folio is now the file manager and the file dialog. It opens folders and Super+E, answers Show in folder, and every app's Open and Save dialog is Folio's, floating in the middle of the screen. Its text follows the size you chose in Settings.
 
-Going back into a conversation now looks like Wiz's answer box: your questions sit in bubbles, each answer opens with its headline, and a quiet line under it says who answered and how long it took. A failed answer is a red block that says what went wrong, and the ⋯ button opens a small menu. Wiz's box also has rounder corners.
+The Control Center's Power tab and DNS choices now work with the keyboard: Tab reaches the chosen one, the arrow keys move and choose. Night light and Stay awake show whether they are really on. While one changes it shows a spinner, and when it fails it says "Failed" in red for a few seconds; pressing it again tries again.
 
-After every update, Software Update, its notifications and Settings suggest a restart, because apps that stayed open keep using the old versions until then. The suggestion doesn't block anything else. A new NVIDIA driver now gets a trial boot, like a new kernel.
+Software Update asks GitHub less often. GitHub allows a limited number of checks an hour for everyone behind one internet connection, and the desktop's own checks now reuse recent answers. If the limit is reached anyway, Software Update says when it lifts.
 
-Computers without an NVIDIA graphics card reach the disk unlock prompt sooner. Their start-up image no longer carries NVIDIA's graphics firmware: about 100 MB instead of 1.4 GB, which took an AMD ZBook about 41 seconds to load. New installations and existing XPS and ZBook machines get this now; other existing machines keep it until their graphics are set in their configuration.
+Cleaning up storage no longer refuses while a prepared update waits for your review, and an update waits until a half-finished cleanup is complete. Beta update notes no longer repeat the text a release gets when it moves to stable.
 
-Software Update opens every time again. After an external display was unplugged, or its window was closed with Super+W, it sometimes stopped opening from the menubar and the launcher.
+The dock and the update check rest while the computer is idle. Links opened from Settings get the same safety check as links in notifications. Sizes are written the same way everywhere, switching microphones moves only apps' recordings, and LocalSend opens directly with the files you picked. More of the desktop is translated into Dutch.
 
 This is a source update with no new ISO. Installation, boot, physical hardware and staged-updater qualification are separate from source tests and package builds.
