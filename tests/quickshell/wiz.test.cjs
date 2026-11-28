@@ -348,7 +348,8 @@ test("what only some poses or moments show is made for them and let go", () => {
         "root.wand > 0.05", "root.spell > 0.02", "root.scroll > 0.3", "root.point > 0.02",  // wand, spell, quill, finger
         "root.wisp > 0.02", "root.zzz > 0.02",
         "root.festive",                                         // sparkles
-        "root.fuss", "root.fuss"                                // dust; "?!" and sweat
+        "root.fuss", "root.fuss",                               // dust; "?!" and sweat
+        "root.poofing"                                          // the poof's smoke
     ].sort());
     assert.match(code, /readonly property real light: Math\.max\(root\.book \* 0\.7, root\.orb, root\.pot \* 0\.8\)/);
     // What is left is what every pose shows, and nothing a pose adds.
@@ -548,6 +549,37 @@ test("carried, he reacts only while live and always comes back to rest", () => {
     // A grab stops the nod and a landing the startled glance.
     assert.match(code, /\n    function startle\(\) \{\s*stopNod\(\);/);
     assert.match(code, /\n    function land\(sweat\) \{\s*startling\.stop\(\);\s*stopGlance\(\);/);
+});
+
+// The poof (AssistantWindow): he appears and vanishes behind a burst of
+// smoke, the whole of him scaled about his middle. The smoke must cover the
+// swap, and both ends must leave him consistent: in at full size, out at
+// none, and back to full size the moment he may no longer move.
+test("the poof covers the swap and leaves him whole", () => {
+    // The pop scales the whole rig, shadow and all, about his middle.
+    assert.match(code, /transform: \[\s*Scale \{\s*origin\.x: 60 \* root\.unit\s*xScale: root\.turn\s*\},\s*Scale \{\s*origin\.x: 60 \* root\.unit\s*origin\.y: root\.layout\.poof\.at\[1\] \* root\.unit\s*xScale: root\.pop\s*yScale: root\.pop\s*\}\s*\]/);
+    // In: from nothing, the smoke first; out: the smoke first, then gone.
+    // Without motion both snap, and no smoke is made.
+    assert.match(code, /function poofIn\(\) \{\s*if \(!live\) \{\s*popOut\.stop\(\);\s*popIn\.stop\(\);\s*pop = 1;\s*return;\s*\}\s*popOut\.stop\(\);\s*pop = 0;\s*poofing = true;\s*\(smoke\.item as Smoke\)\?\.burst\(\);\s*popIn\.restart\(\);\s*\}/);
+    assert.match(code, /function poofOut\(\) \{\s*if \(!live\)\s*return;\s*popIn\.stop\(\);\s*poofing = true;\s*\(smoke\.item as Smoke\)\?\.burst\(\);\s*popOut\.restart\(\);\s*\}/);
+    // Each pop ends at its edge and lets the smoke's part go as it ends.
+    assert.match(code, /id: popIn\s*PauseAnimation \{ duration: \d+ \}\s*NumberAnimation \{ target: root; property: "pop"; to: 1;[^\n]*\}\s*PauseAnimation \{ duration: \d+ \}\s*onFinished: root\.poofing = false/);
+    assert.match(code, /id: popOut\s*PauseAnimation \{ duration: \d+ \}\s*NumberAnimation \{ target: root; property: "pop"; to: 0;[^\n]*\}\s*PauseAnimation \{ duration: \d+ \}\s*onFinished: root\.poofing = false/);
+    // The smoke and the sparks fade before their Loader goes.
+    const tail = id => {
+        const block = code.slice(code.indexOf(`id: ${id}`));
+        return block.slice(0, block.indexOf("onFinished")).match(/duration: \d+/g)
+            .reduce((sum, step) => sum + Number(step.slice(10)), 0);
+    };
+    for (const effect of ["whiffing", "glinting"]) {
+        const component = blocks(code, /component \w+: Item/).find(body => body.includes(`id: ${effect}`));
+        assert.ok(component, effect);
+        assert.ok(lasts(blocks(component, /ParallelAnimation/)[0]) <= Math.min(tail("popIn"), tail("popOut")), effect);
+    }
+    // The smoke sits after and outside the rig: drawn over him, and his
+    // pop must not scale it away.
+    const after = code.slice(code.indexOf("id: rig"));
+    assert.match(after, /\n    Loader \{\s*id: smoke\s*active: root\.poofing\s*sourceComponent: Smoke \{\}\s*\}/);
 });
 
 // In the shell an asleep Wiz draws nothing, so his z's stand still. The

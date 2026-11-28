@@ -927,6 +927,159 @@ Item {
         }
     }
 
+    // ---- the poof --------------------------------------------------------------
+    // He appears and vanishes in a puff of smoke (AssistantWindow): a burst
+    // of it covers him while the whole of him pops up out of it, or shrinks
+    // away behind it. The smoke is made for the burst and let go once it
+    // has faded.
+    property real pop: 1
+    property bool poofing: false
+
+    function poofIn() {
+        if (!live) {
+            popOut.stop();
+            popIn.stop();
+            pop = 1;
+            return;
+        }
+        popOut.stop();
+        pop = 0;
+        poofing = true;
+        (smoke.item as Smoke)?.burst();
+        popIn.restart();
+    }
+    function poofOut() {
+        if (!live)
+            return;
+        popIn.stop();
+        poofing = true;
+        (smoke.item as Smoke)?.burst();
+        popOut.restart();
+    }
+
+    // In: a beat for the smoke to thicken, then he springs up out of it.
+    // The tail holds the smoke's part until the last puff has faded.
+    SequentialAnimation {
+        id: popIn
+        PauseAnimation { duration: 90 }
+        NumberAnimation { target: root; property: "pop"; to: 1; duration: 240; easing.type: Easing.OutBack }
+        PauseAnimation { duration: 300 }
+        onFinished: root.poofing = false
+    }
+    // Out: the smoke bursts first, and he shrinks away behind it.
+    SequentialAnimation {
+        id: popOut
+        PauseAnimation { duration: 60 }
+        NumberAnimation { target: root; property: "pop"; to: 0; duration: 150; easing.type: Easing.InQuad }
+        PauseAnimation { duration: 420 }
+        onFinished: root.poofing = false
+    }
+
+    // One puff of the smoke: made small near his middle, it swells as it
+    // flies to its place and fades as it goes.
+    component Whiff: Item {
+        id: whiff
+
+        required property var modelData
+
+        x: root.layout.poof.at[0] + modelData[0] * 0.25
+        y: root.layout.poof.at[1] + modelData[1] * 0.25
+
+        function burst() {
+            whiffing.restart();
+        }
+
+        Item {
+            id: cloudlet
+            opacity: 0
+            scale: 0.3
+
+            Part {
+                name: "poof"
+            }
+        }
+
+        ParallelAnimation {
+            id: whiffing
+            XAnimator { target: cloudlet; from: 0; to: whiff.modelData[0] * 0.75; duration: 420; easing.type: Easing.OutCubic }
+            YAnimator { target: cloudlet; from: 0; to: whiff.modelData[1] * 0.75; duration: 420; easing.type: Easing.OutCubic }
+            ScaleAnimator { target: cloudlet; from: 0.3; to: whiff.modelData[2]; duration: 420; easing.type: Easing.OutCubic }
+            SequentialAnimation {
+                OpacityAnimator { target: cloudlet; from: 0.97; to: 0.97; duration: 150 }
+                OpacityAnimator { target: cloudlet; from: 0.97; to: 0; duration: 270; easing.type: Easing.InQuad }
+            }
+        }
+    }
+
+    // A spark of his magic flying out with the smoke: it grows, turns and
+    // is gone with the last of the puffs.
+    component Glint: Item {
+        id: glint
+
+        required property var modelData
+
+        x: root.layout.poof.at[0] + modelData[0]
+        y: root.layout.poof.at[1] + modelData[1]
+
+        function burst() {
+            glinting.restart();
+        }
+
+        Item {
+            id: fleck
+            opacity: 0
+            scale: 0
+
+            Part {
+                name: "sparkle"
+            }
+        }
+
+        ParallelAnimation {
+            id: glinting
+            SequentialAnimation {
+                PauseAnimation { duration: 90 }
+                ScaleAnimator { target: fleck; from: 0; to: glint.modelData[2]; duration: 220; easing.type: Easing.OutSine }
+                ScaleAnimator { target: fleck; from: glint.modelData[2]; to: 0; duration: 260; easing.type: Easing.InSine }
+            }
+            SequentialAnimation {
+                OpacityAnimator { target: fleck; from: 0; to: 0; duration: 90 }
+                OpacityAnimator { target: fleck; from: 1; to: 1; duration: 480 }
+            }
+            RotationAnimator { target: fleck; from: 0; to: 80; duration: 570 }
+        }
+    }
+
+    // The smoke of one poof, drawn over everything of him and free of his
+    // pop: every puff and spark bursts from his middle at once.
+    component Smoke: Item {
+        id: smokeCloud
+
+        x: (root.width - 120 * root.unit) / 2
+        y: (root.height - 120 * root.unit) / 2
+        scale: root.unit
+        transformOrigin: Item.TopLeft
+
+        function burst() {
+            for (let i = 0; i < whiffs.count; i++)
+                (whiffs.itemAt(i) as Whiff)?.burst();
+            for (let i = 0; i < glints.count; i++)
+                (glints.itemAt(i) as Glint)?.burst();
+        }
+
+        Repeater {
+            id: whiffs
+            model: root.layout.poof.puffs
+            delegate: Whiff {}
+        }
+
+        Repeater {
+            id: glints
+            model: root.layout.poof.sparks
+            delegate: Glint {}
+        }
+    }
+
     // ---- the drawing ---------------------------------------------------------
     Item {
         id: rig
@@ -937,11 +1090,20 @@ Item {
         scale: root.unit
         transformOrigin: Item.TopLeft
         // Mirrored about his own middle (a transform works in the item's
-        // scaled units).
-        transform: Scale {
-            origin.x: 60 * root.unit
-            xScale: root.turn
-        }
+        // scaled units), and the poof's pop: the whole of him, shadow and
+        // all, scales about his middle behind the smoke.
+        transform: [
+            Scale {
+                origin.x: 60 * root.unit
+                xScale: root.turn
+            },
+            Scale {
+                origin.x: 60 * root.unit
+                origin.y: root.layout.poof.at[1] * root.unit
+                xScale: root.pop
+                yScale: root.pop
+            }
+        ]
 
         Part {
             name: "shadow"
@@ -1783,6 +1945,13 @@ Item {
         }
     }
 
+    // The poof's smoke, over him and outside his pop.
+    Loader {
+        id: smoke
+        active: root.poofing
+        sourceComponent: Smoke {}
+    }
+
     // ---- the star ------------------------------------------------------------------
     // The ring's arc is drawn in sixtieths of a turn (there is no ring below 0).
     readonly property int filled: Math.round(Math.min(1, progress) * 60)
@@ -2397,6 +2566,9 @@ Item {
             startling.complete();
             landing.complete();
             crooking.complete();
+            popIn.complete();
+            popOut.complete();
+            poofing = false;
             tidy.stop();
             fuss = false;
             dizzy = false;
