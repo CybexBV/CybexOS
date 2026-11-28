@@ -29,7 +29,8 @@ test("a palette result opens its page and tab and forwards its anchor without wr
         set(key, value) { this[key] = value; },
         openWidgetSettings(id) { this.widget = id; this.page = "bar"; }
     };
-    const context = { Settings: settings, hidden: 0, ran: [] };
+    const context = { Settings: settings, hidden: 0, ran: [],
+        I18n: { tr: text => helpers.translate({}, text), format: (text, args) => helpers.format({}, text, args) } };
     context.hide = () => { context.hidden++; };
     context.run = entry => { context.ran.push(entry.action); };
     vm.createContext(context);
