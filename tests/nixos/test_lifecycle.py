@@ -1429,7 +1429,9 @@ class EngineTests(unittest.TestCase):
         later = PIN_NEW | {'lastModified': 10 ** 9}
         for installed, offered, moves in (
                 ('nixos-unstable', 'nixos-26.11', True),
-                ('nixos-unstable', 'nixos-27.05', True),
+                # Off unstable only to a branch whose branch-off this updater
+                # knows (inputs.BRANCH_OFF): 27.05's isn't recorded yet.
+                ('nixos-unstable', 'nixos-27.05', False),
                 ('nixos-26.11', 'nixos-27.05', True),
                 ('nixos-27.05', 'nixos-27.11', True),
                 ('nixos-26.11', 'nixos-unstable', False),
@@ -1450,6 +1452,49 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(inputs.release_name('nixos-26.11'), '26.11')
         with self.assertRaises(Failure):
             inputs.release_name('nixos-26.05')
+
+    def test_unstable_moves_to_a_stable_branch_only_from_a_revision_it_contains(self):
+        cut = inputs.BRANCH_OFF['nixos-26.11']['lastModified']
+        offered = PIN_NEW | {'ref': 'nixos-26.11', 'lastModified': cut + 86400}
+        def dated(modified, ref='nixos-unstable'):
+            data = lock(); data['nodes']['nixpkgs']['locked']['lastModified'] = modified
+            data['nodes']['nixpkgs']['original']['ref'] = ref
+            return data
+        # At or before the branch-off, 26.11 holds the machine's revision.
+        for modified in (1000, cut):
+            with self.subTest(modified=modified):
+                self.assertIsNone(inputs.held_back(offered, dated(modified)))
+                self.assertTrue(inputs.newer(offered, dated(modified)))
+        # Later, unstable can hold newer packages than 26.11: no move, with a reason.
+        later = dated(cut + 1)
+        self.assertFalse(inputs.newer(offered, later))
+        self.assertIn('newer than where NixOS 26.11 branched off', inputs.held_back(offered, later))
+        # A branch this updater has no branch-off for waits for one that does.
+        unknown = PIN_NEW | {'ref': 'nixos-27.05', 'lastModified': cut * 2}
+        self.assertFalse(inputs.newer(unknown, dated(1000)))
+        self.assertIn('does not yet know where NixOS 27.05 branched off', inputs.held_back(unknown, dated(1000)))
+        # Between stable branches, and along one branch, nothing is held.
+        self.assertIsNone(inputs.held_back(unknown, dated(cut + 1, 'nixos-26.11')))
+        self.assertTrue(inputs.newer(unknown, dated(cut + 1, 'nixos-26.11')))
+        self.assertIsNone(inputs.held_back(PIN_NEW, later))
+        # An undated lock is refused by newer() itself, not reported as held.
+        undated = lock(); del undated['nodes']['nixpkgs']['locked']['lastModified']
+        self.assertIsNone(inputs.held_back(offered, undated))
+        self.assertFalse(inputs.newer(offered, undated))
+
+    def test_check_says_why_unstable_packages_stay(self):
+        cut = inputs.BRANCH_OFF['nixos-26.11']['lastModified']
+        self.engine.channel = lambda max_age=0: release() | {'version': '1.0.0'}
+        atomic(self.release, read(self.release) | {'nixpkgs': PIN_NEW | {'ref': 'nixos-26.11', 'lastModified': cut + 10}})
+        data = lock(); data['nodes']['nixpkgs']['locked']['lastModified'] = cut + 1
+        atomic(self.config / 'flake.lock', data)
+        upstream = self.engine.check()['upstream']
+        self.assertEqual((upstream['state'], upstream['available']), ('current', REV_OLD))
+        self.assertIn('Cybex OS itself still updates', upstream['held'])
+        atomic(self.config / 'flake.lock', lock())
+        upstream = self.engine.check()['upstream']
+        self.assertEqual((upstream['state'], upstream['available']), ('available', REV_NEW))
+        self.assertNotIn('held', upstream)
 
     def test_a_release_on_an_earlier_nixos_branch_leaves_the_machine_where_it_is(self):
         data = lock(); data['nodes']['nixpkgs']['original']['ref'] = 'nixos-26.11'
