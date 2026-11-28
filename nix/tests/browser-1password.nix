@@ -188,6 +188,9 @@ let
   '';
 in pkgs.testers.runNixOSTest {
   name = "cybexos-browser-1password";
+  # A hang fails here, not after the driver's hour (and its retry): about
+  # three times this test's run in the full check, at least 10 minutes.
+  globalTimeout = 600;
   nodes.machine = { lib, ... }: {
     imports = [ module ];
     cybexos = { enable = true; primaryUser = "tester"; features = { proprietary = true; steam = false; docker = false; }; };

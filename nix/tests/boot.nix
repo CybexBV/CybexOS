@@ -9,6 +9,9 @@
 { pkgs, module }:
 pkgs.testers.runNixOSTest {
   name = "cybexos-boot";
+  # A hang fails here, not after the driver's hour (and its retry): about
+  # three times this test's run in the full check, at least 10 minutes.
+  globalTimeout = 1200;
   # Reads the notice GRUB draws after a start that did not finish.
   enableOCR = true;
   nodes.machine = { config, lib, pkgs, modulesPath, ... }:

@@ -14,6 +14,9 @@
 { pkgs, module }:
 pkgs.testers.runNixOSTest {
   name = "cybexos-lock-terminal";
+  # A hang fails here, not after the driver's hour (and its retry): about
+  # three times this test's run in the full check, at least 10 minutes.
+  globalTimeout = 600;
   extraPythonPackages = p: [ p.pillow ];
   nodes.machine = { lib, ... }: {
     imports = [ module ];

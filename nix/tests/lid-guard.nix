@@ -19,6 +19,9 @@ let
   '';
 in pkgs.testers.runNixOSTest {
   name = "cybexos-lid-guard";
+  # A hang fails here, not after the driver's hour (and its retry): about
+  # three times this test's run in the full check, at least 10 minutes.
+  globalTimeout = 600;
   nodes.machine = { lib, ... }: {
     imports = [ ../modules/power.nix ];
     options.cybexos = {
