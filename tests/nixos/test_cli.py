@@ -340,6 +340,18 @@ class GuidedFlowTests(unittest.TestCase):
         self.assertEqual(result, {'accepted': True})
         self.assertEqual(run.call_args.args[0], [cli.PKEXEC, cli_flows.REQUEST_BIN, 'stage', 'local'])
 
+    def test_records_run_the_resolved_helper_its_polkit_action_names(self):
+        ok = SimpleNamespace(returncode=0, stdout='[]', stderr='')
+        with tempfile.TemporaryDirectory() as temporary:
+            helper = Path(temporary) / 'store-cybexos-update-records'
+            helper.touch()
+            link = Path(temporary) / 'cybexos-update-records'
+            link.symlink_to(helper)
+            with patch.object(cli_flows, 'RECORDS_BIN', str(link)), \
+                 patch.object(cli_flows.subprocess, 'run', return_value=ok) as run:
+                self.assertEqual(cli_flows.run_records('history'), [])
+        self.assertEqual(run.call_args.args[0], [cli.PKEXEC, str(helper), 'history'])
+
 
 class FishCompletionTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('fish'), 'fish is not installed')

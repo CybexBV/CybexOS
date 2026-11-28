@@ -2060,7 +2060,48 @@ class LiveLifecycleTests(unittest.TestCase):
                 self.assertEqual(result.exception.code, 0)
                 self.assertEqual(execute.call_args.args[0], '/run/wrappers/bin/pkexec')
                 self.assertEqual(execute.call_args.args[1][0], '/run/wrappers/bin/pkexec')
-                self.assertEqual(execute.call_args.args[1][1], '/run/current-system/sw/bin/cybexos-request')
+                # Reading history has a helper of its own, which the
+                # administrator at the computer runs without a password.
+                helper = 'cybexos-update-records' if arguments[:2] == ['update', 'history'] else 'cybexos-request'
+                self.assertEqual(execute.call_args.args[1][1], '/run/current-system/sw/bin/' + helper)
+
+    def test_update_records_only_read_history_and_one_log(self):
+        from cybexos import cli
+        tx = '0123456789abcdef0123456789abcdef'
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            (state / 'transactions' / tx).mkdir(parents=True)
+            (state / 'transactions' / tx / 'deployment.json').write_text(json.dumps({'id': tx}))
+            (state / 'transactions' / tx / 'build.log').write_text('private module diagnostics\n')
+            (state / 'transactions' / tx / 'good.json').write_text('{}')
+
+            def run(*arguments, uid=0):
+                output = io.StringIO()
+                with patch.object(cli, 'LIVE_MARKER', state / 'absent'), patch.object(cli.os, 'geteuid', return_value=uid), \
+                     patch.object(sys, 'argv', ['cybexos-update-records', *arguments]), contextlib.redirect_stdout(output):
+                    cli.records(state)
+                return output.getvalue()
+
+            history = json.loads(run('history'))
+            self.assertEqual([(record['id'], record['good'], record['failed']) for record in history], [(tx, True, None)])
+            self.assertIn('private module diagnostics', run('log', tx))
+            for arguments in (('history', 'extra'), ('log', '../etc'), ('log', tx[:8]), ('stage', 'local'),
+                              ('apply', tx, 'f' * 64), ('rollback',), ()):
+                with self.subTest(arguments=arguments), self.assertRaises(Failure):
+                    run(*arguments)
+            with self.assertRaisesRegex(Failure, 'Administrator authentication'):
+                run('history', uid=1000)
+
+    def test_the_change_request_boundary_no_longer_reads_records(self):
+        from cybexos import cli
+        with tempfile.TemporaryDirectory() as temporary:
+            for arguments in (['history'], ['log', '0123456789abcdef0123456789abcdef']):
+                with self.subTest(arguments=arguments), patch.object(cli, 'LIVE_MARKER', Path(temporary) / 'absent'), \
+                     patch.object(cli.os, 'geteuid', return_value=0), patch.object(cli.subprocess, 'run') as start, \
+                     patch.object(sys, 'argv', ['cybexos-request', *arguments]), \
+                     self.assertRaisesRegex(Failure, 'Invalid lifecycle request'):
+                    cli.request()
+                start.assert_not_called()
 
     def test_live_check_and_status_are_read_only_and_explain_installation(self):
         from cybexos import cli
