@@ -40,7 +40,7 @@ release with an ISO and qualification, a week on beta, then stable.
 - Evaluated on The Beast with this tree and the lock moved to `3068c73a`
   (evaluation only, nothing built): `nix flake check --no-build` passes, 48
   derivations, no warnings. `scripts/check-prebuilt` passes for the default
-  system (611 local derivations, all expected), `--nvidia`, `--catalogue` and
+  system (611 local derivations, all configuration or allowed local builds), `--nvidia`, `--catalogue` and
   `--xps`, the same as on today's pin. The same tree on the older `31ecbaca`
   pin passes `scripts/check-prebuilt` too.
 
