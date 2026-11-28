@@ -54,3 +54,54 @@ test("the tab strip keeps every label whole: one row, then more rows", () => {
     // Nothing fits even one column: one column regardless, labels wrap there.
     assert.equal(F.tabLayout([500], [520], 300, 2).columns, 1);
 });
+
+test("a segmented choice answers keys the way a radio group does", () => {
+    const K = F.KEYS;
+    // Qt's own key codes, so QML can pass event.key straight through.
+    assert.deepEqual([K.space, K.ret, K.enter, K.home, K.end, K.left, K.up, K.right, K.down],
+        [0x20, 0x01000004, 0x01000005, 0x01000010, 0x01000011, 0x01000012, 0x01000013,
+            0x01000014, 0x01000015]);
+    // The arrows step and stop at the ends rather than wrap.
+    assert.equal(F.segmentTarget(K.right, 0, 3), 1);
+    assert.equal(F.segmentTarget(K.down, 1, 3), 2);
+    assert.equal(F.segmentTarget(K.right, 2, 3), 2);
+    assert.equal(F.segmentTarget(K.left, 2, 3), 1);
+    assert.equal(F.segmentTarget(K.up, 1, 3), 0);
+    assert.equal(F.segmentTarget(K.left, 0, 3), 0);
+    assert.equal(F.segmentTarget(K.home, 2, 3), 0);
+    assert.equal(F.segmentTarget(K.end, 0, 3), 2);
+    assert.equal(F.segmentTarget(K.end, 0, 2), 1, "two profiles without Performance");
+    // Enter and Space choose the focused segment.
+    for (const key of [K.ret, K.enter, K.space])
+        assert.equal(F.segmentTarget(key, 1, 3), 1);
+    // Tab, Escape and letters are left to the drawer.
+    for (const key of [0x01000001, 0x01000000, 0x41])
+        assert.equal(F.segmentTarget(key, 1, 3), -1);
+    assert.equal(F.segmentTarget(K.right, 0, 0), -1, "an empty choice takes no keys");
+});
+
+test("a quick toggle shows what is in effect, a change under way, then a failure", () => {
+    // At rest it is the actual state, whatever was requested.
+    assert.equal(F.togglePhase(true, true, false, false), "on");
+    assert.equal(F.togglePhase(false, false, false, false), "off");
+    assert.equal(F.togglePhase(false, true, false, false), "off",
+        "a start that has not taken effect does not read as on");
+    // A change under way names its direction and outranks a shown failure.
+    assert.equal(F.togglePhase(false, true, true, false), "turningOn");
+    assert.equal(F.togglePhase(true, false, true, false), "turningOff");
+    assert.equal(F.togglePhase(false, true, true, true), "turningOn");
+    // A failure shows while it is shown, then the actual state returns.
+    assert.equal(F.togglePhase(false, true, false, true), "failedOn");
+    assert.equal(F.togglePhase(true, false, false, true), "failedOff");
+});
+
+test("a press asks for the opposite of what shows, and retries a failed start", () => {
+    assert.equal(F.toggleTarget(false, false, false), true);
+    assert.equal(F.toggleTarget(true, true, false), false);
+    // Shown off while still requested on: the press asks for on again,
+    // which the caller treats as a retry rather than a withdrawal.
+    assert.equal(F.toggleTarget(false, true, false), true);
+    // While a change runs, a press reverses it.
+    assert.equal(F.toggleTarget(false, true, true), false);
+    assert.equal(F.toggleTarget(true, false, true), true);
+});

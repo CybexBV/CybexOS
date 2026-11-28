@@ -708,8 +708,8 @@ Singleton {
                 detail: entry.detail
             }));
         mods = next;
-        announcement = "Applied " + name
-            + " widget profile. Undo available for eight seconds.";
+        announcement = I18n.format("Applied the %1 widget profile. Undo available for eight seconds.",
+            [name === "everything" ? I18n.tr("Everything") : I18n.tr("Focused")]);
         resetTimer.restart();
     }
 
@@ -736,6 +736,26 @@ Singleton {
         resetTimer.restart();
     }
 
+    // A reset's name as its announcement says it. resetLabel keeps the
+    // English name, which pages compare ("Widget profile"); the names this
+    // file and its callers give are translated here, and a label a row
+    // passes already translated comes back as it is.
+    function resetName(label) {
+        const names = {
+            "All settings": I18n.tr("All settings"),
+            "Control Center": I18n.tr("Control Center"),
+            "Night light": I18n.tr("Night light"),
+            "Plugin appearance": I18n.tr("Plugin appearance"),
+            "Setting": I18n.tr("Setting"),
+            "Settings": I18n.tr("Settings"),
+            "Theme": I18n.tr("Theme"),
+            "Widget": I18n.tr("Widget"),
+            "Widget profile": I18n.tr("Widget profile"),
+            "Widgets": I18n.tr("Widgets")
+        };
+        return Object.prototype.hasOwnProperty.call(names, label) ? names[label] : I18n.tr(String(label));
+    }
+
     function resetKeys(keys, label) {
         migrationPending = false;
         resetOverrides = explicitOverrides.slice();
@@ -750,7 +770,8 @@ Singleton {
                 : key === "modOpts" ? SettingsHelpers.defaultModOpts()
                 : defaults[key];
         scheduleSave();
-        announcement = resetLabel + " reset. Undo available for eight seconds.";
+        announcement = I18n.format("%1 reset. Undo available for eight seconds.",
+            [resetName(resetLabel)]);
         resetTimer.restart();
     }
 
@@ -778,7 +799,8 @@ Singleton {
             options[id] = SettingsHelpers.clone(defaults.modOpts[id]);
         modOpts = SettingsHelpers.normalizeModOpts(options);
         scheduleSave();
-        announcement = resetLabel + " reset. Undo available for eight seconds.";
+        announcement = I18n.format("%1 reset. Undo available for eight seconds.",
+            [resetName(resetLabel)]);
         resetTimer.restart();
     }
 
@@ -813,7 +835,7 @@ Singleton {
         const label = resetLabel;
         resetLabel = "";
         scheduleSave();
-        announcement = label + " restored.";
+        announcement = I18n.format("%1 restored.", [resetName(label)]);
     }
 
     function retrySave() {
@@ -1003,8 +1025,8 @@ Singleton {
     // unreadable file closes every write, and Retry re-reads it.
     function protectNewerFile(version) {
         loadError = true;
-        loadErrorText = filePath + " was saved by a newer Cybex OS (settings version "
-            + version + "). Changes apply but are not saved, so its newer settings are kept.";
+        loadErrorText = I18n.format("%1 was saved by a newer Cybex OS (settings version %2). Changes apply but are not saved, so its newer settings are kept.",
+            [filePath, version]);
         saveTimer.stop();
         savePending = false;
         announcement = loadErrorText;
@@ -1028,11 +1050,12 @@ Singleton {
         recheckPending = false;
         ready = false;
         loadError = true;
-        loadErrorText = "Could not read " + filePath + " ("
-            + FileViewError.toString(error) + ").";
+        loadErrorText = I18n.format("Could not read %1 (%2).",
+            [filePath, FileViewError.toString(error)]);
         saveTimer.stop();
         savePending = false;
-        announcement = loadErrorText + " Settings will not be saved until it can be read.";
+        announcement = I18n.format("Could not read %1 (%2). Settings will not be saved until it can be read.",
+            [filePath, FileViewError.toString(error)]);
         console.warn("settings load failed:", FileViewError.toString(error));
     }
 
@@ -1075,7 +1098,7 @@ Singleton {
         saveError = false;
         savePending = state.pending;
         if (wasRetry)
-            announcement = "Settings saved.";
+            announcement = I18n.tr("Settings saved.");
         if (state.pending)
             saveTimer.restart();
     }
@@ -1103,7 +1126,7 @@ Singleton {
             savePending = false;
             if (saveError) {
                 saveError = false;
-                announcement = "Settings saved.";
+                announcement = I18n.tr("Settings saved.");
             }
             return;
         }

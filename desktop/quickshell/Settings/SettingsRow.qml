@@ -221,7 +221,7 @@ Item {
             id: undoChip
             row: root
             visible: root.dirty
-            Accessible.name: "Reset " + root.resetLabel + " to default"
+            Accessible.name: I18n.format("Reset %1 to default", [Settings.resetName(root.resetLabel)])
             // Revealed by the pointer or by keyboard focus; kept in the tab
             // order the whole time it is visible so it stays reachable.
             opacity: rowHover.hovered || activeFocus ? 1 : 0

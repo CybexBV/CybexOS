@@ -99,9 +99,9 @@ Column {
             height: parent.tileHeight
             glyph: "dark_mode"
             label: I18n.tr("Dark mode")
-            on: Settings.themeMode === "dark"
-            onToggled: Settings.set("themeMode",
-                Settings.themeMode === "dark" ? "light" : "dark")
+            // The theme the shell draws in; the setting takes effect at once.
+            on: Theme.dark
+            onToggled: Settings.set("themeMode", Theme.dark ? "light" : "dark")
         }
 
         DrawerTile {
@@ -121,8 +121,13 @@ Column {
             height: parent.tileHeight
             glyph: "nightlight"
             label: I18n.tr("Night light")
-            on: SysInfo.nightLight
-            onToggled: SysInfo.toggleNightLight()
+            // The tile shows whether hyprsunset runs, not only the setting.
+            on: SysInfo.nightLightEffective
+            requested: SysInfo.nightLight
+            pending: SysInfo.nightLightPending
+            error: SysInfo.nightLightError
+            onToggled: nightTile.target === SysInfo.nightLight
+                ? SysInfo.syncNightLight() : SysInfo.toggleNightLight()
         }
 
         DrawerTile {
@@ -131,8 +136,13 @@ Column {
             height: parent.tileHeight
             glyph: "coffee"
             label: I18n.tr("Stay awake")
-            on: SysInfo.idleInhibited
-            onToggled: SysInfo.toggleIdleInhibited()
+            // Whether the inhibitor holds, not only the setting.
+            on: SysInfo.idleInhibitEffective
+            requested: SysInfo.idleInhibited
+            pending: SysInfo.idleInhibitPending
+            error: SysInfo.idleInhibitError
+            onToggled: awakeTile.target === SysInfo.idleInhibited
+                ? SysInfo.syncIdleInhibit() : SysInfo.toggleIdleInhibited()
         }
     }
 

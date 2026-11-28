@@ -229,7 +229,7 @@ Column {
             metrics: Theme.switchCompact
             checked: WifiState.enabled
             enabled: !root.wifiBlocked
-            accessibleName: "Wi-Fi"
+            accessibleName: I18n.tr("Wi-Fi")
             onToggled: value => WifiState.setEnabled(value)
         }
     }
@@ -309,8 +309,8 @@ Column {
                         anchors.right: netLock.visible ? netLock.left : parent.right
                         anchors.rightMargin: netLock.visible ? 6 : 10
                         anchors.verticalCenter: parent.verticalCenter
-                        text: netEntry.current ? "Connected"
-                            : netEntry.network.known ? "Saved"
+                        text: netEntry.current ? I18n.tr("Connected")
+                            : netEntry.network.known ? I18n.tr("Saved")
                             : NetworkHelpers.classifySecurity(
                                 netEntry.network.security).label
                         font.family: Theme.fontMenu
@@ -481,16 +481,16 @@ Column {
                 metrics: Theme.switchCompact
                 checked: Tailscale.running
                 enabled: !Tailscale.busy
-                accessibleName: "Tailscale"
+                accessibleName: I18n.tr("Tailscale")
                 onToggled: value => Tailscale.setRunning(value)
             }
         }
 
         LinkText {
             visible: !Tailscale.missing && !Tailscale.connected
-            text: Tailscale.needsApproval ? "View approval status"
-                : Tailscale.authPending ? "Continue sign-in"
-                : Tailscale.needsLogin ? "Sign in to Tailscale" : "Tailscale connection details"
+            text: Tailscale.needsApproval ? I18n.tr("View approval status")
+                : Tailscale.authPending ? I18n.tr("Continue sign-in")
+                : Tailscale.needsLogin ? I18n.tr("Sign in to Tailscale") : I18n.tr("Tailscale connection details")
             onClicked: Tailscale.showSetup()
         }
 
@@ -556,7 +556,7 @@ Column {
                 checked: vpnRow.pending !== "" ? vpnRow.pending === "connect"
                     : NetworkHelpers.isVpnActive(vpnRow.vpn)
                 enabled: NetworkDetails.vpnBusyUuid === ""
-                accessibleName: "VPN " + vpnName.text
+                accessibleName: I18n.format("VPN %1", [vpnName.text])
                 onToggled: value => NetworkDetails.runVpnAction({
                     action: value ? "connect" : "disconnect", uuid: vpnRow.uuid
                 })
@@ -634,7 +634,7 @@ Column {
                                 id: dnsChoiceText
                                 anchors.centerIn: parent
                                 text: dnsChoice.modelData === "Automatic"
-                                    ? "Auto" : dnsChoice.modelData
+                                    ? I18n.tr("Auto") : dnsChoice.modelData
                                 font.family: Theme.fontMenu
                                 font.pixelSize: Theme.typography.control
                                 font.weight: Theme.weightSemibold
@@ -653,7 +653,8 @@ Column {
 
                             Accessible.role: Accessible.RadioButton
                             Accessible.checked: dnsChoice.on
-                            Accessible.name: "DNS " + dnsChoice.modelData
+                            Accessible.name: I18n.format("DNS %1", [dnsChoice.modelData === "Automatic"
+                                ? I18n.tr("Automatic") : dnsChoice.modelData])
                         }
                     }
                 }

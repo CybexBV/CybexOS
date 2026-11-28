@@ -79,7 +79,7 @@ Singleton {
         if (!Settings.loaded || Settings.loadError)
             return "error: settings are not available";
         Settings.applyValues(payload.patch, "Theme",
-            "Applied " + payload.name + ". Undo available for eight seconds.");
+            I18n.format("Applied %1. Undo available for eight seconds.", [payload.name]));
         error = "";
         return "ok";
     }

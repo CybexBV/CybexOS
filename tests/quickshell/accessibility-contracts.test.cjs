@@ -84,7 +84,10 @@ test("notification history exposes primary, action, disclosure, dismiss, and cle
 test("Bluetooth and media panels announce state and expose one focusable action per control", () => {
     const bluetooth = read("Popovers/Drawer/DrawerBluetooth.qml");
     assert.match(bluetooth,
-        /activeFocusOnTab:\s*enabled\s*Accessible\.role:\s*Accessible\.Button\s*Accessible\.name:\s*actionLabel/);
+        /activeFocusOnTab:\s*enabled\s*Accessible\.role:\s*Accessible\.Button\s*Accessible\.name:\s*actionName/);
+    // The action and the device are one translatable sentence, not glued.
+    for (const sentence of ["Working on %1…", "Disconnect %1", "Connect %1", "Pair %1"])
+        assert.ok(bluetooth.includes(`I18n.format("${sentence}", [deviceName])`), sentence);
     assert.match(bluetooth, /Qt\.Key_Down \|\| event\.key === Qt\.Key_Up[\s\S]*nextItemInFocusChain\(event\.key === Qt\.Key_Down\)/);
     assert.match(bluetooth, /Accessible\.role:\s*Accessible\.AlertMessage/);
 

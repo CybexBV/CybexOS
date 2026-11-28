@@ -133,8 +133,8 @@ SettingsPage {
         indicatorDragIndex = index;
         indicatorDropIndex = index;
         const id = view.indicatorOrder[index];
-        Settings.announcement = view.indicatorMeta[id].label
-            + " picked up. Use arrow keys to move.";
+        Settings.announcement = I18n.format("%1 picked up. Use arrow keys to move.",
+            [I18n.tr(view.indicatorMeta[id].label)]);
     }
 
     function moveIndicatorDrop(delta) {
@@ -162,8 +162,8 @@ SettingsPage {
         ids.splice(from, 1);
         ids.splice(to, 0, moved);
         view.setOpt("order", SettingsHelpers.mergeIndicatorOrder(ids, view.opts.order || []));
-        Settings.announcement = view.indicatorMeta[moved].label
-            + " moved to position " + (to + 1) + ".";
+        Settings.announcement = I18n.format("%1 moved to position %2.",
+            [I18n.tr(view.indicatorMeta[moved].label), to + 1]);
     }
 
     function setNumericOpt(key, text) {
@@ -322,9 +322,9 @@ SettingsPage {
                                 border.color: Theme.focusRing
                                 activeFocusOnTab: index === 0
                                 Accessible.role: Accessible.ListItem
-                                Accessible.name: meta.label + " indicator"
+                                Accessible.name: I18n.format("%1 indicator", [I18n.tr(meta.label)])
                                 Accessible.description: view.indicatorDragActive
-                                    ? "Drag in progress" : "Press Space to pick up"
+                                    ? I18n.tr("Drag in progress") : I18n.tr("Press Space to pick up")
                                 Accessible.selected: dragged
                                 Accessible.onPressAction: {
                                     if (view.indicatorDragActive)

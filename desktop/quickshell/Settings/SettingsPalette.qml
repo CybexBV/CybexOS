@@ -129,7 +129,7 @@ Item {
         hide();
         if (entry.kind === "page") {
             go(entry.page, entry.tab);
-            Settings.announcement = entry.title + " page.";
+            Settings.announcement = I18n.format("%1 page.", [entry.title]);
             return;
         }
         if (entry.kind === "row") {
@@ -138,7 +138,7 @@ Item {
             else
                 go(entry.page, entry.tab);
             highlight(entry.anchor);
-            Settings.announcement = entry.crumb + ", " + entry.title + " row.";
+            Settings.announcement = I18n.format("%1, %2 row.", [entry.crumb, entry.title]);
             return;
         }
         run(entry);

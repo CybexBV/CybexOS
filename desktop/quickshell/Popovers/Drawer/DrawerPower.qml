@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.UPower
 import "../../Common"
 import "../../Common/BatteryViewHelpers.js" as BatteryView
+import "DrawerFormat.js" as DrawerFormat
 
 // The drawer's Power tab: the charge reading and its meter, the power
 // profile, battery preservation and stay-awake. Without a battery to read it
@@ -157,11 +158,40 @@ Column {
     }
 
     // ---- power profile ---------------------------------------------------
+    // One segmented radio group, reached with Tab at the chosen profile (or
+    // the first, while none is); the arrows, Home and End move and choose,
+    // Enter and Space choose the focused one (DrawerFormat.segmentTarget,
+    // the way Settings/PillRow answers). Focus moves before the profile does:
+    // activeFocusOnTab follows the choice, and Qt will not clear it on the
+    // item that still holds focus.
     Rectangle {
+        id: profileGroup
+
+        readonly property var profiles: PowerProfiles.hasPerformanceProfile
+            ? [
+                { profile: PowerProfile.PowerSaver, glyph: "eco", label: I18n.tr("Saver") },
+                { profile: PowerProfile.Balanced, glyph: "balance", label: I18n.tr("Balanced") },
+                { profile: PowerProfile.Performance, glyph: "speed", label: I18n.tr("Performance") }
+            ]
+            : [
+                { profile: PowerProfile.PowerSaver, glyph: "eco", label: I18n.tr("Saver") },
+                { profile: PowerProfile.Balanced, glyph: "balance", label: I18n.tr("Balanced") }
+            ]
+        readonly property bool anyChosen: profiles.some(
+            entry => entry.profile === PowerProfiles.profile)
+
+        function choose(index) {
+            const entry = profiles[index];
+            if (entry !== undefined)
+                PowerProfiles.profile = entry.profile;
+        }
+
         width: parent.width
         height: 38
         radius: 10
         color: Theme.chip
+        Accessible.role: Accessible.Grouping
+        Accessible.name: I18n.tr("Power mode")
 
         Row {
             anchors.fill: parent
@@ -169,31 +199,52 @@ Column {
             spacing: 3
 
             Repeater {
-                model: PowerProfiles.hasPerformanceProfile
-                    ? [
-                        { profile: PowerProfile.PowerSaver, glyph: "eco", label: I18n.tr("Saver") },
-                        { profile: PowerProfile.Balanced, glyph: "balance", label: I18n.tr("Balanced") },
-                        { profile: PowerProfile.Performance, glyph: "speed", label: I18n.tr("Performance") }
-                    ]
-                    : [
-                        { profile: PowerProfile.PowerSaver, glyph: "eco", label: I18n.tr("Saver") },
-                        { profile: PowerProfile.Balanced, glyph: "balance", label: I18n.tr("Balanced") }
-                    ]
+                id: profileRepeater
+
+                model: profileGroup.profiles
 
                 delegate: Rectangle {
                     id: profileChoice
 
                     required property var modelData
+                    required property int index
                     readonly property bool on:
                         PowerProfiles.profile === modelData.profile
 
-                    width: (parent.width - 3 * 2) / (PowerProfiles.hasPerformanceProfile ? 3 : 2)
+                    width: (parent.width - 3 * (profileGroup.profiles.length - 1))
+                        / profileGroup.profiles.length
                     height: parent.height
                     radius: 8
                     color: on ? Theme.chipHover : "transparent"
+                    activeFocusOnTab: on || (!profileGroup.anyChosen && index === 0)
+                    border.width: Theme.focusWidth(activeFocus)
+                    border.color: Theme.focusRing
 
                     Behavior on color {
                         ColorAnimation { duration: Theme.chipFadeDuration }
+                    }
+
+                    Keys.onPressed: event => {
+                        const next = DrawerFormat.segmentTarget(event.key, index,
+                            profileRepeater.count);
+                        if (next < 0)
+                            return;
+                        if (next !== index)
+                            profileRepeater.itemAt(next).forceActiveFocus();
+                        else
+                            profileState.pulseCenter();
+                        profileGroup.choose(next);
+                        event.accepted = true;
+                    }
+
+                    StateLayer {
+                        id: profileState
+                        anchors.fill: parent
+                        radius: parent.radius
+                        hovered: profileMouse.containsMouse
+                        pressed: profileMouse.pressed
+                        tint: Theme.textHi
+                        pressPoint: Qt.point(profileMouse.mouseX, profileMouse.mouseY)
                     }
 
                     Row {
@@ -219,14 +270,20 @@ Column {
                     }
 
                     MouseArea {
+                        id: profileMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: PowerProfiles.profile = profileChoice.modelData.profile
+                        onClicked: {
+                            profileChoice.forceActiveFocus();
+                            PowerProfiles.profile = profileChoice.modelData.profile;
+                        }
                     }
 
                     Accessible.role: Accessible.RadioButton
                     Accessible.checked: profileChoice.on
-                    Accessible.name: profileChoice.modelData.label + " power profile"
+                    Accessible.name: I18n.format("%1 power profile", [profileChoice.modelData.label])
+                    Accessible.onPressAction: profileGroup.choose(profileChoice.index)
                 }
             }
         }
@@ -278,9 +335,9 @@ Column {
                             parts.push(BatteryHealth.error);
                         else
                             parts.push(BatteryHealth.enabled
-                                ? BatteryHealth.limitText : "Charge to 100%");
+                                ? BatteryHealth.limitText : I18n.tr("Charge to 100%"));
                         if (root.cycleCountText !== BatteryView.MISSING)
-                            parts.push(root.cycleCountText + " cycles");
+                            parts.push(I18n.format("%1 cycles", [root.cycleCountText]));
                         return parts.join(" · ");
                     }
                     font.family: Theme.fontMenu
@@ -299,7 +356,7 @@ Column {
                 checked: BatteryHealth.enabled
                 enabled: BatteryHealth.known && BatteryHealth.supported
                     && !BatteryHealth.busy
-                accessibleName: "Preserve battery health"
+                accessibleName: I18n.tr("Preserve battery health")
                 onToggled: value => BatteryHealth.setEnabled(value)
             }
         }
@@ -362,7 +419,7 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 metrics: Theme.switchCompact
                 checked: SysInfo.idleInhibited
-                accessibleName: "Stay awake"
+                accessibleName: I18n.tr("Stay awake")
                 onToggled: SysInfo.toggleIdleInhibited()
             }
         }
@@ -374,7 +431,7 @@ Column {
             if (root.displayDevice && root.displayDevice.energyCapacity > 0)
                 parts.push(BatteryView.formatWh(root.displayDevice.energyCapacity));
             if (root.cycleCountText !== BatteryView.MISSING)
-                parts.push(root.cycleCountText + " cycles");
+                parts.push(I18n.format("%1 cycles", [root.cycleCountText]));
             return parts.join(" · ");
         }
         actionText: I18n.tr("Power settings")

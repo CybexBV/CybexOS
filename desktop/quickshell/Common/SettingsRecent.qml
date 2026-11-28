@@ -33,7 +33,7 @@ Singleton {
         restoring = false;
         entries = Helpers.remove(entries, row.key);
         saveTimer.restart();
-        Settings.announcement = row.label + " restored.";
+        Settings.announcement = I18n.format("%1 restored.", [I18n.tr(row.label)]);
     }
 
     Connections {

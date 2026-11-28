@@ -24,7 +24,8 @@ test('responsive controls and focus scrolling respect their content bounds', () 
         /height: lineHeight \+ \(hintLine\.visible \? hintLine\.height/);
     assert.match(read('Settings/ResponsiveActionRow.qml'), /Flow \{/);
     assert.match(read('Settings/SettingsPage.qml'), /while \(ancestor && ancestor !== contentRoot/);
-    assert.match(read('Settings/SettingsRow.qml'), /Accessible.name: "Reset " \+ root.resetLabel/);
+    assert.match(read('Settings/SettingsRow.qml'),
+        /Accessible\.name: I18n\.format\("Reset %1 to default", \[Settings\.resetName\(root\.resetLabel\)\]\)/);
 });
 
 test('notification actions wrap and image captions retain independent contrast', () => {

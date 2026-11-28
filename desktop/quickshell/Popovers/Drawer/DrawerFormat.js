@@ -132,7 +132,62 @@ function tabLayout(stacked, inline, available, gap) {
     return { rows: count, columns: 1, stacked: false, widths: fill(room, count) };
 }
 
+// A segmented choice's keys (the Power tab's power profiles), the way a
+// radio group answers them: Left/Up and Right/Down step to the neighbour
+// and choose it, Home and End the first and last, Enter and Space choose
+// the focused one. Steps stop at the ends rather than wrap, as
+// Settings/PillRow does. The index to choose, or -1 for a key the choice
+// leaves alone (Tab, Escape). Key codes are Qt.Key_* values.
+var KEYS = {
+    space: 0x20, ret: 0x01000004, enter: 0x01000005, home: 0x01000010,
+    end: 0x01000011, left: 0x01000012, up: 0x01000013, right: 0x01000014,
+    down: 0x01000015
+};
+
+function segmentTarget(key, index, count) {
+    var n = Math.max(0, Number(count) || 0);
+    if (n === 0)
+        return -1;
+    var at = Math.max(0, Math.min(n - 1, Number(index) || 0));
+    if (key === KEYS.left || key === KEYS.up)
+        return Math.max(0, at - 1);
+    if (key === KEYS.right || key === KEYS.down)
+        return Math.min(n - 1, at + 1);
+    if (key === KEYS.home)
+        return 0;
+    if (key === KEYS.end)
+        return n - 1;
+    if (key === KEYS.ret || key === KEYS.enter || key === KEYS.space)
+        return at;
+    return -1;
+}
+
+// A quick toggle's phase (DrawerTile.qml, docs/shell-states.md). `actual`
+// is what is in effect, which a process-backed toggle (Night light, Stay
+// awake) reports only once its process runs; `requested` is what was asked
+// for; `pending` a change under way; `failed` a failure still being shown.
+// A change under way outranks a failure, and both outrank the resting state.
+function togglePhase(actual, requested, pending, failed) {
+    if (pending)
+        return requested ? "turningOn" : "turningOff";
+    if (failed)
+        return requested ? "failedOn" : "failedOff";
+    return actual ? "on" : "off";
+}
+
+// What a press asks for. The tile shows the actual state, so a press asks
+// for its opposite; while a change runs it reverses that change. When the
+// answer equals what is already requested (a start that failed, shown off
+// while still asked for), the press retries rather than withdrawing it.
+function toggleTarget(actual, requested, pending) {
+    return pending ? !requested : !actual;
+}
+
 var exported = {
+    KEYS: KEYS,
+    segmentTarget: segmentTarget,
+    togglePhase: togglePhase,
+    toggleTarget: toggleTarget,
     pair: pair,
     fullModel: fullModel,
     compactModel: compactModel,
