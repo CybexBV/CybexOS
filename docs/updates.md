@@ -382,6 +382,14 @@ across a branch move. `/etc/cybexos/release.json` names only the release's
 pinned Nixpkgs (`"nixpkgs"`, with its branch). Never change
 `system.stateVersion` as part of a routine update.
 
+A machine leaves nixos-unstable for a stable branch only from a revision that
+branch contains: one dated no later than where the branch left unstable
+(`inputs.BRANCH_OFF`; nixos-26.11 at `8d7adf10`, 2026-11-24). A later one can
+hold newer packages than the branch, and packages never go back, so such a
+machine keeps nixos-unstable and gets the release alone; `cybex update check`
+says why. A branch the updater has no branch-off for is treated the same until
+a release that records it is installed.
+
 ## Prebuilt packages only
 
 Every Nixpkgs package comes prebuilt from the configured cache

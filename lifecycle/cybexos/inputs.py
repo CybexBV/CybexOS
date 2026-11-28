@@ -15,6 +15,17 @@ def resolved(lock, name):
     return lock['nodes'][value]
 
 
+# Where each stable NixOS branch left nixos-unstable: the newest unstable
+# commit it contains (GitHub's merge base of the two channels) and that
+# commit's date. A machine on nixos-unstable moves to the branch only from a
+# revision dated no later, which the branch therefore contains: a later one
+# can hold newer packages than the branch, and machines never take packages
+# back (docs/nixos-26.11-move.md). Add the next branch when Cybex OS moves.
+BRANCH_OFF = {
+    'nixos-26.11': {'rev': '8d7adf10bf0789cc5f58ecd511ee9f94334c429a', 'lastModified': 1795543727},  # 2026-11-24
+}
+
+
 def branch_order(ref):
     """Where a supported NixOS branch sits in Cybex OS's history, or None.
 
@@ -135,14 +146,43 @@ def pin(value):
     return result
 
 
+def held_back(pinned, lock):
+    """Why a machine on nixos-unstable keeps its Nixpkgs instead of moving to
+    a release's stable branch, or None when nothing holds it.
+
+    Only a move off nixos-unstable can take packages back: the stable branch
+    holds every unstable commit up to where it branched off (BRANCH_OFF) and
+    none after. A machine past that point, or a branch this updater has no
+    record of, keeps nixos-unstable and gets the release alone; an updater
+    that knows the branch moves it once its revision is contained.
+    """
+    branch = resolved(lock, 'nixpkgs')['original'].get('ref')
+    target = pinned.get('ref')
+    if branch != 'nixos-unstable' or target == branch or branch_order(target) is None:
+        return None
+    modified = identity(lock, 'nixpkgs').get('lastModified')
+    if type(modified) is not int or modified <= 0:
+        return None  # newer() refuses an undated lock for its own reason.
+    cut = BRANCH_OFF.get(target)
+    if cut is not None and modified <= cut['lastModified']:
+        return None
+    name = release_name(target)
+    if cut is None:
+        return (f'NixOS packages stay on nixos-unstable: this Cybex OS does not yet know where NixOS {name} '
+                'branched off. They move once it does.')
+    return (f"NixOS packages stay on nixos-unstable: this computer's are newer than where NixOS {name} "
+            'branched off, and moving would take some of them back. Cybex OS itself still updates.')
+
+
 def newer(pinned, lock):
     """Whether the machine lock's Nixpkgs moves to `pinned`. Never back.
 
     A later revision on the same branch moves it. A release on a later
     branch (branch_order: nixos-unstable, then nixos-26.11, nixos-27.05, ...)
     moves it to that branch's revision, whatever the commit dates: the move to
-    a stable release is qualified as its own release. A release on an earlier
-    branch never moves it back.
+    a stable release is qualified as its own release. Off nixos-unstable it
+    moves only from a revision the branch contains (held_back). A release on
+    an earlier branch never moves it back.
     """
     current = identity(lock, 'nixpkgs')
     modified = current.get('lastModified')
@@ -153,8 +193,10 @@ def newer(pinned, lock):
     if pinned['ref'] != branch:
         target, installed = branch_order(pinned['ref']), branch_order(branch)
         # A stable branch's commits can be dated before the machine's
-        # unstable revision, so only the branch order decides.
-        return target is not None and installed is not None and target > installed
+        # unstable revision, so the branch order decides, and only from a
+        # revision the stable branch contains (held_back).
+        return (target is not None and installed is not None and target > installed
+                and held_back(pinned, lock) is None)
     return pinned['rev'] != current.get('rev') and pinned['lastModified'] > modified
 
 

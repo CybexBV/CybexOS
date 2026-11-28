@@ -305,6 +305,8 @@ class Engine(ConfigTreeMixin, StagingMixin, ActivationMixin):
             return {'state': 'unreachable', 'installed': installed, 'error':
                     f'NixOS package status is unknown: the Nixpkgs revision of Cybex OS {source} could not be read. '
                     'Retry when connected; no account or token is required.'}
+        if pinned is not None and (held := inputs.held_back(pinned, lock)):
+            return {'state': 'current', 'installed': installed, 'available': installed, 'held': held}
         if pinned is None or not inputs.newer(pinned, lock):
             return {'state': 'current', 'installed': installed, 'available': installed}
         return {'state': 'available', 'installed': installed, 'available': pinned['rev'], 'release': source,

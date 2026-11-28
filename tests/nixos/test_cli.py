@@ -150,6 +150,18 @@ class ReadableOutputAndJsonParityTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(json.loads(out_json)['schema'], 'cybexos.hardware-inventory.v1')
 
+    def test_update_check_says_why_packages_stay(self):
+        held = 'NixOS packages stay on nixos-unstable: test reason.'
+        discovery = {'cybexos': {'state': 'current', 'installed': '1.0.38', 'channel': 'beta'},
+                     'upstream': {'state': 'current', 'held': held},
+                     'firmware': {'state': 'current', 'devices': []}}
+        with patch.object(cli, 'LIVE_MARKER', Path('/nonexistent-live-marker')), \
+             patch.object(cli, 'run_check', return_value=discovery):
+            code, out, _ = run_cli('update', 'check')
+        self.assertEqual(code, 0)
+        self.assertIn(held, out)
+        self.assertNotIn('Packages   Up to date', out)
+
     def test_status_overview_human_and_json(self):
         sample = {
             'version': '1.0.34', 'channel': 'stable', 'nixos': '26.11',

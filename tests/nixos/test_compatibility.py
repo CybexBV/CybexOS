@@ -167,3 +167,16 @@ class Retry(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class OwnBranchTests(unittest.TestCase):
+    def test_the_release_lists_the_nixos_branch_it_pins(self):
+        # A release pinned to a branch its compatibility.json leaves out would
+        # move machines there and then refuse every later release on them
+        # (trust.py; docs/nixos-26.11-move.md, gap 1).
+        from cybexos import inputs
+        root = Path(__file__).resolve().parents[2]
+        lock = json.loads((root / 'flake.lock').read_text())
+        branch = inputs.pin(lock)['ref']
+        listed = json.loads((root / 'release/compatibility.json').read_text())['nixos']
+        self.assertIn(inputs.release_name(branch), listed)

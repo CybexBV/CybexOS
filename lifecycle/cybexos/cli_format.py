@@ -271,6 +271,8 @@ def format_update_check(data, *, style=None):
         rel = upstream.get('release')
         detail = f'Available (with Cybex OS {rel})' if rel else 'Available'
         lines.append(f'  Packages   {style.ok(detail)}')
+    elif u_state == 'current' and upstream.get('held'):
+        lines.append(f'  Packages   {style.dim(upstream["held"])}')
     elif u_state == 'current':
         lines.append(f'  Packages   {style.ok("Up to date")}')
     elif u_state:

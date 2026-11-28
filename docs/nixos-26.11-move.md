@@ -3,8 +3,12 @@
 This is the plan for moving Cybex OS from `nixos-unstable` to the stable
 `nixos-26.11` branch, as AGENTS.md asks ("NixOS installation and lifecycle
 contract"). John decided on 2026-11-28 to plan it now, and that the
-`system.stateVersion` change happens as part of this move. Nothing here has
-been carried out yet: `flake.nix`, `flake.lock` and the code are unchanged.
+`system.stateVersion` change happens as part of this move. Later that day he
+settled the open points ([Decisions](#decisions)): move once NixOS calls 26.11
+final, as the next patch version; installed machines' `system.stateVersion`
+follows 26.11 once it is released; the packages-back guard is in; he tests the
+hardware himself and decides on stable later. The move itself has not been
+carried out: `flake.nix` and `flake.lock` still follow nixos-unstable.
 
 The short version: the move is ready on the code side and safe on the package
 side today. The updater already moves a machine's branch forward, and nothing
@@ -135,7 +139,7 @@ Most of the work was done on 2026-11-24 (1.0.32 and 1.0.34).
 | `release/compatibility.json:7` | Branches a release supports: `["unstable"]` | Move commit: `["unstable", "26.11"]` |
 | `lifecycle/cybexos/inputs.py:18-42` | `branch_order`: unstable, then 26.11, 27.05, …; older stable branches refused | Ready |
 | `inputs.py:45-51` | `validate_machine` accepts unstable or a stable branch from 26.11 | Ready |
-| `inputs.py:138-158` | `newer`: a later branch always counts as forward | Ready; no package-version guard (below) |
+| `inputs.py:138-158` | `newer`: a later branch always counts as forward | Ready; with the packages-back guard (`held_back`, gap 3) |
 | `inputs.py:161-167` | `take`: writes the release's revision and branch into the lock | Ready |
 | `lifecycle/cybexos/engine.py:183-186`, `194-205` | Compatibility uses the branch in the machine's own `flake.lock` | Ready since 1.0.34 |
 | `engine.py:235-254` | `nixpkgs_branch`/`move_nixpkgs` rewrite the literal `nixpkgs.url` in `/etc/nixos/flake.nix` with the lock | Ready since 1.0.32 |
@@ -168,19 +172,21 @@ Three gaps, all small:
 1. Nothing checks that a release lists its own branch. If the move commit
    pinned `nixos-26.11` but `compatibility.json` still said `["unstable"]`,
    it would publish, machines would move, and every later release would be
-   refused on them (`trust.py:308`). Add a source test that the branch of
+   refused on them (`trust.py:308`). Done on 2026-11-28:
+   `tests/nixos/test_compatibility.py` checks that the branch of
    `flake.lock` is in `release/compatibility.json`'s `nixos` list.
 2. `qualify-upgrade` checks the upgraded lock's revision
    (`scripts/qualify-upgrade:683-684`) but not its `original.ref`, the
    machine's `nixpkgs.url`, or that `system.stateVersion` stayed. Add those
    three checks to the "upgraded" step.
-3. No guard stops a move that would take packages back (above). Add one to
-   `inputs.newer`: across branches, move only when the machine's revision is
-   an ancestor of the release's pin. Either ask GitHub's compare API once per
-   pair (cached forever, like `Engine.release_pin`), or let the release name
-   its branch-off point and refuse an unstable revision dated after it. A
-   machine that fails the guard keeps its Nixpkgs and gets the release alone,
-   with a message. John decides whether this is worth it (below).
+3. ~~No guard stops a move that would take packages back.~~ Done on
+   2026-11-28 (John's decision): `inputs.held_back` moves a machine off
+   nixos-unstable only from a revision dated no later than where the stable
+   branch left unstable (`inputs.BRANCH_OFF`: nixos-26.11 at `8d7adf10`,
+   2026-11-24, GitHub's merge base of the two channels). Otherwise the machine
+   keeps its Nixpkgs, gets the release alone, and `cybex update check` says
+   why. A branch with no recorded branch-off is held the same way, so the
+   move to 27.05 must add its entry.
 
 ## How an installed machine moves
 
@@ -255,23 +261,36 @@ What changing it would and would not do:
 - For a **new machine**, `"26.11"` simply records that its state began on
   26.11. Nothing in the default system changes.
 - For an **existing machine**, changing it upgrades nothing. It only switches
-  those defaults for data that already exists, which is the one thing it
-  must not do. The NixOS manual and the option's own assertion
-  (`nixos/modules/misc/version.nix:296-300`) say to leave it.
+  those defaults for data that already exists. The NixOS manual and the
+  option's own assertion (`nixos/modules/misc/version.nix:296-300`) warn
+  about exactly that, so the updater step below refuses whenever a gated
+  service is on.
 
-**Recommendation:** in the move commit, new installations get `"26.11"`;
-installed machines keep their value.
+**Decision (John, 2026-11-28):** installed machines keep `"26.05"` while
+26.11 is not released, and follow it once it is. NixOS still listed
+`nixos-26.11` as `status = "beta"` on 2026-11-28 (`channels.nix` in
+NixOS/infra), so nothing changes now. The move waits until 26.11 is final
+(below), so at the move installed machines get `"26.11"` too, with new
+installations.
 
 - Change `installer/cybexos-install:714`,
   `nix/modules/installer-payload.nix:27`, `nix/modules/installer.nix:431` and
   `nix/tests/parity.nix:21` together, so ISO/payload parity still holds.
   Optionally `nix/tests/machine.nix:9` too; the VM tests can stay on
   `"26.05"`, which is what most real machines have.
-- Don't touch `machine.nix` on installed machines. It belongs to the machine,
-  and rewriting it would be the kind of migration AGENTS.md rules out.
-- If John wants installed machines changed anyway, it needs its own updater
-  step that refuses when any gated service is enabled, plus a VM test with a
-  PostgreSQL database. That is more code for no gain; not recommended.
+- For installed machines, the move needs its own updater step, because
+  `machine.nix` belongs to the machine. AGENTS.md rules out changing
+  `system.stateVersion` in routine updates; the branch move is not one, and
+  John decided it. It rewrites the one literal
+  `system.stateVersion = "26.05";` in `/etc/nixos/machine.nix` to `"26.11"`
+  only when the candidate system enables none of the gated services above
+  (PostgreSQL, MySQL/MariaDB, ZFS root pools, Nextcloud, NetBox, Flarum,
+  Grav, Hyphanet). Otherwise it leaves the value alone and says why: a
+  database's data must never seem to vanish. Like the `nixpkgs.url` rewrite it
+  is part of the staged update, so a rollback restores the file. It needs a
+  VM test with a PostgreSQL database (kept at "26.05") and one without (moved).
+- Changing it upgrades nothing by itself; it records that the machine's state
+  follows 26.11's defaults from then on.
 
 ## Tests before the move
 
@@ -309,9 +328,12 @@ builds.
 ### 1. Preparation on `main` (now, ordinary changes)
 
 - Don't merge `nixpkgs-update` branches until the move.
-- Add the three gaps: the own-branch test, the `qualify-upgrade` checks, and
-  (if John wants it) the ancestry guard. Each is a normal change with
-  `fast-test`; no release needed.
+- The gaps: the own-branch test and the packages-back guard are done
+  (2026-11-28). Still to do: the `qualify-upgrade` checks (gap 2), and the
+  updater step that moves installed machines' `system.stateVersion` with
+  its VM tests ([above](#systemstateversion)). Each is a normal change with
+  `fast-test`; the stateVersion step only acts on a move to 26.11, so it can
+  ship in an earlier release.
 - Optionally add a `-f from=…` "release alone then NixOS packages" step to
   `qualify-upgrade` (test 3).
 - These ship with the next release, which may still be on unstable. That is
@@ -327,25 +349,30 @@ it with the release:
   26.11 head of that day. One commit, lock included.
 - `release/compatibility.json` → `"nixos": ["unstable", "26.11"]`.
 - `templates/machine/flake.nix:6` → `nixos-26.11`.
-- `system.stateVersion` → `"26.11"` for new installations (four files above).
+- `system.stateVersion` → `"26.11"` for new installations (four files above);
+  installed machines follow through the updater step.
 - `tests/nixos/test_installer.py:922`, `1042` → `nixos-26.11`.
 - The docs listed above and `AGENTS.md`'s lifecycle paragraph.
 - Re-run the version comparison against the pinned revision and keep the
   "nothing older" result in the release's measurements.
-- `VERSION` and `release/notes.md` as for any beta. The notes say what people
+- `VERSION` to the next patch version, as for any beta (John's decision: no
+  minor bump), and `release/notes.md`. The notes say what people
   notice: NixOS 26.11 stable base, the NVIDIA 620 driver, kernel 7.3.6.
 
 ### 3. The release (its own beta, with ISO and qualification)
 
-- Timing: 1–2 weeks after the branch exists and is built, so from
-  **2026-12-04** to **2026-12-11** (first built 2026-11-27).
+- Timing: once NixOS calls 26.11 final (John's decision): `nixos-26.11` is
+  `status = "stable"` in NixOS/infra's `channels.nix` and the release is
+  announced. AGENTS.md's one to two weeks after the branch is built
+  (2026-11-27) are then long past. On 2026-11-28 it was still `"beta"`.
 - Run the full check on `release-X.Y.Z`, then the `from=v1.0.25` run.
 - Build the ISO and put it on PXE (`/data/pxe/iso` on The Beast) as AGENTS.md
   describes; only when John asks for it.
-- Qualify on hardware: a fresh install from the ISO, and the update of an
-  installed machine from the previous release. At least one NVIDIA machine
-  (driver 620) and one laptop with thermald (its NixOS service changed in
-  26.11) besides the usual ones. Record what was exercised.
+- John qualifies the hardware himself, by hand: a fresh install from the
+  ISO, and the update of an installed machine from the previous release. The
+  plan's suggestion: at least one NVIDIA machine (driver 620) and one laptop
+  with thermald (its NixOS service changed in 26.11) besides the usual ones.
+  Record what he reports was exercised.
 - `release/publish X.Y.Z` (beta), merge the release branch into `main`.
 
 ### 4. A week on beta
@@ -356,8 +383,8 @@ it with the release:
 
 ### 5. Stable
 
-- `release/promote X.Y.Z` after the week, its passing full check and John's
-  OK. It requires the candidate to list `unstable`, which stable machines
+- `release/promote X.Y.Z` when John decides (he chooses the time later),
+  after at least the week, its passing full check and his OK. It requires the candidate to list `unstable`, which stable machines
   run (`release/promote:146-148`).
 
 ### Later
@@ -368,20 +395,19 @@ it with the release:
 - The next move (27.05, May 2027) follows the same path; `branch_order`
   already knows it.
 
-## Decisions for John
+## Decisions
 
-1. **stateVersion:** new installations on `"26.11"`, installed machines keep
-   `"26.05"` (recommended), or rewrite installed machines too.
-2. **The ancestry guard:** add it (recommended; small), or rely on not
-   releasing a newer unstable and accept the risk for pre-1.0.32 updaters and
-   hand-moved machines.
-3. **Timing:** move in the 2026-12-04 to 12-11 window, or wait for NixOS to
-   announce 26.11 (its builds are still called "beta").
-4. **Version number:** the next patch (1.0.38 or later), or 1.1.0 to mark the
-   new base. AGENTS.md leaves minor bumps to a deliberate decision.
-5. **ISO and hardware:** ask for the ISO build and PXE copy; say which
-   machines qualify it (at least one NVIDIA).
-6. **Stable:** the OK to promote after the week on beta.
+John settled these on 2026-11-28:
+
+1. **stateVersion:** new installations get `"26.11"`. Installed machines keep
+   `"26.05"` while 26.11 is not released and follow it once it is: at the
+   move, through the updater step [above](#systemstateversion).
+2. **The packages-back guard:** added (`inputs.held_back`).
+3. **Timing:** wait until NixOS calls 26.11 final.
+4. **Version number:** the next patch version (1.0.38 or later), no 1.1.0.
+5. **ISO and hardware:** John tests the devices by hand. The ISO is built
+   when he asks for it.
+6. **Stable:** John decides when, later.
 
 ## Risks and rolling back
 
@@ -405,7 +431,9 @@ it with the release:
 - **26.11 point updates** arrive through the weekly `nixpkgs-update` branch
   and a release, as before. NixOS's stable backports are smaller than
   unstable's changes.
-- **Machines ahead of 26.11** (old updaters, hand moves): see the guard.
+- **Machines ahead of 26.11** (old updaters, hand moves): the guard keeps
+  them on nixos-unstable with the release alone, and says why. They move with
+  a later branch that contains their revision.
 
 ## How to repeat the checks
 
