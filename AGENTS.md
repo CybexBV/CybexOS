@@ -142,10 +142,11 @@ sub-agent in a worktree):
   out (May and November) as a qualified Cybex OS update. Take no packages from
   `nixos-unstable` or another branch: Quickshell, Hyprland, Qt and the rest stay
   at the release's versions. The kernel stays `linuxPackages_latest`, which the
-  release itself keeps current. Until NixOS 26.11 ships (planned 2026-11-23;
-  no `nixos-26.11` branch existed on 2026-11-24) the tree still follows
-  `nixos-unstable`; moving to 26.11 is the next branch change. Make that move
-  as its own release one to two weeks after the branch exists and is built,
+  release itself keeps current. Until NixOS 26.11 ships (the branch exists
+  since 2026-11-27, still "beta" on 2026-11-28) the tree still follows
+  `nixos-unstable`; moving to 26.11 is the next branch change, planned in
+  [docs/nixos-26.11-move.md](docs/nixos-26.11-move.md). Make that move as its
+  own release once NixOS calls 26.11 final (owner's decision, 2026-11-28),
   with an ISO and qualification, and check for packages that are older on
   26.11 than on the machines' nixos-unstable. Before it, VM-test the branch
   move from an installed release, the installer's and `release/promote`'s
