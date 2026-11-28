@@ -75,8 +75,13 @@ Rectangle {
     Controls.ToolTip.delay: 600
     Controls.ToolTip.text: stateDescription
 
+    // Only a failure that arrives while the tile is up flashes: the outer
+    // binding's first value lands during creation, and a failure from
+    // before the drawer opened is no news (the description still says it).
+    property bool settled: false
+    Component.onCompleted: settled = true
     onErrorChanged: {
-        failureShown = error !== "";
+        failureShown = settled && error !== "";
         if (failureShown)
             failureTimer.restart();
         else

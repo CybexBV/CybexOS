@@ -170,7 +170,8 @@ test("quick toggles show the actual state, a pending change and a failure", () =
     // state returns; one present when the tile is made does not flash.
     assert.match(drawerTile, /property int failureShownMs: 4000/);
     assert.match(drawerTile,
-        /onErrorChanged: \{\s*failureShown = error !== "";\s*if \(failureShown\)\s*failureTimer\.restart\(\);\s*else\s*failureTimer\.stop\(\);/);
+        /onErrorChanged: \{\s*failureShown = settled && error !== "";\s*if \(failureShown\)\s*failureTimer\.restart\(\);\s*else\s*failureTimer\.stop\(\);/);
+    assert.match(drawerTile, /property bool settled: false\s*Component\.onCompleted: settled = true/);
     assert.match(drawerTile, /id: failureTimer\s*interval: root\.failureShownMs\s*onTriggered: root\.failureShown = false/);
     // Assistive technology hears the actual state and, while there is one,
     // the change under way or the failure; so does the tooltip.
