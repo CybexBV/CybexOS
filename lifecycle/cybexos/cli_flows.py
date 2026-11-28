@@ -13,16 +13,29 @@ from . import cli_format as fmt
 from .common import Failure, read
 
 REQUEST_BIN = '/run/current-system/sw/bin/cybexos-request'
+RECORDS_BIN = '/run/current-system/sw/bin/cybexos-update-records'
 POLL_INTERVAL = 0.5
 BUSY_STATES = ('discovering', 'building', 'validating', 'activating', 'recovering', 'firmware')
 
 
-def run_privileged(action, *extra, pkexec=None, expect_json=True):
+def records_bin():
+    """The update-records helper's store path: its Polkit action names exactly
+    that file (exec.path), so pkexec must be given the resolved path."""
+    return os.path.realpath(RECORDS_BIN)
+
+
+def run_records(action, *extra):
+    """Read history or a build log through `cybexos-update-records`, which the
+    administrator at the computer runs without a password."""
+    return run_privileged(action, *extra, program=records_bin())
+
+
+def run_privileged(action, *extra, pkexec=None, expect_json=True, program=REQUEST_BIN):
     """Run one validated `cybexos-request` action through NixOS's setuid pkexec."""
     from . import cli
     wrapper = pkexec or cli.PKEXEC
     result = subprocess.run(
-        [wrapper, REQUEST_BIN, action, *extra],
+        [wrapper, program, action, *extra],
         text=True,
         capture_output=True,
     )
@@ -172,7 +185,7 @@ def resolve_transaction(prefix=None):
         raise Failure('Invalid deployment identifier.')
     if isinstance(current, str) and current.startswith(prefix):
         return current
-    records = run_privileged('history')
+    records = run_records('history')
     matches = [r['id'] for r in (records if isinstance(records, list) else []) if isinstance(r, dict) and str(r.get('id', '')).startswith(prefix)]
     if len(matches) == 1:
         return matches[0]

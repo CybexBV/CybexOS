@@ -553,13 +553,13 @@ def _handle_update(args, *, json_mode):
         return
     if action == 'history':
         if json_mode:
-            os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, 'history'])
-        records = cli_flows.run_privileged('history')
-        print(cli_format.format_update_history(records if isinstance(records, list) else []))
+            os.execv(PKEXEC, [PKEXEC, cli_flows.records_bin(), 'history'])
+        found = cli_flows.run_records('history')
+        print(cli_format.format_update_history(found if isinstance(found, list) else []))
         return
     if action == 'log':
         tx = cli_flows.resolve_transaction(args.transaction)
-        os.execv(PKEXEC, [PKEXEC, REQUEST_BIN, 'log', tx])
+        os.execv(PKEXEC, [PKEXEC, cli_flows.records_bin(), 'log', tx])
 
     # JSON / machine-caller async boundary (Updates.qml, tests, scripts)
     if json_mode or action == 'retry-failed':
@@ -811,19 +811,6 @@ def request():
         print(json.dumps({'automatic': automatic.choose(state, values[0], values[1] == 'on')})); return
     if action == 'channel' and len(values) == 1:
         print(json.dumps({'channel': choose_channel(state, values[0])})); return
-    if action == 'log' and len(values) == 1:
-        if not re.fullmatch('[0-9a-f]{32}', values[0]):
-            raise Failure('Invalid deployment identifier')
-        path = state / 'transactions' / values[0] / 'build.log'
-        if not path.is_file():
-            raise Failure('No build log for this deployment')
-        # Logs can contain private module diagnostics. Only the authenticated
-        # administrator sees them; never copy them to world-readable status.
-        with path.open('r', errors='replace') as stream:
-            from .progress import log_line
-            for line in stream:
-                sys.stdout.write(log_line(line))
-        return
     if action == 'retry-failed' and len(values) == 1:
         if not re.fullmatch('[0-9a-f]{32}', values[0]):
             raise Failure('Invalid deployment identifier')
@@ -838,15 +825,41 @@ def request():
                     atomic(failed.parent / 'retry-authorized.json', {'authorizedAt': time.time()})
                     authorized.append(failed.parent.name)
         print(json.dumps({'retryAuthorized': values[0], 'sameSystemDeployments': authorized})); return
+    print(json.dumps(enqueue_update(state, action, values)))
+
+
+def records(state=Path('/var/lib/cybexos')):
+    """Read-only update records: deployment history and one build log.
+
+    Separate from `request` so Polkit can treat reading differently from
+    changing the system (nix/modules/lifecycle.nix): the administrator at the
+    computer reads these without a password, which spares Wiz's research a
+    prompt per command. Logs can contain private module diagnostics; they go
+    only to that administrator, never to world-readable status."""
+    if os.geteuid() != 0:
+        raise Failure('Administrator authentication is required')
+    require_installed()
+    action, *values = sys.argv[1:] or ['']
+    if action == 'log' and len(values) == 1:
+        if not re.fullmatch('[0-9a-f]{32}', values[0]):
+            raise Failure('Invalid deployment identifier')
+        path = state / 'transactions' / values[0] / 'build.log'
+        if not path.is_file():
+            raise Failure('No build log for this deployment')
+        with path.open('r', errors='replace') as stream:
+            from .progress import log_line
+            for line in stream:
+                sys.stdout.write(log_line(line))
+        return
     if action == 'history' and not values:
-        records = []
+        found = []
         for tx in sorted((state / 'transactions').glob('*')):
             if (tx / 'deployment.json').exists():
-                records.append(read(tx / 'deployment.json') | {'good': (tx / 'good.json').exists(), 'failed': read(tx / 'failed.json'),
-                                                               'retired': (tx / 'retired.json').exists(),
-                                                               'outcome': read(tx / 'outcome.json')})
-        print(json.dumps(records)); return
-    print(json.dumps(enqueue_update(state, action, values)))
+                found.append(read(tx / 'deployment.json') | {'good': (tx / 'good.json').exists(), 'failed': read(tx / 'failed.json'),
+                                                             'retired': (tx / 'retired.json').exists(),
+                                                             'outcome': read(tx / 'outcome.json')})
+        print(json.dumps(found)); return
+    raise Failure('Invalid update records request')
 
 
 def admin():

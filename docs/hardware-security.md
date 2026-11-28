@@ -127,7 +127,8 @@ subsequent `passwd` changes persist across rebuilds. No login password/hash is
 embedded in Nix source. Runtime VPN/credential files use root-private paths or
 NetworkManager's persistent secret storage. Nix evaluation/build logs can contain
 administrator-supplied module text: keep secrets out of declarations as well as
-out of Git. The updater only exposes private logs after administrator authentication.
+out of Git. The updater shows private logs only to an administrator: one at the computer
+(an active local `wheel` session) or after administrator authentication.
 
 Settings enrolls/removes fingerprints and security-key credentials through their
 persistent APIs. Authentication policy belongs to personal NixOS modules:
