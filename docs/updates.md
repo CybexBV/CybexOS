@@ -372,7 +372,7 @@ normal updates; a channel
 cannot use a lower semantic version as a normal update.
 
 Cybex OS follows nixos-unstable until it moves to the stable NixOS 26.11
-branch, and then each new stable release. A release that moves the branch
+branch ([the plan](nixos-26.11-move.md)), and then each new stable release. A release that moves the branch
 names it in its pinned `flake.lock` and is qualified like an ISO release.
 A release's `release/compatibility.json` lists the branches it supports
 (`"nixos": ["unstable"]`), not versions. The updater compares that list with
