@@ -17,7 +17,8 @@ pkgs.testers.runNixOSTest {
     };
     users.users.tester.initialPassword = "qualification-only";
     users.users.other = { isNormalUser = true; initialPassword = "qualification-only"; };
-    # A local, active login session, as at the computer.
+    # A local, active login session, as at the computer: SDDM holds the
+    # first console, so the test logs in on the second one.
     services.getty.autologinUser = "tester";
     networking.hostName = "machine";
     boot.loader.systemd-boot.enable = lib.mkForce false;
@@ -41,7 +42,8 @@ pkgs.testers.runNixOSTest {
 
     # Commands typed in the session itself, whatever the login shell is. No
     # Polkit agent runs there: a request that needs a password fails.
-    machine.wait_until_succeeds("loginctl show-user tester -p State --value | grep -qx active")
+    machine.send_key("alt-f2")
+    machine.wait_until_succeeds("loginctl show-user tester -p State --value | grep -qx active", timeout=120)
     probe = "\n".join([
         "out=/tmp/probe",
         "cybex update history --json > $out/history.json 2> $out/history.err",
