@@ -347,7 +347,7 @@ test("the overlay takes input only on the character and the box, and the keyboar
     assert.match(window, /WlrLayershell\.layer: WlrLayer\.Overlay/);
     assert.match(window, /mask: Region \{\s*item: characterMask\s*Region \{\s*item: dockMask\s*\}\s*Region \{\s*item: pressMask/);
     // Faded, he takes no input at all, so clicks reach the window under him.
-    assert.match(window, /id: characterMask[\s\S]*?width: root\.faded \? 0 : character\.width/);
+    assert.match(window, /id: characterMask[\s\S]*?width: root\.faded \|\| !Assistant\.shown \? 0 : character\.width/);
     // A held button on the character takes the whole output until it comes
     // up, and a drag never changes the keyboard mode under it.
     assert.match(window, /id: pressMask\s*width: root\.pressing \? stage\.width : 0\s*height: root\.pressing \? stage\.height : 0/);
@@ -359,13 +359,13 @@ test("the overlay takes input only on the character and the box, and the keyboar
     assert.match(window, /HyprlandFocusGrab \{\s*id: grab/);
     assert.match(window, /Assistant\.openComposer\(false\)/, "hovering opens the box without the keyboard");
     assert.match(window, /opacity: Assistant\.capturing \? 0 : 1/);
-    assert.match(read("shell.qml"), /LazyLoader \{\s*active: Assistant\.shown\s*AssistantWindow \{\}/);
+    assert.match(read("shell.qml"), /LazyLoader \{\s*active: Assistant\.shown \|\| Assistant\.leaving\s*AssistantWindow \{\}/);
     const look = repo("desktop/hypr/looknfeel.lua");
     const blur = look.match(/name = "quickshell-blur",[\s\S]*?namespace = \[\[([^\]]+)\]\]/);
     assert.doesNotMatch(blur[1], /assistant/, "a full-output surface must not be blurred");
 });
 
-test("shown, the character flies in from the top-right corner, never across from the left", () => {
+test("shown and hidden, the character appears and vanishes in a puff of smoke", () => {
     const window = read("AssistantWindow.qml");
     // Until the surface has its size he waits just past the top-right corner.
     assert.match(window, /bubbleX: dragging \? dragX : !entered \? root\.width\s*: tuck !== "" \? AssistantHelpers\.tuckedX\(tuck, root\.size, root\.width\) : resting\.x/);
@@ -373,12 +373,42 @@ test("shown, the character flies in from the top-right corner, never across from
     // Nothing animates before then, so a zero width cannot start a sweep.
     for (const axis of ["x", "y"])
         assert.match(window, new RegExp("Behavior on " + axis + " \\{\\s*enabled: root\\.settled && !root\\.dragging"));
-    assert.match(window, /function enter\(\) \{\s*if \(entered \|\| !visible \|\| width <= 0 \|\| height <= 0\)\s*return;/);
-    // The flight: animation on, then his place. Under the welcome guide, the
-    // other way round, since its own Wiz makes the hop.
-    assert.match(window, /if \(covered\) \{[^}]*entered = true;\s*settled = true;[^}]*\} else \{[^}]*settled = true;\s*entered = true;/);
+    assert.match(window, /function enter\(\) \{[\s\S]{0,220}if \(entered \|\| !visible \|\| width <= 0 \|\| height <= 0 \|\| !Settings\.loaded\)\s*return;/);
+    assert.match(window, /target: Settings\s*function onLoadedChanged\(\) \{\s*Qt\.callLater\(root\.enter\);\s*\}/);
+    // No flight and no slide: into his place unanimated, then the poof
+    // there, and the position animations stay off until the entrance has
+    // settled, so a surface sized again or a place read back late is a jump
+    // behind the smoke, never a glide. Under the welcome guide its own Wiz
+    // makes the hop, so no poof.
+    assert.match(window, /entered = true;\s*if \(!covered\)\s*character\.poofIn\(\);\s*settle\.restart\(\);/);
+    assert.match(window, /id: settle\s*interval: (\d+)\s*onTriggered: root\.settled = true/);
+    assert.match(window, /settle\.stop\(\);\s*settled = false;\s*entered = false;/);
+    assert.doesNotMatch(window, /^\s*settled = true;/m);
     for (const handler of ["Component.onCompleted", "onWidthChanged", "onHeightChanged"])
         assert.match(window, new RegExp(handler.replace(".", "\\.") + ": Qt\\.callLater\\(root\\.enter\\)"));
+    // Hidden while he is out, he poofs away; shown again before the smoke
+    // has cleared, he poofs back in.
+    assert.match(window, /function onShownChanged\(\) \{\s*if \(!root\.entered \|\| root\.covered\)\s*return;\s*if \(Assistant\.shown\)\s*character\.poofIn\(\);\s*else if \(root\.visible\)\s*character\.poofOut\(\);\s*\}/);
+    // The window now outlives the box and the character, so a closing box
+    // takes its cursor with it: a text field left focused would flash its
+    // cursor unseen and draw the window twice a second for nothing.
+    assert.match(window, /onBoxOpenChanged: \{\s*if \(!boxOpen\)\s*root\.contentItem\.forceActiveFocus\(\);\s*\}/);
+    // The surface and the window outlive the poof, and only them: the box
+    // closes and his region empties the moment he is hidden.
+    assert.match(window, /visible: \(Assistant\.shown \|\| Assistant\.leaving\) && Assistant\.screen !== null/);
+    assert.match(window, /readonly property bool boxOpen: Assistant\.shown && \(showComposer \|\| showWorking \|\| showReply \|\| showHistory\)/);
+    const assistant = read("Common/Assistant.qml");
+    assert.match(assistant, /onShownChanged: \{\s*if \(shown\) \{\s*leave\.stop\(\);\s*leaving = false;\s*\} else if \(!Theme\.reducedMotion && !Activity\.idle\) \{\s*leaving = true;\s*leave\.restart\(\);\s*\}\s*\}/);
+    // Longer than the poof itself, so nothing is cut short; without motion
+    // he goes at once instead, and the poof never plays (Wiz.poofOut).
+    const linger = Number(assistant.match(/id: leave\s*interval: (\d+)/)[1]);
+    const wiz = read("Assistant/Wiz.qml");
+    for (const pop of ["popIn", "popOut"]) {
+        const block = wiz.slice(wiz.indexOf(`id: ${pop}`));
+        const steps = block.slice(0, block.indexOf("onFinished")).match(/duration: \d+/g)
+            .reduce((sum, step) => sum + Number(step.slice(10)), 0);
+        assert.ok(steps < linger, `${pop} runs ${steps} ms, the window stays ${linger}`);
+    }
 });
 
 test("the menubar button toggles the character on its own display and shows activity", () => {

@@ -40,7 +40,8 @@ var WizRig = (function () {
     magic: "#4FA3F7", magicHi: "#9BD3FF", spellCore: "#E4F4FF", particle: "#BFE3FF", spark: "#D6EEFF",
     amber: "#F5B83D", bad: "#FF5D73", starOff: "#5B6472",
     page: "#EEF2F8", pageLo: "#C3CCD9", ink: "#64708A", cover: "#8E1223", coverHi: "#DC1E37",
-    pot: "#1B1E24", potHi: "#707B8C", orb: "#0F1C2E", dust: "#8A919C"
+    pot: "#1B1E24", potHi: "#707B8C", orb: "#0F1C2E", dust: "#8A919C",
+    smoke: "#A9B1BE", smokeHi: "#CBD2DC"
   };
 
   // What the star on his hat says: its colour ([red, green, blue], or null
@@ -166,6 +167,10 @@ var WizRig = (function () {
   var QUESTION = [["M", -3.4, -4.6], ["C", -3.4, -8.4, 3.2, -8.4, 3.2, -4.6], ["C", 3.2, -2.2, 0, -1.8, 0, 1.2]];
   var BANG = [["M", 7.6, -7.8], ["L", 7.6, 1.2]];
   var PUFFS = [[-2.2, 0, 2.6, 2.2], [1.8, -0.6, 2.1, 1.8], [0.4, 1, 2.4, 1.6]];
+  // One puff of the poof he appears and vanishes in: a solid little cloud,
+  // lit along its top, so a burst of them hides the him behind it.
+  var POOF = [[-6.5, 1.5, 6.2, 5], [5.5, 0.8, 6.6, 5.4], [-0.5, -3.6, 6.4, 5.2], [0.5, 3.8, 7, 4.8]];
+  var POOF_HI = [[-4.3, -3.6, 4.2, 3.2], [3.2, -2.2, 4.4, 3.4]];
   // Built when drawn: a QML import can run this file's top level before
   // globals such as Math exist (Qt 6.11, a component's first instance in a
   // Repeater), so nothing here computes at load time.
@@ -218,7 +223,16 @@ var WizRig = (function () {
     sweat: [[40.5, 64], [79.5, 64]],
     phew: [80.5, 70],
     dust: [[36, 110], [84, 110]],
-    dizzy: { cx: 61, cy: 28, rx: 24, ry: 5, rate: 3.9 }
+    dizzy: { cx: 61, cy: 28, rx: 24, ry: 5, rate: 3.9 },
+    // The poof he appears and vanishes in (AssistantWindow): where each
+    // puff of smoke ends up about his middle and how big it grows, the
+    // middle one last so it lies on top, and the sparks that fly with them.
+    poof: {
+      at: [60, 64],
+      puffs: [[0, -30, 1.5], [22, -21, 1.3], [30, 1, 1.5], [21, 22, 1.3], [0, 30, 1.4],
+        [-21, 22, 1.3], [-30, 0, 1.6], [-22, -21, 1.3], [0, 0, 2.3]],
+      sparks: [[-27, -34, 0.7], [34, -17, 0.8], [-11, 38, 0.6]]
+    }
   };
 
   // ---- carried --------------------------------------------------------------
@@ -547,6 +561,15 @@ var WizRig = (function () {
       O.push(G([["t", LAYOUT.dust[u][0], LAYOUT.dust[u][1]]]));
       for (var v = 0; v < PUFFS.length; v++)
         O.push(P(ell(PUFFS[v][0], PUFFS[v][1], PUFFS[v][2], PUFFS[v][3]), { fill: C.dust, a: 0.55 }));
+      O.push(END);
+    }
+    if (fx.poof) {
+      O.push(M("poof"));
+      O.push(G([["t", LAYOUT.poof.at[0], LAYOUT.poof.at[1]]]));
+      for (var pq = 0; pq < POOF.length; pq++)
+        O.push(P(ell(POOF[pq][0], POOF[pq][1], POOF[pq][2], POOF[pq][3]), { fill: C.smoke }));
+      for (pq = 0; pq < POOF_HI.length; pq++)
+        O.push(P(ell(POOF_HI[pq][0], POOF_HI[pq][1], POOF_HI[pq][2], POOF_HI[pq][3]), { fill: C.smokeHi, a: 0.85 }));
       O.push(END);
     }
     O.push(G([["t", Lg[0], Lg[1]], ["r", c.lean, 0, 0], ["s", c.sc, c.sc * c.sy], ["t", -Lg[0], -Lg[1]], ["t", 0, bodyY]]));
@@ -937,7 +960,8 @@ var WizRig = (function () {
     "sparkle": { state: "finished", local: true, box: [-12, -12, 24, 24], first: 1, accent: true },
     "sweat": { effects: { sweat: true }, local: true, box: [-4, -5, 8, 10] },
     "shout": { effects: { shout: true }, local: true, box: [-9, -14, 22, 24] },
-    "dust": { effects: { dust: true }, local: true, box: [-6, -4, 12, 8], first: 3 }
+    "dust": { effects: { dust: true }, local: true, box: [-6, -4, 12, 8], first: 3 },
+    "poof": { effects: { poof: true }, local: true, box: [-13, -10, 26, 20] }
   };
 
   // A transform list without the steps that do nothing, neighbouring moves

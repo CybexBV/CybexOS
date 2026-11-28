@@ -298,10 +298,10 @@ class Session:
         shell_entry = self.shell / 'shell.qml'
         entry = shell_entry.read_text()
         # The frames the assistant's own window draws, counted while asked.
-        loader = '    LazyLoader {\n        active: Assistant.shown\n'
+        loader = '    LazyLoader {\n        active: Assistant.shown || Assistant.leaving\n'
         assert entry.count(loader) == 1
         entry = entry.replace(loader, FRAME_COUNTER + '    LazyLoader {\n        id: assistantLoader\n'
-                              '        active: Assistant.shown\n')
+                              '        active: Assistant.shown || Assistant.leaving\n')
         shell_entry.write_text(entry.replace('target: "assistant"',
             'target: "assistant"\n        function signIn(agent: string): void { Assistant.signIn(agent); }'
             '\n        function frames(on: bool): int { const seen = shell.testFrames; shell.testFrames = 0;'

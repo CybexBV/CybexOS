@@ -549,10 +549,11 @@ ShellRoot {
         WebcamOverlay {}
     }
 
-    // The assistant's character and box exist while it is out; its client
-    // singleton keeps the service connection either way.
+    // The assistant's character and box exist while it is out, and for the
+    // moment more his vanishing poof plays; its client singleton keeps the
+    // service connection either way.
     LazyLoader {
-        active: Assistant.shown
+        active: Assistant.shown || Assistant.leaving
 
         AssistantWindow {}
     }
