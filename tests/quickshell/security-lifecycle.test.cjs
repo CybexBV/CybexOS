@@ -4,7 +4,7 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { shellDir, load } = require("./shell.cjs");
+const { shellDir, load, untranslated } = require("./shell.cjs");
 
 const repoDir = path.resolve(__dirname, "../..");
 
@@ -12,8 +12,10 @@ function readRepo(relative) {
     return fs.readFileSync(path.join(repoDir, relative), "utf8");
 }
 
+// QML as its English text reads (shell.cjs): whether the copy is
+// translated is i18n.test.cjs's concern.
 function readShell(relative) {
-    return fs.readFileSync(path.join(shellDir, relative), "utf8");
+    return untranslated(fs.readFileSync(path.join(shellDir, relative), "utf8"));
 }
 
 test("desktop-open boundaries accept only HTTP(S) URLs", () => {

@@ -35,11 +35,11 @@ PopoutPanel {
     readonly property bool canGoBack: Settings.canGoBack || (Settings.page === "bar" && moduleSubPageActive)
     readonly property bool systemServicePage: currentPage.system === true
     readonly property string persistenceStatus: Settings.loadError
-        ? (Settings.loadErrorText !== "" ? Settings.loadErrorText
-            : "Could not read the settings file.") + " Retry is available."
-        : Settings.saveError ? "Could not save settings. Retry is available."
-        : Settings.savePending ? "Saving changes…"
-        : "Saved"
+        ? (Settings.loadErrorText !== "" ? I18n.format("%1 Retry is available.", [Settings.loadErrorText])
+            : I18n.tr("Could not read the settings file. Retry is available."))
+        : Settings.saveError ? I18n.tr("Could not save settings. Retry is available.")
+        : Settings.savePending ? I18n.tr("Saving changes…")
+        : I18n.tr("Saved")
 
     // The save state speaks only when there is something to say: while a
     // change saves and briefly after, after a reset (with Undo), and on an
@@ -906,12 +906,12 @@ PopoutPanel {
                 Text {
                     visible: !root.compactNav
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Settings.undoAvailable ? Settings.resetLabel + " reset"
-                        : Settings.newerSchema ? "Newer settings file · not saving"
-                        : Settings.loadError ? "Could not read settings"
-                        : Settings.saveError ? "Could not save settings"
-                        : Settings.savePending ? "Saving…"
-                        : "Saved"
+                    text: Settings.undoAvailable ? I18n.format("%1 reset", [Settings.resetName(Settings.resetLabel)])
+                        : Settings.newerSchema ? I18n.tr("Newer settings file · not saving")
+                        : Settings.loadError ? I18n.tr("Could not read settings")
+                        : Settings.saveError ? I18n.tr("Could not save settings")
+                        : Settings.savePending ? I18n.tr("Saving…")
+                        : I18n.tr("Saved")
                     font.family: Theme.fontMenu
                     font.pixelSize: Theme.typography.secondary
                     color: Settings.persistenceError ? Theme.redText : Theme.textFaint
@@ -936,7 +936,7 @@ PopoutPanel {
                 text: I18n.tr("Retry")
                 glyph: "refresh"
                 Accessible.name: Settings.loadError
-                    ? "Retry loading settings" : "Retry saving settings"
+                    ? I18n.tr("Retry loading settings") : I18n.tr("Retry saving settings")
                 onTriggered: Settings.retrySave()
             }
 
