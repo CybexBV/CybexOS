@@ -382,6 +382,10 @@ test("shown and hidden, the character appears and vanishes in a puff of smoke", 
     // Hidden while he is out, he poofs away; shown again before the smoke
     // has cleared, he poofs back in.
     assert.match(window, /function onShownChanged\(\) \{\s*if \(!root\.entered \|\| root\.covered\)\s*return;\s*if \(Assistant\.shown\)\s*character\.poofIn\(\);\s*else if \(root\.visible\)\s*character\.poofOut\(\);\s*\}/);
+    // The window now outlives the box and the character, so a closing box
+    // takes its cursor with it: a text field left focused would flash its
+    // cursor unseen and draw the window twice a second for nothing.
+    assert.match(window, /onBoxOpenChanged: \{\s*if \(!boxOpen\)\s*root\.contentItem\.forceActiveFocus\(\);\s*\}/);
     // The surface and the window outlive the poof, and only them: the box
     // closes and his region empties the moment he is hidden.
     assert.match(window, /visible: \(Assistant\.shown \|\| Assistant\.leaving\) && Assistant\.screen !== null/);

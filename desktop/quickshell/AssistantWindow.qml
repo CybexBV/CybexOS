@@ -102,6 +102,16 @@ PanelWindow {
             grabReady = true;
     }
 
+    // A closing box takes its cursor with it. The window outlives the box
+    // (and now a hidden character, while his vanishing poof plays), and a
+    // text field left focused in it keeps flashing its cursor unseen, which
+    // draws the whole window twice a second for nothing. The box's surfaces
+    // take focus back themselves as they open.
+    onBoxOpenChanged: {
+        if (!boxOpen)
+            root.contentItem.forceActiveFocus();
+    }
+
     screen: Assistant.screen
     // Not root.screen: the window writes that back as it maps, which would
     // loop through this binding. Assistant.leaving keeps the surface up
