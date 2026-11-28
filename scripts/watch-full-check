@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Follow a full check (nixos.yml) and stop waiting when a step looks stuck.
+
+    scripts/watch-full-check RUN_ID [--every SECONDS]
+
+Prints each step as it starts and ends, with how long it took in the last
+passing run. Exits 0 when the run passed, 1 when it failed, 2 when GitHub
+could not be read, and 3 when a step has run far longer than it did then
+(half as long again, plus 10 minutes; an hour for a step it had not): look
+at the run's live log then, rather than wait. `gh run watch` waits for the
+end whatever happens; on 2026-11-28 a hung VM test kept a release check
+going two hours after the hang showed.
+"""
+import argparse
+from datetime import UTC, datetime
+import json
+import subprocess
+import sys
+import time
+
+REPO = 'CybexBV/CybexOS'
+SLACK, FACTOR, UNKNOWN = 600, 1.5, 3600
+
+
+def api(path):
+    out = subprocess.run(['gh', 'api', f'repos/{REPO}/{path}'], check=True, stdout=subprocess.PIPE, text=True).stdout
+    return json.loads(out)
+
+
+def when(stamp):
+    return datetime.fromisoformat(stamp.replace('Z', '+00:00')) if stamp else None
+
+
+def durations(jobs):
+    """How long each (job, step) took, in seconds, for the steps that finished."""
+    return {(job['name'], step['name']): (when(step['completed_at']) - when(step['started_at'])).total_seconds()
+            for job in jobs for step in job.get('steps') or ()
+            if step.get('started_at') and step.get('completed_at')}
+
+
+def limit(usual):
+    return UNKNOWN if usual is None else usual * FACTOR + SLACK
+
+
+def overdue(jobs, usual, now):
+    """The running steps that have taken longer than their limit: (job, step, seconds, usual)."""
+    late = []
+    for job in jobs:
+        for step in job.get('steps') or ():
+            if step.get('status') == 'in_progress' and step.get('started_at'):
+                spent = (now - when(step['started_at'])).total_seconds()
+                before = usual.get((job['name'], step['name']))
+                if spent > limit(before):
+                    late.append((job['name'], step['name'], spent, before))
+    return late
+
+
+def minutes(seconds):
+    return 'unknown' if seconds is None else f'{seconds / 60:.0f} min'
+
+
+def baseline(run_id):
+    runs = api('actions/workflows/nixos.yml/runs?status=success&per_page=5')['workflow_runs']
+    for run in runs:
+        if run['id'] != run_id:
+            return durations(api(f'actions/runs/{run["id"]}/jobs?per_page=100')['jobs'])
+    return {}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('run', type=int)
+    parser.add_argument('--every', type=int, default=120, help='seconds between looks (default 120)')
+    args = parser.parse_args()
+    try:
+        usual = baseline(args.run)
+    except subprocess.CalledProcessError:
+        print('watch-full-check: could not read the last passing run', file=sys.stderr)
+        return 2
+    seen, errors = {}, 0
+    while True:
+        try:
+            run = api(f'actions/runs/{args.run}')
+            jobs = api(f'actions/runs/{args.run}/jobs?per_page=100')['jobs']
+            errors = 0
+        except subprocess.CalledProcessError:
+            errors += 1
+            if errors >= 5:
+                print('watch-full-check: GitHub could not be read five times running', file=sys.stderr)
+                return 2
+            time.sleep(args.every)
+            continue
+        now = datetime.now(UTC)
+        for job in jobs:
+            for step in job.get('steps') or ():
+                key = (job['name'], step['name'])
+                state = step.get('conclusion') or step.get('status')
+                if seen.get(key) != state and state != 'queued':
+                    seen[key] = state
+                    took = durations([{'name': job['name'], 'steps': [step]}]).get(key)
+                    told = f'{state} in {minutes(took)}' if took is not None else state
+                    print(f'{now:%H:%M} {job["name"]}: {step["name"]}: {told} (usually {minutes(usual.get(key))})',
+                          flush=True)
+        if run['status'] == 'completed':
+            print(f'watch-full-check: {run["conclusion"]}: {run["html_url"]}', flush=True)
+            return 0 if run['conclusion'] == 'success' else 1
+        late = overdue(jobs, usual, now)
+        if late:
+            for job, step, spent, before in late:
+                print(f'watch-full-check: {job}: {step} has run {minutes(spent)}, usually {minutes(before)}: '
+                      f'it may be stuck. Look at its live log: {run["html_url"]}', flush=True)
+            return 3
+        time.sleep(args.every)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

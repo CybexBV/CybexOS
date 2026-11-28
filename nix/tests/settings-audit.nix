@@ -21,6 +21,9 @@ let
   mpv = pkgs.mpv.override { scripts = [ pkgs.mpvScripts.mpris ]; };
 in pkgs.testers.runNixOSTest {
   name = "cybexos-settings-audit";
+  # A hang fails here, not after the driver's hour (and its retry): about
+  # three times this test's run in the full check, at least 10 minutes.
+  globalTimeout = 1800;
   nodes.machine = { lib, ... }: {
     imports = [ module ];
     cybexos = { enable = true; primaryUser = "cybexqa"; features = { proprietary = false; steam = false; docker = false; }; };

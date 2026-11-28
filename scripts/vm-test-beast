@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""The Beast's half of scripts/vm-test, run in an agent-resource lease there.
+
+    vm-test-beast JOBS NAME=DRIVER.drv...
+
+Builds the test drivers, then runs JOBS of them at a time with KVM, each
+line of output headed by its test's name. Each VM's disks stay in the
+lease's workspace, reached through a short link in /tmp: a socket's path
+may have at most 108 characters. Exit 0 when every
+test passed, 1 when one failed, 2 when they could not run.
+"""
+from concurrent.futures import ThreadPoolExecutor
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import threading
+
+lock = threading.Lock()
+
+
+def say(line):
+    with lock:
+        print(line, flush=True)
+
+
+def run(number, name, driver):
+    # A number, not the test's name: QEMU's sockets end up under the real
+    # path behind the link, and a long name took one past 108 characters.
+    work = Path(os.environ['AGENT_RESOURCE_WORKSPACE']) / str(number)
+    (work / 'out').mkdir(parents=True, mode=0o700)
+    short = Path(tempfile.mktemp(prefix='cxv.', dir='/tmp'))
+    short.symlink_to(work)
+    try:
+        env = dict(os.environ, TMPDIR=str(short), XDG_RUNTIME_DIR=str(short))
+        process = subprocess.Popen([f'{driver}/bin/nixos-test-driver', '-o', str(short / 'out')], cwd=short, env=env,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   text=True, errors='replace')
+        for line in process.stdout:
+            say(f'[{name}] {line.rstrip()}')
+        passed = process.wait() == 0
+    finally:
+        short.unlink()
+    say(f'vm-test: {name}: {"passed" if passed else "FAILED"}')
+    return passed
+
+
+def main():
+    jobs, pairs = int(sys.argv[1]), [arg.split('=', 1) for arg in sys.argv[2:]]
+    if not os.access('/dev/kvm', os.R_OK | os.W_OK):
+        say('vm-test: no usable /dev/kvm on The Beast')
+        return 2
+    say('vm-test: building ' + ' '.join(name for name, _ in pairs))
+    if subprocess.run(['nix-store', '--realise', *(drv for _, drv in pairs)], stdout=subprocess.DEVNULL).returncode:
+        say('vm-test: the drivers did not build')
+        return 2
+    drivers = {name: subprocess.run(['nix-store', '--query', '--outputs', drv], check=True,
+                                    stdout=subprocess.PIPE, text=True).stdout.split()[0] for name, drv in pairs}
+    with ThreadPoolExecutor(jobs) as pool:
+        results = dict(zip(drivers, pool.map(run, range(len(drivers)), drivers, drivers.values())))
+    failed = [name for name, passed in results.items() if not passed]
+    say('vm-test: ' + ('failed: ' + ' '.join(failed) if failed else 'all passed'))
+    return 1 if failed else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

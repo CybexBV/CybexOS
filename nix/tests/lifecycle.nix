@@ -74,6 +74,9 @@ let
 '';
 in pkgs.testers.runNixOSTest {
   name = "cybexos-lifecycle";
+  # A hang fails here, not after the driver's hour (and its retry). It takes
+  # about 5 minutes in the full check; it may also run without KVM.
+  globalTimeout = 1800;
   requiredFeatures.kvm = false;
   nodes.machine = { lib, ... }: {
     imports = [ module ];

@@ -294,7 +294,12 @@ there). Each build uses `--keep-going` and runs after a failed one before it,
 so one run reports every failing check. A failing check runs once more before
 it counts, as with `fast-test` (`scripts/build-checks`): the checks that passed
 are in the store by then, so only the failed ones run again, and a warning on
-the run names them so a flaky test stays visible. The job also checks what machines would
+the run names them so a flaky test stays visible. Each VM test has a time limit of its own
+(`globalTimeout`, about three times its usual run, 10 to 30 minutes), so a
+hung test fails in minutes rather than after the driver's hour and its
+retry. Follow a run with `scripts/watch-full-check <run id>`: it stops when a
+step runs half as long again as in the last passing run plus 10 minutes, so
+a stuck step is looked at while the run goes on. The job also checks what machines would
 compile. The image job (`scripts/full-check-image`) builds this commit's ISO and the
 previous release's together, checks this one against the source and installs
 it twice, plain and encrypted, in two VMs at once; a failed installation runs

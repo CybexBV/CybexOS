@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Run NixOS VM tests (flake checks) on The Beast, with KVM.
+
+    scripts/vm-test hyprland-pointer [boot ...]
+    scripts/vm-test --changed FILE...   (what fast-test's vm-tests step runs)
+
+The drivers are evaluated here, then built on The Beast and run there in an
+agent-resource lease with KVM, three at a time (scripts/vm-test-beast). Building the `vm-test-run-…` derivation
+instead (`nix build`, `nix-store --realise`) runs the VM in Nix's build
+sandbox, which has no KVM on The Beast: QEMU falls back to emulation, about
+five times slower, and timing-bound tests fail for that alone (2026-11-28).
+
+With --changed, the arguments are changed files and the tests to run are the
+VM tests among them, the VM tests that use a changed helper in nix/tests,
+and the tests COVERS ties to changed code. A change touching more than MOST
+of them at once (an edit made to every test, say) runs none: the release's
+full check runs them all, and `scripts/vm-test NAME...` runs any of them. New
+untracked files are not part of the flake: `git add` them first.
+"""
+import argparse
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+BEAST = 'john@10.10.0.7'
+NIX = ['nix', '--extra-experimental-features', 'nix-command flakes']
+# One batch of three at a time, as the full check runs them. On 2026-11-28
+# an edit to all 15 tests spent 17 minutes building before one had started.
+MOST = 3
+
+# Code whose change runs a VM test, beside the test's own files: what the
+# test is the only check of. Patterns as in .fast-test.json, whose vm-tests
+# step lists them too (tests/nixos/test_vm_tests.py keeps the two equal).
+COVERS = {
+    # Starting apps from the shell (cybexos-apps), Folio and the Open dialogs,
+    # the default apps and Hyprland's pointer handling, in a real session.
+    'hyprland-pointer': ('assets/scripts/cybexos-apps', 'nix/packages/folio.nix',
+                         'nix/modules/applications.nix', 'desktop/hypr/**'),
+}
+
+
+def matches(pattern, path):
+    if pattern.endswith('/**'):
+        return path.startswith(pattern[:-2])
+    return path == pattern
+
+
+def vm_tests(root=ROOT):
+    """Map each VM test's file in nix/tests to its flake check's name."""
+    flake = (root / 'flake.nix').read_text()
+    tests = {}
+    for name, stem in re.findall(r'^\s*([\w-]+) = import \./nix/tests/([\w-]+)\.nix', flake, re.M):
+        path = f'nix/tests/{stem}.nix'
+        if 'runNixOSTest' in (root / path).read_text():
+            tests[path] = name
+    return tests
+
+
+def changed_tests(files, root=ROOT):
+    tests = vm_tests(root)
+    chosen = set()
+    for path in files:
+        if path in tests:
+            chosen.add(tests[path])
+        elif path.startswith('nix/tests/'):
+            helper = Path(path).name
+            chosen.update(name for test, name in tests.items() if helper in (root / test).read_text())
+        chosen.update(name for name, patterns in COVERS.items() if any(matches(p, path) for p in patterns))
+    return sorted(chosen)
+
+
+def drivers(names):
+    """Evaluate the tests' drivers in one go: their systems share most of the work."""
+    listed = ' '.join(f'"{name}"' for name in names)
+    expression = f'checks: builtins.listToAttrs (map (n: {{ name = n; value = checks.${{n}}.driver.drvPath; }}) [ {listed} ])'
+    out = subprocess.run([*NIX, 'eval', '--json', '.#checks.x86_64-linux', '--apply', expression],
+                         cwd=ROOT, check=True, stdout=subprocess.PIPE, text=True).stdout
+    return json.loads(out)
+
+
+def run(names, jobs):
+    print('vm-test: evaluating ' + ' '.join(names) + ' here', flush=True)
+    paths = drivers(names)
+    subprocess.run([*NIX, 'copy', '--derivation', '--to', f'ssh-ng://{BEAST}', *paths.values()], cwd=ROOT, check=True)
+    print('vm-test: building and running them on The Beast', flush=True)
+    remote = (ROOT / 'scripts/vm-test-beast').read_text()
+    return subprocess.run(['beast-resource', 'run', '--task', 'Cybex OS VM tests', '--ttl', '2h', '--',
+                           'python3', '-c', remote, str(jobs), *(f'{n}={p}' for n, p in paths.items())]).returncode
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--changed', action='store_true', help='the arguments are changed files')
+    parser.add_argument('--jobs', type=int, default=3, help='tests at once (default 3, as the full check)')
+    parser.add_argument('names', nargs='+', metavar='NAME')
+    args = parser.parse_args()
+    names = changed_tests(args.names) if args.changed else args.names
+    if not names:
+        print('vm-test: no VM test covers these files')
+        return 0
+    if args.changed and len(names) > MOST:
+        print(f'vm-test: this change touches {len(names)} VM tests, more than {MOST}: the release check runs them. '
+              'To run some now: scripts/vm-test ' + ' '.join(names))
+        return 0
+    unknown = [name for name in names if not re.fullmatch(r'[\w-]+', name)]
+    if unknown:
+        parser.error('not a check name: ' + ' '.join(unknown))
+    return run(names, args.jobs)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
