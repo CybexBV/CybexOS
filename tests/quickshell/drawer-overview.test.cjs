@@ -162,9 +162,12 @@ test("quick toggles show the actual state, a pending change and a failure", () =
     // place of the name, on the resting chip.
     assert.match(drawerTile, /name: root\.pending \? "progress_activity"\s*: root\.failing \? "error" : root\.glyph/);
     assert.match(drawerTile, /RotationAnimator on rotation \{\s*running: root\.pending && root\.visible && !Theme\.reducedMotion/);
-    assert.match(drawerTile, /text: root\.failing \? root\.statusText : root\.label/);
+    // The word takes the name's place and room: the row never grows for it.
+    assert.match(drawerTile, /text: root\.label[\s\S]{0,240}?color: root\.failing \? "transparent" : root\.ink/);
+    assert.match(drawerTile,
+        /visible: root\.failing[\s\S]{0,200}?maximumLineCount: Math\.max\(1, tileLabel\.lineCount\)[\s\S]{0,80}?text: "Failed"\s*font: tileLabel\.font/);
     assert.equal((drawerTile.match(/color: root\.failing && !root\.on \? Theme\.redText : root\.ink/g) || []).length, 2);
-    for (const text of ["Turning on…", "Turning off…", "Didn't turn on", "Didn't turn off"])
+    for (const text of ["Turning on…", "Turning off…", "Didn't turn on: %1", "Didn't turn off: %1"])
         assert.ok(drawerTile.includes(`"${text}"`), text);
     // A failure shows for a few seconds after it arrives, then the actual
     // state returns; one present when the tile is made does not flash.

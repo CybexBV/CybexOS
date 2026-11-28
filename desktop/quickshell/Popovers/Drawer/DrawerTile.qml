@@ -15,7 +15,8 @@ import "DrawerFormat.js" as DrawerFormat
 // state. A toggle backed by a process (Night light, Stay awake) also passes
 // what was requested, whether a change is under way and its last error.
 // While a change runs the glyph turns into the spinner; when one fails the
-// tile says so in red for a few seconds, then shows the actual state again.
+// tile says "Failed" in red for a few seconds, then shows the actual state
+// again.
 // Both reach assistive technology as the tile's description.
 Rectangle {
     id: root
@@ -43,9 +44,7 @@ Rectangle {
     readonly property bool target: DrawerFormat.toggleTarget(on, requested, pending)
     readonly property bool failing: phase === "failedOn" || phase === "failedOff"
     readonly property string statusText: phase === "turningOn" ? I18n.tr("Turning on…")
-        : phase === "turningOff" ? I18n.tr("Turning off…")
-        : phase === "failedOn" ? I18n.tr("Didn't turn on")
-        : phase === "failedOff" ? I18n.tr("Didn't turn off") : ""
+        : phase === "turningOff" ? I18n.tr("Turning off…") : ""
     // Said by assistive technology and the tooltip: the change under way,
     // else a failure the service still reports, else the plain description.
     readonly property string stateDescription: pending ? statusText
@@ -136,18 +135,34 @@ Rectangle {
         // Two lines at most: "Night light" wraps at a larger text size or a
         // narrow drawer, and a longer translation ends in an ellipsis.
         Text {
+            id: tileLabel
             anchors.horizontalCenter: parent.horizontalCenter
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.Wrap
             maximumLineCount: 2
             elide: Text.ElideRight
-            // A failure says so in place of the name while it shows.
-            text: root.failing ? root.statusText : root.label
+            text: root.label
             font.family: Theme.fontMenu
             font.pixelSize: Theme.typography.control
             font.weight: root.on ? Theme.weightSemibold : Theme.weightMedium
-            color: root.failing && !root.on ? Theme.redText : root.ink
+            color: root.failing ? "transparent" : root.ink
+
+            // A failure says so in the name's place and in the name's room,
+            // so the row of tiles never grows for it.
+            Text {
+                anchors.fill: parent
+                visible: root.failing
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                wrapMode: Text.Wrap
+                maximumLineCount: Math.max(1, tileLabel.lineCount)
+                elide: Text.ElideRight
+                text: I18n.tr("Failed")
+                font: tileLabel.font
+                color: root.failing && !root.on ? Theme.redText : root.ink
+                Accessible.ignored: true
+            }
         }
     }
 
