@@ -140,6 +140,54 @@ test("quick toggles say what they do and show on as a filled switch", () => {
         /radius:\s*Theme\.concentricRadius\(root\.radius, inset\)[\s\S]{0,80}?border\.width:\s*Theme\.focusWidth\(root\.activeFocus\)\s*border\.color:\s*root\.on \? Theme\.accentFg : Theme\.focusRing/);
 });
 
+test("quick toggles show the actual state, a pending change and a failure", () => {
+    // Night light and Stay awake run a process: the tile shows whether it
+    // runs, what was asked for, whether a change is under way and its error.
+    for (const [tile, effective, requested, pending, error] of [
+        ["nightTile", "nightLightEffective", "nightLight", "nightLightPending", "nightLightError"],
+        ["awakeTile", "idleInhibitEffective", "idleInhibited", "idleInhibitPending", "idleInhibitError"]]) {
+        const body = overview.slice(overview.indexOf(`id: ${tile}`));
+        assert.match(body, new RegExp(`on: SysInfo\\.${effective}\\s*requested: SysInfo\\.${requested}\\s*`
+            + `pending: SysInfo\\.${pending}\\s*error: SysInfo\\.${error}`), tile);
+    }
+    // Dark mode follows the theme in effect; its tile takes effect at once.
+    assert.match(overview, /on: Theme\.dark/);
+    // The tile: phase and press target come from the tested pure rules.
+    assert.match(drawerTile, /import "DrawerFormat\.js" as DrawerFormat/);
+    assert.match(drawerTile, /property bool requested: on/);
+    assert.match(drawerTile, /phase: DrawerFormat\.togglePhase\(on, requested,\s*pending, failureShown\)/);
+    assert.match(drawerTile, /target: DrawerFormat\.toggleTarget\(on, requested, pending\)/);
+    // Pending turns the glyph into the spinner, still under reduced motion,
+    // which only stops it turning; a failure is a red mark and says so in
+    // place of the name, on the resting chip.
+    assert.match(drawerTile, /name: root\.pending \? "progress_activity"\s*: root\.failing \? "error" : root\.glyph/);
+    assert.match(drawerTile, /RotationAnimator on rotation \{\s*running: root\.pending && root\.visible && !Theme\.reducedMotion/);
+    // The word takes the name's place and room: the row never grows for it.
+    assert.match(drawerTile, /text: root\.label[\s\S]{0,240}?color: root\.failing \? "transparent" : root\.ink/);
+    assert.match(drawerTile,
+        /visible: root\.failing[\s\S]{0,200}?maximumLineCount: Math\.max\(1, tileLabel\.lineCount\)[\s\S]{0,80}?text: "Failed"\s*font: tileLabel\.font/);
+    assert.equal((drawerTile.match(/color: root\.failing && !root\.on \? Theme\.redText : root\.ink/g) || []).length, 2);
+    for (const text of ["Turning on…", "Turning off…", "Didn't turn on: %1", "Didn't turn off: %1"])
+        assert.ok(drawerTile.includes(`"${text}"`), text);
+    // A failure shows for a few seconds after it arrives, then the actual
+    // state returns; one present when the tile is made does not flash.
+    assert.match(drawerTile, /property int failureShownMs: 4000/);
+    assert.match(drawerTile,
+        /onErrorChanged: \{\s*failureShown = settled && error !== "";\s*if \(failureShown\)\s*failureTimer\.restart\(\);\s*else\s*failureTimer\.stop\(\);/);
+    assert.match(drawerTile, /property bool settled: false\s*Component\.onCompleted: settled = true/);
+    assert.match(drawerTile, /id: failureTimer\s*interval: root\.failureShownMs\s*onTriggered: root\.failureShown = false/);
+    // Assistive technology hears the actual state and, while there is one,
+    // the change under way or the failure; so does the tooltip.
+    assert.match(drawerTile, /Accessible\.checked: on/);
+    assert.match(drawerTile, /Accessible\.description: stateDescription/);
+    assert.match(drawerTile, /Controls\.ToolTip\.text: stateDescription/);
+    assert.match(drawerTile,
+        /stateDescription: pending \? statusText\s*: error !== "" \? \(requested \? I18n\.format\("Didn't turn on: %1", \[error\]\)\s*: I18n\.format\("Didn't turn off: %1", \[error\]\)\)\s*: description/);
+    // The keyboard still toggles, and the outline is still focus alone.
+    assert.match(drawerTile, /Qt\.Key_Return \|\| event\.key === Qt\.Key_Enter\s*\|\| event\.key === Qt\.Key_Space\) \{\s*root\.toggled\(\);/);
+    assert.doesNotMatch(drawerTile, /Theme\.amber/, "pending is the spinner, not an outline");
+});
+
 test("drawer scrolls only its body between pinned tabs and a pinned session row", () => {
     const tabs = drawer.indexOf("DrawerTabs {");
     const arrival = drawer.indexOf("DrawerArrival {");

@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell.Networking as QsNetworking
 import "../../Common"
 import "../../Common/NetworkHelpers.js" as NetworkHelpers
+import "DrawerFormat.js" as DrawerFormat
 import ".."
 
 // The drawer's Network tab: the active Wi-Fi connection and its vitals, the
@@ -229,7 +230,7 @@ Column {
             metrics: Theme.switchCompact
             checked: WifiState.enabled
             enabled: !root.wifiBlocked
-            accessibleName: "Wi-Fi"
+            accessibleName: I18n.tr("Wi-Fi")
             onToggled: value => WifiState.setEnabled(value)
         }
     }
@@ -309,8 +310,8 @@ Column {
                         anchors.right: netLock.visible ? netLock.left : parent.right
                         anchors.rightMargin: netLock.visible ? 6 : 10
                         anchors.verticalCenter: parent.verticalCenter
-                        text: netEntry.current ? "Connected"
-                            : netEntry.network.known ? "Saved"
+                        text: netEntry.current ? I18n.tr("Connected")
+                            : netEntry.network.known ? I18n.tr("Saved")
                             : NetworkHelpers.classifySecurity(
                                 netEntry.network.security).label
                         font.family: Theme.fontMenu
@@ -347,8 +348,9 @@ Column {
                     }
 
                     Accessible.role: Accessible.Button
-                    Accessible.name: (netEntry.current ? "Connected to "
-                        : "Connect to ") + netEntry.network.ssid
+                    Accessible.name: netEntry.current
+                        ? I18n.format("Connected to %1", [netEntry.network.ssid])
+                        : I18n.format("Connect to %1", [netEntry.network.ssid])
                 }
 
                 // Inline credential entry for a secured network the shell has
@@ -481,16 +483,16 @@ Column {
                 metrics: Theme.switchCompact
                 checked: Tailscale.running
                 enabled: !Tailscale.busy
-                accessibleName: "Tailscale"
+                accessibleName: I18n.tr("Tailscale")
                 onToggled: value => Tailscale.setRunning(value)
             }
         }
 
         LinkText {
             visible: !Tailscale.missing && !Tailscale.connected
-            text: Tailscale.needsApproval ? "View approval status"
-                : Tailscale.authPending ? "Continue sign-in"
-                : Tailscale.needsLogin ? "Sign in to Tailscale" : "Tailscale connection details"
+            text: Tailscale.needsApproval ? I18n.tr("View approval status")
+                : Tailscale.authPending ? I18n.tr("Continue sign-in")
+                : Tailscale.needsLogin ? I18n.tr("Sign in to Tailscale") : I18n.tr("Tailscale connection details")
             onClicked: Tailscale.showSetup()
         }
 
@@ -556,7 +558,7 @@ Column {
                 checked: vpnRow.pending !== "" ? vpnRow.pending === "connect"
                     : NetworkHelpers.isVpnActive(vpnRow.vpn)
                 enabled: NetworkDetails.vpnBusyUuid === ""
-                accessibleName: "VPN " + vpnName.text
+                accessibleName: I18n.format("VPN %1", [vpnName.text])
                 onToggled: value => NetworkDetails.runVpnAction({
                     action: value ? "connect" : "disconnect", uuid: vpnRow.uuid
                 })
@@ -601,10 +603,26 @@ Column {
                 color: Theme.textHi
             }
 
+            // A segmented radio group like the power profiles: Tab reaches the
+            // chosen provider, the arrows, Home and End move and choose, Enter
+            // and Space choose (DrawerFormat.segmentTarget).
             Rectangle {
+                id: dnsGroup
+
+                readonly property var providers: ["Automatic", "Cloudflare", "Google"]
+                readonly property bool anyChosen: providers.indexOf(NetworkDetails.dnsProvider) >= 0
+
+                function choose(index) {
+                    const provider = providers[index];
+                    if (provider !== undefined && NetworkDetails.dnsProvider !== provider)
+                        NetworkDetails.setDns(provider, []);
+                }
+
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 width: dnsRow.implicitWidth + 4
+                Accessible.role: Accessible.Grouping
+                Accessible.name: I18n.tr("DNS")
                 height: 26
                 radius: 7
                 color: Theme.chip
@@ -616,12 +634,15 @@ Column {
                     spacing: 2
 
                     Repeater {
-                        model: ["Automatic", "Cloudflare", "Google"]
+                        id: dnsRepeater
+
+                        model: dnsGroup.providers
 
                         delegate: Rectangle {
                             id: dnsChoice
 
                             required property string modelData
+                            required property int index
                             readonly property bool on:
                                 NetworkDetails.dnsProvider === modelData
 
@@ -629,12 +650,26 @@ Column {
                             height: 22
                             radius: 5
                             color: on ? Theme.chipHover : "transparent"
+                            activeFocusOnTab: on || (!dnsGroup.anyChosen && index === 0)
+                            border.width: Theme.focusWidth(activeFocus)
+                            border.color: Theme.focusRing
+
+                            Keys.onPressed: event => {
+                                const next = DrawerFormat.segmentTarget(event.key, index,
+                                    dnsRepeater.count);
+                                if (next < 0)
+                                    return;
+                                if (next !== index)
+                                    dnsRepeater.itemAt(next).forceActiveFocus();
+                                dnsGroup.choose(next);
+                                event.accepted = true;
+                            }
 
                             Text {
                                 id: dnsChoiceText
                                 anchors.centerIn: parent
                                 text: dnsChoice.modelData === "Automatic"
-                                    ? "Auto" : dnsChoice.modelData
+                                    ? I18n.tr("Auto") : dnsChoice.modelData
                                 font.family: Theme.fontMenu
                                 font.pixelSize: Theme.typography.control
                                 font.weight: Theme.weightSemibold
@@ -644,16 +679,14 @@ Column {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (!dnsChoice.on)
-                                        NetworkDetails.setDns(
-                                            dnsChoice.modelData, []);
-                                }
+                                onClicked: dnsGroup.choose(dnsChoice.index)
                             }
 
                             Accessible.role: Accessible.RadioButton
                             Accessible.checked: dnsChoice.on
-                            Accessible.name: "DNS " + dnsChoice.modelData
+                            Accessible.onPressAction: dnsGroup.choose(dnsChoice.index)
+                            Accessible.name: I18n.format("DNS %1", [dnsChoice.modelData === "Automatic"
+                                ? I18n.tr("Automatic") : dnsChoice.modelData])
                         }
                     }
                 }

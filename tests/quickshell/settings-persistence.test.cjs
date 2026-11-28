@@ -10,6 +10,10 @@ const vm = require("node:vm");
 const { shellDir, load } = require("./shell.cjs");
 
 const H = load("SettingsHelpers.js");
+const I18nHelpers = load("I18nHelpers.js");
+// The shell's I18n in English: no catalog, placeholders filled in.
+const I18n = { tr: text => I18nHelpers.translate({}, text),
+    format: (text, args) => I18nHelpers.format({}, text, args) };
 
 function read(relative) {
     return fs.readFileSync(path.join(shellDir, relative), "utf8");
@@ -64,6 +68,7 @@ function settingsHarness() {
         FileViewError: { FileNotFound: 1, Unknown: 2, toString: String },
         console: { warn() {} },
         Quickshell: { env: () => "" },
+        I18n,
         clearUndo() {},
         // The QML signal Home's Recently changed list listens to.
         valueSet(key, before, after) { (calls.valueSets = calls.valueSets || []).push([key, before, after]); },

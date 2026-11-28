@@ -413,10 +413,9 @@ explicit consent (default: no) before disk selection. Automated use requires
 an unreleased content-addressed test source. Such a result is not a release
 qualification.
 
-Secure Boot is not disabled. Native Lanzaboote configuration is provided, but
-fresh enrollment/signed installation media and out-of-tree-module signing have
-not yet been qualified; the installer currently refuses Secure Boot installation
-before erasure. See [hardware blockers](hardware-security.md).
+Secure Boot is not supported, and it is never disabled for you: the installer
+refuses to install while it is on, before anything is erased. See
+[hardware blockers](hardware-security.md).
 
 Automated isolated installation accepts a non-secret JSON plan with `disk`,
 `serial`, `hostname`, `username`, `timezone`, `locale`, `keyboard`, `encrypted`,

@@ -2,12 +2,8 @@
   description = "Cybex OS: a personal, independently updatable NixOS desktop";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    lanzaboote = {
-      url = "github:nix-community/lanzaboote/v0.4.3";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
-  outputs = inputs@{ self, nixpkgs, lanzaboote, ... }:
+  outputs = inputs@{ self, nixpkgs, ... }:
     let
       systems = [ "x86_64-linux" ];
       each = nixpkgs.lib.genAttrs systems;
@@ -27,7 +23,7 @@
         modules = [ module ./nix/modules/installer-payload.nix ];
       };
       module = {
-        imports = [ ./nix/modules lanzaboote.nixosModules.lanzaboote ];
+        imports = [ ./nix/modules ];
         cybexos.release = {
           version = nixpkgs.lib.mkDefault (nixpkgs.lib.trim (builtins.readFile ./VERSION));
           revision = nixpkgs.lib.mkDefault (self.rev or "uncommitted");

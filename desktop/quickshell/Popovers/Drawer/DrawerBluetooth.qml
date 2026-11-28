@@ -94,8 +94,9 @@ Column {
         busyDevice = device.dbusPath;
         busyName = BluetoothHelpers.deviceLabel(device) || device.address;
         action = device.connected ? "disconnect" : device.paired ? "connect" : "pair";
-        announcement = (action === "pair" ? "Pairing with "
-            : action === "connect" ? "Connecting to " : "Disconnecting ") + busyName;
+        announcement = action === "pair" ? I18n.format("Pairing with %1…", [busyName])
+            : action === "connect" ? I18n.format("Connecting to %1…", [busyName])
+            : I18n.format("Disconnecting %1…", [busyName]);
         send({ action: action, device: busyDevice });
     }
 
@@ -120,7 +121,7 @@ Column {
         if (event.scanBusy !== undefined) scanBusy = event.scanBusy;
         if (event.busy !== undefined) {
             busyDevice = event.busy;
-            if (busyDevice === "") announcement = event.error || "Bluetooth action completed";
+            if (busyDevice === "") announcement = event.error || I18n.tr("Bluetooth action completed");
         }
         if (event.error !== undefined) error = event.error;
         if (event.prompt !== undefined) {
@@ -230,7 +231,7 @@ Column {
             metrics: Theme.switchCompact
             checked: root.powered
             enabled: root.adapter !== null && !root.blocked && !root.powerBusy
-            accessibleName: "Bluetooth"
+            accessibleName: I18n.tr("Bluetooth")
             onToggled: value => BluetoothState.setEnabled(value)
         }
     }
@@ -270,8 +271,14 @@ Column {
                     readonly property bool busy: root.busyDevice === modelData.dbusPath
                         || modelData.pairing || modelData.state === BluetoothDeviceState.Connecting
                         || modelData.state === BluetoothDeviceState.Disconnecting
-                    readonly property string actionLabel: busy ? "Working…"
-                        : modelData.connected ? "Disconnect" : modelData.paired ? "Connect" : "Pair"
+                    readonly property string actionLabel: busy ? I18n.tr("Working…")
+                        : modelData.connected ? I18n.tr("Disconnect") : modelData.paired ? I18n.tr("Connect") : I18n.tr("Pair")
+                    readonly property string deviceName: BluetoothHelpers.deviceLabel(modelData) || modelData.address
+                    // The whole action as one sentence, so a translation can order it.
+                    readonly property string actionName: busy ? I18n.format("Working on %1…", [deviceName])
+                        : modelData.connected ? I18n.format("Disconnect %1", [deviceName])
+                        : modelData.paired ? I18n.format("Connect %1", [deviceName])
+                        : I18n.format("Pair %1", [deviceName])
                     width: section.width
                     height: Theme.scaled(44)
                     radius: Theme.rowRadius
@@ -281,8 +288,9 @@ Column {
                     enabled: root.ready && root.busyDevice === "" && !busy
                     activeFocusOnTab: enabled
                     Accessible.role: Accessible.Button
-                    Accessible.name: actionLabel + " " + (BluetoothHelpers.deviceLabel(modelData) || modelData.address)
-                    Accessible.description: modelData.connected ? "Connected" : modelData.paired ? "Paired" : "Nearby device"
+                    Accessible.name: actionName
+                    Accessible.description: modelData.connected ? I18n.tr("Connected")
+                        : modelData.paired ? I18n.tr("Paired") : I18n.tr("Nearby device")
                     Accessible.onPressAction: root.activate(modelData)
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
@@ -320,7 +328,7 @@ Column {
                         spacing: 2
                         Text {
                             width: parent.width
-                            text: BluetoothHelpers.deviceLabel(deviceRow.modelData) || "Unknown device"
+                            text: BluetoothHelpers.deviceLabel(deviceRow.modelData) || I18n.tr("Unknown device")
                             elide: Text.ElideRight
                             font.family: Theme.fontMenu
                             font.pixelSize: Theme.typography.primary
@@ -329,7 +337,8 @@ Column {
                         }
                         Text {
                             width: parent.width
-                            text: (deviceRow.modelData.connected ? "Connected" : deviceRow.modelData.paired ? "Paired" : deviceRow.modelData.address)
+                            text: (deviceRow.modelData.connected ? I18n.tr("Connected")
+                                    : deviceRow.modelData.paired ? I18n.tr("Paired") : deviceRow.modelData.address)
                                 + (deviceRow.modelData.batteryAvailable ? " · " + Math.round(deviceRow.modelData.battery * 100) + "%" : "")
                             elide: Text.ElideRight
                             font.family: Theme.fontMenu
@@ -359,8 +368,8 @@ Column {
             Text {
                 visible: section.devices.length === 0
                 width: parent.width
-                text: root.scanning ? "Searching… Put your device in pairing mode."
-                    : "No nearby devices found. Try scanning again."
+                text: root.scanning ? I18n.tr("Searching… Put your device in pairing mode.")
+                    : I18n.tr("No nearby devices found. Try scanning again.")
                 wrapMode: Text.WordWrap
                 font.family: Theme.fontMenu
                 font.pixelSize: Theme.typography.secondary
@@ -397,14 +406,20 @@ Column {
                 width: parent.width
                 text: {
                     const p = root.prompt;
-                    if (!p) return "Pairing with " + root.busyName + "…";
-                    if (p.kind === "RequestConfirmation") return "Confirm that " + root.busyName + " shows this code: " + p.code;
-                    if (p.kind === "DisplayPinCode" || p.kind === "DisplayPasskey")
-                        return "Enter " + p.code + " on " + root.busyName + ", then press Enter."
-                            + (p.kind === "DisplayPasskey" ? " (" + p.entered + " digits entered)" : "");
-                    if (root.inputPrompt) return "Enter the " + (p.kind === "RequestPinCode" ? "PIN" : "passkey") + " for " + root.busyName + ".";
-                    if (p.kind === "AuthorizeService") return "Allow " + root.busyName + " to use service " + p.service + "?";
-                    return "Allow pairing with " + root.busyName + "?";
+                    const name = root.busyName;
+                    if (!p) return I18n.format("Pairing with %1…", [name]);
+                    if (p.kind === "RequestConfirmation")
+                        return I18n.format("Confirm that %1 shows this code: %2", [name, p.code]);
+                    if (p.kind === "DisplayPasskey")
+                        return I18n.format("Enter %1 on %2, then press Enter. (%3 digits entered)", [p.code, name, p.entered]);
+                    if (p.kind === "DisplayPinCode")
+                        return I18n.format("Enter %1 on %2, then press Enter.", [p.code, name]);
+                    if (root.inputPrompt)
+                        return p.kind === "RequestPinCode" ? I18n.format("Enter the PIN for %1.", [name])
+                            : I18n.format("Enter the passkey for %1.", [name]);
+                    if (p.kind === "AuthorizeService")
+                        return I18n.format("Allow %1 to use service %2?", [name, p.service]);
+                    return I18n.format("Allow pairing with %1?", [name]);
                 }
                 wrapMode: Text.WordWrap
                 font.family: Theme.fontMenu
@@ -468,7 +483,7 @@ Column {
         visible: root.emptyKind === ""
         info: root.scanning ? I18n.tr("Searching for devices…") : ""
         actionText: !root.powered || !root.ready || root.scanBusy ? ""
-            : root.scanning ? "Stop scan" : "Scan again"
+            : root.scanning ? I18n.tr("Stop scan") : I18n.tr("Scan again")
         onActionClicked: {
             root.showNearby = true;
             root.send({ action: "scan", enabled: !root.scanning });

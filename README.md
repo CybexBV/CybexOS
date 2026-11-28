@@ -10,7 +10,8 @@ A personal NixOS desktop with staged, reversible updates.
 
 Cybex OS is a NixOS desktop built around Hyprland, a custom Quickshell interface,
 keyboard-driven applications, and personal extensions that stay yours.
-NixOS on the rolling nixos-unstable branch, x86_64, is the current target; a
+NixOS on the rolling nixos-unstable branch, x86_64, is the current target
+(moving to NixOS 26.11: [the plan](docs/nixos-26.11-move.md)); a
 default installation downloads prebuilt packages from cache.nixos.org.
 Releases are published on GitHub on a beta and a stable channel
 ([release operations](docs/releasing.md#channels)). The

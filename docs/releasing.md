@@ -240,6 +240,11 @@ pushes `main` or publishes.
 This replaced the daily Nixpkgs canary (2026-11-24): with machines following
 the channel head themselves, it could only warn after the fact.
 
+The move from nixos-unstable to NixOS 26.11 is planned in
+[nixos-26.11-move.md](nixos-26.11-move.md). Until it lands, don't merge a
+`nixpkgs-update` branch: a newer nixos-unstable could hold packages newer than
+26.11's, and machines never move their packages back.
+
 Fix forward on `main`: there are no maintenance branches. When stable needs a
 fix while beta carries changes that are not ready, revert those on `main` or
 publish the fix as the next version and promote it at once. A fix built on an

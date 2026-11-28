@@ -238,8 +238,14 @@ test("all shared toggles use one persisted write path", () => {
         /nightLightLifecycle = "error"[\s\S]*nightLightRetry\.restart\(\)/);
     assert.match(sys,
         /idleInhibitLifecycle = "error"[\s\S]*idleInhibitRetry\.restart\(\)/);
-    assert.match(control, /onToggled:\s*SysInfo\.toggleNightLight\(\)/);
-    assert.match(control, /onToggled:\s*SysInfo\.toggleIdleInhibited\(\)/);
+    // The drawer's tiles show the process reality, and a press on a tile
+    // whose start failed retries it instead of withdrawing the request.
+    assert.match(control, /on:\s*SysInfo\.nightLightEffective\s*requested:\s*SysInfo\.nightLight\s*pending:\s*SysInfo\.nightLightPending\s*error:\s*SysInfo\.nightLightError/);
+    assert.match(control, /onToggled:\s*nightTile\.target === SysInfo\.nightLight\s*\? SysInfo\.syncNightLight\(\) : SysInfo\.toggleNightLight\(\)/);
+    assert.match(control, /on:\s*SysInfo\.idleInhibitEffective\s*requested:\s*SysInfo\.idleInhibited\s*pending:\s*SysInfo\.idleInhibitPending\s*error:\s*SysInfo\.idleInhibitError/);
+    assert.match(control, /onToggled:\s*awakeTile\.target === SysInfo\.idleInhibited\s*\? SysInfo\.syncIdleInhibit\(\) : SysInfo\.toggleIdleInhibited\(\)/);
+    assert.match(sys, /function syncNightLight\(\)/);
+    assert.match(sys, /function syncIdleInhibit\(\)/);
     const systemPage = read("Settings/PowerPage.qml");
     for (const mode of ["off", "30m", "1h", "unplugged", "always"])
         assert.match(systemPage, new RegExp(`value: "${mode}"`));

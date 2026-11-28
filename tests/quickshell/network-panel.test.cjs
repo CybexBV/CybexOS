@@ -140,8 +140,8 @@ test("the pinger command and parser agree with the installed ping",
 test("DNS choices remain profile-backed and Wi-Fi band options stay out of the view", () => {
     const panel = read("Popovers/Drawer/DrawerNetwork.qml");
     const controller = read("Common/NetworkDetails.qml");
-    assert.match(panel, /model:\s*\["Automatic", "Cloudflare", "Google"\]/);
-    assert.match(panel, /NetworkDetails\.setDns\(\s*dnsChoice\.modelData, \[\]\)/);
+    assert.match(panel, /providers:\s*\["Automatic", "Cloudflare", "Google"\]/);
+    assert.match(panel, /NetworkDetails\.setDns\(provider, \[\]\)/);
     assert.match(panel, /opacity:\s*NetworkDetails\.dnsBusy \? 0\.5 : 1/);
     assert.doesNotMatch(panel, /WI-FI BAND|NetworkDetails\.(?:bandAvailable|setBand)/);
     assert.match(controller, /command:\s*\["python3", root\.helper, "dns"\]/);

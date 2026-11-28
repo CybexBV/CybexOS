@@ -5,18 +5,22 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { shellDir, load } = require('./shell.cjs');
 const H = load('SettingsHelpers.js');
+const I18nHelpers = load('I18nHelpers.js');
+// The shell's I18n in English: no catalog, placeholders filled in.
+const I18n = { tr: text => I18nHelpers.translate({}, text),
+    format: (text, args) => I18nHelpers.format({}, text, args) };
 
 function settingsHarness() {
     const source = fs.readFileSync(path.join(shellDir, 'Common/Settings.qml'), 'utf8');
     const context = vm.createContext({
-        ...H.defaults(), defaults: H.defaults(), SettingsHelpers: H,
+        ...H.defaults(), defaults: H.defaults(), SettingsHelpers: H, I18n,
         resetSnapshot: null, resetLabel: '', migrationPending: false,
         explicitOverrides: [], resetOverrides: [], scheduleSave() {}, markExplicit() {},
         resetTimer: { restart() {}, stop() {} },
         sectionKeys: { drawer: ['drawerTabs', 'drawerOverview', 'drawerHover', 'drawerWidth'] }
     });
     context.root = context;
-    for (const name of ['resetKeys', 'resetModule', 'moduleDirty', 'undoReset', 'modulePresetIds']) {
+    for (const name of ['resetName', 'resetKeys', 'resetModule', 'moduleDirty', 'undoReset', 'modulePresetIds']) {
         const body = source.match(new RegExp('^    function ' + name + '\\([^]*?^    }', 'm'));
         assert.ok(body, name);
         vm.runInContext(body[0], context);

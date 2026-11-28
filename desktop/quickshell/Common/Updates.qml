@@ -87,8 +87,8 @@ Singleton {
     // starts with. Unlike rebootRecommended it blocks no other change.
     readonly property bool restartSuggested: Helpers.restartSuggested(deployment)
     readonly property string rebootRecommendation: deployment.state === "awaiting-login"
-        ? "Confirm this boot after signing in. No further restart is needed."
-        : rebootRecommended ? "Restart when ready to finish this update." : ""
+        ? I18n.tr("Confirm this boot after signing in. No further restart is needed.")
+        : rebootRecommended ? I18n.tr("Restart when ready to finish this update.") : ""
     readonly property string runPhaseLabel: deployment.phase || ""
     readonly property var automatic: deployment.automatic || ({prepare: false, confirm: false})
     readonly property bool choosingAutomatic: chooser.busy

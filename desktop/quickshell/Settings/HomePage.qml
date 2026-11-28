@@ -661,7 +661,7 @@ SettingsPage {
                     hint: modelData.pageLabel + " · " + modelData.when
                     SettingsAction {
                         text: I18n.tr("Show")
-                        Accessible.name: I18n.tr("Show ") + recentRow.modelData.label
+                        Accessible.name: I18n.format("Show %1", [recentRow.modelData.label])
                         onTriggered: {
                             if (recentRow.modelData.widget !== "")
                                 Settings.openWidgetSettings(recentRow.modelData.widget);

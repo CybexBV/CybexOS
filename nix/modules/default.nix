@@ -64,7 +64,6 @@ in {
     };
     encrypted = mkOption { type = types.bool; default = false; description = "Root and all persistent personal storage use LUKS; runtime verified before automatic login"; };
     autoLogin = mkOption { type = types.bool; default = false; };
-    secureBoot = mkOption { type = types.bool; default = false; description = "Use locally enrolled Secure Boot keys; never disable firmware verification"; };
     features = {
       developer = mkOption { type = types.bool; default = true; };
       proprietary = mkOption { type = types.bool; default = true; };
@@ -241,14 +240,14 @@ in {
     # The boot menu has the installation medium's GRUB theme. Updates pin exact
     # systems through GRUB's environment block (lifecycle/cybexos/boot.py), so
     # the menu's own default and last-booted memory stay unused. Secure Boot
-    # keeps Lanzaboote's signed systemd-boot UKIs.
-    # The menu stays hidden: Esc opens it during GRUB's one-second wait, and
-    # systemd-boot shows its own when a key is held. GRUB marks each start as
+    # is not supported (docs/hardware-security.md).
+    # The menu stays hidden: Esc opens it during GRUB's one-second wait.
+    # GRUB marks each start as
     # pending; cybexos-boot-started clears the mark, and a start that never got
     # there opens the menu with a notice on the next boot (boot.py).
-    boot.loader.timeout = mkDefault (if cfg.secureBoot then 0 else 1);
+    boot.loader.timeout = mkDefault 1;
     boot.loader.grub = {
-      enable = mkDefault (!cfg.secureBoot);
+      enable = mkDefault true;
       efiSupport = true;
       device = "nodev";
       # Replaces the entry NixOS derives from device, named after its distroName.
@@ -278,12 +277,12 @@ in {
         ExecStart = "${cfg.updaterPackage}/bin/cybexos-boot-started";
       };
     };
-    boot.loader.systemd-boot.configurationLimit = mkDefault 10;
     boot.loader.efi.canTouchEfiVariables = mkDefault true;
+    # Updates select exact systems through GRUB only (boot.py); without GRUB
+    # they refuse to arm a trial boot.
     environment.etc."cybexos/boot.json".text = builtins.toJSON (
       if config.boot.loader.grub.enable
       then { loader = "grub"; menu = "${grubDirectory}/grub.cfg"; environment = "${grubDirectory}/grubenv"; }
-      else { loader = "systemd-boot"; });
-    boot.lanzaboote = mkIf cfg.secureBoot { enable = true; pkiBundle = "/var/lib/cybexos/secrets/secureboot"; };
+      else { });
   }) ];
 }

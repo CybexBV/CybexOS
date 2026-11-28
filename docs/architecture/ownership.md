@@ -17,7 +17,7 @@ ISO's `cybexos-install`. They do not provision another operating system.
 
 The machine's flake has one supported stable `nixpkgs` input. Cybex OS follows it
 and contributes configuration/assets, not a second host package universe.
-Lanzaboote is a vendor dependency following the same Nixpkgs. Personal inputs
+Cybex OS has no inputs of its own besides Nixpkgs. Personal inputs
 remain separately locked. Native camera source pins have a documented narrow
 hardware reason and a removal/requalification policy.
 

@@ -15,14 +15,16 @@ hardware support; no physical hardware was qualified during this implementation.
 | Dell XPS 2026 | Exact DMI/SKU 0DB9/0DBA (XPS 14/16) and 0E53/0E54 (XPS 13), panel EDID and sensor gates; latest Nixpkgs kernel, panel PSR/Panel Replay quirks, CVS-after-amplifier load order, haptics, speaker filter, adaptive thermald and Intel LPMd ([matched laptops](laptop-support.md)) | All four SKUs, panel variants, audio routing/limiter, repeated suspend/hotplug, fingerprints |
 | HP ZBook Ultra G1a | Exact vendor/board 8D01 match; stock amdgpu, ISP4 camera, CS35L54 audio and MT7925; PMF Smart PC off | Panels, audio, camera, s2idle resume, Wi-Fi/Bluetooth after sleep, BIOS settings |
 | XPS processed camera | Unsupported; optional user-selected pinned Intel HAL/bins/icamerasrc and PSYS companion; native ISYS/core/CVS stay upstream; private-layout guard before PSYS load | A separately reviewed stock-kernel solution, current kernel BTF/private ABI, HAL paths, v4l2 relay, actual processed frames, camera privacy and suspend/resume |
-| Secure Boot | Native Lanzaboote option and runtime signing-key path; firmware verification is never disabled | Signed installation media, safe enrollment, key backup/rotation/revocation, NVIDIA/camera module signing and physical boot qualification |
+| Secure Boot | Unsupported; the installer refuses while it is on, and firmware verification is never disabled | A signing tool, signed installation media, safe enrollment, key backup/rotation/revocation, NVIDIA/camera module signing and physical boot qualification |
 
-Secure Boot installation currently stops before erasure. It is not supported
-merely because Lanzaboote evaluates or a hardware profile matches. Existing
-firmware verification must not be disabled to get the installer to boot. Keys belong in
-`/var/lib/cybexos/secrets/secureboot` with root-only permissions, outside the
-store and source. Completing signed media, enrollment and module signing is a
-release blocker, not an optional post-release improvement.
+Secure Boot installation stops before erasure. Cybex OS carries no Secure Boot
+signing tool: Lanzaboote was removed on 2026-11-28 because nothing could use it
+yet (owner's decision). Bringing Secure Boot back means choosing and adding a
+signing tool again, and completing signed media, enrollment and module signing,
+before any machine may use it. A hardware profile match does not make it
+supported. Existing firmware verification must not be disabled to get the
+installer to boot. Signing keys would belong outside the store and source, with
+root-only permissions.
 The kernel must enforce the intended signing/lockdown policy, and installation
 media must authenticate its external compressed system payload as well as its
 boot executable. A signed UKI alone does not establish either property. No

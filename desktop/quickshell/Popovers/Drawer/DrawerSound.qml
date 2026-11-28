@@ -153,7 +153,7 @@ Column {
         value: Audio.level
         ready: Audio.ready
         showValue: true
-        accessibleName: "Output volume"
+        accessibleName: I18n.tr("Output volume")
         onMoved: v => Audio.setVolume(v)
     }
 
@@ -297,7 +297,7 @@ Column {
 
             Accessible.role: Accessible.Button
             Accessible.name: root.networkOpen
-                ? "Hide network outputs" : "Show network outputs"
+                ? I18n.tr("Hide network outputs") : I18n.tr("Show network outputs")
         }
     }
 
@@ -310,7 +310,7 @@ Column {
         SectionLabel {
             width: parent.width
             text: I18n.tr("MICROPHONE")
-            detail: Audio.sourceMuted ? "muted" : Audio.sourceVolume + ""
+            detail: Audio.sourceMuted ? I18n.tr("muted") : Audio.sourceVolume + ""
         }
 
         Rectangle {
@@ -432,7 +432,7 @@ Column {
                     anchors.verticalCenter: parent.verticalCenter
                     height: parent.height
                     value: streamRow.streamLevel
-                    accessibleName: streamName.text + " volume"
+                    accessibleName: I18n.format("%1 volume", [streamName.text])
                     onMoved: v => {
                         if (streamRow.streamAudio)
                             streamRow.streamAudio.volume = v;

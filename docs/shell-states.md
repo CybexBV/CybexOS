@@ -153,6 +153,17 @@ A status pill (dot and label) sits beside its action.
   ever keyboard focus, drawn in `accentFg` a step inside an on tile. A name
   that does not fit wraps onto a second line, and every tile in the row
   grows with it.
+  A tile shows what is in effect, not what was asked for: Night light and
+  Stay awake are on only while their process runs. While a change runs, the
+  glyph becomes the spinner (it holds still under reduced motion), and assistive
+  technology hears "Turning on…" or "Turning off…". A change that fails
+  while the drawer is open shows a red alert glyph and "Failed" in the
+  name's place for four seconds, then the actual state; pressing it again
+  retries. No outline or amber marks these states.
+- **Segmented choices:** the power profiles and the DNS providers are radio
+  groups. Tab reaches the chosen one, the arrows, Home and End move and
+  choose, and Enter or Space chooses (`DrawerFormat.segmentTarget`, as
+  `Settings/PillRow`).
 - **Update card:** shown by the updater's own rule, except that a failed
   check appears only once it is real: the updater has answered this session,
   a check ran and failed, and none is running. Before any check, or with no
