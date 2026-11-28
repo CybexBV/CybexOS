@@ -39,6 +39,9 @@ COVERS = {
     # the default apps and Hyprland's pointer handling, in a real session.
     'hyprland-pointer': ('assets/scripts/cybexos-apps', 'nix/packages/folio.nix',
                          'nix/modules/applications.nix', 'desktop/hypr/**'),
+    # Reading update history and build logs without a password: the helper
+    # and its Polkit action and rule, in a real login session.
+    'update-records': ('lifecycle/bin/cybexos-update-records', 'nix/modules/lifecycle.nix'),
 }
 
 
