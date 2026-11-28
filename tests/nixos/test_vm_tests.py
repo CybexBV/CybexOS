@@ -1,7 +1,7 @@
 """The guards around the VM tests: each has a time limit of its own, fast-test
 runs the ones a change touches (scripts/vm-test) and the full check's
 watcher stops waiting on a stuck step (scripts/watch-full-check)."""
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 import importlib.machinery
 import importlib.util
 import json
@@ -67,7 +67,7 @@ def step(name, status, started=None, completed=None):
 
 
 class WatchTests(unittest.TestCase):
-    start = datetime(2026, 11, 28, 8, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 11, 28, 8, 0, tzinfo=UTC)
 
     def usual(self):
         passing = [{'name': 'checks', 'steps': [

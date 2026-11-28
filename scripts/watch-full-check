@@ -12,7 +12,7 @@ end whatever happens; on 2026-11-28 a hung VM test kept a release check
 going two hours after the hang showed.
 """
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import json
 import subprocess
 import sys
@@ -90,7 +90,7 @@ def main():
                 return 2
             time.sleep(args.every)
             continue
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for job in jobs:
             for step in job.get('steps') or ():
                 key = (job['name'], step['name'])
