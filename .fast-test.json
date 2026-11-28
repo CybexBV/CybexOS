@@ -51,7 +51,7 @@
     },
     {
       "name": "vm-tests",
-      "about": "The NixOS VM tests a change touches: a changed test, the tests using a changed helper in nix/tests, and those scripts/vm-test ties to changed code (COVERS). They are built and run on The Beast with KVM; this step only waits for them.",
+      "about": "The NixOS VM tests a change touches: a changed test, the tests using a changed helper in nix/tests, and those scripts/vm-test ties to changed code (COVERS). They are built and run on The Beast with KVM; this step only waits for them. A change touching more than three of them leaves them to the release check.",
       "when": ["nix/tests/**", "assets/scripts/cybexos-apps", "nix/packages/folio.nix", "nix/modules/applications.nix", "desktop/hypr/**"],
       "worksOn": "beast",
       "run": "scripts/vm-test --changed {files}",

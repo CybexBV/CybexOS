@@ -12,8 +12,10 @@ five times slower, and timing-bound tests fail for that alone (2026-11-28).
 
 With --changed, the arguments are changed files and the tests to run are the
 VM tests among them, the VM tests that use a changed helper in nix/tests,
-and the tests COVERS ties to changed code. New untracked files are not part
-of the flake: `git add` them first.
+and the tests COVERS ties to changed code. A change touching more than MOST
+of them at once (an edit made to every test, say) runs none: the release's
+full check runs them all, and `scripts/vm-test NAME...` runs any of them. New
+untracked files are not part of the flake: `git add` them first.
 """
 import argparse
 import json
@@ -25,6 +27,9 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 BEAST = 'john@10.10.0.7'
 NIX = ['nix', '--extra-experimental-features', 'nix-command flakes']
+# One batch of three at a time, as the full check runs them. On 2026-11-28
+# an edit to all 15 tests spent 17 minutes building before one had started.
+MOST = 3
 
 # Code whose change runs a VM test, beside the test's own files: what the
 # test is the only check of. Patterns as in .fast-test.json, whose vm-tests
@@ -95,6 +100,10 @@ def main():
     names = changed_tests(args.names) if args.changed else args.names
     if not names:
         print('vm-test: no VM test covers these files')
+        return 0
+    if args.changed and len(names) > MOST:
+        print(f'vm-test: this change touches {len(names)} VM tests, more than {MOST}: the release check runs them. '
+              'To run some now: scripts/vm-test ' + ' '.join(names))
         return 0
     unknown = [name for name in names if not re.fullmatch(r'[\w-]+', name)]
     if unknown:

@@ -27,7 +27,8 @@
   what it would run and why.
 - fast-test's `vm-tests` step runs the NixOS VM tests a change touches: a changed test, the tests using a changed
   helper in `nix/tests`, and the tests `scripts/vm-test` ties to code (its `COVERS`; give a new VM test the code it
-  alone checks). To run one yourself: `scripts/vm-test NAME...` (flake check names, e.g. `hyprland-pointer`). It
+  alone checks). A change touching more than three at once leaves them to the release check. To run
+  one yourself: `scripts/vm-test NAME...` (flake check names, e.g. `hyprland-pointer`). It
   runs them on The Beast with KVM. Never build a `vm-test-run-…` derivation there instead: Nix's build sandbox has no
   KVM, the VM runs about five times slower, and timing-bound tests fail for that alone.
 - Every VM test sets its own `globalTimeout`: about three times its run in the full check, at least 10 minutes,

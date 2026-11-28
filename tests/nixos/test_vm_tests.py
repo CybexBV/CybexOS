@@ -3,11 +3,14 @@ runs the ones a change touches (scripts/vm-test) and the full check's
 watcher stops waiting on a stuck step (scripts/watch-full-check)."""
 from datetime import UTC, datetime, timedelta
 import importlib.machinery
+import io
 import importlib.util
 import json
 from pathlib import Path
 import re
+import sys
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -51,6 +54,23 @@ class ChangedTests(unittest.TestCase):
 
     def test_other_changes_run_none(self):
         self.assertEqual(vm_test.changed_tests(['README.md', 'nix/tests/parity.nix', 'desktop/hyprland.txt']), [])
+
+    def test_a_change_to_many_tests_leaves_them_to_the_release_check(self):
+        files = sorted(vm_test.vm_tests())
+        self.assertGreater(len(files), vm_test.MOST)
+        with mock.patch.object(sys, 'argv', ['vm-test', '--changed', *files]), \
+                mock.patch.object(vm_test, 'run') as run, \
+                mock.patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(vm_test.main(), 0)
+        run.assert_not_called()
+        self.assertIn('the release check runs them', out.getvalue())
+
+    def test_a_change_to_a_few_tests_runs_them(self):
+        files = sorted(vm_test.vm_tests())[:vm_test.MOST]
+        with mock.patch.object(sys, 'argv', ['vm-test', '--changed', *files]), \
+                mock.patch.object(vm_test, 'run', return_value=0) as run:
+            self.assertEqual(vm_test.main(), 0)
+        run.assert_called_once_with(vm_test.changed_tests(files), 3)
 
     def test_fast_test_runs_the_step_for_exactly_these_paths(self):
         steps = {step['name']: step for step in json.loads((ROOT / '.fast-test.json').read_text())['steps']}
