@@ -121,10 +121,6 @@ let
   zbookProfile = laptop { profile = "hp-zbook-ultra-g1a"; };
   # What the initrd's module and firmware tree is built from.
   stage1Nouveau = c: lib.elem "nouveau" c.system.build.modulesClosure.rootModules;
-  secureBoot = (nixpkgs.lib.nixosSystem {
-    inherit system;
-    modules = [ module ./machine.nix { cybexos.secureBoot = true; } ];
-  }).config;
   encrypted = (nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [ module ./machine.nix {
@@ -233,7 +229,7 @@ assert installed.updates == { schema = 1; channel = installed.updates.channel; }
 # All default profiles, including the live medium, must boot the same latest
 # kernel. Force the ZFS module's compatibility check, not just kernel scalars.
 assert lib.all (c: c.boot.kernelPackages.kernel == pkgs.linuxPackages_latest.kernel)
-  [ installer payload generic xps secureBoot encrypted ];
+  [ installer payload generic xps encrypted ];
 assert installer.boot.supportedFilesystems.zfs;
 assert !installer.boot.kernelPackages.zfs_2_4.meta.broken;
 assert builtins.isString installer.boot.kernelPackages.zfs_2_4.drvPath;
@@ -350,10 +346,6 @@ assert lib.hasInfix "cybexos-installer-screen-failed"
 assert installed.bootBrand.menu.timeoutStyle == "hidden" && installed.bootBrand.menu.timeout == 1;
 assert lib.hasInfix "save_env cybexos_boot" installed.bootBrand.menu.extraPerEntryConfig;
 assert installed.bootBrand.menu.started == "${installed.updater}/bin/cybexos-boot-started";
-assert secureBoot.boot.loader.timeout == 0;
-# Secure Boot keeps signed Lanzaboote UKIs and the systemd-boot selection.
-assert !secureBoot.boot.loader.grub.enable && secureBoot.boot.lanzaboote.enable;
-assert (builtins.fromJSON secureBoot.environment.etc."cybexos/boot.json".text).loader == "systemd-boot";
 assert installer.system.nixos.distroId == "nixos";
 assert live.updates.channel == (if prerelease then "beta" else "stable");
 assert channel { cybexos.release.version = "1.0.0-beta.1"; } == "beta";

@@ -1,6 +1,5 @@
 """Boot-selection command fixtures, not boot or Secure Boot qualification."""
 from datetime import datetime
-import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,14 +8,13 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'lifecycle'))
-from cybexos.boot import (Systems, confirm_start, dump_environment, entry, grub_entry, label, label_menu,
+from cybexos.boot import (Systems, confirm_start, dump_environment, grub_entry, label, label_menu,
                           load_environment, menu, trial)
 from cybexos.common import Failure
 
 OLD = '/nix/store/' + 'a' * 32 + '-nixos-system-old'
 NEW = '/nix/store/' + 'b' * 32 + '-nixos-system-new'
 RESCUE = '/nix/store/' + 'c' * 32 + '-nixos-system-rescue'
-SYSTEMD = {'loader': 'systemd-boot'}
 CLOSING = "menuentry 'Firmware settings' --class firmware {\n  fwsetup\n}\n"
 VERSIONS = {NEW: '1.0.0-beta.19', OLD: '1.0.0-beta.18', RESCUE: '1.0.0-beta.18'}
 
@@ -33,10 +31,6 @@ class FakeSystems(Systems):
 
     def created(self, generation):
         return None if int(generation) in self.missing else datetime(2026, 10, 20 + int(generation), 14, 5)
-
-
-def boot_entry(system, identifier, kind='type1'):
-    return {'id': identifier, 'type': kind, 'options': 'quiet init=' + system + '/init loglevel=4'}
 
 
 def grub_body(system):
@@ -95,60 +89,15 @@ menuentry "NixOS" --class nixos --unrestricted {
 
 
 class BootSelectionTests(unittest.TestCase):
-    def test_standard_entries_and_lanzaboote_ukis(self):
-        for kind, suffix in [('type1', 'conf'), ('type2', 'efi')]:
-            entries = [boot_entry(NEW, 'nixos-generation-2.' + suffix, kind),
-                       boot_entry(OLD, 'nixos-generation-1.' + suffix, kind)]
-            calls = []
-            def run(args, **kwargs):
-                calls.append(args)
-                return json.dumps(entries) if args[1] == 'list' else ''
-            trial([NEW, OLD], run, SYSTEMD)
-            self.assertEqual(calls[1:], [['bootctl', 'set-default', 'nixos-generation-1.' + suffix],
-                                        ['bootctl', 'set-oneshot', 'nixos-generation-2.' + suffix]])
-            calls.clear()
-            trial(['--restore', OLD], run, SYSTEMD)
-            self.assertEqual(calls[1:], [['bootctl', 'set-oneshot', ''],
-                                        ['bootctl', 'set-default', 'nixos-generation-1.' + suffix]])
-            calls.clear()
-            trial(['--commit', NEW], run, SYSTEMD)
-            self.assertEqual(calls[1:], [['bootctl', 'set-default', 'nixos-generation-2.' + suffix]])
-            calls.clear()
-            trial(['--disarm'], run, SYSTEMD)
-            self.assertEqual(calls, [['bootctl', 'set-oneshot', '']])
-
-    def test_no_substring_specialisation_or_ambiguous_init_match(self):
-        for options in ['other=' + NEW + ' init=' + OLD + '/init',
-                        'init=' + NEW + '/init-other',
-                        'init=' + NEW + '/init init=' + OLD + '/init',
-                        'init=' + NEW + '/specialisation/rescue/init']:
-            with self.subTest(options=options), self.assertRaises(Failure):
-                entry(NEW, [{'type': 'type1', 'id': 'nixos-generation-2.conf', 'options': options}])
-
-    def test_missing_candidate_changes_no_firmware_state(self):
-        calls = []
-        def run(args, **kwargs):
-            calls.append(args)
-            return json.dumps([boot_entry(OLD, 'nixos-generation-1.conf')])
-        with self.assertRaises(Failure):
-            trial([NEW, OLD], run, SYSTEMD)
-        self.assertEqual(len(calls), 1)
-
-    def test_reject_unsafe_or_exhausted_entries(self):
-        with self.assertRaises(Failure):
-            entry(NEW, [boot_entry(NEW, '*.efi', 'type2')])
-        with self.assertRaises(Failure):
-            entry(NEW, [boot_entry(NEW, 'nixos-2.efi', 'type2') | {'triesLeft': 0}])
-
     def test_unconfigured_or_malformed_requests_change_nothing(self):
-        def run(args, **kwargs):
-            raise AssertionError('No boot command may run')
-        for settings in [None, {}, {'loader': 'grub'}, {'loader': 'refind'}]:
+        # Secure Boot's systemd-boot selection is gone with Lanzaboote.
+        for settings in [None, {}, {'loader': 'grub'}, {'loader': 'refind'}, {'loader': 'systemd-boot'}]:
             with self.subTest(settings=settings), self.assertRaises(Failure):
-                trial(['--disarm'], run, settings or {})
+                trial(['--disarm'], settings or {})
+        grub = {'loader': 'grub', 'menu': '/nonexistent/grub.cfg', 'environment': '/nonexistent/grubenv'}
         for arguments in ([NEW], ['--disarm', NEW], ['--restore', '--commit'], ['--unknown', NEW], [NEW, OLD, OLD]):
             with self.subTest(arguments=arguments), self.assertRaises(Failure):
-                trial(arguments, run, SYSTEMD)
+                trial(arguments, grub)
 
 
 class GrubMenuTests(unittest.TestCase):
@@ -315,7 +264,7 @@ class GrubEnvironmentTests(unittest.TestCase):
         before = self.environment.read_bytes()
         self.assertFalse(confirm_start(self.settings))
         self.assertEqual(self.environment.read_bytes(), before)
-        for settings in [SYSTEMD, {}, {'loader': 'grub'}]:
+        for settings in [{'loader': 'systemd-boot'}, {}, {'loader': 'grub'}]:
             self.assertFalse(confirm_start(settings))
         self.environment.unlink()
         self.assertFalse(confirm_start(self.settings))

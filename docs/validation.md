@@ -74,9 +74,6 @@ tests and failures; inspect that evidence before using a particular image.
   disk installed through `installBootLoader` with an installer-sized ESP. It
   exercises the theme, quiet boot, persistent selection, a one-shot trial, its
   fallback and commit. Physical firmware remains unqualified.
-- Type 2 UKI/Lanzaboote entries for Secure Boot keep systemd-boot selection
-  support with source regression coverage. Actual UKI trial boots, signing,
-  failed-boot recovery and rollback remain unqualified.
 - No application-data migration engine ships. Reviewed transaction-root pruning
   and weekly cleanup enabled by default are implemented; real bootloader
   interruption and timer qualification remain outstanding (see the

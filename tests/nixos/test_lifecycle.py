@@ -583,6 +583,20 @@ class InputTests(unittest.TestCase):
             new['nodes']['personal']['locked']['rev']=REV_NEW
             with self.subTest(scope=scope),self.assertRaises(Failure): inputs.validate_delta(old,new,scope)
 
+    def test_a_release_may_drop_a_vendor_dependency(self):
+        # Releases after 2026-11-28 have no Lanzaboote; machines locked with it
+        # take the smaller Cybex OS graph, but only through a Cybex OS update.
+        for scope, accepted in (('cybexos', True), ('both', True), ('upstream', False), ('local', False)):
+            old=lock();new=copy.deepcopy(old)
+            del new['nodes']['lanzaboote'];del new['nodes']['cybexos']['inputs']['lanzaboote']
+            new['nodes']['cybexos']['locked']['rev']=REV_NEW
+            new['nodes']['cybexos']['original']['rev']=REV_NEW
+            with self.subTest(scope=scope):
+                if accepted:
+                    inputs.validate_delta(old,new,scope)
+                else:
+                    with self.assertRaises(Failure):inputs.validate_delta(old,new,scope)
+
     def test_duplicate_stale_upstream_and_other_branch(self):
         inputs.validate_machine(lock())
         data=lock();data['nodes']['extra']=copy.deepcopy(data['nodes']['nixpkgs'])

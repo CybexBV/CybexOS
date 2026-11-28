@@ -65,10 +65,6 @@ disk passphrase also leaves the mark, so the notice then appears once without
 anything being wrong. An unconfirmed update trial still returns to the previous
 version by itself, and Software Update explains that after sign-in.
 
-With Secure Boot, signed Lanzaboote UKIs are selected through systemd-boot's
-`bootctl` interface instead; its plain menu is hidden too and appears when a
-key is held during start.
-
 System health requires what a person needs to use and repair the computer: the
 boot target, NetworkManager, the login manager and, in an authenticated
 desktop, the idle lock. When Libreswan is enabled, its managed `ipsec.service`
