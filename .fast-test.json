@@ -1,5 +1,5 @@
 {
-  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The NixOS checks (every flake check, the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs for a release, started by hand on the release branch, and on the Nixpkgs and vendor update branches.",
+  "about": "What `fast-test` runs for a change (see ~/Code/fast-test). The tests run in fast-test's Nix container on The Beast, in the dev shell (tests/fast-test-container), and so does the flake's evaluation; only the linters' quick step runs on The Dragon. The VM tests a change touches run on The Beast with KVM (the vm-tests step, scripts/vm-test). The NixOS checks (every flake check, all the VM tests, the ISO) stay on the nixos.yml workflow on The Beast's runners: it runs for a release, started by hand on the release branch, and on the Nixpkgs and vendor update branches.",
   "steps": [
     {
       "name": "regression",
@@ -48,6 +48,14 @@
       "about": "A quick first run of the linters here, for the workflows and scripts; the regression step runs them too.",
       "when": [".github/**", "assets/**"],
       "run": "nix --extra-experimental-features 'nix-command flakes' develop --command tests/lint"
+    },
+    {
+      "name": "vm-tests",
+      "about": "The NixOS VM tests a change touches: a changed test, the tests using a changed helper in nix/tests, and those scripts/vm-test ties to changed code (COVERS). They are built and run on The Beast with KVM; this step only waits for them.",
+      "when": ["nix/tests/**", "assets/scripts/cybexos-apps", "nix/packages/folio.nix", "nix/modules/applications.nix", "desktop/hypr/**"],
+      "worksOn": "beast",
+      "run": "scripts/vm-test --changed {files}",
+      "timeout": 60
     },
     {
       "name": "flake-check",
