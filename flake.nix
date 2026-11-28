@@ -174,6 +174,8 @@
         session-restarts = import ./nix/tests/session-restarts.nix { inherit pkgs module; };
         # Settings -> Security -> Sudo without password: Polkit, the helper and real sudo.
         passwordless-sudo = import ./nix/tests/passwordless-sudo.nix { inherit pkgs module; };
+        # Update history and build logs without a password in the administrator's session.
+        update-records = import ./nix/tests/update-records.nix { inherit pkgs module; };
         dictation = import ./nix/tests/dictation.nix { inherit pkgs module; };
         installer-power = import ./nix/tests/installer-power.nix { inherit pkgs; };
         lid-guard = import ./nix/tests/lid-guard.nix { inherit pkgs; };

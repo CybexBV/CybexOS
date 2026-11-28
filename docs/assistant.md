@@ -257,6 +257,7 @@ while refusals and Undo remain in effect:
 | Reading files, searching, web search and fetch | Allowed |
 | Read-only commands (`ls`, `cat`, `rg`, `jq`, `hyprctl -j …`, `cybex update status`, `cybex plugin list`, `cybex shell status`, `systemctl --user status`, …) | Allowed |
 | The system check (`cybex doctor`, `cybex doctor --json`; see [System check](system-check.md)) | Allowed |
+| Update history and build logs (`cybex update history`, `cybex update log ID`) | Allowed, without a password in the administrator's own session ([Updates](updates.md)) |
 | Editing desktop preferences (`~/.config/cybexos/…`) and personal plugins (`~/.local/share/cybexos/plugins/…`) | Allowed; the reply offers **Undo** |
 | Staging a system change (`cybex update stage local`, `cybex software stage …`) | Allowed; administrator authentication is still requested by polkit |
 | Applying a staged change (`cybex update apply …`) | A review card with the actual package changes; **Apply…** then asks for the administrator password |

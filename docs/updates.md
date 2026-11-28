@@ -278,6 +278,14 @@ root. A polkit rule lets an active local session of a `wheel` member start
 exactly these two units without a password; every other unit start, and every
 install, rollback or policy change, still requires authorization.
 
+Reading is the same: `cybex update history` and `cybex update log ID` run a
+helper of their own, `cybexos-update-records`, which only lists deployments and
+prints one build log. Its polkit action (`org.cybexos.update-records`) asks no
+password in an active local session of a `wheel` member, so Wiz can look into
+an update problem without a prompt per command; anyone else authenticates as
+administrator. Build logs can hold private module diagnostics: they reach only
+that administrator, never world-readable status.
+
 A missing/untrusted Cybex OS channel does not prevent selecting a confirmed
 NixOS package update. Unavailable sources are explained and excluded from the
 selected scope. Flathub apps update separately, right away, from Software's

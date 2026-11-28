@@ -126,8 +126,27 @@ in {
             && subject.local && subject.active && subject.isInGroup("wheel")) {
           return polkit.Result.YES;
         }
+        // Reading update history and build logs changes nothing. Wiz runs
+        // each command on its own, so a prompt per read meant typing the
+        // password again and again; changes still ask every time.
+        if (action.id == "org.cybexos.update-records"
+            && subject.local && subject.active && subject.isInGroup("wheel")) {
+          return polkit.Result.YES;
+        }
       });
     '';
+    environment.systemPackages = [ (pkgs.writeTextDir "share/polkit-1/actions/org.cybexos.update-records.policy" ''
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+      <policyconfig>
+        <action id="org.cybexos.update-records">
+          <description>Read update history and build logs</description>
+          <message>Authenticate to read the update history and build logs</message>
+          <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+          <annotate key="org.freedesktop.policykit.exec.path">${cfg.updaterPackage}/bin/cybexos-update-records</annotate>
+        </action>
+      </policyconfig>
+    '') ];
     # Exact versions of the components a person recognises. The update review
     # compares the running and the prepared system's copies of this file.
     environment.etc."cybexos/components.json".text = builtins.toJSON {
