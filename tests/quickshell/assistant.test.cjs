@@ -373,10 +373,17 @@ test("shown and hidden, the character appears and vanishes in a puff of smoke", 
     // Nothing animates before then, so a zero width cannot start a sweep.
     for (const axis of ["x", "y"])
         assert.match(window, new RegExp("Behavior on " + axis + " \\{\\s*enabled: root\\.settled && !root\\.dragging"));
-    assert.match(window, /function enter\(\) \{\s*if \(entered \|\| !visible \|\| width <= 0 \|\| height <= 0\)\s*return;/);
-    // No flight: into his place unanimated, then the poof there. Under the
-    // welcome guide its own Wiz makes the hop, so no poof.
-    assert.match(window, /entered = true;\s*settled = true;\s*if \(!covered\)\s*character\.poofIn\(\);/);
+    assert.match(window, /function enter\(\) \{[\s\S]{0,220}if \(entered \|\| !visible \|\| width <= 0 \|\| height <= 0 \|\| !Settings\.loaded\)\s*return;/);
+    assert.match(window, /target: Settings\s*function onLoadedChanged\(\) \{\s*Qt\.callLater\(root\.enter\);\s*\}/);
+    // No flight and no slide: into his place unanimated, then the poof
+    // there, and the position animations stay off until the entrance has
+    // settled, so a surface sized again or a place read back late is a jump
+    // behind the smoke, never a glide. Under the welcome guide its own Wiz
+    // makes the hop, so no poof.
+    assert.match(window, /entered = true;\s*if \(!covered\)\s*character\.poofIn\(\);\s*settle\.restart\(\);/);
+    assert.match(window, /id: settle\s*interval: (\d+)\s*onTriggered: root\.settled = true/);
+    assert.match(window, /settle\.stop\(\);\s*settled = false;\s*entered = false;/);
+    assert.doesNotMatch(window, /^\s*settled = true;/m);
     for (const handler of ["Component.onCompleted", "onWidthChanged", "onHeightChanged"])
         assert.match(window, new RegExp(handler.replace(".", "\\.") + ": Qt\\.callLater\\(root\\.enter\\)"));
     // Hidden while he is out, he poofs away; shown again before the smoke

@@ -180,6 +180,7 @@ PanelWindow {
     onVisibleChanged: {
         if (!visible) {
             // Animation off first, so he jumps back to the corner unseen.
+            settle.stop();
             settled = false;
             entered = false;
             faded = false;
@@ -191,14 +192,33 @@ PanelWindow {
     onHeightChanged: Qt.callLater(root.enter)
 
     function enter() {
-        if (entered || !visible || width <= 0 || height <= 0)
+        // Settings.loaded: his saved place must be read back first, or he
+        // would appear at the default spot and glide to his own.
+        if (entered || !visible || width <= 0 || height <= 0 || !Settings.loaded)
             return;
         // Into his place unanimated, then the poof there. Under the welcome
         // guide its own Wiz makes the hop, so this one only takes the place.
         entered = true;
-        settled = true;
         if (!covered)
             character.poofIn();
+        settle.restart();
+    }
+
+    Connections {
+        target: Settings
+        function onLoadedChanged() {
+            Qt.callLater(root.enter);
+        }
+    }
+
+    // There is no flight and no slide: the compositor can size the surface
+    // again moments after it maps, and saved places read back late, so until
+    // the entrance has settled a moved resting place is a jump behind the
+    // smoke, never a glide across the screen.
+    Timer {
+        id: settle
+        interval: 600
+        onTriggered: root.settled = true
     }
 
     // Hidden while he is out, he vanishes in a puff of smoke; shown again
